@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3F34D5AD2ECA584A00AE6DF0 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F34D5AC2ECA584A00AE6DF0 /* Player.swift */; };
+		3F34D5B12ECA5CD900AE6DF0 /* Building.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F34D5B02ECA5CD900AE6DF0 /* Building.swift */; };
+		3F34D5B32ECABDFF00AE6DF0 /* Entity Node.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F34D5B22ECABDFF00AE6DF0 /* Entity Node.swift */; };
+		3F34D5B52ECBB6B200AE6DF0 /* Map Entity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F34D5B42ECBB6B200AE6DF0 /* Map Entity.swift */; };
+		3F34D5B72ECBB7B800AE6DF0 /* HexMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */; };
+		3F34D5B92ECC057900AE6DF0 /* HexCoordinate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */; };
+		3F8B8CB82EC7D65B000A4BFF /* Unit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8B8CB72EC7D65B000A4BFF /* Unit.swift */; };
 		3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */; };
 		3FC0F1022EC7965F007C0782 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F1012EC7965F007C0782 /* GameViewController.swift */; };
 		3FC0F1052EC7965F007C0782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3FC0F1032EC7965F007C0782 /* Main.storyboard */; };
@@ -15,9 +22,26 @@
 		3FC0F10A2EC7965F007C0782 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 3FC0F0F52EC7965C007C0782 /* GameScene.sks */; };
 		3FC0F10B2EC7965F007C0782 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F0F62EC7965C007C0782 /* GameScene.swift */; };
 		3FC0F10C2EC7965F007C0782 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FC0F0F72EC7965F007C0782 /* Assets.xcassets */; };
+		3FD1D5E42ED514BD001398FB /* MilitaryUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */; };
+		3FEBD1FD2EEF5C6400341AEE /* Commander.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD1FC2EEF5C6400341AEE /* Commander.swift */; };
+		3FEBD1FF2EF3258E00341AEE /* CommanderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */; };
+		3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2002EF360E200341AEE /* CombatRecord.swift */; };
+		3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */; };
+		3FEBD2072EF3B10200341AEE /* Diplomacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2062EF3B10200341AEE /* Diplomacy.swift */; };
+		3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2082F006EE800341AEE /* FogOfWar.swift */; };
+		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
+		3FF8CF472F03073C002FA5D7 /* CombatSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2022EF3610E00341AEE /* CombatSystem.swift */; };
+		3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF482F030F04002FA5D7 /* Resource.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3F34D5AC2ECA584A00AE6DF0 /* Player.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
+		3F34D5B02ECA5CD900AE6DF0 /* Building.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Building.swift; sourceTree = "<group>"; };
+		3F34D5B22ECABDFF00AE6DF0 /* Entity Node.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Entity Node.swift"; sourceTree = "<group>"; };
+		3F34D5B42ECBB6B200AE6DF0 /* Map Entity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Map Entity.swift"; sourceTree = "<group>"; };
+		3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexMap.swift; sourceTree = "<group>"; };
+		3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexCoordinate.swift; sourceTree = "<group>"; };
+		3F8B8CB72EC7D65B000A4BFF /* Unit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Unit.swift; sourceTree = "<group>"; };
 		3FC0F0F42EC7965C007C0782 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		3FC0F0F52EC7965C007C0782 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
 		3FC0F0F62EC7965C007C0782 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
@@ -27,6 +51,16 @@
 		3FC0F1012EC7965F007C0782 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		3FC0F1042EC7965F007C0782 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		3FC0F1072EC7965F007C0782 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilitaryUnit.swift; sourceTree = "<group>"; };
+		3FEBD1FC2EEF5C6400341AEE /* Commander.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commander.swift; sourceTree = "<group>"; };
+		3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommanderViewController.swift; sourceTree = "<group>"; };
+		3FEBD2002EF360E200341AEE /* CombatRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatRecord.swift; sourceTree = "<group>"; };
+		3FEBD2022EF3610E00341AEE /* CombatSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatSystem.swift; sourceTree = "<group>"; };
+		3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatHistoryViewController.swift; sourceTree = "<group>"; };
+		3FEBD2062EF3B10200341AEE /* Diplomacy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diplomacy.swift; sourceTree = "<group>"; };
+		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
+		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
+		3FF8CF482F030F04002FA5D7 /* Resource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Resource.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,10 +86,25 @@
 		3FC0F0F32EC7965C007C0782 /* Grow2 Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
+				3FEBD2082F006EE800341AEE /* FogOfWar.swift */,
+				3FEBD2062EF3B10200341AEE /* Diplomacy.swift */,
+				3FEBD2022EF3610E00341AEE /* CombatSystem.swift */,
+				3FEBD2002EF360E200341AEE /* CombatRecord.swift */,
+				3FEBD1FC2EEF5C6400341AEE /* Commander.swift */,
+				3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */,
+				3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */,
+				3F34D5AC2ECA584A00AE6DF0 /* Player.swift */,
 				3FC0F0F42EC7965C007C0782 /* Actions.sks */,
 				3FC0F0F52EC7965C007C0782 /* GameScene.sks */,
 				3FC0F0F62EC7965C007C0782 /* GameScene.swift */,
+				3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */,
+				3F34D5B22ECABDFF00AE6DF0 /* Entity Node.swift */,
+				3F34D5B42ECBB6B200AE6DF0 /* Map Entity.swift */,
 				3FC0F0F72EC7965F007C0782 /* Assets.xcassets */,
+				3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */,
+				3F8B8CB72EC7D65B000A4BFF /* Unit.swift */,
+				3F34D5B02ECA5CD900AE6DF0 /* Building.swift */,
 			);
 			path = "Grow2 Shared";
 			sourceTree = "<group>";
@@ -71,6 +120,8 @@
 		3FC0F0FE2EC7965F007C0782 /* Grow2 iOS */ = {
 			isa = PBXGroup;
 			children = (
+				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
+				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
 				3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */,
 				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
 				3FC0F1032EC7965F007C0782 /* Main.storyboard */,
@@ -152,9 +203,26 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FF8CF472F03073C002FA5D7 /* CombatSystem.swift in Sources */,
+				3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */,
+				3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */,
 				3FC0F10B2EC7965F007C0782 /* GameScene.swift in Sources */,
+				3F8B8CB82EC7D65B000A4BFF /* Unit.swift in Sources */,
+				3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */,
 				3FC0F1022EC7965F007C0782 /* GameViewController.swift in Sources */,
+				3FEBD2072EF3B10200341AEE /* Diplomacy.swift in Sources */,
+				3FD1D5E42ED514BD001398FB /* MilitaryUnit.swift in Sources */,
+				3FEBD1FD2EEF5C6400341AEE /* Commander.swift in Sources */,
+				3F34D5AD2ECA584A00AE6DF0 /* Player.swift in Sources */,
 				3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */,
+				3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */,
+				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
+				3F34D5B12ECA5CD900AE6DF0 /* Building.swift in Sources */,
+				3F34D5B52ECBB6B200AE6DF0 /* Map Entity.swift in Sources */,
+				3F34D5B32ECABDFF00AE6DF0 /* Entity Node.swift in Sources */,
+				3F34D5B72ECBB7B800AE6DF0 /* HexMap.swift in Sources */,
+				3F34D5B92ECC057900AE6DF0 /* HexCoordinate.swift in Sources */,
+				3FEBD1FF2EF3258E00341AEE /* CommanderViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,7 +369,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F9X9GDWLRP;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.strategy-games";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -330,7 +400,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F9X9GDWLRP;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.strategy-games";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
