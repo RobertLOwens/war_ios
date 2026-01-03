@@ -132,6 +132,29 @@ class EntityNode: SKSpriteNode {
             let moveAction = SKAction.move(to: position, duration: entityType.moveSpeed)
             moveAction.timingMode = .easeInEaseOut
             actions.append(moveAction)
+            
+            // ✅ ADD: Update coordinate and trigger vision update after each step
+            let updateCoordAction = SKAction.run { [weak self] in
+                guard let self = self else { return }
+                self.coordinate = coord
+                
+                // Update the underlying entity's coordinate
+                if let army = self.entity as? Army {
+                    army.coordinate = coord
+                } else if let villagers = self.entity as? VillagerGroup {
+                    villagers.coordinate = coord
+                }
+                
+                // ✅ NEW: Trigger fog of war update during movement
+                if let owner = self.entity.owner {
+                    // This will be called each step, allowing fog to follow the entity
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("UpdateFogOfWar"),
+                        object: owner
+                    )
+                }
+            }
+            actions.append(updateCoordAction)
         }
         
         let sequence = SKAction.sequence(actions)
@@ -141,7 +164,7 @@ class EntityNode: SKSpriteNode {
             if let lastCoord = path.last {
                 self.coordinate = lastCoord
                 
-                // ✅ FIX: Update the underlying entity's coordinate too!
+                // Final coordinate update
                 if let army = self.entity as? Army {
                     army.coordinate = lastCoord
                     print("✅ Updated Army coordinate to (\(lastCoord.q), \(lastCoord.r))")
@@ -155,6 +178,7 @@ class EntityNode: SKSpriteNode {
             completion()
         }
     }
+
     
     func updateVisibility(for player: Player) {
         if let fogOfWar = player.fogOfWar {

@@ -6,10 +6,26 @@ class GameViewController: UIViewController {
     var skView: SKView!
     var gameScene: GameScene!
     var player: Player!
-    
+    var mapSize: MapSize = .medium
+    var resourceDensity: ResourceDensity = .normal
+    var autoSaveTimer: Timer?
+    let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
+    var shouldLoadGame: Bool = false
+
+
     // UI Elements
     var resourcePanel: UIView!
     var resourceLabels: [ResourceType: UILabel] = [:]
+    var commanderButton: UIButton!
+    var combatHistoryButton: UIButton!
+    
+    override var prefersStatusBarHidden: Bool {
+        return true
+    }
+    
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        return .portrait
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,11 +37,37 @@ class GameViewController: UIViewController {
         setupScene()
         setupUI()
         setupGameCallbacks()
+        setupAutoSave()
         
-        // Initial resource display update
-        updateResourceDisplay()
+        // Check if we should load a saved game
+        if shouldLoadGame {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.loadGame()
+            }
+        } else {
+            // Initial resource display update
+            updateResourceDisplay()
+        }
+        
+        if shouldLoadGame || GameSaveManager.shared.saveExists() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.processBackgroundTime()
+            }
+        }
     }
     
+    func initializePlayers() {
+        // Create human player
+        player = Player(name: "Player 1", color: .blue)
+        
+        // Create AI opponent
+        let aiPlayer = Player(name: "AI Opponent", color: .red)
+        player.setDiplomacyStatus(with: aiPlayer, status: .enemy)
+        
+        // Store for later use in game setup
+        // We'll pass this to the scene in setupScene()
+    }
+
     func setupSKView() {
         skView = SKView(frame: view.bounds)
         skView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -40,6 +82,8 @@ class GameViewController: UIViewController {
         gameScene = GameScene(size: skView.bounds.size)
         gameScene.scaleMode = .resizeFill
         gameScene.player = player
+        gameScene.mapSize = mapSize.rawValue
+        gameScene.resourceDensity = resourceDensity.multiplier
         skView.presentScene(gameScene)
     }
     
@@ -117,6 +161,15 @@ class GameViewController: UIViewController {
                         print("🗠️ Build button tapped!")
                         self?.showBuildingMenu(at: coordinate, villagerGroup: entity)
                     })
+                    
+                    // ✅ ADD THIS: Gather action if resource exists at location
+                    if let resourcePoint = gameScene.hexMap.getResourcePoint(at: coordinate),
+                       resourcePoint.canBeGathered() {
+                        alert.addAction(UIAlertAction(title: "\(resourcePoint.resourceType.icon) Gather \(resourcePoint.resourceType.displayName)", style: .default) { [weak self] _ in
+                            self?.assignVillagersToGather(villagerGroup: villagers, resourcePoint: resourcePoint)
+                        })
+                    }
+                    
                 } else {
                     print("❌ DEBUG: Owner doesn't match player")
                 }
@@ -357,6 +410,15 @@ class GameViewController: UIViewController {
                 message += "\n\(building.buildingType.description)"
             }
             
+            if buildingAtTile == nil, let resourcePoint = gameScene.hexMap.getResourcePoint(at: coordinate) {
+                title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
+                message = resourcePoint.getDescription()
+                
+                // ✅ ADD: Show if it's being gathered
+                if resourcePoint.isBeingGathered {
+                    message += "\n\n🔨 Currently being gathered"
+                }
+            }
             
         }
         
@@ -714,6 +776,26 @@ class GameViewController: UIViewController {
         titleLabel.textColor = .white
         resourcePanel.addSubview(titleLabel)
         
+        // ✅ ADD: Commander Button (top right)
+        commanderButton = UIButton(frame: CGRect(x: view.bounds.width - 160, y: 10, width: 140, height: 35))
+        commanderButton.setTitle("👤 Commanders", for: .normal)
+        commanderButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        commanderButton.backgroundColor = UIColor(red: 0.3, green: 0.4, blue: 0.8, alpha: 1.0)
+        commanderButton.layer.cornerRadius = 8
+        commanderButton.addTarget(self, action: #selector(showCommandersScreen), for: .touchUpInside)
+        commanderButton.autoresizingMask = [.flexibleLeftMargin]
+        resourcePanel.addSubview(commanderButton)
+        
+        // ✅ ADD: Combat History Button (below commander button)
+        combatHistoryButton = UIButton(frame: CGRect(x: view.bounds.width - 160, y: 55, width: 140, height: 35))
+        combatHistoryButton.setTitle("⚔️ Battles", for: .normal)
+        combatHistoryButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        combatHistoryButton.backgroundColor = UIColor(red: 0.8, green: 0.3, blue: 0.3, alpha: 1.0)
+        combatHistoryButton.layer.cornerRadius = 8
+        combatHistoryButton.addTarget(self, action: #selector(showCombatHistoryScreen), for: .touchUpInside)
+        combatHistoryButton.autoresizingMask = [.flexibleLeftMargin]
+        resourcePanel.addSubview(combatHistoryButton)
+        
         // Resource labels (2x2 grid)
         let resourceTypes: [ResourceType] = [.wood, .food, .stone, .ore]
         let labelWidth: CGFloat = 150
@@ -752,14 +834,60 @@ class GameViewController: UIViewController {
         bottomView.addSubview(instructionLabel)
         
         view.addSubview(bottomView)
+        
+        let menuButton = UIButton(frame: CGRect(x: view.bounds.width - 120, y: 30, width: 100, height: 40))
+        menuButton.setTitle("☰ Menu", for: .normal)
+        menuButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
+        menuButton.backgroundColor = UIColor(white: 0.2, alpha: 0.9)
+        menuButton.layer.cornerRadius = 8
+        menuButton.addTarget(self, action: #selector(showGameMenu), for: .touchUpInside)
+        view.addSubview(menuButton)
     }
     
-    override var prefersStatusBarHidden: Bool {
-        return true
+    @objc func showGameMenu() {
+        let alert = UIAlertController(title: "⚙️ Game Menu", message: nil, preferredStyle: .actionSheet)
+        
+        alert.addAction(UIAlertAction(title: "💾 Save Game", style: .default) { [weak self] _ in
+            self?.manualSave()
+        })
+        
+        alert.addAction(UIAlertAction(title: "📂 Load Game", style: .default) { [weak self] _ in
+            self?.confirmLoad()
+        })
+        
+        alert.addAction(UIAlertAction(title: "🏠 Main Menu", style: .default) { [weak self] _ in
+            self?.returnToMainMenu()
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.width - 70, y: 50, width: 0, height: 0)
+            popover.permittedArrowDirections = .up
+        }
+        
+        present(alert, animated: true)
     }
-    
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-        return .portrait
+
+    func confirmLoad() {
+        let alert = UIAlertController(
+            title: "⚠️ Load Game?",
+            message: "Any unsaved progress will be lost. Continue?",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Load", style: .destructive) { [weak self] _ in
+            self?.loadGame()
+        })
+        present(alert, animated: true)
+    }
+
+    func returnToMainMenu() {
+        // Save before returning
+        autoSaveGame()
+        
+        dismiss(animated: true)
     }
     
     func showTrainingMenu(for building: BuildingNode) {
@@ -1450,7 +1578,7 @@ class GameViewController: UIViewController {
     func showVillagerSelectionForGathering(resourcePoint: ResourcePointNode) {
         
         let availableVillagers = player.getVillagerGroups().filter {
-            $0.currentTask == .idle && !$0.coordinate.distance(to: resourcePoint.coordinate) > 10
+            $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
         }
         
         guard !availableVillagers.isEmpty else {
@@ -1485,24 +1613,36 @@ class GameViewController: UIViewController {
     }
         
     func assignVillagersToGather(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
-        // Assign task
-        villagerGroup.assignTask(.gatheringResource(resourcePoint), target: resourcePoint.coordinate)
-        resourcePoint.startGathering(by: villagerGroup)
-        
-        // Find entity node and move to resource
-        if let entityNode = gameScene.hexMap.entities.first(where: {
-            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-        }) {
-            gameScene.moveEntity(entityNode, to: resourcePoint.coordinate)
-        }
-        
-        showSimpleAlert(
-            title: "✅ Gathering Started",
-            message: "\(villagerGroup.name) will gather \(resourcePoint.resourceType.displayName) (\(resourcePoint.resourceType.resourceYield.icon) +\(Int(resourcePoint.resourceType.gatherRate))/s)"
-        )
-        
-        print("✅ Assigned \(villagerGroup.name) to gather \(resourcePoint.resourceType.displayName)")
-    }
+          // Assign task
+          villagerGroup.assignTask(.gatheringResource(resourcePoint), target: resourcePoint.coordinate)
+          resourcePoint.startGathering(by: villagerGroup)
+          
+          // ✅ ADD: Increase collection rate for this resource type
+          let resourceType = resourcePoint.resourceType.resourceYield
+          let gatherRate = resourcePoint.resourceType.gatherRate
+          player.increaseCollectionRate(resourceType, amount: gatherRate)
+          
+          // Lock the entity node
+          if let entityNode = gameScene.hexMap.entities.first(where: {
+              ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+          }) {
+              entityNode.isMoving = true
+              gameScene.moveEntity(entityNode, to: resourcePoint.coordinate)
+          }
+          
+          showSimpleAlert(
+              title: "✅ Gathering Started",
+              message: "\(villagerGroup.name) will gather \(resourcePoint.resourceType.displayName) (\(resourcePoint.resourceType.resourceYield.icon) +\(Int(gatherRate))/s)"
+          )
+          
+          // ✅ ADD: Update resource display to show new rate
+          updateResourceDisplay()
+          
+          print("✅ Assigned \(villagerGroup.name) to gather \(resourcePoint.resourceType.displayName)")
+          print("📊 Updated \(resourceType.displayName) collection rate: +\(gatherRate)/s")
+      }
+
+
 
     func showArmySelectionForHunting(resourcePoint: ResourcePointNode) {
         let availableArmies = player.getArmies().filter { $0.hasMilitaryUnits() }
@@ -1574,6 +1714,212 @@ class GameViewController: UIViewController {
                 message: "The \(resourcePoint.resourceType.displayName) took \(netDamage) damage\nRemaining health: \(resourcePoint.currentHealth)/\(resourcePoint.resourceType.health)"
             )
         }
+    }
+    
+    @objc func showCommandersScreen() {
+        let commandersVC = CommandersViewController()
+        commandersVC.player = player
+        commandersVC.modalPresentationStyle = .fullScreen
+        present(commandersVC, animated: true)
+        print("👤 Opening Commanders screen")
+    }
+
+    @objc func showCombatHistoryScreen() {
+        let combatHistoryVC = CombatHistoryViewController()
+        combatHistoryVC.modalPresentationStyle = .fullScreen
+        present(combatHistoryVC, animated: true)
+        print("⚔️ Opening Combat History screen")
+    }
+    
+    func setupAutoSave() {
+        // Start auto-save timer
+        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: autoSaveInterval, repeats: true) { [weak self] _ in
+            self?.autoSaveGame()
+        }
+        print("⏰ Auto-save enabled (every \(Int(autoSaveInterval))s)")
+    }
+
+    func autoSaveGame() {
+        guard let player = player,
+              let hexMap = gameScene.hexMap,
+              !gameScene.allGamePlayers.isEmpty else {
+            print("⚠️ Cannot auto-save - game not ready")
+            return
+        }
+        
+        let success = GameSaveManager.shared.saveGame(
+            hexMap: hexMap,
+            player: player,
+            allPlayers: gameScene.allGamePlayers
+        )
+        
+        if success {
+            print("✅ Auto-save complete")
+        } else {
+            print("❌ Auto-save failed")
+        }
+    }
+
+    func manualSave() {
+        guard let player = player,
+              let hexMap = gameScene.hexMap,
+              !gameScene.allGamePlayers.isEmpty else {
+            showSimpleAlert(title: "Cannot Save", message: "Game is not ready to be saved.")
+            return
+        }
+        
+        let success = GameSaveManager.shared.saveGame(
+            hexMap: hexMap,
+            player: player,
+            allPlayers: gameScene.allGamePlayers
+        )
+        
+        if success {
+            showSimpleAlert(title: "✅ Game Saved", message: "Your progress has been saved successfully.")
+        } else {
+            showSimpleAlert(title: "❌ Save Failed", message: "Could not save the game. Please try again.")
+        }
+    }
+
+    func loadGame() {
+        guard let loadedData = GameSaveManager.shared.loadGame() else {
+            showSimpleAlert(title: "❌ Load Failed", message: "Could not load the saved game.")
+            return
+        }
+        
+        // Update references
+        player = loadedData.player
+        gameScene.player = loadedData.player
+        gameScene.hexMap = loadedData.hexMap
+        gameScene.allGamePlayers = loadedData.allPlayers
+        
+        // Rebuild the scene with loaded data
+        rebuildSceneWithLoadedData(hexMap: loadedData.hexMap, player: loadedData.player, allPlayers: loadedData.allPlayers)
+        
+        print("✅ Game loaded successfully")
+        showSimpleAlert(title: "✅ Game Loaded", message: "Your saved game has been restored.")
+    }
+
+    func rebuildSceneWithLoadedData(hexMap: HexMap, player: Player, allPlayers: [Player]) {
+        // Clear existing scene
+        gameScene.mapNode.removeAllChildren()
+        gameScene.buildingsNode.removeAllChildren()
+        gameScene.entitiesNode.removeAllChildren()
+        
+        // Rebuild map tiles
+        for (coord, tile) in hexMap.tiles {
+            let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
+            tile.position = position
+            gameScene.mapNode.addChild(tile)
+        }
+        
+        // Rebuild resource points
+        if let resourcesNode = gameScene.childNode(withName: "resourcesNode") {
+            resourcesNode.removeAllChildren()
+            for resource in hexMap.resourcePoints {
+                let position = HexMap.hexToPixel(q: resource.coordinate.q, r: resource.coordinate.r)
+                resource.position = position
+                resourcesNode.addChild(resource)
+            }
+        }
+        
+        // Rebuild buildings
+        for building in hexMap.buildings {
+            let position = HexMap.hexToPixel(q: building.coordinate.q, r: building.coordinate.r)
+            building.position = position
+            gameScene.buildingsNode.addChild(building)
+            
+            // Re-apply texture and UI
+            building.setupUI()
+            building.updateAppearance()
+        }
+        
+        // Rebuild entities
+        for playerData in allPlayers {
+            for entity in playerData.entities {
+                let coord: HexCoordinate
+                let entityType: EntityType
+                
+                if let army = entity as? Army {
+                    coord = army.coordinate
+                    entityType = .army
+                } else if let villagers = entity as? VillagerGroup {
+                    coord = villagers.coordinate
+                    entityType = .villagerGroup
+                } else {
+                    continue
+                }
+                
+                let entityNode = EntityNode(
+                    coordinate: coord,
+                    entityType: entityType,
+                    entity: entity,
+                    currentPlayer: player
+                )
+                
+                let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
+                entityNode.position = position
+                gameScene.entitiesNode.addChild(entityNode)
+                hexMap.addEntity(entityNode)
+            }
+        }
+        
+        // Setup fog of war
+        hexMap.setupFogOverlays(in: gameScene)
+        player.updateVision(allPlayers: allPlayers)
+        hexMap.updateFogOverlays(for: player)
+        
+        // Update resource display
+        updateResourceDisplay()
+        
+        print("🔄 Scene rebuilt with loaded data")
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        
+        // Stop auto-save timer
+        autoSaveTimer?.invalidate()
+        autoSaveTimer = nil
+        
+        // Final save before leaving
+        autoSaveGame()
+        
+        // Save background time
+        BackgroundTimeManager.shared.saveExitTime()
+    }
+    
+    func processBackgroundTime() {
+        guard let player = player,
+              let hexMap = gameScene.hexMap,
+              !gameScene.allGamePlayers.isEmpty else {
+            return
+        }
+        
+        // Get summary before processing
+        if let summary = BackgroundTimeManager.shared.getBackgroundSummary(
+            player: player,
+            hexMap: hexMap
+        ) {
+            // Show summary in alert
+            let alert = UIAlertController(
+                title: "Welcome Back!",
+                message: summary,
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
+        
+        // Process the background time
+        BackgroundTimeManager.shared.processBackgroundTime(
+            player: player,
+            hexMap: hexMap,
+            allPlayers: gameScene.allGamePlayers
+        )
+        
+        // Update displays
+        updateResourceDisplay()
     }
     
 }

@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: HexMap.swift
+// ============================================================================
+
 import UIKit
 import SpriteKit
 
@@ -8,6 +12,8 @@ enum TerrainType {
     case water
     case mountain
     case desert
+    case forest      // ✅ NEW
+    case hill        // ✅ NEW
     
     var color: UIColor {
         switch self {
@@ -15,12 +21,14 @@ enum TerrainType {
         case .water: return UIColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1.0)
         case .mountain: return UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
         case .desert: return UIColor(red: 0.9, green: 0.8, blue: 0.4, alpha: 1.0)
+        case .forest: return UIColor(red: 0.15, green: 0.5, blue: 0.15, alpha: 1.0)  // ✅ NEW
+        case .hill: return UIColor(red: 0.6, green: 0.5, blue: 0.4, alpha: 1.0)     // ✅ NEW
         }
     }
     
     var isWalkable: Bool {
         switch self {
-        case .grass, .desert: return true
+        case .grass, .desert, .forest, .hill: return true  // ✅ UPDATED
         case .water, .mountain: return false
         }
     }
@@ -91,6 +99,7 @@ class HexMap {
     var units: [UnitNode] = []
     var buildings: [BuildingNode] = []
     var entities: [EntityNode] = []
+    var resourcePoints: [ResourcePointNode] = []  // ✅ NEW
     let width: Int
     let height: Int
     var fogOverlays: [HexCoordinate: FogOverlayNode] = [:]
@@ -115,6 +124,98 @@ class HexMap {
             let visibility = player.getVisibilityLevel(at: coord)
             overlay.setVisibility(visibility)
         }
+    }
+    
+    // ✅ NEW METHOD: Generate varied terrain with natural distribution
+    func generateVariedTerrain() {
+        tiles.removeAll()
+        
+        for r in 0..<height {
+            for q in 0..<width {
+                let coord = HexCoordinate(q: q, r: r)
+                
+                // Generate terrain with weighted randomness for natural distribution
+                let rand = Double.random(in: 0...1)
+                let terrain: TerrainType
+                
+                if rand < 0.60 {
+                    terrain = .grass       // 60% grass (most common)
+                } else if rand < 0.70 {
+                    terrain = .forest      // 10% forest
+                } else if rand < 0.80 {
+                    terrain = .hill        // 10% hill
+                } else if rand < 0.90 {
+                    terrain = .desert      // 10% desert
+                } else if rand < 0.95 {
+                    terrain = .mountain    // 5% mountain
+                } else {
+                    terrain = .water       // 5% water
+                }
+                
+                let tile = HexTileNode(coordinate: coord, terrain: terrain)
+                tiles[coord] = tile
+            }
+        }
+    }
+    
+    // ✅ NEW METHOD: Spawn resources based on terrain type
+    func spawnResources(scene: SKNode) {
+        resourcePoints.removeAll()
+        
+        for (coord, tile) in tiles {
+            // Skip if tile already has building or entity
+            if getBuilding(at: coord) != nil { continue }
+            if getEntity(at: coord) != nil { continue }
+            
+            let rand = Double.random(in: 0...1)
+            var resourceType: ResourcePointType? = nil
+            
+            // Terrain-specific resource spawning
+            switch tile.terrain {
+            case .forest:
+                if rand < 0.4 {
+                    resourceType = .trees
+                } else if rand < 0.5 {
+                    resourceType = .forage
+                }
+                
+            case .mountain:
+                if rand < 0.3 {
+                    resourceType = .oreMine
+                } else if rand < 0.4 {
+                    resourceType = .stoneQuarry
+                }
+                
+            case .grass:
+                if rand < 0.05 {
+                    resourceType = .deer
+                } else if rand < 0.07 {
+                    resourceType = .wildBoar
+                } else if rand < 0.15 {
+                    resourceType = .trees
+                }
+                
+            case .hill:
+                if rand < 0.2 {
+                    resourceType = .stoneQuarry
+                } else if rand < 0.25 {
+                    resourceType = .deer
+                }
+                
+            default:
+                break
+            }
+            
+            if let resourceType = resourceType {
+                let resourceNode = ResourcePointNode(coordinate: coord, resourceType: resourceType)
+                let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
+                resourceNode.position = position
+                resourcePoints.append(resourceNode)
+                scene.addChild(resourceNode)
+            }
+        }
+        
+        print("✅ Spawned \(resourcePoints.count) resource points")
     }
     
     func generateMap(terrain: TerrainType = .grass) {
@@ -155,9 +256,20 @@ class HexMap {
         return entities.first { $0.coordinate == coordinate }
     }
     
+    // ✅ NEW METHOD
+    func getResourcePoint(at coordinate: HexCoordinate) -> ResourcePointNode? {
+        return resourcePoints.first { $0.coordinate == coordinate }
+    }
+    
+    // ✅ NEW METHOD
+    func removeResourcePoint(_ resource: ResourcePointNode) {
+        resourcePoints.removeAll { $0 === resource }
+    }
+    
     func canPlaceBuilding(at coordinate: HexCoordinate) -> Bool {
         guard isValidCoordinate(coordinate) && isWalkable(coordinate) else { return false }
         guard getBuilding(at: coordinate) == nil else { return false }
+        guard getResourcePoint(at: coordinate) == nil else { return false }  // ✅ NEW
         return true
     }
     
@@ -297,4 +409,67 @@ class HexMap {
         
         return HexCoordinate(q: q, r: r)
     }
+    
+    func spawnResourcesWithDensity(scene: SKNode, densityMultiplier: Double) {
+        resourcePoints.removeAll()
+        
+        for (coord, tile) in tiles {
+            // Skip if tile already has building or entity
+            if getBuilding(at: coord) != nil { continue }
+            if getEntity(at: coord) != nil { continue }
+            
+            let rand = Double.random(in: 0...1)
+            var resourceType: ResourcePointType? = nil
+            
+            // Apply density multiplier to spawn chances
+            let densityAdjustedRand = rand / densityMultiplier
+            
+            // Terrain-specific resource spawning
+            switch tile.terrain {
+            case .forest:
+                if densityAdjustedRand < 0.4 {
+                    resourceType = .trees
+                } else if densityAdjustedRand < 0.5 {
+                    resourceType = .forage
+                }
+                
+            case .mountain:
+                if densityAdjustedRand < 0.3 {
+                    resourceType = .oreMine
+                } else if densityAdjustedRand < 0.4 {
+                    resourceType = .stoneQuarry
+                }
+                
+            case .grass:
+                if densityAdjustedRand < 0.05 {
+                    resourceType = .deer
+                } else if densityAdjustedRand < 0.07 {
+                    resourceType = .wildBoar
+                } else if densityAdjustedRand < 0.15 {
+                    resourceType = .trees
+                }
+                
+            case .hill:
+                if densityAdjustedRand < 0.2 {
+                    resourceType = .stoneQuarry
+                } else if densityAdjustedRand < 0.25 {
+                    resourceType = .deer
+                }
+                
+            default:
+                break
+            }
+            
+            if let resourceType = resourceType {
+                let resourceNode = ResourcePointNode(coordinate: coord, resourceType: resourceType)
+                let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
+                resourceNode.position = position
+                resourcePoints.append(resourceNode)
+                scene.addChild(resourceNode)
+            }
+        }
+        
+        print("✅ Spawned \(resourcePoints.count) resource points (density: \(densityMultiplier)x)")
+    }
+    
 }

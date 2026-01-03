@@ -4,6 +4,7 @@ import SpriteKit
 // MARK: - Game Scene
 
 class GameScene: SKScene {
+    
     var hexMap: HexMap!
     var mapNode: SKNode!
     var unitsNode: SKNode!
@@ -22,6 +23,8 @@ class GameScene: SKScene {
     var lastTouchPosition: CGPoint?
     var isPanning = false
     var allGamePlayers: [Player] = []
+    var mapSize: Int = 20
+    var resourceDensity: Double = 1.0
     
     var lastUpdateTime: TimeInterval?
     
@@ -37,6 +40,17 @@ class GameScene: SKScene {
         setupMap()
         spawnTestEntities()
         
+        // ✅ ADD: Listen for fog of war updates during entity movement
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFogOfWarUpdate(_:)),
+            name: NSNotification.Name("UpdateFogOfWar"),
+            object: nil
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
     
     func setupScene() {
@@ -50,7 +64,7 @@ class GameScene: SKScene {
         addChild(cameraNode)
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
     }
-    
+
     func setupMap() {
         mapNode?.removeFromParent()
         unitsNode?.removeFromParent()
@@ -61,7 +75,7 @@ class GameScene: SKScene {
         mapNode.name = "mapNode"
         addChild(mapNode)
         
-        // ✅ NEW: Resources layer (between map and buildings)
+        // Resources layer (between map and buildings)
         let resourcesNode = SKNode()
         resourcesNode.name = "resourcesNode"
         addChild(resourcesNode)
@@ -78,8 +92,8 @@ class GameScene: SKScene {
         unitsNode.name = "unitsNode"
         addChild(unitsNode)
         
-        hexMap = HexMap(width: 20, height: 20)
-        // ✅ CHANGED: Use varied terrain instead of uniform grass
+        // Create map with configured size
+        hexMap = HexMap(width: mapSize, height: mapSize)
         hexMap.generateVariedTerrain()
         
         for (coord, tile) in hexMap.tiles {
@@ -88,8 +102,8 @@ class GameScene: SKScene {
             mapNode.addChild(tile)
         }
         
-        // ✅ NEW: Spawn resources
-        hexMap.spawnResources(scene: resourcesNode)
+        // Spawn resources with density multiplier
+        hexMap.spawnResourcesWithDensity(scene: resourcesNode, densityMultiplier: resourceDensity)
         
         let mapCenter = HexMap.hexToPixel(q: hexMap.width / 2, r: hexMap.height / 2)
         cameraNode.position = mapCenter
@@ -98,173 +112,93 @@ class GameScene: SKScene {
     func spawnTestEntities() {
         guard let player = player else { return }
         
-        // Create villager group - OWNED BY PLAYER
-        let villagerGroup = VillagerGroup(
-            name: "Villager Group 1",
-            coordinate: HexCoordinate(q: 10, r: 10),
+        // Calculate spawn positions (opposite corners)
+        let playerSpawn = HexCoordinate(q: 3, r: 3)
+        let aiSpawn = HexCoordinate(q: mapSize - 4, r: mapSize - 4)
+        
+        // ===== PLAYER SETUP =====
+        
+        // Player City Center
+        let playerCityCenter = BuildingNode(coordinate: playerSpawn, buildingType: .cityCenter, owner: player)
+        playerCityCenter.state = .completed
+        let playerCityPos = HexMap.hexToPixel(q: playerSpawn.q, r: playerSpawn.r)
+        playerCityCenter.position = playerCityPos
+        hexMap.addBuilding(playerCityCenter)
+        buildingsNode.addChild(playerCityCenter)
+        player.addBuilding(playerCityCenter)
+        
+        // Player Villagers (adjacent to city center)
+        let playerVillagerSpawn = HexCoordinate(q: playerSpawn.q + 1, r: playerSpawn.r)
+        let playerVillagers = VillagerGroup(
+            name: "Starter Villagers",
+            coordinate: playerVillagerSpawn,
             villagerCount: 5,
             owner: player
         )
         
-        // ✅ Pass the VillagerGroup directly as the entity
-        let villagerNode = EntityNode(
-            coordinate: HexCoordinate(q: 10, r: 10),
+        let playerVillagerNode = EntityNode(
+            coordinate: playerVillagerSpawn,
             entityType: .villagerGroup,
-            entity: villagerGroup,  // ✅ Direct reference
+            entity: playerVillagers,
             currentPlayer: player
         )
-        let position = HexMap.hexToPixel(q: 10, r: 10)
-        villagerNode.position = position
+        let playerVillagerPos = HexMap.hexToPixel(q: playerVillagerSpawn.q, r: playerVillagerSpawn.r)
+        playerVillagerNode.position = playerVillagerPos
         
-        hexMap.addEntity(villagerNode)
-        entitiesNode.addChild(villagerNode)
-        player.addEntity(villagerGroup)
+        hexMap.addEntity(playerVillagerNode)
+        entitiesNode.addChild(playerVillagerNode)
+        player.addEntity(playerVillagers)
         
-        // Create starter army - OWNED BY PLAYER
-        let starterArmy = Army(
-            name: "1st Army",
-            coordinate: HexCoordinate(q: 8, r: 8),
-            commander: Commander(name: "Rob", specialty: .infantry),
-            owner: player
+        // ===== AI OPPONENT SETUP =====
+        
+        let aiPlayer = Player(name: "AI Opponent", color: .red)
+        player.setDiplomacyStatus(with: aiPlayer, status: .enemy)
+        
+        // AI City Center
+        let aiCityCenter = BuildingNode(coordinate: aiSpawn, buildingType: .cityCenter, owner: aiPlayer)
+        aiCityCenter.state = .completed
+        let aiCityPos = HexMap.hexToPixel(q: aiSpawn.q, r: aiSpawn.r)
+        aiCityCenter.position = aiCityPos
+        hexMap.addBuilding(aiCityCenter)
+        buildingsNode.addChild(aiCityCenter)
+        aiPlayer.addBuilding(aiCityCenter)
+        
+        // AI Villagers (adjacent to city center)
+        let aiVillagerSpawn = HexCoordinate(q: aiSpawn.q - 1, r: aiSpawn.r)
+        let aiVillagers = VillagerGroup(
+            name: "AI Villagers",
+            coordinate: aiVillagerSpawn,
+            villagerCount: 5,
+            owner: aiPlayer
         )
         
-        starterArmy.addMilitaryUnits(.swordsman, count: 10)
-        starterArmy.addMilitaryUnits(.archer, count: 5)
-        
-        // ✅ Pass the Army directly as the entity
-        let armyNode = EntityNode(
-            coordinate: HexCoordinate(q: 8, r: 8),
-            entityType: .army,
-            entity: starterArmy,  // ✅ Direct reference
+        let aiVillagerNode = EntityNode(
+            coordinate: aiVillagerSpawn,
+            entityType: .villagerGroup,
+            entity: aiVillagers,
             currentPlayer: player
         )
-        let armyPosition = HexMap.hexToPixel(q: 8, r: 8)
-        armyNode.position = armyPosition
+        let aiVillagerPos = HexMap.hexToPixel(q: aiVillagerSpawn.q, r: aiVillagerSpawn.r)
+        aiVillagerNode.position = aiVillagerPos
         
-        hexMap.addEntity(armyNode)
-        entitiesNode.addChild(armyNode)
-        player.addEntity(starterArmy)
-        player.addArmy(starterArmy)
+        hexMap.addEntity(aiVillagerNode)
+        entitiesNode.addChild(aiVillagerNode)
+        aiPlayer.addEntity(aiVillagers)
         
-        // 🔴 CREATE ENEMY PLAYER AND ARMY
-        let enemyPlayer = Player(name: "Enemy AI", color: .red)
-        player.setDiplomacyStatus(with: enemyPlayer, status: .enemy)
+        // Store enemy player reference
+        self.enemyPlayer = aiPlayer
         
-        let enemyArmy = Army(
-            name: "Enemy Raiders",
-            coordinate: HexCoordinate(q: 15, r: 15),
-            commander: Commander(name: "Blackfang", specialty: .cavalry),
-            owner: enemyPlayer
-        )
+        // Store all players
+        self.allGamePlayers = [player, aiPlayer]
         
-        enemyArmy.addMilitaryUnits(.swordsman, count: 8)
-        enemyArmy.addMilitaryUnits(.knight, count: 3)
+        // Initialize fog of war for both players
+        player.initializeFogOfWar(hexMap: hexMap)
+        aiPlayer.initializeFogOfWar(hexMap: hexMap)
         
-        let enemyArmyNode = EntityNode(
-            coordinate: HexCoordinate(q: 15, r: 15),
-            entityType: .army,
-            entity: enemyArmy,  // ✅ Direct reference
-            currentPlayer: player
-        )
-        let enemyPosition = HexMap.hexToPixel(q: 15, r: 15)
-        enemyArmyNode.position = enemyPosition
+        // Setup fog overlays (only for player's view)
+        hexMap.setupFogOverlays(in: self)
         
-        hexMap.addEntity(enemyArmyNode)
-        entitiesNode.addChild(enemyArmyNode)
-        enemyPlayer.addEntity(enemyArmy)
-        enemyPlayer.addArmy(enemyArmy)
-        
-        // 🟣 CREATE GUILD PLAYER AND ARMY
-        let guildPlayer = Player(name: "Guild Ally", color: .purple)
-        player.setDiplomacyStatus(with: guildPlayer, status: .guild)
-        
-        let guildArmy = Army(
-            name: "Guild Defenders",
-            coordinate: HexCoordinate(q: 5, r: 15),
-            commander: Commander(name: "Guildmaster Thorne", specialty: .defensive),
-            owner: guildPlayer
-        )
-        guildArmy.addMilitaryUnits(.swordsman, count: 12)
-        guildArmy.addMilitaryUnits(.pikeman, count: 6)
-        
-        let guildArmyNode = EntityNode(
-            coordinate: HexCoordinate(q: 5, r: 15),
-            entityType: .army,
-            entity: guildArmy,  // ✅ Direct reference
-            currentPlayer: player
-        )
-        guildArmyNode.position = HexMap.hexToPixel(q: 5, r: 15)
-        
-        hexMap.addEntity(guildArmyNode)
-        entitiesNode.addChild(guildArmyNode)
-        guildPlayer.addEntity(guildArmy)
-        guildPlayer.addArmy(guildArmy)
-        
-        // 🟢 CREATE ALLY PLAYER AND ARMY
-        let allyPlayer = Player(name: "Allied Forces", color: .green)
-        player.setDiplomacyStatus(with: allyPlayer, status: .ally)
-        
-        let allyArmy = Army(
-            name: "Allied Knights",
-            coordinate: HexCoordinate(q: 15, r: 5),
-            commander: Commander(name: "Sir Galahad", specialty: .cavalry),
-            owner: allyPlayer
-        )
-        allyArmy.addMilitaryUnits(.knight, count: 8)
-        allyArmy.addMilitaryUnits(.archer, count: 4)
-        
-        let allyArmyNode = EntityNode(
-            coordinate: HexCoordinate(q: 15, r: 5),
-            entityType: .army,
-            entity: allyArmy,  // ✅ Direct reference
-            currentPlayer: player
-        )
-        allyArmyNode.position = HexMap.hexToPixel(q: 15, r: 5)
-        
-        hexMap.addEntity(allyArmyNode)
-        entitiesNode.addChild(allyArmyNode)
-        allyPlayer.addEntity(allyArmy)
-        allyPlayer.addArmy(allyArmy)
-        
-        // 🟠 CREATE NEUTRAL PLAYER AND ARMY
-        let neutralPlayer = Player(name: "Neutral Traders", color: .orange)
-        player.setDiplomacyStatus(with: neutralPlayer, status: .neutral)
-        
-        let neutralArmy = Army(
-            name: "Merchant Caravan",
-            coordinate: HexCoordinate(q: 5, r: 5),
-            commander: Commander(name: "Merchant Prince", specialty: .logistics),
-            owner: neutralPlayer
-        )
-        neutralArmy.addMilitaryUnits(.swordsman, count: 5)
-        
-        let neutralArmyNode = EntityNode(
-            coordinate: HexCoordinate(q: 5, r: 5),
-            entityType: .army,
-            entity: neutralArmy,  // ✅ Direct reference
-            currentPlayer: player
-        )
-        neutralArmyNode.position = HexMap.hexToPixel(q: 5, r: 5)
-        
-        hexMap.addEntity(neutralArmyNode)
-        entitiesNode.addChild(neutralArmyNode)
-        neutralPlayer.addEntity(neutralArmy)
-        neutralPlayer.addArmy(neutralArmy)
-        
-        print("✅ Spawned all test entities with diplomacy:")
-        print("  🔵 Player Army at (8, 8)")
-        print("  🔵 Player Villagers at (10, 10)")
-        print("  🔴 Enemy Army at (15, 15)")
-        print("  🟣 Guild Army at (5, 15)")
-        print("  🟢 Ally Army at (15, 5)")
-        print("  🟠 Neutral Army at (5, 5)")
-        
-        self.enemyPlayer = enemyPlayer
-        
-        // ✅ UPDATED: Store all players
-        self.allGamePlayers = [player, enemyPlayer, guildPlayer, allyPlayer, neutralPlayer]
-        
-        // ✅ Force initial fog of war update with all players
+        // Force initial fog of war update
         player.updateVision(allPlayers: allGamePlayers)
         hexMap.updateFogOverlays(for: player)
         
@@ -273,9 +207,218 @@ class GameScene: SKScene {
             entity.updateVisibility(for: player)
         }
         
-        print("👁️ Initial fog of war updated with shared vision")
+        // Update building visibility
+        for building in hexMap.buildings {
+            let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
+            building.updateVisibility(displayMode: displayMode)
+        }
         
+        print("✅ Game started!")
+        print("  🔵 Player at (\(playerSpawn.q), \(playerSpawn.r))")
+        print("  🔴 AI Opponent at (\(aiSpawn.q), \(aiSpawn.r))")
+        print("  🗺️ Map Size: \(mapSize)x\(mapSize)")
+        print("  💎 Resource Density: \(resourceDensity)x")
     }
+
+
+    
+//    func spawnTestEntities() {
+//        guard let player = player else { return }
+//        
+//        // Create villager group - OWNED BY PLAYER
+//        let villagerGroup = VillagerGroup(
+//            name: "Villager Group 1",
+//            coordinate: HexCoordinate(q: 10, r: 10),
+//            villagerCount: 5,
+//            owner: player
+//        )
+//        
+//        // ✅ Pass the VillagerGroup directly as the entity
+//        let villagerNode = EntityNode(
+//            coordinate: HexCoordinate(q: 10, r: 10),
+//            entityType: .villagerGroup,
+//            entity: villagerGroup,  // ✅ Direct reference
+//            currentPlayer: player
+//        )
+//        let position = HexMap.hexToPixel(q: 10, r: 10)
+//        villagerNode.position = position
+//        
+//        hexMap.addEntity(villagerNode)
+//        entitiesNode.addChild(villagerNode)
+//        player.addEntity(villagerGroup)
+//        
+//        // Create starter army - OWNED BY PLAYER
+//        let starterArmy = Army(
+//            name: "1st Army",
+//            coordinate: HexCoordinate(q: 8, r: 8),
+//            commander: Commander(name: "Rob", specialty: .infantry),
+//            owner: player
+//        )
+//        
+//        starterArmy.addMilitaryUnits(.swordsman, count: 10)
+//        starterArmy.addMilitaryUnits(.archer, count: 5)
+//        
+//        // ✅ Pass the Army directly as the entity
+//        let armyNode = EntityNode(
+//            coordinate: HexCoordinate(q: 8, r: 8),
+//            entityType: .army,
+//            entity: starterArmy,  // ✅ Direct reference
+//            currentPlayer: player
+//        )
+//        let armyPosition = HexMap.hexToPixel(q: 8, r: 8)
+//        armyNode.position = armyPosition
+//        
+//        hexMap.addEntity(armyNode)
+//        entitiesNode.addChild(armyNode)
+//        player.addEntity(starterArmy)
+//        player.addArmy(starterArmy)
+//        
+//        // 🔴 CREATE ENEMY PLAYER AND ARMY
+//        let enemyPlayer = Player(name: "Enemy AI", color: .red)
+//        player.setDiplomacyStatus(with: enemyPlayer, status: .enemy)
+//        
+//        let enemyArmy = Army(
+//            name: "Enemy Raiders",
+//            coordinate: HexCoordinate(q: 15, r: 15),
+//            commander: Commander(name: "Blackfang", specialty: .cavalry),
+//            owner: enemyPlayer
+//        )
+//        
+//        enemyArmy.addMilitaryUnits(.swordsman, count: 8)
+//        enemyArmy.addMilitaryUnits(.knight, count: 3)
+//        
+//        let enemyArmyNode = EntityNode(
+//            coordinate: HexCoordinate(q: 15, r: 15),
+//            entityType: .army,
+//            entity: enemyArmy,  // ✅ Direct reference
+//            currentPlayer: player
+//        )
+//        let enemyPosition = HexMap.hexToPixel(q: 15, r: 15)
+//        enemyArmyNode.position = enemyPosition
+//        
+//        hexMap.addEntity(enemyArmyNode)
+//        entitiesNode.addChild(enemyArmyNode)
+//        enemyPlayer.addEntity(enemyArmy)
+//        enemyPlayer.addArmy(enemyArmy)
+//        
+//        // 🟣 CREATE GUILD PLAYER AND ARMY
+//        let guildPlayer = Player(name: "Guild Ally", color: .purple)
+//        player.setDiplomacyStatus(with: guildPlayer, status: .guild)
+//        
+//        let guildArmy = Army(
+//            name: "Guild Defenders",
+//            coordinate: HexCoordinate(q: 5, r: 15),
+//            commander: Commander(name: "Guildmaster Thorne", specialty: .defensive),
+//            owner: guildPlayer
+//        )
+//        guildArmy.addMilitaryUnits(.swordsman, count: 12)
+//        guildArmy.addMilitaryUnits(.pikeman, count: 6)
+//        
+//        let guildArmyNode = EntityNode(
+//            coordinate: HexCoordinate(q: 5, r: 15),
+//            entityType: .army,
+//            entity: guildArmy,  // ✅ Direct reference
+//            currentPlayer: player
+//        )
+//        guildArmyNode.position = HexMap.hexToPixel(q: 5, r: 15)
+//        
+//        hexMap.addEntity(guildArmyNode)
+//        entitiesNode.addChild(guildArmyNode)
+//        guildPlayer.addEntity(guildArmy)
+//        guildPlayer.addArmy(guildArmy)
+//        
+//        // 🟢 CREATE ALLY PLAYER AND ARMY
+//        let allyPlayer = Player(name: "Allied Forces", color: .green)
+//        player.setDiplomacyStatus(with: allyPlayer, status: .ally)
+//        
+//        let allyArmy = Army(
+//            name: "Allied Knights",
+//            coordinate: HexCoordinate(q: 15, r: 5),
+//            commander: Commander(name: "Sir Galahad", specialty: .cavalry),
+//            owner: allyPlayer
+//        )
+//        allyArmy.addMilitaryUnits(.knight, count: 8)
+//        allyArmy.addMilitaryUnits(.archer, count: 4)
+//        
+//        let allyArmyNode = EntityNode(
+//            coordinate: HexCoordinate(q: 15, r: 5),
+//            entityType: .army,
+//            entity: allyArmy,  // ✅ Direct reference
+//            currentPlayer: player
+//        )
+//        allyArmyNode.position = HexMap.hexToPixel(q: 15, r: 5)
+//        
+//        hexMap.addEntity(allyArmyNode)
+//        entitiesNode.addChild(allyArmyNode)
+//        allyPlayer.addEntity(allyArmy)
+//        allyPlayer.addArmy(allyArmy)
+//        
+//        // 🟠 CREATE NEUTRAL PLAYER AND ARMY
+//        let neutralPlayer = Player(name: "Neutral Traders", color: .orange)
+//        player.setDiplomacyStatus(with: neutralPlayer, status: .neutral)
+//        
+//        let neutralArmy = Army(
+//            name: "Merchant Caravan",
+//            coordinate: HexCoordinate(q: 5, r: 5),
+//            commander: Commander(name: "Merchant Prince", specialty: .logistics),
+//            owner: neutralPlayer
+//        )
+//        neutralArmy.addMilitaryUnits(.swordsman, count: 5)
+//        
+//        let neutralArmyNode = EntityNode(
+//            coordinate: HexCoordinate(q: 5, r: 5),
+//            entityType: .army,
+//            entity: neutralArmy,  // ✅ Direct reference
+//            currentPlayer: player
+//        )
+//        
+//        neutralArmyNode.position = HexMap.hexToPixel(q: 5, r: 5)
+//        
+//        hexMap.addEntity(neutralArmyNode)
+//        entitiesNode.addChild(neutralArmyNode)
+//        neutralPlayer.addEntity(neutralArmy)
+//        neutralPlayer.addArmy(neutralArmy)
+//        
+//        print("✅ Spawned all test entities with diplomacy:")
+//          print("  🔵 Player Army at (8, 8)")
+//          print("  🔵 Player Villagers at (10, 10)")
+//          print("  🔴 Enemy Army at (15, 15)")
+//          print("  🟣 Guild Army at (5, 15)")
+//          print("  🟢 Ally Army at (15, 5)")
+//          print("  🟠 Neutral Army at (5, 5)")
+//              
+//          self.enemyPlayer = enemyPlayer
+//          self.allGamePlayers = [player, enemyPlayer, guildPlayer, allyPlayer, neutralPlayer]
+//          
+//          // ✅ NOW initialize fog of war AFTER entities exist
+//          let fogNode = SKNode()
+//          fogNode.name = "fogNode"
+//          fogNode.zPosition = 100
+//          addChild(fogNode)
+//          
+//          hexMap.setupFogOverlays(in: fogNode)
+//          player.initializeFogOfWar(hexMap: hexMap)
+//          
+//          // ✅ Update vision with all players (this reveals tiles around entities)
+//          player.updateVision(allPlayers: allGamePlayers)
+//          
+//          // ✅ Apply the fog overlays based on vision
+//          hexMap.updateFogOverlays(for: player)
+//          
+//          // Update visibility for all entities
+//          for entity in hexMap.entities {
+//              entity.updateVisibility(for: player)
+//          }
+//          
+//          // Update building visibility
+//          for building in hexMap.buildings {
+//              let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
+//              building.updateVisibility(displayMode: displayMode)
+//          }
+//          
+//          print("👁️ Fog of War initialized and updated")
+//        
+//    }
 
 
     
@@ -302,11 +445,10 @@ class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let realWorldTime = Date().timeIntervalSince1970
         
-        // Update player resources & Fog of war
         if let player = player {
             player.updateResources(currentTime: realWorldTime)
             
-            // ✅ SIMPLIFIED: Use stored allGamePlayers
+            // Update vision every frame so it follows moving entities
             player.updateVision(allPlayers: allGamePlayers)
             hexMap.updateFogOverlays(for: player)
             
@@ -321,6 +463,7 @@ class GameScene: SKScene {
                 building.updateVisibility(displayMode: displayMode)
             }
             
+            // Only update resource display periodically to avoid UI lag
             if lastUpdateTime == nil || currentTime - lastUpdateTime! >= 0.5 {
                 updateResourceDisplay?()
                 lastUpdateTime = currentTime
@@ -340,13 +483,31 @@ class GameScene: SKScene {
             }
         }
         
-        // Check and clear completed building tasks
+        // Resource gathering update
         if let player = player {
             for villagerGroup in player.getVillagerGroups() {
-                if case .building(let building) = villagerGroup.currentTask {
-                    if building.state == .completed || building.state == .destroyed {
+                if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
+                    if resourcePoint.isDepleted() || resourcePoint.parent == nil {
                         villagerGroup.clearTask()
-                        print("✅ Auto-cleared completed building task for villager group")
+                        resourcePoint.stopGathering()
+                        
+                        // ✅ ADD: Unlock the entity when gathering completes
+                        if let entityNode = hexMap.entities.first(where: {
+                            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+                        }) {
+                            entityNode.isMoving = false
+                        }
+                        
+                        print("✅ Resource depleted, villagers now idle and unlocked")
+                        continue
+                    }
+                    
+                    if villagerGroup.coordinate == resourcePoint.coordinate {
+                        let gatherAmount = Int(resourcePoint.resourceType.gatherRate * 0.5)
+                        if gatherAmount > 0 {
+                            let gathered = resourcePoint.gather(amount: gatherAmount)
+                            player.addResource(resourcePoint.resourceType.resourceYield, amount: gathered)
+                        }
                     }
                 }
             }
@@ -405,10 +566,10 @@ class GameScene: SKScene {
         
         for node in nodesAtPoint {
             if let hexTile = node as? HexTileNode {
-                // ADD THIS CHECK:
+                // ✅ CHANGED: Allow interaction with explored tiles too
                 guard let player = player,
                       player.isExplored(hexTile.coordinate) else {
-                    print("Cannot interact with unexplored tile")
+                    print("❌ Cannot interact with unexplored tile")
                     return
                 }
                 
@@ -418,7 +579,6 @@ class GameScene: SKScene {
         }
     }
 
-    
     func selectTile(_ tile: HexTileNode) {
         // Check if we're in attack mode
         if let attacker = attackingArmy {
@@ -499,20 +659,33 @@ class GameScene: SKScene {
             }
         }
         
-        // Check if entity is currently building
+        // Check if entity is currently building or gathering
         if entity.isMoving {
-            if let villagerGroup = entity.entity as? VillagerGroup,
-               case .building(let building) = villagerGroup.currentTask {
+            if let villagerGroup = entity.entity as? VillagerGroup {
+                // ✅ ADD: Check for gathering task
+                if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
+                    if !resourcePoint.isDepleted() && resourcePoint.parent != nil {
+                        print("❌ Villagers are busy gathering")
+                        showAlert?("Cannot Move", "These villagers are gathering \(resourcePoint.resourceType.displayName) and cannot move. Cancel the gathering task first.")
+                        return
+                    } else {
+                        // Resource depleted, unlock them
+                        entity.isMoving = false
+                        villagerGroup.clearTask()
+                    }
+                }
                 
-                if building.state == .completed {
-                    entity.isMoving = false
-                    villagerGroup.clearTask()
-                    print("✅ Fixed: Unlocked villagers from completed building")
-                } else {
-                    let progress = Int(building.constructionProgress * 100)
-                    print("❌ Villagers are busy building (\(progress)%)")
-                    showAlert?("Cannot Move", "These villagers are busy constructing \(building.buildingType.displayName) (\(progress)% complete) and cannot move until construction is complete.")
-                    return
+                if case .building(let building) = villagerGroup.currentTask {
+                    if building.state == .completed {
+                        entity.isMoving = false
+                        villagerGroup.clearTask()
+                        print("✅ Fixed: Unlocked villagers from completed building")
+                    } else {
+                        let progress = Int(building.constructionProgress * 100)
+                        print("❌ Villagers are busy building (\(progress)%)")
+                        showAlert?("Cannot Move", "These villagers are busy constructing \(building.buildingType.displayName) (\(progress)% complete) and cannot move until construction is complete.")
+                        return
+                    }
                 }
             } else {
                 print("❌ Entity is already moving")
@@ -795,4 +968,15 @@ class GameScene: SKScene {
             }
         }
     }
+    
+    @objc func handleFogOfWarUpdate(_ notification: Notification) {
+        guard let player = player,
+              let notifyingPlayer = notification.object as? Player,
+              notifyingPlayer.id == player.id else { return }
+        
+        // Update vision immediately when entities move
+        player.updateVision(allPlayers: allGamePlayers)
+        hexMap.updateFogOverlays(for: player)
+    }
+    
 }

@@ -80,7 +80,7 @@ enum ResourcePointType: String, CaseIterable {
     }
     
     // Combat stats for huntable animals
-    var attackPower: Int {
+    var attackPower: Double {
         switch self {
         case .deer: return 2
         case .wildBoar: return 8
@@ -88,7 +88,7 @@ enum ResourcePointType: String, CaseIterable {
         }
     }
     
-    var defensePower: Int {
+    var defensePower: Double {
         switch self {
         case .deer: return 3
         case .wildBoar: return 5
@@ -96,7 +96,7 @@ enum ResourcePointType: String, CaseIterable {
         }
     }
     
-    var health: Int {
+    var health: Double {
         switch self {
         case .deer: return 30
         case .wildBoar: return 50
@@ -112,24 +112,25 @@ class ResourcePointNode: SKSpriteNode {
     var coordinate: HexCoordinate
     private(set) var remainingAmount: Int
     private(set) var isBeingGathered: Bool = false
-    private(set) var currentHealth: Int
+    private(set) var currentHealth: Double
     
     weak var assignedVillagerGroup: VillagerGroup?
     
     init(coordinate: HexCoordinate, resourceType: ResourcePointType) {
-        self.coordinate = coordinate
-        self.resourceType = resourceType
-        self.remainingAmount = resourceType.initialAmount
-        self.currentHealth = resourceType.health
-        
-        let texture = ResourcePointNode.createResourceTexture(for: resourceType)
-        super.init(texture: texture, color: .clear, size: CGSize(width: 32, height: 32))
-        
-        self.zPosition = 3
-        self.name = "resourcePoint"
-        
-        setupLabel()
-    }
+         self.coordinate = coordinate
+         self.resourceType = resourceType
+         self.remainingAmount = resourceType.initialAmount
+         self.currentHealth = resourceType.health
+         
+         let texture = ResourcePointNode.createResourceTexture(for: resourceType)
+         super.init(texture: texture, color: .clear, size: CGSize(width: 32, height: 32))
+         
+         self.zPosition = 3
+         self.name = "resourcePoint"
+         self.isUserInteractionEnabled = false  // ✅ ADD THIS LINE - allows touches to pass through
+         
+         setupLabel()
+     }
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -209,6 +210,17 @@ class ResourcePointNode: SKSpriteNode {
         addChild(amountLabel)
     }
     
+    // Add method to set remaining amount (for loading saves)
+    func setRemainingAmount(_ amount: Int) {
+        remainingAmount = max(0, min(amount, resourceType.initialAmount))
+        updateLabel()
+    }
+
+    // Add method to set current health (for loading saves)
+    func setCurrentHealth(_ health: Double) {
+        currentHealth = max(0, min(health, resourceType.health))
+    }
+    
     func updateLabel() {
         if let label = childNode(withName: "amountLabel") as? SKLabelNode {
             label.text = "\(remainingAmount)"
@@ -234,7 +246,7 @@ class ResourcePointNode: SKSpriteNode {
         return gathered
     }
     
-    func takeDamage(_ damage: Int) -> Bool {
+    func takeDamage(_ damage: Double) -> Bool {
         guard resourceType.isHuntable else { return false }
         
         currentHealth = max(0, currentHealth - damage)

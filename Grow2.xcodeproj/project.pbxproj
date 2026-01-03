@@ -32,6 +32,12 @@
 		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
 		3FF8CF472F03073C002FA5D7 /* CombatSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2022EF3610E00341AEE /* CombatSystem.swift */; };
 		3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF482F030F04002FA5D7 /* Resource.swift */; };
+		3FF8CF4B2F08310E002FA5D7 /* MainMenuViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */; };
+		3FF8CF4D2F08312E002FA5D7 /* GameSetupViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */; };
+		3FF8CF4F2F08313F002FA5D7 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF4E2F08313F002FA5D7 /* SettingsViewController.swift */; };
+		3FF8CF512F083158002FA5D7 /* AboutViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF502F083158002FA5D7 /* AboutViewController.swift */; };
+		3FF8CF532F099148002FA5D7 /* GameSaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */; };
+		3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +67,12 @@
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
 		3FF8CF482F030F04002FA5D7 /* Resource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Resource.swift; sourceTree = "<group>"; };
+		3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MainMenuViewController.swift; path = "Grow2 iOS/MainMenuViewController.swift"; sourceTree = SOURCE_ROOT; };
+		3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSetupViewController.swift; sourceTree = "<group>"; };
+		3FF8CF4E2F08313F002FA5D7 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		3FF8CF502F083158002FA5D7 /* AboutViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewController.swift; sourceTree = "<group>"; };
+		3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSaveManager.swift; sourceTree = "<group>"; };
+		3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTimeManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,7 +98,9 @@
 		3FC0F0F32EC7965C007C0782 /* Grow2 Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
 				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
+				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
 				3FEBD2082F006EE800341AEE /* FogOfWar.swift */,
 				3FEBD2062EF3B10200341AEE /* Diplomacy.swift */,
 				3FEBD2022EF3610E00341AEE /* CombatSystem.swift */,
@@ -120,6 +134,10 @@
 		3FC0F0FE2EC7965F007C0782 /* Grow2 iOS */ = {
 			isa = PBXGroup;
 			children = (
+				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
+				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
+				3FF8CF4E2F08313F002FA5D7 /* SettingsViewController.swift */,
+				3FF8CF502F083158002FA5D7 /* AboutViewController.swift */,
 				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
 				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
 				3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */,
@@ -209,6 +227,7 @@
 				3FC0F10B2EC7965F007C0782 /* GameScene.swift in Sources */,
 				3F8B8CB82EC7D65B000A4BFF /* Unit.swift in Sources */,
 				3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */,
+				3FF8CF512F083158002FA5D7 /* AboutViewController.swift in Sources */,
 				3FC0F1022EC7965F007C0782 /* GameViewController.swift in Sources */,
 				3FEBD2072EF3B10200341AEE /* Diplomacy.swift in Sources */,
 				3FD1D5E42ED514BD001398FB /* MilitaryUnit.swift in Sources */,
@@ -218,9 +237,14 @@
 				3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */,
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
 				3F34D5B12ECA5CD900AE6DF0 /* Building.swift in Sources */,
+				3FF8CF4F2F08313F002FA5D7 /* SettingsViewController.swift in Sources */,
 				3F34D5B52ECBB6B200AE6DF0 /* Map Entity.swift in Sources */,
+				3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */,
+				3FF8CF4D2F08312E002FA5D7 /* GameSetupViewController.swift in Sources */,
+				3FF8CF532F099148002FA5D7 /* GameSaveManager.swift in Sources */,
 				3F34D5B32ECABDFF00AE6DF0 /* Entity Node.swift in Sources */,
 				3F34D5B72ECBB7B800AE6DF0 /* HexMap.swift in Sources */,
+				3FF8CF4B2F08310E002FA5D7 /* MainMenuViewController.swift in Sources */,
 				3F34D5B92ECC057900AE6DF0 /* HexCoordinate.swift in Sources */,
 				3FEBD1FF2EF3258E00341AEE /* CommanderViewController.swift in Sources */,
 			);

@@ -125,15 +125,15 @@ class FogOfWarManager {
     private func updateVisionFromPlayer(_ player: Player) {
         guard let hexMap = hexMap else { return }
         
-        // Vision from buildings (1 tile radius)
+        // Vision from buildings (2 tile radius - increased from 1)
         for building in player.buildings where building.state == .completed {
-            let visibleTiles = getVisibleTiles(center: building.coordinate, radius: 1)
+            let visibleTiles = getVisibleTilesInRadius(center: building.coordinate, radius: 2)
             for coord in visibleTiles {
                 setVisible(coord)
             }
         }
         
-        // Vision from entities (2 tile radius)
+        // Vision from entities (3 tile radius - increased from 2)
         for entity in player.entities {
             let coord: HexCoordinate
             if let army = entity as? Army {
@@ -144,11 +144,58 @@ class FogOfWarManager {
                 continue
             }
             
-            let visibleTiles = getVisibleTiles(center: coord, radius: 2)
+            let visibleTiles = getVisibleTilesInRadius(center: coord, radius: 3)
             for coord in visibleTiles {
                 setVisible(coord)
             }
         }
+    }
+    
+    private func getVisibleTilesInRadius(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
+        guard let hexMap = hexMap else { return [] }
+        
+        var tiles: Set<HexCoordinate> = [center]
+        
+        // Use hex rings for accurate circular vision
+        for r in 1...radius {
+            let ring = getRing(center: center, radius: r)
+            for coord in ring {
+                if hexMap.isValidCoordinate(coord) {
+                    tiles.insert(coord)
+                }
+            }
+        }
+        
+        return Array(tiles)
+    }
+    
+    private func getRing(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
+        guard radius > 0 else { return [center] }
+        
+        var results: [HexCoordinate] = []
+        
+        // Start at one corner of the ring
+        var hex = HexCoordinate(q: center.q - radius, r: center.r + radius)
+        
+        // Six directions to walk around the ring
+        let directions = [
+            HexCoordinate(q: 1, r: 0),   // Right
+            HexCoordinate(q: 1, r: -1),  // Up-right
+            HexCoordinate(q: 0, r: -1),  // Up-left
+            HexCoordinate(q: -1, r: 0),  // Left
+            HexCoordinate(q: -1, r: 1),  // Down-left
+            HexCoordinate(q: 0, r: 1)    // Down-right
+        ]
+        
+        // Walk around the ring
+        for direction in directions {
+            for _ in 0..<radius {
+                results.append(hex)
+                hex = HexCoordinate(q: hex.q + direction.q, r: hex.r + direction.r)
+            }
+        }
+        
+        return results
     }
     
     private func getVisibleTiles(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
