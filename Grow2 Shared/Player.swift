@@ -358,4 +358,9 @@ class Player {
         diplomacyRelations[otherPlayer.id] = status
     }
     
+    func decreaseCollectionRate(_ type: ResourceType, amount: Double) {
+        let current = collectionRates[type] ?? 0.0
+        collectionRates[type] = max(0, current - amount)
+        print("📉 \(type.displayName) rate: \(current)/s → \(collectionRates[type] ?? 0)/s")
+    }
 }

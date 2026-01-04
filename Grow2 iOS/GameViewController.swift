@@ -428,6 +428,9 @@ class GameViewController: UIViewController {
             preferredStyle: .actionSheet
         )
         
+        let entitiesAtTile = gameScene.hexMap.entities.filter { $0.coordinate == coordinate }
+
+        
         // Only allow actions on visible tiles
         if visibility == .visible {
             
@@ -455,12 +458,18 @@ class GameViewController: UIViewController {
             }
             
             // ✅ FIX: Only show "Move Unit Here" if there are NO entities on this tile
-            let entitiesAtTile = gameScene.hexMap.entities.filter { $0.coordinate == coordinate }
             if entitiesAtTile.isEmpty {
                 alert.addAction(UIAlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] _ in
                     self?.gameScene.initiateMove(to: coordinate)
                 })
             }
+        } else if visibility == .explored {
+            if entitiesAtTile.isEmpty {
+                alert.addAction(UIAlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] _ in
+                    self?.gameScene.initiateMove(to: coordinate)
+                })
+            }
+            
         }
         
         // Cancel action
@@ -1613,34 +1622,31 @@ class GameViewController: UIViewController {
     }
         
     func assignVillagersToGather(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
-          // Assign task
-          villagerGroup.assignTask(.gatheringResource(resourcePoint), target: resourcePoint.coordinate)
-          resourcePoint.startGathering(by: villagerGroup)
-          
-          // ✅ ADD: Increase collection rate for this resource type
-          let resourceType = resourcePoint.resourceType.resourceYield
-          let gatherRate = resourcePoint.resourceType.gatherRate
-          player.increaseCollectionRate(resourceType, amount: gatherRate)
-          
-          // Lock the entity node
-          if let entityNode = gameScene.hexMap.entities.first(where: {
-              ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-          }) {
-              entityNode.isMoving = true
-              gameScene.moveEntity(entityNode, to: resourcePoint.coordinate)
-          }
-          
-          showSimpleAlert(
-              title: "✅ Gathering Started",
-              message: "\(villagerGroup.name) will gather \(resourcePoint.resourceType.displayName) (\(resourcePoint.resourceType.resourceYield.icon) +\(Int(gatherRate))/s)"
-          )
-          
-          // ✅ ADD: Update resource display to show new rate
-          updateResourceDisplay()
-          
-          print("✅ Assigned \(villagerGroup.name) to gather \(resourcePoint.resourceType.displayName)")
-          print("📊 Updated \(resourceType.displayName) collection rate: +\(gatherRate)/s")
-      }
+        // Assign task
+        villagerGroup.assignTask(.gatheringResource(resourcePoint), target: resourcePoint.coordinate)
+        resourcePoint.startGathering(by: villagerGroup)
+        
+        // ✅ FIX: Apply collection rate bonus when starting to gather
+        let resourceYield = resourcePoint.resourceType.resourceYield
+        let gatherRate = resourcePoint.resourceType.gatherRate
+        player.increaseCollectionRate(resourceYield, amount: gatherRate)
+        print("✅ Increased \(resourceYield.displayName) collection rate by \(gatherRate)/s")
+        
+        // Find entity node and move to resource
+        if let entityNode = gameScene.hexMap.entities.first(where: {
+            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+        }) {
+            gameScene.moveEntity(entityNode, to: resourcePoint.coordinate)
+        }
+        
+        showSimpleAlert(
+            title: "✅ Gathering Started",
+            message: "\(villagerGroup.name) will gather \(resourcePoint.resourceType.displayName) (\(resourcePoint.resourceType.resourceYield.icon) +\(Int(resourcePoint.resourceType.gatherRate))/s)"
+        )
+        
+        print("✅ Assigned \(villagerGroup.name) to gather \(resourcePoint.resourceType.displayName)")
+    }
+
 
 
 
@@ -1792,9 +1798,12 @@ class GameViewController: UIViewController {
         gameScene.player = loadedData.player
         gameScene.hexMap = loadedData.hexMap
         gameScene.allGamePlayers = loadedData.allPlayers
+        gameScene.initializeFogOfWar()
         
         // Rebuild the scene with loaded data
         rebuildSceneWithLoadedData(hexMap: loadedData.hexMap, player: loadedData.player, allPlayers: loadedData.allPlayers)
+        
+        
         
         print("✅ Game loaded successfully")
         showSimpleAlert(title: "✅ Game Loaded", message: "Your saved game has been restored.")

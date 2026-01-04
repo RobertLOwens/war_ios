@@ -236,6 +236,20 @@ class ResourcePointNode: SKSpriteNode {
         updateLabel()
         
         if remainingAmount == 0 {
+            // ✅ FIX: Stop gathering and revert collection rate before removing
+            if let villagerGroup = assignedVillagerGroup,
+               let owner = villagerGroup.owner {
+                // Revert the collection rate bonus
+                let resourceYield = resourceType.resourceYield
+                owner.decreaseCollectionRate(resourceYield, amount: resourceType.gatherRate)
+                print("✅ Reverted \(resourceYield.displayName) collection rate for \(owner.name)")
+                
+                // Clear the task
+                villagerGroup.clearTask()
+            }
+            
+            stopGathering()
+            
             // Fade out and remove
             let fadeOut = SKAction.fadeOut(withDuration: 1.0)
             run(fadeOut) { [weak self] in
@@ -245,6 +259,7 @@ class ResourcePointNode: SKSpriteNode {
         
         return gathered
     }
+
     
     func takeDamage(_ damage: Double) -> Bool {
         guard resourceType.isHuntable else { return false }

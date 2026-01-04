@@ -40,13 +40,8 @@ class GameScene: SKScene {
         setupMap()
         spawnTestEntities()
         
-        // ✅ ADD: Listen for fog of war updates during entity movement
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleFogOfWarUpdate(_:)),
-            name: NSNotification.Name("UpdateFogOfWar"),
-            object: nil
-        )
+        // ✅ FIX: Initialize fog of war after everything is set up
+        initializeFogOfWar()
     }
     
     deinit {
@@ -191,22 +186,21 @@ class GameScene: SKScene {
         // Store all players
         self.allGamePlayers = [player, aiPlayer]
         
-        // Initialize fog of war for both players
-        player.initializeFogOfWar(hexMap: hexMap)
-        aiPlayer.initializeFogOfWar(hexMap: hexMap)
-        
-        // Setup fog overlays (only for player's view)
-        hexMap.setupFogOverlays(in: self)
-        
-        // Force initial fog of war update
+        // ✅ Initialize fog of war (if not already done)
+        if player.fogOfWar == nil {
+            player.initializeFogOfWar(hexMap: hexMap)
+            hexMap.setupFogOverlays(in: self)
+        }
+
+        // ✅ Force initial fog of war update with all players
         player.updateVision(allPlayers: allGamePlayers)
         hexMap.updateFogOverlays(for: player)
-        
+
         // Update visibility for all entities
         for entity in hexMap.entities {
             entity.updateVisibility(for: player)
         }
-        
+
         // Update building visibility
         for building in hexMap.buildings {
             let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
@@ -566,15 +560,22 @@ class GameScene: SKScene {
         
         for node in nodesAtPoint {
             if let hexTile = node as? HexTileNode {
-                // ✅ CHANGED: Allow interaction with explored tiles too
-                guard let player = player,
-                      player.isExplored(hexTile.coordinate) else {
-                    print("❌ Cannot interact with unexplored tile")
+                // ✅ FIX: Allow interaction with both visible AND explored tiles
+                guard let player = player else {
+                    print("⚠️ No player reference")
                     return
                 }
                 
-                selectTile(hexTile)
-                return
+                let visibility = player.getVisibilityLevel(at: hexTile.coordinate)
+                
+                // Allow clicking on visible or explored tiles
+                if visibility == .visible || visibility == .explored {
+                    selectTile(hexTile)
+                    return
+                } else {
+                    print("❌ Cannot interact with unexplored tile at (\(hexTile.coordinate.q), \(hexTile.coordinate.r))")
+                    return
+                }
             }
         }
     }
@@ -977,6 +978,33 @@ class GameScene: SKScene {
         // Update vision immediately when entities move
         player.updateVision(allPlayers: allGamePlayers)
         hexMap.updateFogOverlays(for: player)
+    }
+    
+    func initializeFogOfWar() {
+        guard let player = player else { return }
+        
+        // Initialize fog of war for the player
+        player.initializeFogOfWar(hexMap: hexMap)
+        
+        // Setup fog overlays on the map
+        hexMap.setupFogOverlays(in: self)
+        
+        // Update vision with all players
+        player.updateVision(allPlayers: allGamePlayers)
+        hexMap.updateFogOverlays(for: player)
+        
+        // Update visibility for all entities
+        for entity in hexMap.entities {
+            entity.updateVisibility(for: player)
+        }
+        
+        // Update building visibility
+        for building in hexMap.buildings {
+            let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
+            building.updateVisibility(displayMode: displayMode)
+        }
+        
+        print("👁️ Fog of war initialized")
     }
     
 }
