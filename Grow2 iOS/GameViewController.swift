@@ -1003,22 +1003,44 @@ class GameViewController: UIViewController {
     }
     
     func showTrainingMenu(for building: BuildingNode) {
+        
+        guard building.state == .completed else {
+            showSimpleAlert(title: "Not Ready", message: "Building must be completed first.")
+            return
+        }
+        
+        guard building.buildingType.category == .military else {
+            showSimpleAlert(title: "Wrong Building", message: "This building cannot train military units.")
+            return
+        }
+        
+        // Get trainable units for this building
+        let trainableUnits = MilitaryUnitType.allCases.filter { $0.trainingBuilding == building.buildingType }
+        
+        guard !trainableUnits.isEmpty else {
+            showSimpleAlert(title: "No Units", message: "This building has no units available to train.")
+            return
+        }
+        
         let alert = UIAlertController(
             title: "🎖️ Train Units",
-            message: "Select unit type to train at \(building.buildingType.displayName)\n\n\(building.getGarrisonDescription())",
+            message: "Select a unit type to train at \(building.buildingType.displayName)",
             preferredStyle: .actionSheet
         )
         
-        // Get units that can be trained in this building
-        let availableUnits = MilitaryUnitType.allCases.filter { $0.trainingBuilding == building.buildingType }
-        
-        for unitType in availableUnits {
-            let title = "\(unitType.icon) \(unitType.displayName)"
+        for unitType in trainableUnits {
+            let costDesc = unitType.trainingCost.map { "\($0.value) \($0.key.icon)" }.joined(separator: ", ")
+            let title = "\(unitType.icon) \(unitType.displayName) - \(costDesc)"
             
-            let action = UIAlertAction(title: title, style: .default) { [weak self] _ in
-                self?.showUnitTrainingSlider(unitType: unitType, building: building)
-            }
-            alert.addAction(action)
+            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                self?.showTrainingSliderMenu(
+                    unitType: .military(unitType),
+                    building: building,
+                    unitCost: unitType.trainingCost,
+                    trainingTimePerUnit: unitType.trainingTime,
+                    unitStats: unitType.description
+                )
+            })
         }
         
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))

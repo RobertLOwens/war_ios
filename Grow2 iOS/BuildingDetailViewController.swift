@@ -4,7 +4,7 @@ class BuildingDetailViewController: UIViewController {
     
     var building: BuildingNode!
     var player: Player!
-    weak var gameViewController: GameViewController?
+    var gameViewController: GameViewController?
     
     var scrollView: UIScrollView!
     var contentView: UIView!
@@ -166,16 +166,18 @@ class BuildingDetailViewController: UIViewController {
     }
     
     @objc func trainVillagersTapped() {
-        dismiss(animated: true) { [weak self] in
-            guard let self = self, let gameVC = self.gameViewController else { return }
-            gameVC.showVillagerTrainingMenu(for: self.building)
+        guard let gameVC = gameViewController, let building = building else { return }
+        
+        dismiss(animated: true) {
+            gameVC.showVillagerTrainingMenu(for: building)
         }
     }
-
+    
     @objc func deployVillagersTapped() {
-        dismiss(animated: true) { [weak self] in
-            guard let self = self, let gameVC = self.gameViewController else { return }
-            gameVC.showVillagerDeploymentMenu(from: self.building)
+        guard let gameVC = gameViewController, let building = building else { return }
+        
+        dismiss(animated: true) {
+            gameVC.showVillagerDeploymentMenu(from: building)
         }
     }
     
@@ -194,18 +196,23 @@ class BuildingDetailViewController: UIViewController {
     }
     
     @objc func trainUnitsTapped() {
-        dismiss(animated: true) { [weak self] in
-            guard let self = self, let gameVC = self.gameViewController else { return }
-            gameVC.showTrainingMenu(for: self.building)
+        guard let gameVC = gameViewController, let building = building else { return }
+        
+        // ✅ Dismiss first, then present - avoids presentation conflicts
+        dismiss(animated: true) {
+            gameVC.showTrainingMenu(for: building)
         }
     }
     
     @objc func reinforceArmyTapped() {
-        dismiss(animated: true) { [weak self] in
-            guard let self = self, let gameVC = self.gameViewController else { return }
-            gameVC.showReinforcementTargetSelection(from: self.building)
+        guard let gameVC = gameViewController, let building = building else { return }
+        
+        dismiss(animated: true) {
+            gameVC.showReinforcementTargetSelection(from: building)
         }
     }
+
+
     
     @objc func closeTapped() {
         dismiss(animated: true)

@@ -501,8 +501,6 @@ class GameScene: SKScene {
                 building.timerLabel = nil
                 building.progressBar?.removeFromParent()
                 building.progressBar = nil
-                building.progressBackground?.removeFromParent()
-                building.progressBackground = nil
             }
         }
         

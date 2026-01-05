@@ -193,7 +193,10 @@ class BuildingNode: SKSpriteNode {
     
     var state: BuildingState = .planning {
         didSet {
-            updateAppearance()
+            // ✅ Only update appearance if state actually changed
+            if oldValue != state {
+                updateAppearance()
+            }
         }
     }
     
@@ -202,9 +205,9 @@ class BuildingNode: SKSpriteNode {
     
     var constructionProgress: Double = 0.0 {
         didSet {
-            if state == .constructing {
+            // ✅ Only update if there's a meaningful change
+            if state == .constructing && abs(oldValue - constructionProgress) > 0.01 {
                 updateAppearance()
-                updateTimerLabel()
             }
         }
     }
@@ -255,7 +258,6 @@ class BuildingNode: SKSpriteNode {
     var progressBar: SKShapeNode?
     var timerLabel: SKLabelNode?
     var buildingLabel: SKLabelNode?
-    var progressBackground: SKShapeNode?
     private static var garrisonKey: UInt8 = 0
     private static var trainingQueueKey: UInt8 = 1
     private static var villagerGarrisonKey: UInt8 = 2
@@ -502,41 +504,7 @@ class BuildingNode: SKSpriteNode {
     }
     
     func setupUI() {
-        // Progress bar background
-        let barWidth: CGFloat = 50
-        let barHeight: CGFloat = 6
-        let barY: CGFloat = -30
-        
-        let progressBarBg = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 2)
-        progressBarBg.fillColor = UIColor(white: 0.2, alpha: 0.8)
-        progressBarBg.strokeColor = .white
-        progressBarBg.lineWidth = 1
-        progressBarBg.position = CGPoint(x: 0, y: barY)
-        progressBarBg.zPosition = 1
-        progressBarBg.name = "progressBarBg"
-        addChild(progressBarBg)
-        
-        // Progress bar fill - using SKSpriteNode instead for easier scaling
-        let progressBarTexture = SKTexture(image: createProgressBarImage(width: barWidth - 2, height: barHeight - 2))
-        progressBar = SKShapeNode(rectOf: CGSize(width: 1, height: barHeight - 2), cornerRadius: 1)
-        progressBar?.fillColor = UIColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0)
-        progressBar?.strokeColor = .clear
-        progressBar?.position = CGPoint(x: -(barWidth - 2) / 2, y: barY)
-        progressBar?.zPosition = 2
-        progressBar?.name = "progressBarFill"
-        addChild(progressBar!)
-        
-        // Timer label
-        timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        timerLabel?.fontSize = 11
-        timerLabel?.fontColor = .white
-        timerLabel?.text = "0:00"
-        timerLabel?.position = CGPoint(x: 0, y: barY - 12)
-        timerLabel?.zPosition = 1
-        timerLabel?.name = "timerLabel"
-        addChild(timerLabel!)
-        
-        // Building name label
+        // Building name label only
         buildingLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
         buildingLabel?.fontSize = 9
         buildingLabel?.fontColor = .white
@@ -556,6 +524,7 @@ class BuildingNode: SKSpriteNode {
         
         addChild(buildingLabel!)
         
+        // Progress bars and timer will be created by updateTimerLabel when needed
         updateUIVisibility()
     }
     
@@ -608,8 +577,6 @@ class BuildingNode: SKSpriteNode {
             timerLabel = nil
             progressBar?.removeFromParent()
             progressBar = nil
-            progressBackground?.removeFromParent()
-            progressBackground = nil
             return
         }
         
@@ -622,9 +589,10 @@ class BuildingNode: SKSpriteNode {
         let effectiveBuildTime = buildingType.buildTime / buildSpeedMultiplier
         let remaining = max(0, effectiveBuildTime - elapsed)
         
-        // Update progress
-        if effectiveBuildTime > 0 {
-            constructionProgress = min(1.0, elapsed / effectiveBuildTime)
+        // Update progress (without triggering didSet)
+        let newProgress = min(1.0, max(0.0, elapsed / effectiveBuildTime))
+        if abs(constructionProgress - newProgress) > 0.01 {
+            constructionProgress = newProgress
         }
         
         // Check if construction is complete
@@ -633,13 +601,14 @@ class BuildingNode: SKSpriteNode {
             return
         }
         
-        // ✅ Only create timer label if it doesn't exist
+        // ✅ Create timer label if needed
         if timerLabel == nil {
-            timerLabel = SKLabelNode(fontNamed: "Arial")
-            timerLabel?.fontSize = 10
+            timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+            timerLabel?.fontSize = 11
             timerLabel?.fontColor = .white
             timerLabel?.position = CGPoint(x: 0, y: -30)
             timerLabel?.zPosition = 15
+            timerLabel?.name = "timerLabel"
             addChild(timerLabel!)
         }
         
@@ -648,33 +617,62 @@ class BuildingNode: SKSpriteNode {
         let seconds = Int(remaining) % 60
         timerLabel?.text = String(format: "%d:%02d", minutes, seconds)
         
-        // ✅ Only create progress bar if it doesn't exist
-        if progressBackground == nil {
-            progressBackground = SKShapeNode(rectOf: CGSize(width: 44, height: 6), cornerRadius: 3)
-            progressBackground?.fillColor = .darkGray
-            progressBackground?.strokeColor = .clear
-            progressBackground?.position = CGPoint(x: 0, y: -40)
-            progressBackground?.zPosition = 14
-            addChild(progressBackground!)
-        }
-        
-        // ✅ Always recreate progress bar to show correct progress
+        // ✅ Update progress bar - use simpler SKShapeNode rect
         progressBar?.removeFromParent()
-        let progressWidth = 44 * constructionProgress
-        progressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: 6), cornerRadius: 3)
+        
+        let barWidth: CGFloat = 44
+        let barHeight: CGFloat = 6
+        let progressWidth = max(1.0, barWidth * CGFloat(constructionProgress)) // ✅ Ensure minimum width
+        
+        // Create new progress bar
+        progressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 3)
         progressBar?.fillColor = .green
-        progressBar?.strokeColor = .clear
-        progressBar?.position = CGPoint(x: -22 + (progressWidth / 2), y: -40)
+        progressBar?.strokeColor = .white
+        progressBar?.lineWidth = 1
+        progressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -40)
         progressBar?.zPosition = 15
+        progressBar?.name = "progressBar"
         addChild(progressBar!)
     }
-
+    
+    func completeConstruction() {
+        guard state == .constructing else { return }
+        
+        state = .completed
+        constructionProgress = 1.0
+        health = maxHealth
+        
+        // ✅ Remove all construction UI elements
+        timerLabel?.removeFromParent()
+        timerLabel = nil
+        progressBar?.removeFromParent()
+        progressBar = nil
+        
+        // ✅ Unlock the builder entity
+        if let builder = builderEntity {
+            builder.isMoving = false
+            
+            // Clear the task for the villager group
+            if let villagerGroup = builder.entity as? VillagerGroup {
+                villagerGroup.clearTask()
+                print("✅ Villagers unlocked and available for new tasks")
+            }
+        }
+        
+        // Update visual appearance
+        updateAppearance()
+        
+        print("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
+    }
     
     func startConstruction(builders: Int = 1) {
+        // ✅ Set state first without triggering appearance updates yet
         state = .constructing
-        constructionStartTime = Date().timeIntervalSince1970  // ✅ Use consistent Unix epoch time
-        constructionProgress = 0.0
+        constructionStartTime = Date().timeIntervalSince1970
         buildersAssigned = max(1, builders)
+        // Don't set constructionProgress here - let updateConstruction handle it
+        
+        print("🏗️ Started construction of \(buildingType.displayName)")
     }
 
     func updateConstruction() {
@@ -707,28 +705,6 @@ class BuildingNode: SKSpriteNode {
     
     func removeBuilder() {
         buildersAssigned = max(1, buildersAssigned - 1)
-    }
-    
-    func completeConstruction() {
-        guard state == .constructing else { return }
-        
-        state = .completed
-        constructionProgress = 1.0
-        health = maxHealth
-        
-        // ✅ Remove all construction UI elements
-        timerLabel?.removeFromParent()
-        timerLabel = nil
-        progressBar?.removeFromParent()
-        progressBar = nil
-        progressBackground?.removeFromParent()
-        progressBackground = nil
-        
-        // Update visual appearance
-        updateAppearance()
-        
-        print("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
-        
     }
     
     func takeDamage(_ amount: Double) {
