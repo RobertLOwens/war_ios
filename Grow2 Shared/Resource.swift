@@ -53,14 +53,15 @@ enum ResourcePointType: String, CaseIterable {
         }
     }
     
+    // Per second
     var gatherRate: Double {
         switch self {
-        case .trees: return 5.0 // 5 wood per second
-        case .forage: return 3.0 // 3 food per second
-        case .oreMine: return 2.0 // 2 ore per second
-        case .stoneQuarry: return 2.5 // 2.5 stone per second
-        case .deer: return 0 // Instant when hunted
-        case .wildBoar: return 0 // Instant when hunted
+        case .trees: return 5.0
+        case .forage: return 3.0
+        case .oreMine: return 2.0
+        case .stoneQuarry: return 2.5
+        case .deer: return 1.0
+        case .wildBoar: return 1.0
         }
     }
     

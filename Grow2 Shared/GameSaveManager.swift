@@ -14,8 +14,14 @@ struct GameSaveData: Codable {
     let mapData: MapSaveData
     let playerData: PlayerSaveData
     let allPlayersData: [PlayerSaveData]
+
     
-    init(version: String = "1.0", saveDate: Date = Date(), mapData: MapSaveData, playerData: PlayerSaveData, allPlayersData: [PlayerSaveData]) {
+    init(version: String = "1.0", 
+         saveDate: Date = Date(),
+         mapData: MapSaveData,
+         playerData: PlayerSaveData,
+         allPlayersData: [PlayerSaveData]) {
+        
         self.version = version
         self.saveDate = saveDate
         self.mapData = mapData
@@ -30,6 +36,7 @@ struct MapSaveData: Codable {
     let tiles: [TileSaveData]
     let buildings: [BuildingSaveData]
     let resourcePoints: [ResourcePointSaveData]
+    let exploredTiles: [TileSaveData]  // ✅ NEW: Save explored tiles
 }
 
 struct TileSaveData: Codable {
@@ -162,10 +169,10 @@ class GameSaveManager {
         print("💾 Starting game save...")
         
         // Create save data
-        let mapData = createMapSaveData(from: hexMap)
+        let mapData = createMapSaveData(from: hexMap, player: player)
         let playerData = createPlayerSaveData(from: player)
         let allPlayersData = allPlayers.map { createPlayerSaveData(from: $0) }
-        
+            
         let saveData = GameSaveData(
             mapData: mapData,
             playerData: playerData,
@@ -211,9 +218,9 @@ class GameSaveManager {
             print("✅ Save file loaded - Version: \(saveData.version), Date: \(saveData.saveDate)")
             
             // Reconstruct game state
-            let hexMap = reconstructHexMap(from: saveData.mapData)
             let allPlayers = saveData.allPlayersData.map { reconstructPlayer(from: $0) }
             let player = reconstructPlayer(from: saveData.playerData)
+            let hexMap = reconstructHexMap(from: saveData.mapData, player: player)
             
             // Restore player references
             for playerData in saveData.allPlayersData {
@@ -290,10 +297,11 @@ class GameSaveManager {
     
     // MARK: - Create Save Data
     
-    private func createMapSaveData(from hexMap: HexMap) -> MapSaveData {
+    private func createMapSaveData(from hexMap: HexMap, player: Player) -> MapSaveData {
+        
         let tiles = hexMap.tiles.map { coord, tile in
-            TileSaveData(q: coord.q, r: coord.r, terrain: terrainTypeToString(tile.terrain))
-        }
+               TileSaveData(q: coord.q, r: coord.r, terrain: terrainTypeToString(tile.terrain))
+           }
         
         let buildings = hexMap.buildings.map { createBuildingSaveData(from: $0) }
         
@@ -308,14 +316,30 @@ class GameSaveManager {
                 assignedVillagerGroupID: resource.assignedVillagerGroup?.id.uuidString
             )
         }
-        
+
+        var exploredTiles: [TileSaveData] = []
+        if let fogOfWar = player.fogOfWar {
+            for (coord, tile) in hexMap.tiles {
+                let visibility = fogOfWar.getVisibilityLevel(at: coord)
+                if visibility == .explored || visibility == .visible {
+                    exploredTiles.append(TileSaveData(
+                        q: coord.q,
+                        r: coord.r,
+                        terrain: terrainTypeToString(tile.terrain)
+                    ))
+                }
+            }
+        }
+         
         return MapSaveData(
-            width: hexMap.width,
-            height: hexMap.height,
-            tiles: tiles,
-            buildings: buildings,
-            resourcePoints: resourcePoints
-        )
+               width: hexMap.width,
+               height: hexMap.height,
+               tiles: tiles,
+               buildings: buildings,
+               resourcePoints: resourcePoints,
+               exploredTiles: exploredTiles
+           )
+
     }
     
     private func createPlayerSaveData(from player: Player) -> PlayerSaveData {
@@ -507,7 +531,7 @@ class GameSaveManager {
     
     // MARK: - Reconstruct Objects
     
-    private func reconstructHexMap(from data: MapSaveData) -> HexMap {
+    private func reconstructHexMap(from data: MapSaveData, player: Player) -> HexMap {
         let hexMap = HexMap(width: data.width, height: data.height)
         hexMap.tiles.removeAll()
         
@@ -516,6 +540,16 @@ class GameSaveManager {
             let terrain = stringToTerrainType(tileData.terrain)
             let tile = HexTileNode(coordinate: coord, terrain: terrain)
             hexMap.tiles[coord] = tile
+        }
+        
+        // ✅ NEW: Restore explored tiles to fog of war
+        player.initializeFogOfWar(hexMap: hexMap)
+        if let fogOfWar = player.fogOfWar {
+            for exploredTile in data.exploredTiles {
+                let coord = HexCoordinate(q: exploredTile.q, r: exploredTile.r)
+                fogOfWar.markAsExplored(coord)
+            }
+            print("✅ Restored \(data.exploredTiles.count) explored tiles")
         }
         
         return hexMap

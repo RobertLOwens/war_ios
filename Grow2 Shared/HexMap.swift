@@ -110,6 +110,10 @@ class HexMap {
     }
     
     func setupFogOverlays(in node: SKNode) {
+        // Clear existing overlays
+        fogOverlays.removeAll()
+        
+        // Create fog overlay for each tile
         for (coord, _) in tiles {
             let overlay = FogOverlayNode(coordinate: coord)
             let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
@@ -117,6 +121,8 @@ class HexMap {
             node.addChild(overlay)
             fogOverlays[coord] = overlay
         }
+        
+        print("✅ Created \(fogOverlays.count) fog overlays")
     }
 
     func updateFogOverlays(for player: Player) {
@@ -304,40 +310,50 @@ class HexMap {
         guard isWalkable(goal) else { return nil }
         guard start != goal else { return [] }
         
-        var frontier: [HexCoordinate] = [start]
+        // A* pathfinding with proper hex distance heuristic
+        var openSet: Set<HexCoordinate> = [start]
         var cameFrom: [HexCoordinate: HexCoordinate] = [:]
-        cameFrom[start] = start
         
-        while !frontier.isEmpty {
-            let current = frontier.removeFirst()
+        var gScore: [HexCoordinate: Int] = [start: 0]
+        var fScore: [HexCoordinate: Int] = [start: start.distance(to: goal)]
+        
+        while !openSet.isEmpty {
+            // Find node in openSet with lowest fScore
+            let current = openSet.min(by: { fScore[$0] ?? Int.max < fScore[$1] ?? Int.max })!
             
             if current == goal {
-                break
+                // Reconstruct path
+                var path: [HexCoordinate] = []
+                var currentNode = goal
+                
+                while currentNode != start {
+                    path.append(currentNode)
+                    guard let next = cameFrom[currentNode] else { break }
+                    currentNode = next
+                }
+                
+                return path.reversed()
             }
             
-            for next in current.neighbors() {
-                guard isValidCoordinate(next) && isWalkable(next) else { continue }
+            openSet.remove(current)
+            
+            for neighbor in current.neighbors() {
+                guard isValidCoordinate(neighbor) && isWalkable(neighbor) else { continue }
                 
-                if cameFrom[next] == nil {
-                    frontier.append(next)
-                    cameFrom[next] = current
+                let tentativeGScore = (gScore[current] ?? Int.max) + 1
+                
+                if tentativeGScore < (gScore[neighbor] ?? Int.max) {
+                    cameFrom[neighbor] = current
+                    gScore[neighbor] = tentativeGScore
+                    fScore[neighbor] = tentativeGScore + neighbor.distance(to: goal)
+                    openSet.insert(neighbor)
                 }
             }
         }
         
-        guard cameFrom[goal] != nil else { return nil }
-        
-        var path: [HexCoordinate] = []
-        var current = goal
-        
-        while current != start {
-            path.append(current)
-            guard let next = cameFrom[current] else { break }
-            current = next
-        }
-        
-        return path.reversed()
+        return nil // No path found
     }
+        
     
     func findNearestWalkable(to target: HexCoordinate, maxDistance: Int = 5) -> HexCoordinate? {
         if isWalkable(target) && getEntity(at: target) == nil {

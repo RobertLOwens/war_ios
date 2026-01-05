@@ -488,10 +488,15 @@ class GameViewController: UIViewController {
     }
     
     func showTileActionMenu(for coordinate: HexCoordinate) {
-        // ✅ CHECK: Are there multiple entities on this tile?
-        let entitiesAtTile = gameScene.hexMap.entities.filter { $0.coordinate == coordinate }
+        // ✅ FIX: Get visibility level first
+        let visibility = player.getVisibilityLevel(at: coordinate)
         
-        // If there are entities, show entity selection menu FIRST
+        // ✅ FIX: Filter entities - only show if tile is VISIBLE (not just explored)
+        let entitiesAtTile = gameScene.hexMap.entities.filter { entity in
+            entity.coordinate == coordinate && visibility == .visible
+        }
+        
+        // If there are visible entities, show entity selection menu FIRST
         if !entitiesAtTile.isEmpty {
             showEntitySelectionMenu(at: coordinate, entities: entitiesAtTile)
             return
@@ -540,6 +545,29 @@ class GameViewController: UIViewController {
     }
     
     func showEntitySelectionMenu(at coordinate: HexCoordinate, entities: [EntityNode]) {
+        // ✅ FIX: Double-check visibility and filter again
+        let visibility = player.getVisibilityLevel(at: coordinate)
+        
+        guard visibility == .visible else {
+            // Tile is explored but not visible - show tile info instead
+            showTileInfoMenu(for: coordinate)
+            return
+        }
+        
+        // ✅ FIX: Only show entities that are actually visible
+        let visibleEntities = entities.filter { entity in
+            if let fogOfWar = player.fogOfWar {
+                return fogOfWar.shouldShowEntity(entity.entity, at: coordinate)
+            }
+            return false
+        }
+        
+        guard !visibleEntities.isEmpty else {
+            // No visible entities - show tile info instead
+            showTileInfoMenu(for: coordinate)
+            return
+        }
+        
         var title = "Select Entity"
         var message = "Tile: (\(coordinate.q), \(coordinate.r))\n"
         
@@ -554,8 +582,8 @@ class GameViewController: UIViewController {
             preferredStyle: .actionSheet
         )
         
-        // Add an action for each entity
-        for entity in entities {
+        // Add an action for each VISIBLE entity
+        for entity in visibleEntities {
             var buttonTitle = ""
             var buttonStyle: UIAlertAction.Style = .default
             
@@ -586,20 +614,11 @@ class GameViewController: UIViewController {
             })
         }
         
-        // ✅ FIX: Show "Move Unit Here" option that filters to player-owned entities
-        let playerEntities = entities.filter { $0.entity.owner?.id == player.id && !$0.isMoving }
-        if !playerEntities.isEmpty {
-            alert.addAction(UIAlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] _ in
-                self?.showMoveSelectionMenu(to: coordinate, from: playerEntities)
-            })
-        }
-        
         // Cancel action
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
             self?.gameScene.deselectAll()
         })
         
-        // For iPad
         if let popover = alert.popoverPresentationController {
             popover.sourceView = view
             popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
@@ -1553,7 +1572,22 @@ class GameViewController: UIViewController {
             preferredStyle: .actionSheet
         )
         
-        for entity in entities {
+        // ✅ FIX: Filter to only show player-owned, visible entities
+        let validEntities = entities.filter { entity in
+            // Must be owned by player
+            guard entity.entity.owner?.id == player.id else { return false }
+            
+            // Entity's current location must be visible
+            let currentVisibility = player.getVisibilityLevel(at: entity.coordinate)
+            return currentVisibility == .visible
+        }
+        
+        guard !validEntities.isEmpty else {
+            showSimpleAlert(title: "No Units Available", message: "You don't have any visible units that can move.")
+            return
+        }
+        
+        for entity in validEntities {
             let distance = entity.coordinate.distance(to: coordinate)
             var title = "\(entity.entityType.icon) "
             
@@ -1565,7 +1599,6 @@ class GameViewController: UIViewController {
             }
             
             alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
-                // ✅ DIRECTLY MOVE - don't open action menu
                 self?.gameScene.moveEntity(entity, to: coordinate)
                 self?.gameScene.deselectAll()
             })
@@ -1815,6 +1848,9 @@ class GameViewController: UIViewController {
         gameScene.buildingsNode.removeAllChildren()
         gameScene.entitiesNode.removeAllChildren()
         
+        // Remove old fog node
+        gameScene.childNode(withName: "fogNode")?.removeFromParent()
+        
         // Rebuild map tiles
         for (coord, tile) in hexMap.tiles {
             let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
@@ -1873,10 +1909,8 @@ class GameViewController: UIViewController {
             }
         }
         
-        // Setup fog of war
-        hexMap.setupFogOverlays(in: gameScene)
-        player.updateVision(allPlayers: allPlayers)
-        hexMap.updateFogOverlays(for: player)
+        // ✅ Now initialize fog of war AFTER everything is rebuilt
+        gameScene.initializeFogOfWar()
         
         // Update resource display
         updateResourceDisplay()

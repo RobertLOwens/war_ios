@@ -38,6 +38,8 @@ class EntityNode: SKSpriteNode {
     let entity: MapEntity
     var isMoving: Bool = false
     var movementPath: [HexCoordinate] = []
+    private var pathLine: SKShapeNode?
+
     
     // ✅ ADD: Store the actual typed entity
     weak var armyReference: Army?
@@ -125,16 +127,44 @@ class EntityNode: SKSpriteNode {
         isMoving = true
         movementPath = path
         
-        var actions: [SKAction] = []
+        // ✅ Calculate total path distance for smooth continuous movement
+        var totalDistance: CGFloat = 0
+        var segmentDistances: [CGFloat] = []
+        
+        let startPos = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+        var previousPos = startPos
         
         for coord in path {
+            let nextPos = HexMap.hexToPixel(q: coord.q, r: coord.r)
+            let dx = nextPos.x - previousPos.x
+            let dy = nextPos.y - previousPos.y
+            let distance = sqrt(dx * dx + dy * dy)
+            segmentDistances.append(distance)
+            totalDistance += distance
+            previousPos = nextPos
+        }
+        
+        // ✅ Calculate timing based on total distance for constant speed
+        let totalDuration = TimeInterval(totalDistance / 100.0) * entityType.moveSpeed
+        
+        // ✅ Create one smooth continuous movement action
+        var actions: [SKAction] = []
+        var currentPathIndex = 0
+        var remainingPath = path
+        
+        for (index, coord) in path.enumerated() {
             let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
-            let moveAction = SKAction.move(to: position, duration: entityType.moveSpeed)
-            moveAction.timingMode = .easeInEaseOut
+            
+            // Calculate duration for this segment proportional to its distance
+            let segmentRatio = segmentDistances[index] / totalDistance
+            let segmentDuration = totalDuration * segmentRatio
+            
+            let moveAction = SKAction.move(to: position, duration: segmentDuration)
+            moveAction.timingMode = .linear // ✅ Linear for smooth constant speed
             actions.append(moveAction)
             
-            // ✅ ADD: Update coordinate and trigger vision update after each step
-            let updateCoordAction = SKAction.run { [weak self] in
+            // ✅ Update coordinate and path visualization after reaching each waypoint
+            let updateAction = SKAction.run { [weak self] in
                 guard let self = self else { return }
                 self.coordinate = coord
                 
@@ -145,16 +175,25 @@ class EntityNode: SKSpriteNode {
                     villagers.coordinate = coord
                 }
                 
-                // ✅ NEW: Trigger fog of war update during movement
+                // ✅ Update path visualization - remove completed segment
+                remainingPath.removeFirst()
+                if let scene = self.scene as? GameScene {
+                    if !remainingPath.isEmpty {
+                        scene.updateMovementPath(from: coord, remainingPath: remainingPath)
+                    } else {
+                        scene.clearMovementPath()
+                    }
+                }
+                
+                // Trigger fog of war update
                 if let owner = self.entity.owner {
-                    // This will be called each step, allowing fog to follow the entity
                     NotificationCenter.default.post(
                         name: NSNotification.Name("UpdateFogOfWar"),
                         object: owner
                     )
                 }
             }
-            actions.append(updateCoordAction)
+            actions.append(updateAction)
         }
         
         let sequence = SKAction.sequence(actions)
@@ -164,7 +203,6 @@ class EntityNode: SKSpriteNode {
             if let lastCoord = path.last {
                 self.coordinate = lastCoord
                 
-                // Final coordinate update
                 if let army = self.entity as? Army {
                     army.coordinate = lastCoord
                     print("✅ Updated Army coordinate to (\(lastCoord.q), \(lastCoord.r))")
@@ -173,18 +211,106 @@ class EntityNode: SKSpriteNode {
                     print("✅ Updated VillagerGroup coordinate to (\(lastCoord.q), \(lastCoord.r))")
                 }
             }
+            
             self.isMoving = false
             self.movementPath = []
             completion()
         }
     }
-
     
     func updateVisibility(for player: Player) {
         if let fogOfWar = player.fogOfWar {
-            let shouldShow = fogOfWar.shouldShowEntity(entity, at: coordinate)
+            let visibility = fogOfWar.getVisibilityLevel(at: coordinate)
+            
+            // ✅ FIX: Only show entity if tile is VISIBLE (not just explored)
+            let shouldShow = visibility == .visible &&
+                            fogOfWar.shouldShowEntity(entity, at: coordinate)
+            
             self.isHidden = !shouldShow
+            
+            // ✅ ALSO: Disable user interaction when hidden
+            self.isUserInteractionEnabled = shouldShow
         }
     }
+    
+    func drawMovementPath(_ path: [HexCoordinate]) {
+        // Remove old path line
+        pathLine?.removeFromParent()
+        
+        guard !path.isEmpty else { return }
+        
+        // Create path
+        let bezierPath = UIBezierPath()
+        
+        // Start from current position
+        bezierPath.move(to: .zero)
+        
+        // Draw line through each waypoint
+        for coord in path {
+            let worldPos = HexMap.hexToPixel(q: coord.q, r: coord.r)
+            let localPos = CGPoint(
+                x: worldPos.x - self.position.x,
+                y: worldPos.y - self.position.y
+            )
+            bezierPath.addLine(to: localPos)
+        }
+        
+        // Create shape node
+        pathLine = SKShapeNode(path: bezierPath.cgPath)
+        pathLine?.strokeColor = UIColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 0.6) // Yellow with transparency
+        pathLine?.lineWidth = 2
+        pathLine?.lineCap = .round
+        pathLine?.lineJoin = .round
+        pathLine?.zPosition = -1 // Behind the entity
+        
+        // Add arrow at the end
+        if let lastCoord = path.last {
+            let worldPos = HexMap.hexToPixel(q: lastCoord.q, r: lastCoord.r)
+            let localPos = CGPoint(
+                x: worldPos.x - self.position.x,
+                y: worldPos.y - self.position.y
+            )
+            
+            // Calculate arrow direction
+            let previousCoord = path.count > 1 ? path[path.count - 2] : coordinate
+            let prevWorldPos = HexMap.hexToPixel(q: previousCoord.q, r: previousCoord.r)
+            let prevLocalPos = CGPoint(
+                x: prevWorldPos.x - self.position.x,
+                y: prevWorldPos.y - self.position.y
+            )
+            
+            let dx = localPos.x - prevLocalPos.x
+            let dy = localPos.y - prevLocalPos.y
+            let angle = atan2(dy, dx)
+            
+            // Create arrow head
+            let arrowSize: CGFloat = 8
+            let arrowPath = UIBezierPath()
+            arrowPath.move(to: localPos)
+            arrowPath.addLine(to: CGPoint(
+                x: localPos.x - arrowSize * cos(angle - .pi / 6),
+                y: localPos.y - arrowSize * sin(angle - .pi / 6)
+            ))
+            arrowPath.move(to: localPos)
+            arrowPath.addLine(to: CGPoint(
+                x: localPos.x - arrowSize * cos(angle + .pi / 6),
+                y: localPos.y - arrowSize * sin(angle + .pi / 6)
+            ))
+            
+            let arrowHead = SKShapeNode(path: arrowPath.cgPath)
+            arrowHead.strokeColor = UIColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 0.6)
+            arrowHead.lineWidth = 2
+            arrowHead.lineCap = .round
+            pathLine?.addChild(arrowHead)
+        }
+        
+        addChild(pathLine!)
+    }
+    
+    func clearMovementPath() {
+            pathLine?.removeFromParent()
+            pathLine = nil
+        }
+        
     
 }

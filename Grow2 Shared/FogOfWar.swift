@@ -95,11 +95,14 @@ class FogOfWarManager {
     func updateVision(allPlayers: [Player]) {
         guard let player = player, let hexMap = hexMap else { return }
         
-        // Reset all tiles to explored (if they were previously visible)
+        // ✅ FIX: Mark currently visible tiles as explored BEFORE changing them
         for (coord, level) in visionMap {
             if level == .visible {
-                // Save current state to memory before reducing visibility
-                saveToMemory(coord)
+                // Save this tile to memory before it becomes explored
+                if memoryMap[coord] == nil {
+                    saveToMemory(coord)
+                }
+                // Mark as explored (will be overwritten if still visible)
                 visionMap[coord] = .explored
             }
         }
@@ -107,16 +110,13 @@ class FogOfWarManager {
         // Calculate vision from own entities and buildings
         updateVisionFromPlayer(player)
         
-        // ✅ FIX: Calculate shared vision from allies/guild using diplomacy system
+        // Calculate shared vision from allies/guild
         for otherPlayer in allPlayers {
             guard otherPlayer.id != player.id else { continue }
             
-            // Get diplomacy status from player's relations
             let status = player.getDiplomacyStatus(with: otherPlayer)
             
-            // Share vision with guild and allies
             if status == .guild || status == .ally {
-                print("👁️ Sharing vision with \(status.displayName): \(otherPlayer.name)")
                 updateVisionFromPlayer(otherPlayer)
             }
         }
@@ -125,48 +125,59 @@ class FogOfWarManager {
     private func updateVisionFromPlayer(_ player: Player) {
         guard let hexMap = hexMap else { return }
         
-        // Vision from buildings (2 tile radius - increased from 1)
-        for building in player.buildings where building.state == .completed {
-            let visibleTiles = getVisibleTilesInRadius(center: building.coordinate, radius: 2)
+        print("👁️ Updating vision for \(player.name):")
+        print("   Buildings: \(player.buildings.count)")
+        print("   Entities: \(player.entities.count)")
+        
+        // Vision from buildings (1 tile radius)
+        var buildingVisionCount = 0
+        for building in hexMap.buildings where building.state == .completed && building.owner?.id == player.id {
+            let visibleTiles = getVisibleTilesInRadius(center: building.coordinate, radius: 1)
+            buildingVisionCount += visibleTiles.count
             for coord in visibleTiles {
                 setVisible(coord)
             }
         }
+        print("   Building vision tiles: \(buildingVisionCount)")
         
-        // Vision from entities (3 tile radius - increased from 2)
-        for entity in player.entities {
+        // Vision from entities (2 tile radius)
+        var entityVisionCount = 0
+        for entity in hexMap.entities {
+            guard entity.entity.owner?.id == player.id else { continue }
+            
             let coord: HexCoordinate
-            if let army = entity as? Army {
+            if let army = entity.entity as? Army {
                 coord = army.coordinate
-            } else if let villagers = entity as? VillagerGroup {
+            } else if let villagers = entity.entity as? VillagerGroup {
                 coord = villagers.coordinate
             } else {
                 continue
             }
             
-            let visibleTiles = getVisibleTilesInRadius(center: coord, radius: 3)
+            let visibleTiles = getVisibleTilesInRadius(center: coord, radius: 2)
+            entityVisionCount += visibleTiles.count
             for coord in visibleTiles {
                 setVisible(coord)
             }
         }
+        print("   Entity vision tiles: \(entityVisionCount)")
     }
+
     
     private func getVisibleTilesInRadius(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
         guard let hexMap = hexMap else { return [] }
         
-        var tiles: Set<HexCoordinate> = [center]
+        var tiles: [HexCoordinate] = []
         
-        // Use hex rings for accurate circular vision
-        for r in 1...radius {
-            let ring = getRing(center: center, radius: r)
-            for coord in ring {
-                if hexMap.isValidCoordinate(coord) {
-                    tiles.insert(coord)
-                }
+        // Check each tile on the map
+        for (coord, _) in hexMap.tiles {
+            let dist = center.distance(to: coord)
+            if dist <= radius {
+                tiles.append(coord)
             }
         }
         
-        return Array(tiles)
+        return tiles
     }
     
     private func getRing(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
@@ -174,24 +185,29 @@ class FogOfWarManager {
         
         var results: [HexCoordinate] = []
         
-        // Start at one corner of the ring
-        var hex = HexCoordinate(q: center.q - radius, r: center.r + radius)
+        // Convert center to axial coordinates
+        let centerAxialQ = center.q - (center.r - (center.r & 1)) / 2
+        let centerAxialR = center.r
         
-        // Six directions to walk around the ring
-        let directions = [
-            HexCoordinate(q: 1, r: 0),   // Right
-            HexCoordinate(q: 1, r: -1),  // Up-right
-            HexCoordinate(q: 0, r: -1),  // Up-left
-            HexCoordinate(q: -1, r: 0),  // Left
-            HexCoordinate(q: -1, r: 1),  // Down-left
-            HexCoordinate(q: 0, r: 1)    // Down-right
-        ]
-        
-        // Walk around the ring
-        for direction in directions {
-            for _ in 0..<radius {
-                results.append(hex)
-                hex = HexCoordinate(q: hex.q + direction.q, r: hex.r + direction.r)
+        // Generate ring in axial space
+        for dq in -radius...radius {
+            let dr1 = max(-radius, -dq - radius)
+            let dr2 = min(radius, -dq + radius)
+            
+            for dr in dr1...dr2 {
+                if abs(dq) == radius || abs(dr) == radius || abs(dq + dr) == radius {
+                    let axialQ = centerAxialQ + dq
+                    let axialR = centerAxialR + dr
+                    
+                    // Convert back to offset coordinates
+                    let offsetQ = axialQ + (axialR - (axialR & 1)) / 2
+                    let offsetR = axialR
+                    
+                    let coord = HexCoordinate(q: offsetQ, r: offsetR)
+                    if hexMap?.isValidCoordinate(coord) ?? false {
+                        results.append(coord)
+                    }
+                }
             }
         }
         
@@ -267,18 +283,26 @@ class FogOfWarManager {
         
         let visibility = getVisibilityLevel(at: coord)
         
+        let shouldShow: Bool
         switch visibility {
         case .unexplored:
-            return false
+            shouldShow = false
             
         case .explored:
-            // Don't show any entities in explored (but not visible) areas
-            return false
+            // ✅ FIX: Don't show any entities in explored (but not visible) areas
+            shouldShow = false
             
         case .visible:
             // Show all entities in visible areas
-            return true
+            shouldShow = true
         }
+        
+        // Debug logging
+        if !shouldShow && entity.owner?.id == player.id {
+            print("⚠️ Hiding own entity at (\(coord.q), \(coord.r)) - visibility: \(visibility)")
+        }
+        
+        return shouldShow
     }
     
     func shouldShowBuilding(_ building: BuildingNode, at coord: HexCoordinate) -> BuildingDisplayMode {
@@ -296,6 +320,17 @@ class FogOfWarManager {
             return .current
         }
     }
+    
+    func markAsExplored(_ coord: HexCoordinate) {
+        visionMap[coord] = .explored
+        
+        // Also save to memory
+        if let hexMap = hexMap, let tile = hexMap.getTile(at: coord) {
+            let memory = TileMemory(terrain: tile.terrain, lastSeenTime: Date().timeIntervalSince1970)
+            memoryMap[coord] = memory
+        }
+    }
+
 }
 
 enum BuildingDisplayMode {
