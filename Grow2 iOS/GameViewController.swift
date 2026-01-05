@@ -11,14 +11,21 @@ class GameViewController: UIViewController {
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
-
-
+    
     // UI Elements
     var resourcePanel: UIView!
     var resourceLabels: [ResourceType: UILabel] = [:]
     var commanderButton: UIButton!
     var combatHistoryButton: UIButton!
     
+    private struct AssociatedKeys {
+        static var unitLabels: UInt8 = 0
+        static var garrisonData: UInt8 = 1
+        static var villagerCountLabel: UInt8 = 2
+        static var splitLabels: UInt8 = 3
+        static var trainingLabels: UInt8 = 4  // ✅ Unified training slider labels
+    }
+
     override var prefersStatusBarHidden: Bool {
         return true
     }
@@ -137,45 +144,43 @@ class GameViewController: UIViewController {
             // Check if we have armies that can attack
             let playerArmies = player.getArmies().filter { $0.hasMilitaryUnits() }
             if !playerArmies.isEmpty {
-                alert.addAction(UIAlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] _ in
+                alert.addAction(UIAlertAction(title: "⚔️ Attack \(ownerName)", style: .destructive) { [weak self] _ in
                     self?.showAttackerSelection(target: entity, at: coordinate)
                 })
             }
         }
         
         // ✅ VILLAGER ACTIONS (only for owned entities)
-        if entity.entityType == .villagerGroup, entity.entity.owner?.id == player.id {
-            print("🔍 DEBUG: Villager group detected")
-            print("🔍 DEBUG: Owner ID: \(entity.entity.owner?.id.uuidString ?? "nil")")
-            print("🔍 DEBUG: Player ID: \(player.id.uuidString)")
+        if entity.entityType == .villagerGroup,
+           let villagers = entity.entity as? VillagerGroup,
+           villagers.owner?.id == player.id {
             
-            if let villagers = entity.entity as? VillagerGroup {
-                print("🔍 DEBUG: Cast to VillagerGroup successful")
-                print("🔍 DEBUG: Villager owner ID: \(villagers.owner?.id.uuidString ?? "nil")")
-                
-                if villagers.owner?.id == player.id {
-                    print("✅ DEBUG: Owner matches player - showing Build button")
-                    
-                    // Build action
-                    alert.addAction(UIAlertAction(title: "🗠️ Build", style: .default) { [weak self] _ in
-                        print("🗠️ Build button tapped!")
-                        self?.showBuildingMenu(at: coordinate, villagerGroup: entity)
-                    })
-                    
-                    // ✅ ADD THIS: Gather action if resource exists at location
-                    if let resourcePoint = gameScene.hexMap.getResourcePoint(at: coordinate),
-                       resourcePoint.canBeGathered() {
-                        alert.addAction(UIAlertAction(title: "\(resourcePoint.resourceType.icon) Gather \(resourcePoint.resourceType.displayName)", style: .default) { [weak self] _ in
-                            self?.assignVillagersToGather(villagerGroup: villagers, resourcePoint: resourcePoint)
-                        })
-                    }
-                    
-                } else {
-                    print("❌ DEBUG: Owner doesn't match player")
-                }
-            } else {
-                print("❌ DEBUG: Failed to cast to VillagerGroup")
+            print("✅ DEBUG: Villager group is owned by player - showing actions")
+            
+            // Build action - always show for owned villagers
+            alert.addAction(UIAlertAction(title: "🏗️ Build", style: .default) { [weak self] _ in
+                print("🏗️ Build button tapped!")
+                self?.showBuildingMenu(at: coordinate, villagerGroup: entity)
+            })
+            
+            // ✅ Gather action if resource exists at location
+            if let resourcePoint = gameScene.hexMap.getResourcePoint(at: coordinate),
+               resourcePoint.canBeGathered() {
+                alert.addAction(UIAlertAction(title: "\(resourcePoint.resourceType.icon) Gather \(resourcePoint.resourceType.displayName)", style: .default) { [weak self] _ in
+                    self?.assignVillagersToGather(villagerGroup: villagers, resourcePoint: resourcePoint)
+                })
             }
+            
+            if villagers.villagerCount > 1 {
+                alert.addAction(UIAlertAction(title: "✂️ Split Group", style: .default) { [weak self] _ in
+                    self?.showSplitVillagerGroupMenu(villagerGroup: villagers, entity: entity)
+                })
+            }
+            
+        } else if entity.entityType == .villagerGroup {
+            print("❌ DEBUG: Villager not owned by player")
+            print("   Entity owner ID: \(entity.entity.owner?.id.uuidString ?? "nil")")
+            print("   Player ID: \(player.id.uuidString)")
         }
         
         // ✅ ARMY ACTIONS (only for owned entities)
@@ -190,14 +195,9 @@ class GameViewController: UIViewController {
                     self?.showReinforcementSourceSelection(for: army)
                 })
             }
-            
-            // Edit action
-            alert.addAction(UIAlertAction(title: "✏️ Edit Army", style: .default) { [weak self] _ in
-                self?.showArmyEditor(for: army, at: coordinate)
-            })
         }
         
-        // Back to entity selection
+        // Back to entity selection (if multiple entities on tile)
         let entitiesAtTile = gameScene.hexMap.entities.filter { $0.coordinate == coordinate }
         if entitiesAtTile.count > 1 {
             alert.addAction(UIAlertAction(title: "← Back to Entity List", style: .default) { [weak self] _ in
@@ -388,6 +388,14 @@ class GameViewController: UIViewController {
             // Show current real-time information
             if let building = gameScene.hexMap.getBuilding(at: coordinate) {
                 buildingAtTile = building
+                
+                // ✅ If there's a completed building owned by player, show custom view controller
+                if building.state == .completed && building.owner?.id == player.id {
+                    showBuildingDetailViewController(building: building)
+                    return
+                }
+                
+                // Otherwise show info in alert
                 title = "\(building.buildingType.icon) \(building.buildingType.displayName)"
                 message = ""
                 
@@ -414,7 +422,6 @@ class GameViewController: UIViewController {
                 title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
                 message = resourcePoint.getDescription()
                 
-                // ✅ ADD: Show if it's being gathered
                 if resourcePoint.isBeingGathered {
                     message += "\n\n🔨 Currently being gathered"
                 }
@@ -425,7 +432,7 @@ class GameViewController: UIViewController {
         let alert = UIAlertController(
             title: title,
             message: message,
-            preferredStyle: .actionSheet
+            preferredStyle: .alert
         )
         
         let entitiesAtTile = gameScene.hexMap.entities.filter { $0.coordinate == coordinate }
@@ -433,29 +440,6 @@ class GameViewController: UIViewController {
         
         // Only allow actions on visible tiles
         if visibility == .visible {
-            
-            // Building-specific actions
-            if let building = buildingAtTile,
-               building.state == .completed,
-               building.owner?.id == player.id {
-                
-                // Reinforce Army option (if garrison available)
-                if building.getTotalGarrisonedUnits() > 0 {
-                    let armiesOnField = player.getArmies().filter { $0.hasMilitaryUnits() }
-                    if !armiesOnField.isEmpty {
-                        alert.addAction(UIAlertAction(title: "⚔️ Reinforce Army", style: .default) { [weak self] _ in
-                            self?.showReinforcementTargetSelection(from: building)
-                        })
-                    }
-                }
-                
-                // Train Units option (military buildings)
-                if building.buildingType.category == .military {
-                    alert.addAction(UIAlertAction(title: "🎖️ Train Units", style: .default) { [weak self] _ in
-                        self?.showTrainingMenu(for: building)
-                    })
-                }
-            }
             
             // ✅ FIX: Only show "Move Unit Here" if there are NO entities on this tile
             if entitiesAtTile.isEmpty {
@@ -485,6 +469,21 @@ class GameViewController: UIViewController {
         }
         
         present(alert, animated: true)
+    }
+    
+    func showBuildingDetailViewController(building: BuildingNode) {
+        let detailVC = BuildingDetailViewController()
+        detailVC.building = building
+        detailVC.player = player
+        detailVC.gameViewController = self
+        detailVC.modalPresentationStyle = .pageSheet
+        
+        if let sheet = detailVC.sheetPresentationController {
+            sheet.detents = [.large()]
+            sheet.prefersGrabberVisible = true
+        }
+        
+        present(detailVC, animated: true)
     }
     
     func showTileActionMenu(for coordinate: HexCoordinate) {
@@ -870,6 +869,15 @@ class GameViewController: UIViewController {
         menuButton.layer.cornerRadius = 8
         menuButton.addTarget(self, action: #selector(showGameMenu), for: .touchUpInside)
         view.addSubview(menuButton)
+        
+        let trainingButton = UIButton(frame: CGRect(x: view.bounds.width - 310, y: 10, width: 140, height: 35))
+        trainingButton.setTitle("🎓 Training", for: .normal)
+        trainingButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        trainingButton.backgroundColor = UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)
+        trainingButton.layer.cornerRadius = 8
+        trainingButton.addTarget(self, action: #selector(showTrainingOverview), for: .touchUpInside)
+        trainingButton.autoresizingMask = [.flexibleLeftMargin]
+        resourcePanel.addSubview(trainingButton)
     }
     
     @objc func showGameMenu() {
@@ -921,7 +929,7 @@ class GameViewController: UIViewController {
     func showTrainingMenu(for building: BuildingNode) {
         let alert = UIAlertController(
             title: "🎖️ Train Units",
-            message: "Select units to train (batches of 50)\n\n\(building.getGarrisonDescription())",
+            message: "Select unit type to train at \(building.buildingType.displayName)\n\n\(building.getGarrisonDescription())",
             preferredStyle: .actionSheet
         )
         
@@ -929,18 +937,11 @@ class GameViewController: UIViewController {
         let availableUnits = MilitaryUnitType.allCases.filter { $0.trainingBuilding == building.buildingType }
         
         for unitType in availableUnits {
-            let cost = formatUnitCost(unitType, quantity: 50)
-            let canAfford = player.canAffordUnitBatch(unitType, quantity: 50)
-            let totalTime = Int(unitType.trainingTime * 50)
-            let minutes = totalTime / 60
-            let seconds = totalTime % 60
-            
-            let title = "\(unitType.icon) 50x \(unitType.displayName) - \(cost) (\(minutes)m \(seconds)s)"
+            let title = "\(unitType.icon) \(unitType.displayName)"
             
             let action = UIAlertAction(title: title, style: .default) { [weak self] _ in
-                self?.showTrainingConfirmation(unitType: unitType, quantity: 50, building: building)
+                self?.showUnitTrainingSlider(unitType: unitType, building: building)
             }
-            action.isEnabled = canAfford
             alert.addAction(action)
         }
         
@@ -955,42 +956,69 @@ class GameViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    func showTrainingConfirmation(unitType: MilitaryUnitType, quantity: Int, building: BuildingNode) {
-        var message = "\(unitType.description)\n\n"
+    func showVillagerTrainingConfirmation(quantity: Int, building: BuildingNode) {
+        let villagerCost: [ResourceType: Int] = [.food: 50]
+        
+        var message = "Train new villagers to gather resources and construct buildings.\n\n"
         message += "Quantity: \(quantity)\n\n"
         message += "Total Cost:\n"
         
-        for (resourceType, unitCost) in unitType.trainingCost.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+        for (resourceType, unitCost) in villagerCost.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let totalCost = unitCost * quantity
             let current = player.getResource(resourceType)
             let statusIcon = current >= totalCost ? "✓" : "✗"
             message += "\(statusIcon) \(resourceType.icon) \(resourceType.displayName): \(totalCost) (You have: \(current))\n"
         }
         
-        let totalTime = Int(unitType.trainingTime * Double(quantity))
+        let totalTime = Int(15.0 * Double(quantity))
         let minutes = totalTime / 60
         let seconds = totalTime % 60
         message += "\nTotal Training Time: \(minutes)m \(seconds)s"
         
-        message += "\n\nStats (per unit):"
-        message += "\n⚔️ Attack: \(unitType.attackPower)"
-        message += "\n🛡️ Defense: \(unitType.defensePower)"
+        message += "\n\n💡 Trained villagers will be added to the building's garrison."
         
         let alert = UIAlertController(
-            title: "Train \(quantity)x \(unitType.displayName)?",
+            title: "Train \(quantity)x Villagers?",
             message: message,
             preferredStyle: .alert
         )
         
-        let confirmAction = UIAlertAction(title: "Train", style: .default) { [weak self] _ in
-            self?.startTraining(unitType: unitType, quantity: quantity, building: building)
+        let canAfford = villagerCost.allSatisfy { resourceType, unitCost in
+            player.hasResource(resourceType, amount: unitCost * quantity)
         }
-        confirmAction.isEnabled = player.canAffordUnitBatch(unitType, quantity: quantity)
+        
+        let confirmAction = UIAlertAction(title: "Train", style: .default) { [weak self] _ in
+            self?.startVillagerTraining(quantity: quantity, building: building)
+        }
+        confirmAction.isEnabled = canAfford
         alert.addAction(confirmAction)
         
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         
         present(alert, animated: true)
+    }
+
+    func startVillagerTraining(quantity: Int, building: BuildingNode) {
+        let villagerCost: [ResourceType: Int] = [.food: 50]
+        
+        // Deduct resources
+        for (resourceType, unitCost) in villagerCost {
+            let totalCost = unitCost * quantity
+            player.removeResource(resourceType, amount: totalCost)
+        }
+        
+        // Start training
+        let currentTime = Date().timeIntervalSince1970
+        building.startVillagerTraining(quantity: quantity, at: currentTime)
+        
+        updateResourceDisplay()
+        
+        showSimpleAlert(
+            title: "✅ Training Started",
+            message: "Training \(quantity) villagers at \(building.buildingType.displayName)"
+        )
+        
+        print("✅ Started training \(quantity) villagers at \(building.buildingType.displayName)")
     }
     
     func startTraining(unitType: MilitaryUnitType, quantity: Int, building: BuildingNode) {
@@ -1399,19 +1427,29 @@ class GameViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    /// Shows a menu to select which army to reinforce from a building's garrison
     func showReinforcementTargetSelection(from building: BuildingNode) {
-        let armiesOnField = player.getArmies().filter { $0.hasMilitaryUnits() }
+        let armiesOnField = player.getArmies().filter { army in
+            // Include all armies, even empty ones
+            return true
+        }
+        
+        guard !armiesOnField.isEmpty else {
+            showSimpleAlert(title: "No Armies", message: "You don't have any armies to reinforce. Recruit a commander first!")
+            return
+        }
         
         let alert = UIAlertController(
             title: "⚔️ Select Army to Reinforce",
-            message: "Choose which army to reinforce from \(building.buildingType.displayName):",
+            message: "Choose which army to reinforce from \(building.buildingType.displayName):\n\nGarrison: \(building.getTotalGarrisonCount()) units available",
             preferredStyle: .actionSheet
         )
         
         for army in armiesOnField {
             let unitCount = army.getTotalMilitaryUnits()
-            let title = "\(army.name) (\(unitCount) units) - (\(army.coordinate.q), \(army.coordinate.r))"
+            let commanderName = army.commander?.name ?? "No Commander"
+            let distance = army.coordinate.distance(to: building.coordinate)
+            
+            let title = "🛡️ \(army.name) - \(commanderName) (\(unitCount) units) - Distance: \(distance)"
             
             alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
                 self?.showReinforcementUnitSelection(from: building, to: army)
@@ -1533,12 +1571,6 @@ class GameViewController: UIViewController {
             let sliderValue = Int(slider.value)
             label.text = "\(sliderValue) / \(available) units"
         }
-    }
-    
-    // Associated object keys for slider callback
-    private struct AssociatedKeys {
-        static var unitLabels: UInt8 = 0
-        static var garrisonData: UInt8 = 1
     }
     
     /// Actually performs the reinforcement transfer
@@ -1758,6 +1790,8 @@ class GameViewController: UIViewController {
     @objc func showCommandersScreen() {
         let commandersVC = CommandersViewController()
         commandersVC.player = player
+        commandersVC.hexMap = gameScene.hexMap  // ✅ ADD THIS
+        commandersVC.gameScene = gameScene      // ✅ ADD THIS
         commandersVC.modalPresentationStyle = .fullScreen
         present(commandersVC, animated: true)
         print("👤 Opening Commanders screen")
@@ -1831,12 +1865,27 @@ class GameViewController: UIViewController {
         gameScene.player = loadedData.player
         gameScene.hexMap = loadedData.hexMap
         gameScene.allGamePlayers = loadedData.allPlayers
-        gameScene.initializeFogOfWar()
         
-        // Rebuild the scene with loaded data
+        // Rebuild the scene
         rebuildSceneWithLoadedData(hexMap: loadedData.hexMap, player: loadedData.player, allPlayers: loadedData.allPlayers)
         
-        
+        // ✅ DEBUG: Check fog stats after everything is loaded
+        if let fogOfWar = player.fogOfWar {
+            print("\n🔍 POST-LOAD FOG CHECK:")
+            fogOfWar.printFogStats()
+            
+            // Check a few specific tiles
+            let testCoords = [
+                HexCoordinate(q: 3, r: 3),
+                HexCoordinate(q: 5, r: 5),
+                HexCoordinate(q: 10, r: 10)
+            ]
+            
+            for coord in testCoords {
+                let vis = player.getVisibilityLevel(at: coord)
+                print("  Tile (\(coord.q), \(coord.r)): \(vis)")
+            }
+        }
         
         print("✅ Game loaded successfully")
         showSimpleAlert(title: "✅ Game Loaded", message: "Your saved game has been restored.")
@@ -1877,6 +1926,7 @@ class GameViewController: UIViewController {
             // Re-apply texture and UI
             building.setupUI()
             building.updateAppearance()
+            building.updateUIVisibility()
         }
         
         // Rebuild entities
@@ -1909,14 +1959,42 @@ class GameViewController: UIViewController {
             }
         }
         
-        // ✅ Now initialize fog of war AFTER everything is rebuilt
-        gameScene.initializeFogOfWar()
+        // ✅ FIX: DON'T call initializeFogOfWar here - it's already done in reconstructHexMap
+        // Instead, just setup the visual fog overlays
+        
+        // Create fresh fog node for overlays
+        let fogNode = SKNode()
+        fogNode.name = "fogNode"
+        fogNode.zPosition = 100
+        gameScene.addChild(fogNode)
+        
+        // Setup fog overlays (visual only)
+        hexMap.setupFogOverlays(in: fogNode)
+        
+        // ✅ IMPORTANT: Update vision to reveal visible tiles (but keep explored tiles)
+        player.updateVision(allPlayers: allPlayers)
+        
+        // Apply fog overlay visuals
+        hexMap.updateFogOverlays(for: player)
+        
+        // Update entity visibility
+        for entity in hexMap.entities {
+            entity.updateVisibility(for: player)
+        }
+        
+        // Update building visibility
+        for building in hexMap.buildings {
+            let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
+            building.updateVisibility(displayMode: displayMode)
+        }
         
         // Update resource display
         updateResourceDisplay()
         
         print("🔄 Scene rebuilt with loaded data")
+        print("   Explored tiles: \(player.fogOfWar?.getExploredCount() ?? 0)")
     }
+
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
@@ -1965,4 +2043,407 @@ class GameViewController: UIViewController {
         updateResourceDisplay()
     }
     
+    
+    func showDeployVillagersMenu(from building: BuildingNode) {
+        let villagerCount = building.villagerGarrison
+        
+        guard villagerCount > 0 else {
+            showSimpleAlert(title: "No Villagers", message: "This building has no villagers to deploy.")
+            return
+        }
+        
+        guard let spawnCoord = gameScene.hexMap.findNearestWalkable(to: building.coordinate) else {
+            showSimpleAlert(title: "Cannot Deploy", message: "No valid location near building to deploy villagers.")
+            return
+        }
+        
+        // Create custom alert with slider
+        let alert = UIAlertController(
+            title: "👷 Deploy Villagers",
+            message: "Select how many villagers to deploy from \(building.buildingType.displayName)\n\nAvailable: \(villagerCount) villagers",
+            preferredStyle: .alert
+        )
+        
+        // Create container for slider
+        let containerVC = UIViewController()
+        containerVC.preferredContentSize = CGSize(width: 270, height: 120)
+        
+        let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 270, height: 120))
+        
+        // Slider
+        let slider = UISlider(frame: CGRect(x: 20, y: 20, width: 230, height: 30))
+        slider.minimumValue = 1
+        slider.maximumValue = Float(villagerCount)
+        slider.value = Float(min(5, villagerCount))
+        slider.isContinuous = true
+        containerView.addSubview(slider)
+        
+        // Count label
+        let countLabel = UILabel(frame: CGRect(x: 20, y: 60, width: 230, height: 30))
+        countLabel.text = "\(Int(slider.value)) villagers"
+        countLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        countLabel.textColor = .label
+        countLabel.textAlignment = .center
+        containerView.addSubview(countLabel)
+        
+        // Update label when slider moves
+        slider.addTarget(self, action: #selector(villagerSliderChanged(_:)), for: .valueChanged)
+        objc_setAssociatedObject(self, &AssociatedKeys.villagerCountLabel, countLabel, .OBJC_ASSOCIATION_RETAIN)
+        
+        containerVC.view.addSubview(containerView)
+        alert.setValue(containerVC, forKey: "contentViewController")
+        
+        // Deploy action
+        alert.addAction(UIAlertAction(title: "Deploy", style: .default) { [weak self] _ in
+            let deployCount = Int(slider.value)
+            self?.deployVillagers(count: deployCount, from: building, at: spawnCoord)
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        present(alert, animated: true)
+    }
+
+    @objc func villagerSliderChanged(_ slider: UISlider) {
+        if let label = objc_getAssociatedObject(self, &AssociatedKeys.villagerCountLabel) as? UILabel {
+            label.text = "\(Int(slider.value)) villagers"
+        }
+    }
+
+    func deployVillagers(count: Int, from building: BuildingNode, at coordinate: HexCoordinate) {
+        // Remove villagers from garrison
+        let removed = building.removeVillagersFromGarrison(quantity: count)
+        
+        guard removed > 0 else {
+            showSimpleAlert(title: "Deploy Failed", message: "Could not remove villagers from garrison.")
+            return
+        }
+        
+        // Create new villager group
+        let villagerGroup = VillagerGroup(
+            name: "Villagers",
+            coordinate: coordinate,
+            villagerCount: removed,
+            owner: player
+        )
+        
+        let villagerNode = EntityNode(
+            coordinate: coordinate,
+            entityType: .villagerGroup,
+            entity: villagerGroup,
+            currentPlayer: player
+        )
+        
+        let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+        villagerNode.position = position
+        
+        gameScene.hexMap.addEntity(villagerNode)
+        gameScene.entitiesNode.addChild(villagerNode)
+        player.addEntity(villagerGroup)
+        
+        showSimpleAlert(
+            title: "✅ Villagers Deployed",
+            message: "Deployed \(removed) villagers from \(building.buildingType.displayName)"
+        )
+        
+        print("✅ Deployed \(removed) villagers at (\(coordinate.q), \(coordinate.r))")
+    }
+    
+    func showSplitVillagerGroupMenu(villagerGroup: VillagerGroup, entity: EntityNode) {
+        let totalVillagers = villagerGroup.villagerCount
+        
+        guard totalVillagers > 1 else {
+            showSimpleAlert(title: "Cannot Split", message: "Need at least 2 villagers to split the group.")
+            return
+        }
+        
+        // Create custom alert with slider
+        let alert = UIAlertController(
+            title: "✂️ Split Villager Group",
+            message: "Select how many villagers to move to a new group\n\nTotal: \(totalVillagers) villagers",
+            preferredStyle: .alert
+        )
+        
+        // Create container for slider
+        let containerVC = UIViewController()
+        containerVC.preferredContentSize = CGSize(width: 270, height: 150)
+        
+        let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 270, height: 150))
+        
+        // Info label
+        let infoLabel = UILabel(frame: CGRect(x: 20, y: 10, width: 230, height: 40))
+        infoLabel.text = "Original group will keep the rest"
+        infoLabel.font = UIFont.systemFont(ofSize: 12)
+        infoLabel.textColor = .secondaryLabel
+        infoLabel.textAlignment = .center
+        infoLabel.numberOfLines = 2
+        containerView.addSubview(infoLabel)
+        
+        // Slider
+        let slider = UISlider(frame: CGRect(x: 20, y: 50, width: 230, height: 30))
+        slider.minimumValue = 1
+        slider.maximumValue = Float(totalVillagers - 1)
+        slider.value = Float(totalVillagers / 2)
+        slider.isContinuous = true
+        containerView.addSubview(slider)
+        
+        // Count labels
+        let splitLabel = UILabel(frame: CGRect(x: 20, y: 90, width: 230, height: 25))
+        splitLabel.text = "New group: \(Int(slider.value)) villagers"
+        splitLabel.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        splitLabel.textColor = .label
+        splitLabel.textAlignment = .center
+        containerView.addSubview(splitLabel)
+        
+        let remainLabel = UILabel(frame: CGRect(x: 20, y: 115, width: 230, height: 25))
+        remainLabel.text = "Original: \(totalVillagers - Int(slider.value)) villagers"
+        remainLabel.font = UIFont.systemFont(ofSize: 14)
+        remainLabel.textColor = .secondaryLabel
+        remainLabel.textAlignment = .center
+        containerView.addSubview(remainLabel)
+        
+        // Update labels when slider moves
+        slider.addTarget(self, action: #selector(splitSliderChanged(_:)), for: .valueChanged)
+        
+        // Store both labels
+        let labelDict: [String: Any] = [
+            "splitLabel": splitLabel,
+            "remainLabel": remainLabel,
+            "totalVillagers": totalVillagers
+        ]
+        objc_setAssociatedObject(self, &AssociatedKeys.splitLabels, labelDict, .OBJC_ASSOCIATION_RETAIN)
+        
+        containerVC.view.addSubview(containerView)
+        alert.setValue(containerVC, forKey: "contentViewController")
+        
+        // Split action
+        alert.addAction(UIAlertAction(title: "Split", style: .default) { [weak self] _ in
+            let splitCount = Int(slider.value)
+            self?.splitVillagerGroup(villagerGroup: villagerGroup, entity: entity, splitCount: splitCount)
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        present(alert, animated: true)
+    }
+
+    @objc func splitSliderChanged(_ slider: UISlider) {
+        if let labelDict = objc_getAssociatedObject(self, &AssociatedKeys.splitLabels) as? [String: Any],
+           let splitLabel = labelDict["splitLabel"] as? UILabel,
+           let remainLabel = labelDict["remainLabel"] as? UILabel,
+           let totalVillagers = labelDict["totalVillagers"] as? Int {
+            
+            let splitValue = Int(slider.value)
+            splitLabel.text = "New group: \(splitValue) villagers"
+            remainLabel.text = "Original: \(totalVillagers - splitValue) villagers"
+        }
+    }
+
+    func splitVillagerGroup(villagerGroup: VillagerGroup, entity: EntityNode, splitCount: Int) {
+        guard let newGroup = villagerGroup.split(count: splitCount) else {
+            showSimpleAlert(title: "Split Failed", message: "Could not split villager group.")
+            return
+        }
+        
+        // Create entity node for new group
+        let newEntityNode = EntityNode(
+            coordinate: villagerGroup.coordinate,
+            entityType: .villagerGroup,
+            entity: newGroup,
+            currentPlayer: player
+        )
+        
+        let position = HexMap.hexToPixel(q: newGroup.coordinate.q, r: newGroup.coordinate.r)
+        newEntityNode.position = position
+        
+        gameScene.hexMap.addEntity(newEntityNode)
+        gameScene.entitiesNode.addChild(newEntityNode)
+        player.addEntity(newGroup)
+        
+        showSimpleAlert(
+            title: "✅ Group Split",
+            message: "Created new group with \(splitCount) villagers\nOriginal group has \(villagerGroup.villagerCount) villagers remaining"
+        )
+        
+        print("✅ Split villager group: \(splitCount) → new group, \(villagerGroup.villagerCount) → original")
+    }
+    
+    func showVillagerTrainingMenu(for building: BuildingNode) {
+        showTrainingSliderMenu(
+            unitType: .villager,
+            building: building,
+            unitCost: [.food: 50],
+            trainingTimePerUnit: 15.0,
+            unitStats: "Gathers resources and constructs buildings"
+        )
+    }
+    
+    func showUnitTrainingSlider(unitType: MilitaryUnitType, building: BuildingNode) {
+        let stats = "⚔️ Attack: \(unitType.attackPower)\n🛡️ Defense: \(unitType.defensePower)\n⏱️ Training: \(Int(unitType.trainingTime))s per unit"
+        
+        showTrainingSliderMenu(
+            unitType: .military(unitType),
+            building: building,
+            unitCost: unitType.trainingCost,
+            trainingTimePerUnit: unitType.trainingTime,
+            unitStats: stats
+        )
+    }
+    
+    @objc func showTrainingOverview() {
+        let trainingVC = TrainingOverviewViewController()
+        trainingVC.player = player
+        trainingVC.hexMap = gameScene.hexMap
+        trainingVC.modalPresentationStyle = .fullScreen
+        present(trainingVC, animated: true)
+        print("🎓 Opening Training Overview screen")
+    }
+
+    func showTrainingSliderMenu(
+        unitType: TrainableUnitType,
+        building: BuildingNode,
+        unitCost: [ResourceType: Int],
+        trainingTimePerUnit: TimeInterval,
+        unitStats: String? = nil
+    ) {
+        // Calculate max affordable units
+        var maxAffordable = Int.max
+        for (resourceType, costPerUnit) in unitCost {
+            let available = player.getResource(resourceType)
+            let canAfford = available / costPerUnit
+            maxAffordable = min(maxAffordable, canAfford)
+        }
+        
+        guard maxAffordable > 0 else {
+            var costString = "You need: "
+            for (resourceType, cost) in unitCost.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+                costString += "\(resourceType.icon)\(cost) "
+            }
+            showSimpleAlert(title: "Cannot Afford", message: costString)
+            return
+        }
+        
+        // Create custom alert with slider
+        let alert = UIAlertController(
+            title: "Train \(unitType.icon) \(unitType.displayName)",
+            message: unitType.description + "\n\nSelect quantity to train",
+            preferredStyle: .alert
+        )
+        
+        // Create container for slider
+        let containerVC = UIViewController()
+        let hasStats = unitStats != nil
+        let containerHeight: CGFloat = hasStats ? 220 : 180
+        containerVC.preferredContentSize = CGSize(width: 270, height: containerHeight)
+        
+        let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 270, height: containerHeight))
+        
+        var yOffset: CGFloat = 10
+        
+        // Stats labels (if provided)
+        if let stats = unitStats {
+            let statsLabel = UILabel(frame: CGRect(x: 20, y: yOffset, width: 230, height: 60))
+            statsLabel.text = stats
+            statsLabel.font = UIFont.systemFont(ofSize: 12)
+            statsLabel.textColor = .secondaryLabel
+            statsLabel.numberOfLines = 3
+            containerView.addSubview(statsLabel)
+            yOffset += 70
+        }
+        
+        // Slider
+        let slider = UISlider(frame: CGRect(x: 20, y: yOffset, width: 230, height: 30))
+        slider.minimumValue = 1
+        slider.maximumValue = Float(min(maxAffordable, 200)) // Cap at 200
+        slider.value = Float(min(10, maxAffordable))
+        slider.isContinuous = true
+        containerView.addSubview(slider)
+        yOffset += 40
+        
+        // Count label
+        let countLabel = UILabel(frame: CGRect(x: 20, y: yOffset, width: 230, height: 25))
+        let initialCount = Int(slider.value)
+        countLabel.text = "\(initialCount) \(unitType.displayName.lowercased())\(initialCount > 1 ? "s" : "")"
+        countLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        countLabel.textColor = .label
+        countLabel.textAlignment = .center
+        containerView.addSubview(countLabel)
+        yOffset += 25
+        
+        // Cost label
+        let costLabel = UILabel(frame: CGRect(x: 20, y: yOffset, width: 230, height: 25))
+        let initialCost = unitCost.map { "\($0.key.icon)\($0.value * initialCount)" }.joined(separator: " ")
+        costLabel.text = "Cost: \(initialCost)"
+        costLabel.font = UIFont.systemFont(ofSize: 14)
+        costLabel.textColor = .secondaryLabel
+        costLabel.textAlignment = .center
+        containerView.addSubview(costLabel)
+        yOffset += 25
+        
+        // Time label
+        let timeLabel = UILabel(frame: CGRect(x: 20, y: yOffset, width: 230, height: 25))
+        let initialTime = trainingTimePerUnit * Double(initialCount)
+        let initialMinutes = Int(initialTime) / 60
+        let initialSeconds = Int(initialTime) % 60
+        timeLabel.text = "Time: \(initialMinutes)m \(initialSeconds)s"
+        timeLabel.font = UIFont.systemFont(ofSize: 14)
+        timeLabel.textColor = .secondaryLabel
+        timeLabel.textAlignment = .center
+        containerView.addSubview(timeLabel)
+        
+        // Update labels when slider moves
+        slider.addTarget(self, action: #selector(trainingSliderChanged(_:)), for: .valueChanged)
+        
+        let labelDict: [String: Any] = [
+            "countLabel": countLabel,
+            "costLabel": costLabel,
+            "timeLabel": timeLabel,
+            "unitCost": unitCost,
+            "trainingTime": trainingTimePerUnit,
+            "unitType": unitType
+        ]
+        objc_setAssociatedObject(self, &AssociatedKeys.trainingLabels, labelDict, .OBJC_ASSOCIATION_RETAIN)
+        
+        containerVC.view.addSubview(containerView)
+        alert.setValue(containerVC, forKey: "contentViewController")
+        
+        // Train action
+        alert.addAction(UIAlertAction(title: "Train", style: .default) { [weak self] _ in
+            let quantity = Int(slider.value)
+            
+            switch unitType {
+            case .military(let militaryType):
+                self?.startTraining(unitType: militaryType, quantity: quantity, building: building)
+            case .villager:
+                self?.startVillagerTraining(quantity: quantity, building: building)
+            }
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        present(alert, animated: true)
+    }
+
+    @objc func trainingSliderChanged(_ slider: UISlider) {
+        if let labelDict = objc_getAssociatedObject(self, &AssociatedKeys.trainingLabels) as? [String: Any],
+           let countLabel = labelDict["countLabel"] as? UILabel,
+           let costLabel = labelDict["costLabel"] as? UILabel,
+           let timeLabel = labelDict["timeLabel"] as? UILabel,
+           let unitCost = labelDict["unitCost"] as? [ResourceType: Int],
+           let trainingTime = labelDict["trainingTime"] as? TimeInterval,
+           let unitType = labelDict["unitType"] as? TrainableUnitType {
+            
+            let count = Int(slider.value)
+            countLabel.text = "\(count) \(unitType.displayName.lowercased())\(count > 1 ? "s" : "")"
+            
+            let totalCost = unitCost.map { "\($0.key.icon)\($0.value * count)" }.joined(separator: " ")
+            costLabel.text = "Cost: \(totalCost)"
+            
+            let totalTime = trainingTime * Double(count)
+            let minutes = Int(totalTime) / 60
+            let seconds = Int(totalTime) % 60
+            timeLabel.text = "Time: \(minutes)m \(seconds)s"
+        }
+    }
+
 }

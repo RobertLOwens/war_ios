@@ -4,6 +4,8 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
     
     var player: Player?
     var selectedCommander: Commander?
+    weak var hexMap: HexMap?
+    weak var gameScene: GameScene?
     
     // UI Elements
     var tableView: UITableView!
@@ -22,6 +24,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
     var armyLabel: UILabel!
     var locationLabel: UILabel!
     var portraitView: UIView!
+    var recruitButton: UIButton!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -50,6 +53,14 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         closeButton.titleLabel?.font = UIFont.systemFont(ofSize: 24)
         closeButton.addTarget(self, action: #selector(closeScreen), for: .touchUpInside)
         view.addSubview(closeButton)
+        
+        recruitButton = UIButton(frame: CGRect(x: 20, y: 50, width: 160, height: 40))
+        recruitButton.setTitle("➕ Recruit Commander", for: .normal)
+        recruitButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        recruitButton.backgroundColor = UIColor(red: 0.2, green: 0.6, blue: 0.3, alpha: 1.0)
+        recruitButton.layer.cornerRadius = 8
+        recruitButton.addTarget(self, action: #selector(recruitCommanderTapped), for: .touchUpInside)
+        view.addSubview(recruitButton)
         
         // Left sidebar - Commander list
         let sidebarWidth: CGFloat = 280
@@ -259,6 +270,210 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
     @objc func closeScreen() {
         dismiss(animated: true)
     }
+    
+    @objc func recruitCommanderTapped() {
+        showRecruitmentMenu()
+    }
+
+    func showRecruitmentMenu() {
+        let recruitmentCost: [ResourceType: Int] = [
+            .food: 200,
+            .wood: 100,
+            .ore: 50
+        ]
+        
+        // Check if player can afford
+        guard let player = player else { return }
+        
+        var canAfford = true
+        var costMessage = "Recruitment Cost:\n"
+        
+        for (resourceType, amount) in recruitmentCost.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            let current = player.getResource(resourceType)
+            let statusIcon = current >= amount ? "✅" : "❌"
+            costMessage += "\(statusIcon) \(resourceType.icon) \(resourceType.displayName): \(amount) (You have: \(current))\n"
+            
+            if current < amount {
+                canAfford = false
+            }
+        }
+        
+        if !canAfford {
+            let alert = UIAlertController(
+                title: "Insufficient Resources",
+                message: costMessage,
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+        
+        // Show specialty selection
+        showSpecialtySelection(recruitmentCost: recruitmentCost)
+    }
+
+    func showSpecialtySelection(recruitmentCost: [ResourceType: Int]) {
+        let alert = UIAlertController(
+            title: "🎖️ Choose Commander Specialty",
+            message: "Select the specialty for your new commander:",
+            preferredStyle: .actionSheet
+        )
+        
+        for specialty in CommanderSpecialty.allCases {
+            alert.addAction(UIAlertAction(title: "\(specialty.icon) \(specialty.displayName) - \(specialty.description)", style: .default) { [weak self] _ in
+                self?.showNameInput(specialty: specialty, recruitmentCost: recruitmentCost)
+            })
+        }
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        present(alert, animated: true)
+    }
+
+    func showNameInput(specialty: CommanderSpecialty, recruitmentCost: [ResourceType: Int]) {
+        let alert = UIAlertController(
+            title: "👤 Name Your Commander",
+            message: "Enter a name for your new \(specialty.displayName) commander:",
+            preferredStyle: .alert
+        )
+        
+        alert.addTextField { textField in
+            textField.placeholder = "Commander Name"
+            textField.autocapitalizationType = .words
+        }
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        alert.addAction(UIAlertAction(title: "Recruit", style: .default) { [weak self] _ in
+            guard let name = alert.textFields?.first?.text, !name.isEmpty else {
+                self?.showError(message: "Please enter a valid name.")
+                return
+            }
+            
+            self?.recruitCommander(name: name, specialty: specialty, recruitmentCost: recruitmentCost)
+        })
+        
+        present(alert, animated: true)
+    }
+
+    func recruitCommander(name: String, specialty: CommanderSpecialty, recruitmentCost: [ResourceType: Int]) {
+        guard let player = player else { return }
+        
+        // Deduct resources
+        for (resourceType, amount) in recruitmentCost {
+            player.removeResource(resourceType, amount: amount)
+        }
+        
+        // Create new commander
+        let colors: [UIColor] = [.blue, .red, .green, .purple, .orange, .brown, .cyan, .magenta]
+        let randomColor = colors.randomElement()!
+        
+        let newCommander = Commander(
+            name: name,
+            rank: .recruit,
+            specialty: specialty,
+            baseLeadership: Int.random(in: 8...12),
+            baseTactics: Int.random(in: 8...12),
+            portraitColor: randomColor
+        )
+        
+        // Add to player
+        player.addCommander(newCommander)
+        
+        // Deploy at city center
+        deployCommanderAtCityCenter(commander: newCommander)
+        
+        // Update UI
+        selectedCommander = newCommander
+        tableView.reloadData()
+        updateDetailView()
+        
+        // Show success message
+        showSuccess(message: "✅ Commander \(name) recruited!\n\nDeployed at your City Center.")
+        
+        print("✅ Recruited new commander: \(name) (\(specialty.displayName))")
+    }
+
+    func deployCommanderAtCityCenter(commander: Commander) {
+        
+        guard let player = player,
+              let hexMap = hexMap,
+              let gameScene = gameScene else {
+            print("⚠️ Missing game references - commander not deployed")
+            return
+        }
+        
+        // Find player's city center
+        let cityCenters = player.buildings.filter {
+            $0.buildingType == .cityCenter &&
+            $0.state == .completed &&
+            $0.owner?.id == player.id
+        }
+        
+        guard let cityCenter = cityCenters.first else {
+            print("⚠️ No city center found - commander not deployed")
+            return
+        }
+        
+        // Find a walkable spawn location near city center
+        guard let spawnCoord = hexMap.findNearestWalkable(to: cityCenter.coordinate, maxDistance: 3) else {
+            print("❌ No walkable location near City Center")
+            return
+        }
+        
+        // Create new army with this commander (no units)
+        let army = Army(
+            name: "\(commander.name)'s Army",
+            coordinate: spawnCoord,
+            commander: commander,
+            owner: player
+        )
+        
+        // Create entity node
+        let armyNode = EntityNode(
+            coordinate: spawnCoord,
+            entityType: .army,
+            entity: army,
+            currentPlayer: player
+        )
+        
+        let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
+        armyNode.position = position
+        
+        // Add to game
+        hexMap.addEntity(armyNode)
+        gameScene.entitiesNode.addChild(armyNode)
+        player.addArmy(army)
+        player.addEntity(army)
+        
+        print("✅ Deployed \(commander.name)'s Army at (\(spawnCoord.q), \(spawnCoord.r))")
+    }
+    func showError(message: String) {
+        let alert = UIAlertController(
+            title: "Error",
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    func showSuccess(message: String) {
+        let alert = UIAlertController(
+            title: "Success",
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
 }
 
 class CommanderCell: UITableViewCell {
@@ -315,4 +530,6 @@ class CommanderCell: UITableViewCell {
         
         contentView.backgroundColor = isSelected ? UIColor(white: 0.3, alpha: 1.0) : .clear
     }
+    
+    
 }

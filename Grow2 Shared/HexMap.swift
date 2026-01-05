@@ -356,21 +356,36 @@ class HexMap {
         
     
     func findNearestWalkable(to target: HexCoordinate, maxDistance: Int = 5) -> HexCoordinate? {
-        if isWalkable(target) && getEntity(at: target) == nil {
+        // Check if target itself is walkable and unoccupied
+        if isWalkable(target) && getEntity(at: target) == nil && getBuilding(at: target) == nil {
             return target
         }
         
+        // Search in expanding rings using proper hex distance
         for distance in 1...maxDistance {
-            let ring = getRing(center: target, radius: distance)
-            for coord in ring {
-                if isValidCoordinate(coord) && isWalkable(coord) && getEntity(at: coord) == nil {
-                    return coord
+            var candidates: [HexCoordinate] = []
+            
+            // Check all tiles on the map within this distance
+            for (coord, _) in tiles {
+                // Use proper hex distance calculation
+                if coord.distance(to: target) == distance {
+                    if isWalkable(coord) && getEntity(at: coord) == nil && getBuilding(at: coord) == nil {
+                        candidates.append(coord)
+                    }
                 }
+            }
+            
+            // Return closest candidate by actual distance
+            if !candidates.isEmpty {
+                return candidates.min(by: {
+                    $0.distance(to: target) < $1.distance(to: target)
+                })
             }
         }
         
         return nil
     }
+
     
     func getRing(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
         if radius == 0 {

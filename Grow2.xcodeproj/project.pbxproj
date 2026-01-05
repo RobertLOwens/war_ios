@@ -37,6 +37,8 @@
 		3FF8CF512F083158002FA5D7 /* AboutViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF502F083158002FA5D7 /* AboutViewController.swift */; };
 		3FF8CF532F099148002FA5D7 /* GameSaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */; };
 		3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */; };
+		3FF8CF572F0B8002002FA5D7 /* TrainingOverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */; };
+		3FF8CF592F0B810D002FA5D7 /* BuildingDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +73,8 @@
 		3FF8CF502F083158002FA5D7 /* AboutViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewController.swift; sourceTree = "<group>"; };
 		3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSaveManager.swift; sourceTree = "<group>"; };
 		3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTimeManager.swift; sourceTree = "<group>"; };
+		3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingOverViewController.swift; sourceTree = "<group>"; };
+		3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingDetailViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -131,6 +135,7 @@
 		3FC0F0FE2EC7965F007C0782 /* Grow2 iOS */ = {
 			isa = PBXGroup;
 			children = (
+				3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */,
 				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
 				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
 				3FF8CF4E2F08313F002FA5D7 /* SettingsViewController.swift */,
@@ -139,6 +144,7 @@
 				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
 				3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */,
 				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
+				3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */,
 				3FC0F1032EC7965F007C0782 /* Main.storyboard */,
 				3FC0F1062EC7965F007C0782 /* LaunchScreen.storyboard */,
 			);
@@ -229,10 +235,12 @@
 				3FD1D5E42ED514BD001398FB /* MilitaryUnit.swift in Sources */,
 				3FEBD1FD2EEF5C6400341AEE /* Commander.swift in Sources */,
 				3F34D5AD2ECA584A00AE6DF0 /* Player.swift in Sources */,
+				3FF8CF592F0B810D002FA5D7 /* BuildingDetailViewController.swift in Sources */,
 				3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */,
 				3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */,
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
 				3F34D5B12ECA5CD900AE6DF0 /* Building.swift in Sources */,
+				3FF8CF572F0B8002002FA5D7 /* TrainingOverViewController.swift in Sources */,
 				3FF8CF4F2F08313F002FA5D7 /* SettingsViewController.swift in Sources */,
 				3F34D5B52ECBB6B200AE6DF0 /* Map Entity.swift in Sources */,
 				3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */,

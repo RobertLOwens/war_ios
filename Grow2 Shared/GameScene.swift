@@ -541,6 +541,7 @@ class GameScene: SKScene {
         let location = touch.location(in: self)
         lastTouchPosition = location
         isPanning = false
+        print("👆 touchesBegan at \(location)")
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -553,6 +554,7 @@ class GameScene: SKScene {
             
             if distance > 10 {
                 isPanning = true
+                print("📱 isPanning = true (distance: \(distance))")
             }
             
             if isPanning {
@@ -567,6 +569,8 @@ class GameScene: SKScene {
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
+        
+        print("👆 touchesEnded at \(location), isPanning: \(isPanning)")
         
         if !isPanning {
             handleTouch(at: location)
@@ -584,25 +588,30 @@ class GameScene: SKScene {
     func handleTouch(at location: CGPoint) {
         let nodesAtPoint = nodes(at: location)
         
-        // ✅ FIX: Check for entities first, but verify they're visible
+        print("🔍 Touch at location: \(location)")
+        print("🔍 Found \(nodesAtPoint.count) nodes")
+        for (index, node) in nodesAtPoint.enumerated() {
+            print("   [\(index)] \(type(of: node)) - name: '\(node.name ?? "nil")' - zPos: \(node.zPosition)")
+        }
+        
+        // ✅ ONLY look for HexTileNode - skip ALL other node types
         for node in nodesAtPoint {
-            if let entityNode = node as? EntityNode {
-                // Verify entity is actually visible before selecting
-                guard let player = player else { continue }
-                
-                let visibility = player.getVisibilityLevel(at: entityNode.coordinate)
-                if visibility == .visible {
-                    if let fogOfWar = player.fogOfWar,
-                       fogOfWar.shouldShowEntity(entityNode.entity, at: entityNode.coordinate) {
-                        selectEntity(entityNode)
-                        return
-                    }
-                }
-                // Entity not visible - continue to check for tiles
+            // Skip entities, resources, buildings - we ONLY want tiles
+            if node is EntityNode {
+                print("   ⏭️ Skipping EntityNode")
+                continue
+            }
+            if node is ResourcePointNode {
+                print("   ⏭️ Skipping ResourcePointNode")
+                continue
+            }
+            if node is BuildingNode {
+                print("   ⏭️ Skipping BuildingNode")
                 continue
             }
             
             if let hexTile = node as? HexTileNode {
+                print("   ✅ Found HexTileNode at (\(hexTile.coordinate.q), \(hexTile.coordinate.r))")
                 guard let player = player else {
                     print("⚠️ No player reference")
                     return
@@ -619,8 +628,10 @@ class GameScene: SKScene {
                 }
             }
         }
+        
+        print("❌ No HexTileNode found in touch")
     }
-
+    
     func selectTile(_ tile: HexTileNode) {
         // Check if we're in attack mode
         if let attacker = attackingArmy {

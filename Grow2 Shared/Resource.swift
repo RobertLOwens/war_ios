@@ -128,7 +128,6 @@ class ResourcePointNode: SKSpriteNode {
          
          self.zPosition = 3
          self.name = "resourcePoint"
-         self.isUserInteractionEnabled = false  // ✅ ADD THIS LINE - allows touches to pass through
          
          setupLabel()
      }

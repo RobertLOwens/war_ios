@@ -594,6 +594,8 @@ class BuildingNode: SKSpriteNode {
         childNode(withName: "progressBarBg")?.isHidden = !showConstruction
         progressBar?.isHidden = !showConstruction
         timerLabel?.isHidden = !showConstruction
+        
+        // ✅ FIX: Only show building label during construction or when completed
         buildingLabel?.isHidden = !(showCompleted || showConstruction)
     }
     

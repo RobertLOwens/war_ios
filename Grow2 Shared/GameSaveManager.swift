@@ -542,18 +542,28 @@ class GameSaveManager {
             hexMap.tiles[coord] = tile
         }
         
-        // ✅ NEW: Restore explored tiles to fog of war
+        print("📂 Loading \(data.exploredTiles.count) explored tiles...")
+        
+        // Initialize fog of war
         player.initializeFogOfWar(hexMap: hexMap)
+        
+        // Restore explored tiles
         if let fogOfWar = player.fogOfWar {
+            var restoredCount = 0
             for exploredTile in data.exploredTiles {
                 let coord = HexCoordinate(q: exploredTile.q, r: exploredTile.r)
                 fogOfWar.markAsExplored(coord)
+                restoredCount += 1
             }
-            print("✅ Restored \(data.exploredTiles.count) explored tiles")
+            print("✅ Restored \(restoredCount) explored tiles")
+            
+            // ✅ DEBUG: Print fog stats after restoration
+            fogOfWar.printFogStats()
         }
         
         return hexMap
     }
+
     
     private func reconstructPlayer(from data: PlayerSaveData) -> Player {
         let color = UIColor(

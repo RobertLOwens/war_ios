@@ -46,23 +46,24 @@ class EntityNode: SKSpriteNode {
     weak var villagerReference: VillagerGroup?
     
     init(coordinate: HexCoordinate, entityType: EntityType, entity: MapEntity, currentPlayer: Player? = nil) {
-          self.coordinate = coordinate
-          self.entityType = entityType
-          self.entity = entity
-          
-          // ✅ Store typed reference based on entity type
-          if entityType == .army, let army = entity as? Army {
-              self.armyReference = army
-          } else if entityType == .villagerGroup, let villagers = entity as? VillagerGroup {
-              self.villagerReference = villagers
-          }
-          
-          let texture = EntityNode.createEntityTexture(for: entityType, entity: entity, currentPlayer: currentPlayer)
-          super.init(texture: texture, color: .clear, size: CGSize(width: 36, height: 36))
-          
-          self.zPosition = 10
-          self.name = "entity"
-      }
+        self.coordinate = coordinate
+        self.entityType = entityType
+        self.entity = entity
+        
+        // ✅ Store typed reference based on entity type
+        if entityType == .army, let army = entity as? Army {
+            self.armyReference = army
+        } else if entityType == .villagerGroup, let villagers = entity as? VillagerGroup {
+            self.villagerReference = villagers
+        }
+        
+        let texture = EntityNode.createEntityTexture(for: entityType, entity: entity, currentPlayer: currentPlayer)
+        super.init(texture: texture, color: .clear, size: CGSize(width: 36, height: 36))
+        
+        self.zPosition = 10
+
+        self.name = "entity"
+    }
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -227,9 +228,7 @@ class EntityNode: SKSpriteNode {
                             fogOfWar.shouldShowEntity(entity, at: coordinate)
             
             self.isHidden = !shouldShow
-            
-            // ✅ ALSO: Disable user interaction when hidden
-            self.isUserInteractionEnabled = shouldShow
+        
         }
     }
     

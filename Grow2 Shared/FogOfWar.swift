@@ -95,16 +95,19 @@ class FogOfWarManager {
     func updateVision(allPlayers: [Player]) {
         guard let player = player, let hexMap = hexMap else { return }
         
-        // ✅ FIX: Mark currently visible tiles as explored BEFORE changing them
+        // ✅ FIX: Only mark CURRENTLY visible tiles as explored
+        // Don't touch tiles that are already explored from save file
         for (coord, level) in visionMap {
             if level == .visible {
-                // Save this tile to memory before it becomes explored
+                // Save to memory before changing
                 if memoryMap[coord] == nil {
                     saveToMemory(coord)
                 }
-                // Mark as explored (will be overwritten if still visible)
+                // Only mark as explored if we're about to lose visibility
+                // This will be overwritten to .visible if still in range
                 visionMap[coord] = .explored
             }
+            // ✅ Don't touch .explored or .unexplored tiles
         }
         
         // Calculate vision from own entities and buildings
@@ -125,10 +128,6 @@ class FogOfWarManager {
     private func updateVisionFromPlayer(_ player: Player) {
         guard let hexMap = hexMap else { return }
         
-        print("👁️ Updating vision for \(player.name):")
-        print("   Buildings: \(player.buildings.count)")
-        print("   Entities: \(player.entities.count)")
-        
         // Vision from buildings (1 tile radius)
         var buildingVisionCount = 0
         for building in hexMap.buildings where building.state == .completed && building.owner?.id == player.id {
@@ -138,7 +137,6 @@ class FogOfWarManager {
                 setVisible(coord)
             }
         }
-        print("   Building vision tiles: \(buildingVisionCount)")
         
         // Vision from entities (2 tile radius)
         var entityVisionCount = 0
@@ -160,7 +158,6 @@ class FogOfWarManager {
                 setVisible(coord)
             }
         }
-        print("   Entity vision tiles: \(entityVisionCount)")
     }
 
     
@@ -322,6 +319,7 @@ class FogOfWarManager {
     }
     
     func markAsExplored(_ coord: HexCoordinate) {
+        let previousState = visionMap[coord]
         visionMap[coord] = .explored
         
         // Also save to memory
@@ -329,6 +327,31 @@ class FogOfWarManager {
             let memory = TileMemory(terrain: tile.terrain, lastSeenTime: Date().timeIntervalSince1970)
             memoryMap[coord] = memory
         }
+        
+        // ✅ DEBUG: Log every 100th tile to avoid spam
+        if coord.q % 10 == 0 && coord.r % 10 == 0 {
+            print("  Marking (\(coord.q), \(coord.r)) as explored (was: \(previousState ?? .unexplored))")
+        }
+    }
+    
+    func getExploredCount() -> Int {
+        return visionMap.filter { $0.value == .explored }.count
+    }
+
+    func getVisibleCount() -> Int {
+        return visionMap.filter { $0.value == .visible }.count
+    }
+
+    func getUnexploredCount() -> Int {
+        return visionMap.filter { $0.value == .unexplored }.count
+    }
+
+    func printFogStats() {
+        print("📊 Fog of War Stats:")
+        print("   Unexplored: \(getUnexploredCount())")
+        print("   Explored: \(getExploredCount())")
+        print("   Visible: \(getVisibleCount())")
+        print("   Total: \(visionMap.count)")
     }
 
 }
