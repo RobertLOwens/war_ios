@@ -492,14 +492,17 @@ class GameScene: SKScene {
         
         // Update building construction and timers
         for building in hexMap.buildings {
+            // ✅ Only update timers for buildings that are actually constructing
             if building.state == .constructing {
-                building.updateConstruction()
                 building.updateTimerLabel()
-            }
-            
-            if building.state == .completed {
-                building.updateTraining(currentTime: realWorldTime)
-                building.updateVillagerTraining(currentTime: realWorldTime)
+            } else {
+                // ✅ Ensure no timer elements exist on non-constructing buildings
+                building.timerLabel?.removeFromParent()
+                building.timerLabel = nil
+                building.progressBar?.removeFromParent()
+                building.progressBar = nil
+                building.progressBackground?.removeFromParent()
+                building.progressBackground = nil
             }
         }
         

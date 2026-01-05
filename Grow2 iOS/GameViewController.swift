@@ -479,8 +479,13 @@ class GameViewController: UIViewController {
         detailVC.modalPresentationStyle = .pageSheet
         
         if let sheet = detailVC.sheetPresentationController {
+            // ✅ Force it to open at large size immediately
             sheet.detents = [.large()]
             sheet.prefersGrabberVisible = true
+            sheet.selectedDetentIdentifier = .large  // ✅ ADD THIS LINE
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+            sheet.prefersEdgeAttachedInCompactHeight = true
+            sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = true
         }
         
         present(detailVC, animated: true)
@@ -625,6 +630,77 @@ class GameViewController: UIViewController {
         }
         
         present(alert, animated: true)
+    }
+    
+    func showVillagerDeploymentMenu(from building: BuildingNode) {
+        guard building.buildingType == .cityCenter else { return }
+        
+        let alert = UIAlertController(
+            title: "🚀 Deploy Villagers",
+            message: "How many villagers would you like to deploy from the City Center?\n\nGarrison: \(building.getTotalGarrisonCount()) villagers available",
+            preferredStyle: .alert
+        )
+        
+        alert.addTextField { textField in
+            textField.placeholder = "Number of villagers"
+            textField.keyboardType = .numberPad
+        }
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        alert.addAction(UIAlertAction(title: "Deploy", style: .default) { [weak self] _ in
+            guard let self = self,
+                  let text = alert.textFields?.first?.text,
+                  let count = Int(text),
+                  count > 0,
+                  count <= building.getTotalGarrisonCount() else {
+                self?.showSimpleAlert(title: "Invalid Amount", message: "Please enter a valid number of villagers.")
+                return
+            }
+            
+            self.deployVillagersFromCityCenter(building: building, count: count)
+        })
+        
+        present(alert, animated: true)
+    }
+
+    func deployVillagersFromCityCenter(building: BuildingNode, count: Int) {
+        // Find a spawn location near the city center
+        guard let spawnCoord = gameScene.hexMap.findNearestWalkable(to: building.coordinate, maxDistance: 2) else {
+            showSimpleAlert(title: "Cannot Deploy", message: "No available space near City Center.")
+            return
+        }
+        
+        // ✅ Remove villagers from garrison using the correct method
+        building.removeVillagersFromGarrison(quantity: count)
+        
+        // Create new villager group
+        let villagerGroup = VillagerGroup(
+            name: "Villagers",
+            coordinate: spawnCoord,
+            villagerCount: count,
+            owner: player
+        )
+        
+        // Create entity node
+        let villagerNode = EntityNode(
+            coordinate: spawnCoord,
+            entityType: .villagerGroup,
+            entity: villagerGroup,
+            currentPlayer: player
+        )
+        
+        let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
+        villagerNode.position = position
+        
+        // Add to game
+        gameScene.hexMap.addEntity(villagerNode)
+        gameScene.entitiesNode.addChild(villagerNode)
+        player.addEntity(villagerGroup)
+        
+        print("✅ Deployed \(count) villagers from City Center to (\(spawnCoord.q), \(spawnCoord.r))")
+        
+        showSimpleAlert(title: "✅ Deployed", message: "\(count) villagers deployed from City Center!")
     }
     
     func showVillagerMenu(at coordinate: HexCoordinate, villagerGroup: EntityNode) {

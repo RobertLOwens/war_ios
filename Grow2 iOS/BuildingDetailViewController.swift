@@ -11,6 +11,10 @@ class BuildingDetailViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        // ✅ Set preferred content size for proper sheet sizing
+        preferredContentSize = CGSize(width: 600, height: 800)
+        
         setupUI()
     }
     
@@ -18,12 +22,30 @@ class BuildingDetailViewController: UIViewController {
         view.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
         
         // Scroll view for content
-        scrollView = UIScrollView(frame: view.bounds)
-        scrollView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrollView = UIScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
         
+        // ✅ Use constraints for better layout
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        
         contentView = UIView()
+        contentView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(contentView)
+        
+        // ✅ Constrain content view properly
+        NSLayoutConstraint.activate([
+            contentView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            contentView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            contentView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            contentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
+        ])
         
         var yOffset: CGFloat = 20
         
@@ -93,7 +115,6 @@ class BuildingDetailViewController: UIViewController {
         contentView.addSubview(divider)
         yOffset += 20
         
-        // Action buttons
         if building.buildingType.category == .military {
             let trainButton = createActionButton(
                 title: "🎖️ Train Units",
@@ -104,8 +125,31 @@ class BuildingDetailViewController: UIViewController {
             contentView.addSubview(trainButton)
             yOffset += 70
         }
-        
-        if building.getTotalGarrisonCount() > 0 {
+
+        // ✅ City Center specific actions
+        if building.buildingType == .cityCenter {
+            let trainVillagersButton = createActionButton(
+                title: "👷 Train Villagers",
+                y: yOffset,
+                color: UIColor(red: 0.4, green: 0.7, blue: 0.4, alpha: 1.0),
+                action: #selector(trainVillagersTapped)
+            )
+            contentView.addSubview(trainVillagersButton)
+            yOffset += 70
+            
+            // Deploy Villagers (if garrisoned)
+            if building.getTotalGarrisonCount() > 0 {
+                let deployButton = createActionButton(
+                    title: "🚀 Deploy Villagers",
+                    y: yOffset,
+                    color: UIColor(red: 0.5, green: 0.6, blue: 0.8, alpha: 1.0),
+                    action: #selector(deployVillagersTapped)
+                )
+                contentView.addSubview(deployButton)
+                yOffset += 70
+            }
+        } else if building.getTotalGarrisonCount() > 0 {
+            // ✅ For non-City Center buildings, show Reinforce Army
             let reinforceButton = createActionButton(
                 title: "⚔️ Reinforce Army",
                 y: yOffset,
@@ -119,6 +163,20 @@ class BuildingDetailViewController: UIViewController {
         // Set content size
         contentView.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: yOffset + 20)
         scrollView.contentSize = CGSize(width: view.bounds.width, height: yOffset + 20)
+    }
+    
+    @objc func trainVillagersTapped() {
+        dismiss(animated: true) { [weak self] in
+            guard let self = self, let gameVC = self.gameViewController else { return }
+            gameVC.showVillagerTrainingMenu(for: self.building)
+        }
+    }
+
+    @objc func deployVillagersTapped() {
+        dismiss(animated: true) { [weak self] in
+            guard let self = self, let gameVC = self.gameViewController else { return }
+            gameVC.showVillagerDeploymentMenu(from: self.building)
+        }
     }
     
     func createActionButton(title: String, y: CGFloat, color: UIColor, action: Selector) -> UIButton {

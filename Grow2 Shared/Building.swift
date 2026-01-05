@@ -252,9 +252,10 @@ class BuildingNode: SKSpriteNode {
     }
     
     // UI Elements for construction
-    private var progressBar: SKShapeNode?
-    private var timerLabel: SKLabelNode?
-    private var buildingLabel: SKLabelNode?
+    var progressBar: SKShapeNode?
+    var timerLabel: SKLabelNode?
+    var buildingLabel: SKLabelNode?
+    var progressBackground: SKShapeNode?
     private static var garrisonKey: UInt8 = 0
     private static var trainingQueueKey: UInt8 = 1
     private static var villagerGarrisonKey: UInt8 = 2
@@ -600,25 +601,74 @@ class BuildingNode: SKSpriteNode {
     }
     
     func updateTimerLabel() {
-        guard state == .constructing, let startTime = constructionStartTime else {
-            timerLabel?.text = "0:00"
-            progressBar?.xScale = 0
+        // ✅ Only update timer for buildings that are actually constructing
+        guard state == .constructing else {
+            // Remove any existing timer/progress elements if building is not constructing
+            timerLabel?.removeFromParent()
+            timerLabel = nil
+            progressBar?.removeFromParent()
+            progressBar = nil
+            progressBackground?.removeFromParent()
+            progressBackground = nil
             return
         }
         
-        let currentTime = Date().timeIntervalSince1970  // ✅ Use Unix epoch time
+        guard let startTime = constructionStartTime else { return }
+        
+        let currentTime = Date().timeIntervalSince1970
         let elapsed = currentTime - startTime
         
         let buildSpeedMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
         let effectiveBuildTime = buildingType.buildTime / buildSpeedMultiplier
-        
         let remaining = max(0, effectiveBuildTime - elapsed)
+        
+        // Update progress
+        if effectiveBuildTime > 0 {
+            constructionProgress = min(1.0, elapsed / effectiveBuildTime)
+        }
+        
+        // Check if construction is complete
+        if remaining <= 0 {
+            completeConstruction()
+            return
+        }
+        
+        // ✅ Only create timer label if it doesn't exist
+        if timerLabel == nil {
+            timerLabel = SKLabelNode(fontNamed: "Arial")
+            timerLabel?.fontSize = 10
+            timerLabel?.fontColor = .white
+            timerLabel?.position = CGPoint(x: 0, y: -30)
+            timerLabel?.zPosition = 15
+            addChild(timerLabel!)
+        }
+        
+        // Format time remaining
         let minutes = Int(remaining) / 60
         let seconds = Int(remaining) % 60
-        
         timerLabel?.text = String(format: "%d:%02d", minutes, seconds)
-        progressBar?.xScale = CGFloat(constructionProgress)
+        
+        // ✅ Only create progress bar if it doesn't exist
+        if progressBackground == nil {
+            progressBackground = SKShapeNode(rectOf: CGSize(width: 44, height: 6), cornerRadius: 3)
+            progressBackground?.fillColor = .darkGray
+            progressBackground?.strokeColor = .clear
+            progressBackground?.position = CGPoint(x: 0, y: -40)
+            progressBackground?.zPosition = 14
+            addChild(progressBackground!)
+        }
+        
+        // ✅ Always recreate progress bar to show correct progress
+        progressBar?.removeFromParent()
+        let progressWidth = 44 * constructionProgress
+        progressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: 6), cornerRadius: 3)
+        progressBar?.fillColor = .green
+        progressBar?.strokeColor = .clear
+        progressBar?.position = CGPoint(x: -22 + (progressWidth / 2), y: -40)
+        progressBar?.zPosition = 15
+        addChild(progressBar!)
     }
+
     
     func startConstruction(builders: Int = 1) {
         state = .constructing
@@ -660,35 +710,25 @@ class BuildingNode: SKSpriteNode {
     }
     
     func completeConstruction() {
+        guard state == .constructing else { return }
+        
         state = .completed
         constructionProgress = 1.0
-        constructionStartTime = nil
+        health = maxHealth
         
-        // Apply resource bonuses
-        if let bonus = buildingType.resourceBonus {
-            for (resourceType, amount) in bonus {
-                owner?.increaseCollectionRate(resourceType, amount: amount)
-            }
-        }
+        // ✅ Remove all construction UI elements
+        timerLabel?.removeFromParent()
+        timerLabel = nil
+        progressBar?.removeFromParent()
+        progressBar = nil
+        progressBackground?.removeFromParent()
+        progressBackground = nil
         
-        // ✅ Unlock the builder entity using stored reference
-        if let entity = builderEntity {
-            entity.isMoving = false
-            print("✅ Unlocked builder entity")
-        }
+        // Update visual appearance
+        updateAppearance()
         
-        // Clear villager tasks
-        if let owner = owner {
-            for villagerGroup in owner.getVillagerGroups() {
-                if case .building(let building) = villagerGroup.currentTask,
-                   building === self {
-                    villagerGroup.clearTask()
-                    print("✅ Cleared building task for \(villagerGroup.name)")
-                }
-            }
-        }
+        print("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
         
-        print("✅ Building \(buildingType.displayName) completed!")
     }
     
     func takeDamage(_ amount: Double) {
