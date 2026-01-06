@@ -144,15 +144,15 @@ class HexMap {
                 let rand = Double.random(in: 0...1)
                 let terrain: TerrainType
                 
-                if rand < 0.60 {
+                if rand < 0.70 {
                     terrain = .grass       // 60% grass (most common)
-                } else if rand < 0.70 {
-                    terrain = .forest      // 10% forest
                 } else if rand < 0.80 {
+                    terrain = .forest      // 10% forest
+                } else if rand < 0.85 {
                     terrain = .hill        // 10% hill
                 } else if rand < 0.90 {
                     terrain = .desert      // 10% desert
-                } else if rand < 0.95 {
+                } else if rand < 0.99 {
                     terrain = .mountain    // 5% mountain
                 } else {
                     terrain = .water       // 5% water

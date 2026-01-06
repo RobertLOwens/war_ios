@@ -135,6 +135,7 @@
 		3FC0F0FE2EC7965F007C0782 /* Grow2 iOS */ = {
 			isa = PBXGroup;
 			children = (
+				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
 				3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */,
 				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
 				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
@@ -143,7 +144,6 @@
 				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
 				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
 				3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */,
-				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
 				3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */,
 				3FC0F1032EC7965F007C0782 /* Main.storyboard */,
 				3FC0F1062EC7965F007C0782 /* LaunchScreen.storyboard */,

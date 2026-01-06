@@ -422,9 +422,12 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
             return
         }
         
-        // Find a walkable spawn location near city center
-        guard let spawnCoord = hexMap.findNearestWalkable(to: cityCenter.coordinate, maxDistance: 3) else {
-            print("❌ No walkable location near City Center")
+        let spawnCoord = cityCenter.coordinate
+        
+        // Check if city center is already occupied by an entity
+        if let occupyingEntity = hexMap.getEntity(at: spawnCoord) {
+            print("❌ City center occupied by \(occupyingEntity) - cannot deploy commander")
+            // Optionally show alert to user
             return
         }
         
@@ -453,8 +456,9 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         player.addArmy(army)
         player.addEntity(army)
         
-        print("✅ Deployed \(commander.name)'s Army at (\(spawnCoord.q), \(spawnCoord.r))")
+        print("✅ Deployed \(commander.name)'s Army at City Center (\(spawnCoord.q), \(spawnCoord.r))")
     }
+    
     func showError(message: String) {
         let alert = UIAlertController(
             title: "Error",
