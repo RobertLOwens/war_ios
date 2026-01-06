@@ -116,6 +116,12 @@ class GameViewController: UIViewController {
     }
     
     func showEntityActionMenu(for entity: EntityNode, at coordinate: HexCoordinate) {
+        
+        if entity.entityType == .villagerGroup {
+            showVillagerMenu(at: coordinate, villagerGroup: entity)
+            return
+        }
+        
         let alert = UIAlertController(
             title: "Entity Actions",
             message: nil,
@@ -432,8 +438,8 @@ class GameViewController: UIViewController {
         let detailVC = BuildingDetailViewController()
         detailVC.building = building
         detailVC.player = player
-        detailVC.hexMap = gameScene.hexMap  // ✅ ADD THIS
-        detailVC.gameScene = gameScene  // ✅ ADD THIS
+        detailVC.hexMap = gameScene.hexMap
+        detailVC.gameScene = gameScene
         detailVC.gameViewController = self
         detailVC.modalPresentationStyle = .pageSheet
         
@@ -976,228 +982,33 @@ class GameViewController: UIViewController {
         print("✅ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
     }
     
-    func showArmyEditor(for army: Army, at coordinate: HexCoordinate) {
-        // Check if there are garrisoned units at this location
-        let building = gameScene.hexMap.getBuilding(at: coordinate)
-        let garrisonedUnits = building?.garrisonedUnits ?? [:]
-        let hasGarrison = !garrisonedUnits.isEmpty
-        
-        var messageText = "\(army.name)\nTotal Units: \(army.getUnitCount())/200"
-        if hasGarrison {
-            let garrisonCount = building?.getTotalGarrisonedUnits() ?? 0
-            messageText += "\n\nGarrisoned Units: \(garrisonCount)"
-            messageText += "\nTap unit counts to add/remove from army"
-        }
-        
-        let alert = UIAlertController(
-            title: "✏️ Edit Army",
-            message: messageText,
-            preferredStyle: .alert
-        )
-        
-        // Get all military unit types
-        let militaryUnits: [UnitType] = [.soldier, .archer, .cavalry, .scout, .tank, .catapult]
-        
-        // Add input fields for each unit type
-        var textFields: [UnitType: UITextField] = [:]
-        
-        for unitType in militaryUnits {
-            let currentCount = army.getUnitCount(ofType: unitType)
-            let garrisonCount = garrisonedUnits[unitType] ?? 0
-            
-            let placeholderText: String
-            if garrisonCount > 0 {
-                placeholderText = "\(unitType.icon) \(unitType.displayName) (Garrison: \(garrisonCount))"
-            } else {
-                placeholderText = "\(unitType.icon) \(unitType.displayName)"
-            }
-            
-            alert.addTextField { textField in
-                textField.placeholder = placeholderText
-                textField.text = "\(currentCount)"
-                textField.keyboardType = .numberPad
-                textFields[unitType] = textField
-            }
-        }
-        
-        // Save action
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            
-            // Calculate new composition
-            var newComposition: [UnitType: Int] = [:]
-            var totalUnits = 0
-            
-            for unitType in militaryUnits {
-                if let textField = textFields[unitType],
-                   let text = textField.text,
-                   let count = Int(text), count > 0 {
-                    newComposition[unitType] = count
-                    totalUnits += count
-                }
-            }
-            
-            if totalUnits > army.getMaxArmySize() {
-                self.showArmySizeError(requested: totalUnits, maxSize: army.getMaxArmySize())
-                return
-            }
-            
-            // Check if player can afford the units (or can use garrison)
-            if !self.canAffordArmyComposition(newComposition, currentArmy: army, garrisonedUnits: garrisonedUnits) {
-                self.showInsufficientResourcesError()
-                return
-            }
-            
-            // Update army composition (with garrison support)
-            self.updateArmyComposition(army, newComposition: newComposition, building: building)
-            
-            // Show success message
-            self.showArmyUpdateSuccess(army: army)
-            
-            // Update resource display
-            self.updateResourceDisplay()
-        })
-        
-        // Cancel action
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        present(alert, animated: true)
-    }
-    
-    private func canAffordArmyComposition(_ newComposition: [UnitType: Int], currentArmy: Army, garrisonedUnits: [UnitType: Int]) -> Bool {
-        // Calculate units to add (difference between new and current)
-        var unitsToAdd: [UnitType: Int] = [:]
-        
-        for (unitType, newCount) in newComposition {
-            let currentCount = currentArmy.getUnitCount(ofType: unitType)
-            if newCount > currentCount {
-                unitsToAdd[unitType] = newCount - currentCount
-            }
-            
-        }
-        
-        // Check if we can use garrisoned units first
-        for (unitType, countNeeded) in unitsToAdd {
-            let garrisonAvailable = garrisonedUnits[unitType] ?? 0
-            let needToBuy = max(0, countNeeded - garrisonAvailable)
-            
-            if needToBuy > 0 {
-                // Check if player can afford the additional units
-                let cost = unitType.trainingCost
-                for (resourceType, resourceAmount) in cost {
-                    let totalCost = resourceAmount * needToBuy
-                    if !player.hasResource(resourceType, amount: totalCost) {
-                        return false
-                    }
-                }
-            }
-        }
-        
-        return true
-    }
-    
-    private func updateArmyComposition(_ army: Army, newComposition: [UnitType: Int], building: BuildingNode?) {
-        // Calculate changes and handle garrison/purchase
-        for (unitType, newCount) in newComposition {
-            let currentCount = army.getUnitCount(ofType: unitType)
-            
-            if newCount > currentCount {
-                // Adding units - use garrison first, then purchase
-                let unitsToAdd = newCount - currentCount
-                var unitsAdded = 0
-                
-                // Try to ungarrison units first
-                if let building = building {
-                    let ungarrisoned = building.ungarrisonUnits(unitType, count: unitsToAdd)
-                    unitsAdded += ungarrisoned
-                }
-                
-                // Purchase remaining units if needed
-                let unitsToBuy = unitsToAdd - unitsAdded
-                if unitsToBuy > 0 {
-                    let cost = unitType.trainingCost
-                    for (resourceType, resourceAmount) in cost {
-                        let totalCost = resourceAmount * unitsToBuy
-                        player.removeResource(resourceType, amount: totalCost)
-                    }
-                }
-                
-                // Add all units to army
-                army.addUnits(unitType, count: unitsToAdd)
-                
-            } else if newCount < currentCount {
-                // Removing units - optionally garrison them
-                let unitsToRemove = currentCount - newCount
-                army.removeUnits(unitType, count: unitsToRemove)
-                
-                // Try to garrison removed units
-                if let building = building, building.hasGarrisonSpace(for: unitsToRemove) {
-                    building.garrisonUnits(unitType, count: unitsToRemove)
-                }
-            }
-        }
-        
-        // Remove unit types that were reduced to 0
-        let allMilitaryTypes: [UnitType] = [.soldier, .archer, .cavalry, .scout, .tank, .catapult]
-        for unitType in allMilitaryTypes {
-            if newComposition[unitType] == nil || newComposition[unitType] == 0 {
-                let removed = army.removeUnits(unitType, count: army.getUnitCount(ofType: unitType))
-                
-                // Try to garrison removed units
-                if removed > 0, let building = building, building.hasGarrisonSpace(for: removed) {
-                    building.garrisonUnits(unitType, count: removed)
-                }
-            }
-        }
-    }
-    
-    private func showArmySizeError(requested: Int, maxSize: Int) {
-        let alert = UIAlertController(
-            title: "⚠️ Army Too Large",
-            message: "Your army can have a maximum of \(maxSize) units (based on commander rank).\nYou requested \(requested) units.",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
-    
-    private func showInsufficientResourcesError() {
-        let alert = UIAlertController(
-            title: "⚠️ Insufficient Resources",
-            message: "You don't have enough resources to train these units.",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
-    
-    private func showArmyUpdateSuccess(army: Army) {
-        let alert = UIAlertController(
-            title: "✅ Army Updated",
-            message: "\(army.name) now has \(army.getUnitCount()) units.",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
-    
     // MARK: - Garrison Management
     
     func showGarrisonMenu(for building: BuildingNode) {
-        let garrisonCount = building.getTotalGarrisonedUnits()
+        // ✅ Use NEW garrison system
+        let militaryCount = building.getTotalGarrisonedUnits()  // This uses garrison property
+        let villagerCount = building.villagerGarrison
+        let totalCount = militaryCount + villagerCount
         let capacity = building.getGarrisonCapacity()
         
-        var message = "Garrisoned Units: \(garrisonCount)/\(capacity)\n\n"
+        var message = "Garrisoned Units: \(totalCount)/\(capacity)\n\n"
         
-        if garrisonCount > 0 {
-            for (unitType, count) in building.garrisonedUnits.sorted(by: { $0.key.displayName < $1.key.displayName }) {
+        // Show villagers
+        if villagerCount > 0 {
+            message += "👷 Villagers: \(villagerCount)\n"
+        }
+        
+        // Show military units
+        if militaryCount > 0 {
+            message += "\n⚔️ Military Units:\n"
+            for (unitType, count) in building.garrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
                 message += "\(unitType.icon) \(unitType.displayName): \(count)\n"
             }
-            
-            // ✅ ADD INFO: Explain how to use garrisoned units
             message += "\n💡 Use 'Reinforce Army' to add these units to an existing army."
-        } else {
-            message += "No units garrisoned."
+        }
+        
+        if totalCount == 0 {
+            message = "No units garrisoned."
         }
         
         let alert = UIAlertController(
@@ -1219,12 +1030,7 @@ class GameViewController: UIViewController {
             message: message,
             preferredStyle: .alert
         )
-        
-        // Edit army option
-        alert.addAction(UIAlertAction(title: "✏️ Edit Army", style: .default) { [weak self] _ in
-            self?.showArmyEditor(for: army, at: coordinate)
-        })
-        
+    
         // Select for movement option
         alert.addAction(UIAlertAction(title: "🚶 Select to Move", style: .default) { [weak self] _ in
             guard let self = self else { return }
@@ -1232,12 +1038,21 @@ class GameViewController: UIViewController {
             if let entityNode = self.gameScene.hexMap.entities.first(where: {
                 ($0.entity as? Army)?.id == army.id
             }) {
-                self.gameScene.selectedEntity = entityNode
-                self.showSimpleAlert(title: "Army Selected", message: "Tap a tile to move this army there")
+                self.gameScene.selectEntity(entityNode)
             }
         })
         
-        alert.addAction(UIAlertAction(title: "Close", style: .cancel))
+        // Close option
+        alert.addAction(UIAlertAction(title: "Close", style: .cancel) { [weak self] _ in
+            self?.gameScene.deselectAll()
+        })
+        
+        // For iPad
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
         
         present(alert, animated: true)
     }

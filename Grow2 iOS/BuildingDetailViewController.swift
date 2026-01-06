@@ -105,7 +105,6 @@ class BuildingDetailViewController: UIViewController {
         
         contentView = UIView()
         contentView.frame = CGRect(x: 0, y: 0, width: scrollView.bounds.width, height: 0)
-        contentView.isUserInteractionEnabled = true
         scrollView.addSubview(contentView)
         
         // Close button (on top overlay)
@@ -577,9 +576,26 @@ class BuildingDetailViewController: UIViewController {
     }
     
     @objc func trainVillagersTapped() {
-        dismiss(animated: true) { [weak self] in
-            guard let self = self, let gameVC = self.gameViewController else { return }
-            gameVC.showVillagerTrainingMenu(for: self.building)
+        // Don't dismiss - show training UI inline
+        print("🎯 Train Villagers tapped - showing inline training")
+        
+        // Scroll to training section if it exists
+        if let trainingSection = contentView.subviews.first(where: {
+            ($0.subviews.first as? UILabel)?.text?.contains("Train New Units") == true
+        }) {
+            scrollView.scrollRectToVisible(trainingSection.frame, animated: true)
+        }
+    }
+
+    @objc func trainUnitsTapped() {
+        // Don't dismiss - show training UI inline
+        print("🎯 Train Units tapped - showing inline training")
+        
+        // Scroll to training section if it exists
+        if let trainingSection = contentView.subviews.first(where: {
+            ($0.subviews.first as? UILabel)?.text?.contains("Train New Units") == true
+        }) {
+            scrollView.scrollRectToVisible(trainingSection.frame, animated: true)
         }
     }
 
@@ -685,13 +701,6 @@ class BuildingDetailViewController: UIViewController {
         }
     }
 
-    @objc func trainUnitsTapped() {
-        dismiss(animated: true) { [weak self] in
-            guard let self = self, let gameVC = self.gameViewController else { return }
-            gameVC.showTrainingMenu(for: self.building)
-        }
-    }
-
     @objc func reinforceArmyTapped() {
         let armiesOnField = player.getArmies().filter { _ in true } // Include all armies
         
@@ -714,7 +723,7 @@ class BuildingDetailViewController: UIViewController {
             let title = "🛡️ \(army.name) - \(commanderName) (\(unitCount) units) - Distance: \(distance)"
             
             alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
-                self?.showReinforcementUnitSelection(for: army)
+                self?.showReinforceMenu(for: army)
             })
         }
         
@@ -729,71 +738,78 @@ class BuildingDetailViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    func showReinforcementUnitSelection(for army: Army) {
+    func showReinforceMenu(for army: Army) {
+        // ✅ Use the NEW garrison system (not garrisonedUnits)
+        let militaryGarrison = building.garrison  // This is [MilitaryUnitType: Int]
+        
+        guard !militaryGarrison.isEmpty else {
+            showAlert(title: "No Military Units", message: "This building has no military units to reinforce with. Only military units can reinforce armies.")
+            return
+        }
+        
+        // Create custom alert with sliders
         let alert = UIAlertController(
-            title: "🔄 Reinforce \(army.name)",
-            message: "Select units from \(building.buildingType.displayName) garrison\nCurrent Army Size: \(army.getTotalMilitaryUnits()) units",
+            title: "⚔️ Reinforce \(army.name)",
+            message: "Select military units to transfer from garrison\n\n",
             preferredStyle: .alert
         )
         
-        // Create a container view controller for custom UI with sliders
+        // Create container for sliders
         let containerVC = UIViewController()
-        containerVC.preferredContentSize = CGSize(width: 270, height: 350)
+        let containerHeight = CGFloat(militaryGarrison.count * 90 + 40)
+        containerVC.preferredContentSize = CGSize(width: 270, height: min(containerHeight, 400))
         
-        let scrollView = UIScrollView(frame: CGRect(x: 0, y: 0, width: 270, height: 350))
-        scrollView.backgroundColor = .clear
-        
-        let contentView = UIView()
-        var yOffset: CGFloat = 10
+        let contentView = UIView(frame: CGRect(x: 0, y: 0, width: 270, height: containerHeight))
         
         var unitSliders: [MilitaryUnitType: UISlider] = [:]
         var unitLabels: [MilitaryUnitType: UILabel] = [:]
+        var yOffset: CGFloat = 20
         
-        for (unitType, available) in building.garrisonedUnits.sorted(by: { $0.key.displayName < $1.key.displayName }) {
-            guard available > 0 else { continue }
+        // ✅ Iterate over the NEW garrison system
+        for (militaryType, count) in militaryGarrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
+            guard count > 0 else { continue }
             
-            // Unit type label
-            let typeLabel = UILabel(frame: CGRect(x: 10, y: yOffset, width: 250, height: 25))
-            typeLabel.text = "\(unitType.icon) \(unitType.displayName)"
-            typeLabel.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-            typeLabel.textColor = .label
-            contentView.addSubview(typeLabel)
-            yOffset += 30
+            // Unit label
+            let unitLabel = UILabel(frame: CGRect(x: 10, y: yOffset, width: 250, height: 20))
+            unitLabel.text = "\(militaryType.icon) \(militaryType.displayName): \(count) available"
+            unitLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+            unitLabel.textColor = .label
+            contentView.addSubview(unitLabel)
+            yOffset += 25
             
             // Slider
             let slider = UISlider(frame: CGRect(x: 10, y: yOffset, width: 250, height: 30))
             slider.minimumValue = 0
-            slider.maximumValue = Float(available)
+            slider.maximumValue = Float(count)
             slider.value = 0
             slider.isContinuous = true
-            slider.tag = unitType.hashValue
+            slider.tag = militaryType.hashValue
             contentView.addSubview(slider)
-            unitSliders[unitType] = slider
+            unitSliders[militaryType] = slider
             yOffset += 35
             
             // Count label
             let countLabel = UILabel(frame: CGRect(x: 10, y: yOffset, width: 250, height: 20))
-            countLabel.text = "0 / \(available) units"
+            countLabel.text = "0 / \(count) units"
             countLabel.font = UIFont.systemFont(ofSize: 12)
             countLabel.textColor = .secondaryLabel
             countLabel.textAlignment = .center
             contentView.addSubview(countLabel)
-            unitLabels[unitType] = countLabel
+            unitLabels[militaryType] = countLabel
             yOffset += 30
-            
-            // Update label when slider moves
+        }
+        
+        // Store references for slider change handler
+        objc_setAssociatedObject(self, &AssociatedKeys.unitLabels, unitLabels, .OBJC_ASSOCIATION_RETAIN)
+        objc_setAssociatedObject(self, &AssociatedKeys.garrisonData, militaryGarrison, .OBJC_ASSOCIATION_RETAIN)
+        
+        // Add slider target
+        for slider in unitSliders.values {
             slider.addTarget(self, action: #selector(reinforceSliderChanged(_:)), for: .valueChanged)
         }
         
-        // Store references for the slider action
-        objc_setAssociatedObject(self, &AssociatedKeys.unitLabels, unitLabels, .OBJC_ASSOCIATION_RETAIN)
-        objc_setAssociatedObject(self, &AssociatedKeys.garrisonData, building.garrisonedUnits, .OBJC_ASSOCIATION_RETAIN)
-        
-        contentView.frame = CGRect(x: 0, y: 0, width: 270, height: yOffset)
-        scrollView.addSubview(contentView)
-        scrollView.contentSize = CGSize(width: 270, height: yOffset)
-        
-        containerVC.view.addSubview(scrollView)
+        contentView.frame.size.height = yOffset
+        containerVC.view.addSubview(contentView)
         alert.setValue(containerVC, forKey: "contentViewController")
         
         // Reinforce action
@@ -801,10 +817,10 @@ class BuildingDetailViewController: UIViewController {
             guard let self = self else { return }
             
             var unitsToTransfer: [MilitaryUnitType: Int] = [:]
-            for (unitType, slider) in unitSliders {
+            for (militaryType, slider) in unitSliders {
                 let count = Int(slider.value)
                 if count > 0 {
-                    unitsToTransfer[unitType] = count
+                    unitsToTransfer[militaryType] = count
                 }
             }
             
@@ -820,10 +836,11 @@ class BuildingDetailViewController: UIViewController {
     
     func reinforceArmy(_ army: Army, with units: [MilitaryUnitType: Int]) {
         var totalTransferred = 0
-        for (unitType, count) in units {
-            let removed = building.removeFromGarrison(unitType: unitType, quantity: count)
+        
+        for (militaryType, count) in units {
+            let removed = building.removeFromGarrison(unitType: militaryType, quantity: count)
             if removed > 0 {
-                army.addMilitaryUnits(unitType, count: removed)
+                army.addMilitaryUnits(militaryType, count: removed)
                 totalTransferred += removed
             }
         }
@@ -847,9 +864,9 @@ class BuildingDetailViewController: UIViewController {
         }
         
         // Find which unit type this slider corresponds to
-        for (unitType, label) in labelsDict {
-            if slider.tag == unitType.hashValue {
-                let available = garrisonDict[unitType] ?? 0
+        for (militaryType, label) in labelsDict {
+            if slider.tag == militaryType.hashValue {
+                let available = garrisonDict[militaryType] ?? 0
                 let sliderValue = Int(slider.value)
                 label.text = "\(sliderValue) / \(available) units"
                 break
@@ -857,24 +874,7 @@ class BuildingDetailViewController: UIViewController {
         }
     }
 
-
     @objc func closeTapped() {
         dismiss(animated: true)
     }
-
-    init(building: BuildingNode!, player: Player!, gameViewController: GameViewController? = nil, trainingContexts: [Int : TrainingSliderContext]? = nil, scrollView: UIScrollView!, contentView: UIView!, trainingContainerView: UIView? = nil, trainingSlider: UISlider? = nil, trainingCountLabel: UILabel? = nil, trainingCostLabel: UILabel? = nil, trainingTimeLabel: UILabel? = nil, queueLabel: UILabel? = nil) {
-        self.building = building
-        self.player = player
-        self.gameViewController = gameViewController
-        self.trainingContexts = trainingContexts
-        self.scrollView = scrollView
-        self.contentView = contentView
-        self.trainingContainerView = trainingContainerView
-        self.trainingSlider = trainingSlider
-        self.trainingCountLabel = trainingCountLabel
-        self.trainingCostLabel = trainingCostLabel
-        self.trainingTimeLabel = trainingTimeLabel
-        self.queueLabel = queueLabel
-    }
-
 }

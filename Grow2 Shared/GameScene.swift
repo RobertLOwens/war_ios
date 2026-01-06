@@ -504,6 +504,11 @@ class GameScene: SKScene {
             }
         }
         
+        for building in hexMap.buildings where building.state == .completed {
+            building.updateTraining(currentTime: realWorldTime)
+            building.updateVillagerTraining(currentTime: realWorldTime)
+        }
+        
         // Resource gathering update
         if let player = player {
             for villagerGroup in player.getVillagerGroups() {

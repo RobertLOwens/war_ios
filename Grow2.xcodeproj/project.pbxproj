@@ -100,6 +100,7 @@
 		3FC0F0F32EC7965C007C0782 /* Grow2 Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3FC0F0F62EC7965C007C0782 /* GameScene.swift */,
 				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
 				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
 				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
@@ -112,7 +113,6 @@
 				3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */,
 				3F34D5AC2ECA584A00AE6DF0 /* Player.swift */,
 				3FC0F0F42EC7965C007C0782 /* Actions.sks */,
-				3FC0F0F62EC7965C007C0782 /* GameScene.swift */,
 				3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */,
 				3F34D5B22ECABDFF00AE6DF0 /* Entity Node.swift */,
 				3F34D5B42ECBB6B200AE6DF0 /* Map Entity.swift */,

@@ -729,35 +729,6 @@ class BuildingNode: SKSpriteNode {
         }
     }
         
-    var garrisonedUnits: [UnitType: Int] {
-            get {
-                return (objc_getAssociatedObject(self, &BuildingNode.garrisonKey) as? [UnitType: Int]) ?? [:]
-            }
-            set {
-                objc_setAssociatedObject(self, &BuildingNode.garrisonKey, newValue, .OBJC_ASSOCIATION_RETAIN)
-            }
-        }
-        
-        func garrisonUnits(_ unitType: UnitType, count: Int) {
-            garrisonedUnits[unitType, default: 0] += count
-        }
-        
-        func ungarrisonUnits(_ unitType: UnitType, count: Int) -> Int {
-            let current = garrisonedUnits[unitType] ?? 0
-            let toRemove = min(current, count)
-            
-            if toRemove > 0 {
-                let remaining = current - toRemove
-                if remaining > 0 {
-                    garrisonedUnits[unitType] = remaining
-                } else {
-                    garrisonedUnits.removeValue(forKey: unitType)
-                }
-            }
-            
-            return toRemove
-        }
-        
     func getGarrisonCapacity() -> Int {
         switch buildingType.category {
         case .military:

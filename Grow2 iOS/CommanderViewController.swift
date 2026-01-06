@@ -407,6 +407,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
               let hexMap = hexMap,
               let gameScene = gameScene else {
             print("⚠️ Missing game references - commander not deployed")
+            showError(message: "Cannot deploy commander - missing game references")
             return
         }
         
@@ -419,15 +420,17 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         
         guard let cityCenter = cityCenters.first else {
             print("⚠️ No city center found - commander not deployed")
+            showError(message: "No City Center found. Build one first!")
             return
         }
         
+        // ✅ Spawn directly ON the city center coordinate
         let spawnCoord = cityCenter.coordinate
         
-        // Check if city center is already occupied by an entity
-        if let occupyingEntity = hexMap.getEntity(at: spawnCoord) {
-            print("❌ City center occupied by \(occupyingEntity) - cannot deploy commander")
-            // Optionally show alert to user
+        // ✅ Check if there's already an entity on the city center
+        if let existingEntity = hexMap.getEntity(at: spawnCoord) {
+            print("❌ City center occupied by entity: \(existingEntity.entityType)")
+            showError(message: "City Center is occupied. Move units away first.")
             return
         }
         
