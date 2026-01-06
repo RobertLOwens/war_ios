@@ -120,16 +120,14 @@ class MainMenuViewController: UIViewController {
     
     @objc func newGameTapped() {
         if GameSaveManager.shared.saveExists() {
-            let alert = UIAlertController(
+            showDestructiveConfirmation(
                 title: "⚠️ Start New Game?",
                 message: "This will overwrite your current saved game. Are you sure?",
-                preferredStyle: .alert
+                confirmTitle: "New Game",
+                onConfirm: { [weak self] in
+                    self?.startNewGame()
+                }
             )
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-            alert.addAction(UIAlertAction(title: "New Game", style: .destructive) { [weak self] _ in
-                self?.startNewGame()
-            })
-            present(alert, animated: true)
         } else {
             startNewGame()
         }
@@ -156,39 +154,24 @@ class MainMenuViewController: UIViewController {
     }
     
     @objc func settingsTapped() {
-        let alert = UIAlertController(
-            title: "⚙️ Settings",
-            message: "Settings coming soon!",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
+        showAlert(title: "⚙️ Settings", message: "Settings coming soon!")
+
     }
     
     @objc func deleteSaveTapped() {
-        guard GameSaveManager.shared.saveExists() else {
-            return
-        }
+        guard GameSaveManager.shared.saveExists() else { return }
         
-        let alert = UIAlertController(
+        showDestructiveConfirmation(
             title: "🗑️ Delete Save?",
             message: "This cannot be undone. Are you sure you want to delete your saved game?",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
-            if GameSaveManager.shared.deleteSave() {
-                self?.updateResumeButton()
-                self?.showAlert(title: "✅ Deleted", message: "Your saved game has been deleted.")
+            confirmTitle: "Delete",
+            onConfirm: { [weak self] in
+                if GameSaveManager.shared.deleteSave() {
+                    self?.updateResumeButton()
+                    self?.showAlert(title: "✅ Deleted", message: "Your saved game has been deleted.")
+                }
             }
-        })
-        present(alert, animated: true)
-    }
-    
-    func showAlert(title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
+        )
     }
     
     override var prefersStatusBarHidden: Bool {

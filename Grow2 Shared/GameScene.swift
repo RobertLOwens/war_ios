@@ -15,7 +15,6 @@ class GameScene: SKScene {
     var selectedEntity: EntityNode?
     var cameraNode: SKCameraNode!
     var showAlert: ((String, String) -> Void)?
-    var showCombatTimer: ((CombatRecord, @escaping () -> Void) -> Void)?
     var attackingArmy: Army?
     var player: Player?
     var enemyPlayer: Player?
@@ -26,14 +25,9 @@ class GameScene: SKScene {
     var mapSize: Int = 20
     var resourceDensity: Double = 1.0
     var movementPathLine: SKShapeNode?
-    
+    var showMergeOption: ((EntityNode, EntityNode) -> Void)?
+    weak var delegate: GameSceneDelegate?
     var lastUpdateTime: TimeInterval?
-    
-    // Callbacks for UI interactions
-    var showTileMenu: ((HexCoordinate) -> Void)?
-    var showEntitySelectionForMove: ((HexCoordinate, [EntityNode]) -> Void)?  // ← Must exist!
-    var showBuildingMenu: ((HexCoordinate, EntityNode?) -> Void)?
-    var updateResourceDisplay: (() -> Void)?
     
     override func didMove(to view: SKView) {
         setupScene()
@@ -420,8 +414,6 @@ class GameScene: SKScene {
 //          print("👁️ Fog of War initialized and updated")
 //        
 //    }
-
-
     
     func selectEntity(_ entity: EntityNode) {
         // ✅ FIX: Check if entity is actually visible
@@ -430,7 +422,7 @@ class GameScene: SKScene {
         let visibility = player.getVisibilityLevel(at: entity.coordinate)
         guard visibility == .visible else {
             print("❌ Cannot select entity in fog of war")
-            showAlert?("Cannot Select", "This unit is not visible due to fog of war.")
+            delegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible due to fog of war.")
             return
         }
         
@@ -438,7 +430,7 @@ class GameScene: SKScene {
         if let fogOfWar = player.fogOfWar {
             guard fogOfWar.shouldShowEntity(entity.entity, at: entity.coordinate) else {
                 print("❌ Entity not visible according to fog of war")
-                showAlert?("Cannot Select", "This unit is not visible.")
+                delegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible.")
                 return
             }
         }
@@ -457,16 +449,14 @@ class GameScene: SKScene {
         
         print("Selected \(entity.entityType.displayName) at q:\(entity.coordinate.q), r:\(entity.coordinate.r)")
         
-        showTileMenu?(entity.coordinate)
+        delegate?.gameScene(self, didRequestMenuForTile: entity.coordinate)
     }
-
-
     
     override func update(_ currentTime: TimeInterval) {
         let realWorldTime = Date().timeIntervalSince1970
         
         if let player = player {
-            player.updateResources(currentTime: realWorldTime)
+            delegate?.gameSceneDidUpdateResources(self)
             
             // Update vision every frame so it follows moving entities
             player.updateVision(allPlayers: allGamePlayers)
@@ -485,7 +475,7 @@ class GameScene: SKScene {
             
             // Only update resource display periodically to avoid UI lag
             if lastUpdateTime == nil || currentTime - lastUpdateTime! >= 0.5 {
-                updateResourceDisplay?()
+                delegate?.gameSceneDidUpdateResources(self)
                 lastUpdateTime = currentTime
             }
         }
@@ -654,12 +644,6 @@ class GameScene: SKScene {
             return
         }
         
-        if let unit = selectedUnit {
-            moveUnit(unit, to: tile.coordinate)
-            deselectAll()
-            return
-        }
-        
         // Otherwise, select the tile and show menu
         selectedTile?.isSelected = false
         selectedUnit = nil
@@ -670,7 +654,7 @@ class GameScene: SKScene {
         
         print("Selected tile at q:\(tile.coordinate.q), r:\(tile.coordinate.r)")
         
-        showTileMenu?(tile.coordinate)
+        delegate?.gameScene(self, didRequestMenuForTile: tile.coordinate)
     }
     
     func deselectAll() {
@@ -690,13 +674,13 @@ class GameScene: SKScene {
         
         guard !availableEntities.isEmpty else {
             print("❌ No entities available to move")
-            showAlert?("Cannot Move", "You don't have any units available to move.")
+            delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message:"You don't have any units available to move.")
             return
         }
         
         // ✅ Use the dedicated move menu that doesn't open entity action menus
         print("✅ Calling showMoveSelectionMenu...")
-        showEntitySelectionForMove?(destination, availableEntities)
+        delegate?.gameScene(self, didRequestMoveSelection: destination, availableEntities: availableEntities)
     }
 
     func moveEntity(_ entity: EntityNode, to destination: HexCoordinate) {
@@ -704,7 +688,7 @@ class GameScene: SKScene {
         let diplomacyStatus = player?.getDiplomacyStatus(with: entity.entity.owner) ?? .neutral
         if diplomacyStatus != .me {
             print("❌ Cannot move entities you don't own")
-            showAlert?("Cannot Move", "You can only move your own units!")
+            delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "You can only move your own units!")
             return
         }
         
@@ -713,7 +697,7 @@ class GameScene: SKScene {
             let destDiplomacy = player?.getDiplomacyStatus(with: entityAtDestination.entity.owner) ?? .neutral
             if destDiplomacy == .enemy {
                 print("❌ Cannot move onto enemy-occupied tile")
-                showAlert?("Cannot Move", "Cannot move onto an enemy-occupied tile! Use the Attack command instead.")
+                delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "Cannot move onto an enemy-occupied tile! Use the Attack command instead.")
                 return
             }
         }
@@ -725,7 +709,8 @@ class GameScene: SKScene {
                 if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
                     if !resourcePoint.isDepleted() && resourcePoint.parent != nil {
                         print("❌ Villagers are busy gathering")
-                        showAlert?("Cannot Move", "These villagers are gathering \(resourcePoint.resourceType.displayName) and cannot move. Cancel the gathering task first.")
+                        delegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
+                                            message: "These villagers are gathering \(resourcePoint.resourceType.displayName) and cannot move. Cancel the gathering task first.")
                         return
                     } else {
                         // Resource depleted, unlock them
@@ -742,20 +727,21 @@ class GameScene: SKScene {
                     } else {
                         let progress = Int(building.constructionProgress * 100)
                         print("❌ Villagers are busy building (\(progress)%)")
-                        showAlert?("Cannot Move", "These villagers are busy constructing \(building.buildingType.displayName) (\(progress)% complete) and cannot move until construction is complete.")
+                        delegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
+                                            message:  "These villagers are busy constructing \(building.buildingType.displayName) (\(progress)% complete) and cannot move until construction is complete.")
                         return
                     }
                 }
             } else {
                 print("❌ Entity is already moving")
-                showAlert?("Cannot Move", "This entity is already on the move.")
+                delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "This entity is already on the move.")
                 return
             }
         }
         
         guard let path = hexMap.findPath(from: entity.coordinate, to: destination) else {
             print("❌ No valid path to destination")
-            showAlert?("Cannot Move", "No valid path to the destination.")
+            delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "No valid path to the destination.")
             return
         }
         
@@ -771,33 +757,20 @@ class GameScene: SKScene {
             self?.clearMovementPath()
         }
     }
-
-    func moveUnit(_ unit: UnitNode, to destination: HexCoordinate) {
-        guard let path = hexMap.findPath(from: unit.coordinate, to: destination) else {
-            print("No valid path to destination")
-            return
-        }
-        
-        print("Moving \(unit.unitType.displayName) from (\(unit.coordinate.q), \(unit.coordinate.r)) to (\(destination.q), \(destination.r))")
-        print("Path: \(path)")
-        
-        unit.moveTo(path: path) {
-            print("\(unit.unitType.displayName) arrived at destination")
-        }
-    }
     
     func placeBuilding(type: BuildingType, at coordinate: HexCoordinate, owner: Player) {
         // Check if there's already a building on this tile
         if let existingBuilding = hexMap.getBuilding(at: coordinate) {
             print("❌ Building already exists at this location: \(existingBuilding.buildingType.displayName)")
-            showAlert?("Cannot Build", "There is already a \(existingBuilding.buildingType.displayName) on this tile.")
+            delegate?.gameScene(self, showAlertWithTitle: "Cannot Build", message: "There is already a \(existingBuilding.buildingType.displayName) on this tile.")
             return
         }
         
         // Check if tile is valid for building
         guard hexMap.canPlaceBuilding(at: coordinate) else {
             print("❌ Cannot place building at this location")
-            showAlert?("Cannot Build", "This location is blocked or not suitable for building.")
+            delegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
+                                message:"This location is blocked or not suitable for building.")
             return
         }
         
@@ -812,7 +785,7 @@ class GameScene: SKScene {
         
         if !missingResources.isEmpty {
             let message = "Insufficient resources:\n" + missingResources.joined(separator: "\n")
-            showAlert?("Cannot Afford", message)
+            delegate?.gameScene(self, showAlertWithTitle: "Cannot Afford", message: message)
             return
         }
         
@@ -820,7 +793,8 @@ class GameScene: SKScene {
         guard let villagerEntity = hexMap.getEntity(at: coordinate),
               villagerEntity.entityType == .villagerGroup else {
             print("❌ No villager group at this location")
-            showAlert?("Cannot Build", "You need a villager group at this location to build.")
+                delegate?.gameScene(self, showAlertWithTitle: "Cannot Build", 
+                                    message:"You need a villager group at this location to build.")
             return
         }
         
@@ -857,7 +831,7 @@ class GameScene: SKScene {
         print("✅ Placed \(type.displayName) at (\(coordinate.q), \(coordinate.r))")
         print("✅ Villagers are now locked to this tile until construction completes")
         
-        updateResourceDisplay?()
+        delegate?.gameSceneDidUpdateResources(self)
     }
     
     // This method is in GameScene.swift class
@@ -899,7 +873,7 @@ class GameScene: SKScene {
         
         message += "\n\(building.buildingType.description)"
         
-        showTileMenu?(building.coordinate)
+        delegate?.gameScene(self, didRequestMenuForTile: building.coordinate)
     }
     
     func updateBuildingTimers() {
@@ -978,7 +952,7 @@ class GameScene: SKScene {
         )
         
         // Show combat timer
-        showCombatTimer?(record) { [weak self] in
+        delegate?.gameScene(self, didStartCombat: record) { [weak self] in
             // Apply results after timer completes
             CombatSystem.shared.applyCombatResults(
                 record: record,
@@ -1282,6 +1256,74 @@ class GameScene: SKScene {
         }
         
         addChild(movementPathLine!)
+    }
+    
+    func checkAndOfferMerge(at coordinate: HexCoordinate) {
+        let entitiesOnTile = hexMap.entities.filter { $0.coordinate == coordinate }
+        let villagerGroups = entitiesOnTile.compactMap { $0 as? EntityNode }.filter { $0.entityType == .villagerGroup }
+        
+        if villagerGroups.count == 2 {
+            showMergeOption?(villagerGroups[0], villagerGroups[1])
+        }
+    }
+
+    func performMerge(group1: EntityNode, group2: EntityNode, newCount1: Int, newCount2: Int) {
+        guard let villagers1 = group1.entity as? VillagerGroup,
+              let villagers2 = group2.entity as? VillagerGroup else {
+            print("❌ Error: Cannot merge - not villager groups")
+            return
+        }
+        
+        // Calculate the current total
+        let currentTotal = villagers1.villagerCount + villagers2.villagerCount
+        
+        // Calculate how many to add or remove from each group
+        let diff1 = newCount1 - villagers1.villagerCount
+        let diff2 = newCount2 - villagers2.villagerCount
+        
+        // ✅ Use the proper methods to modify villager counts
+        if diff1 > 0 {
+            villagers1.addVillagers(count: diff1)
+        } else if diff1 < 0 {
+            villagers1.removeVillagers(count: abs(diff1))
+        }
+        
+        if diff2 > 0 {
+            villagers2.addVillagers(count: diff2)
+        } else if diff2 < 0 {
+            villagers2.removeVillagers(count: abs(diff2))
+        }
+        
+        // If one group is now empty, remove it
+        if villagers2.villagerCount == 0 {
+            if let index = hexMap.entities.firstIndex(where: { $0 === group2 }) {
+                hexMap.entities.remove(at: index)
+            }
+            group2.removeFromParent()
+            
+            // ✅ Use Player's removeEntity method
+            player?.removeEntity(villagers2)
+        }
+        
+        if villagers1.villagerCount == 0 {
+            if let index = hexMap.entities.firstIndex(where: { $0 === group1 }) {
+                hexMap.entities.remove(at: index)
+            }
+            group1.removeFromParent()
+            
+            // ✅ Use Player's removeEntity method
+            player?.removeEntity(villagers1)
+        }
+        
+        // ✅ Update the entity textures (this refreshes the displayed count)
+        if villagers1.villagerCount > 0 {
+            group1.updateTexture(currentPlayer: player)
+        }
+        if villagers2.villagerCount > 0 {
+            group2.updateTexture(currentPlayer: player)
+        }
+        
+        print("✅ Merged villagers: Group 1 now has \(villagers1.villagerCount), Group 2 now has \(villagers2.villagerCount)")
     }
     
 }

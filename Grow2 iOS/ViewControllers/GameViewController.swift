@@ -12,6 +12,9 @@ class GameViewController: UIViewController {
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
     
+    private var menuCoordinator: MenuCoordinator!
+    private var entityActionHandler: EntityActionHandler!
+    
     // UI Elements
     var resourcePanel: UIView!
     var resourceLabels: [ResourceType: UILabel] = [:]
@@ -43,7 +46,10 @@ class GameViewController: UIViewController {
         setupSKView()
         setupScene()
         setupUI()
-        setupGameCallbacks()
+        
+        menuCoordinator = MenuCoordinator(viewController: self, delegate: self)
+        entityActionHandler = EntityActionHandler(viewController: self, delegate: self)
+        
         setupAutoSave()
         
         // Check if we should load a saved game
@@ -91,28 +97,8 @@ class GameViewController: UIViewController {
         gameScene.player = player
         gameScene.mapSize = mapSize.rawValue
         gameScene.resourceDensity = resourceDensity.multiplier
+        gameScene.delegate = self  // ADD THIS LINE
         skView.presentScene(gameScene)
-    }
-    
-    func setupGameCallbacks() {
-        // Handle tile menu showing
-        gameScene.showTileMenu = { [weak self] coordinate in
-            self?.showTileActionMenu(for: coordinate)
-        }
-        
-        // ✅ FIX: Point to the dedicated move selection menu
-        gameScene.showEntitySelectionForMove = { [weak self] destination, entities in
-            self?.showMoveSelectionMenu(to: destination, from: entities)
-        }
-        
-        gameScene.showBuildingMenu = { [weak self] coordinate, entity in
-            self?.showVillagerMenu(at: coordinate, villagerGroup: entity!)
-        }
-        
-        // Handle resource display updates
-        gameScene.updateResourceDisplay = { [weak self] in
-            self?.updateResourceDisplay()
-        }
     }
     
     func showEntityActionMenu(for entity: EntityNode, at coordinate: HexCoordinate) {
@@ -122,65 +108,36 @@ class GameViewController: UIViewController {
             return
         }
         
-        let alert = UIAlertController(
-            title: "Entity Actions",
-            message: nil,
-            preferredStyle: .actionSheet
-        )
+        var actions: [AlertAction] = []
         
-        // Move action
-        alert.addAction(UIAlertAction(title: "🚶 Move", style: .default) { [weak self] _ in
+        actions.append(AlertAction(title: "🚶 Move") { [weak self] in
             self?.gameScene.selectEntity(entity)
-            self?.showSimpleAlert(title: "Select Destination", message: "Tap a tile to move this entity.")
+            self?.showAlert(title: "Select Destination", message: "Tap a tile to move this entity.")
         })
         
-        // Debug info
-        if let ownerID = entity.entity.owner?.id {
-            print("Entity owner: \(ownerID.uuidString.prefix(8))")
-            if let player = player {
-                print("   vs Player: \(player.id.uuidString.prefix(8))")
-                print("   Match: \(ownerID == player.id ? "YES" : "NO")")
-            } else {
-                print("   Player: \(player?.id.uuidString.prefix(8) ?? "nil")")
-                print("   Player ID: \(player.id.uuidString)")
-            }
-        }
-        
-        // ✅ ARMY ACTIONS (only for owned entities)
         if entity.entityType == .army,
            let army = entity.entity as? Army,
            army.owner?.id == player.id {
-            
-            // ✅ NEW: Reinforce action - let player pick from available garrisons
             let buildingsWithGarrison = player.buildings.filter { $0.getTotalGarrisonedUnits() > 0 }
             if !buildingsWithGarrison.isEmpty {
-                alert.addAction(UIAlertAction(title: "🔄 Reinforce Army", style: .default) { [weak self] _ in
+                actions.append(AlertAction(title: "🔄 Reinforce Army") { [weak self] in
                     self?.showReinforcementSourceSelection(for: army)
                 })
             }
         }
         
-        // Back to entity selection (if multiple entities on tile)
         let entitiesAtTile = gameScene.hexMap.entities.filter { $0.coordinate == coordinate }
         if entitiesAtTile.count > 1 {
-            alert.addAction(UIAlertAction(title: "← Back to Entity List", style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: "← Back to Entity List") { [weak self] in
                 self?.showEntitySelectionMenu(at: coordinate, entities: entitiesAtTile)
             })
         }
         
-        // Cancel action
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.gameScene.deselectAll()
-        })
-        
-        // For iPad
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "Entity Actions",
+            actions: actions,
+            onCancel: { [weak self] in self?.gameScene.deselectAll() }
+        )
     }
     
     // MARK: - Combat System
@@ -322,116 +279,43 @@ class GameViewController: UIViewController {
     // MARK: - Existing Methods
     
     func showTileInfoMenu(for coordinate: HexCoordinate) {
-        var title = "Tile Info"
-        var message = "Location: (\(coordinate.q), \(coordinate.r))"
-        
-        // Check if there's a building on this tile
-        var buildingAtTile: BuildingNode? = nil
-
         let visibility = player.getVisibilityLevel(at: coordinate)
+        var title = "Tile (\(coordinate.q), \(coordinate.r))"
+        var message = ""
         
-        switch visibility {
-        case .unexplored:
-            message = "Unexplored territory"
-            
-        case .explored:
-            // Show last known information
-            if let memory = player.fogOfWar?.getMemory(at: coordinate) {
-                message += "\n\nTerrain: \(memory.terrain)"
-                
-                if let buildingSnapshot = memory.lastSeenBuilding {
-                    title = "\(buildingSnapshot.buildingType.icon) \(buildingSnapshot.buildingType.displayName)"
-                    message += "\n\n⚠️ Last Seen Information"
-                    message += "\nThis building was here when you last explored this area."
-                    message += "\nCurrent status unknown."
-                }
-            }
-            
-        case .visible:
-            // Show current real-time information
-            if let building = gameScene.hexMap.getBuilding(at: coordinate) {
-                buildingAtTile = building
-                
-                // ✅ If there's a completed building owned by player, show custom view controller
-                if building.state == .completed && building.owner?.id == player.id {
-                    showBuildingDetailViewController(building: building)
-                    return
-                }
-                
-                // Otherwise show info in alert
+        if let building = gameScene.hexMap.getBuilding(at: coordinate) {
+            if visibility == .visible || building.owner?.id == player.id {
                 title = "\(building.buildingType.icon) \(building.buildingType.displayName)"
-                message = ""
-                
-                switch building.state {
-                case .planning:
-                    message += "Status: Planning\n"
-                case .constructing:
-                    let progress = Int(building.constructionProgress * 100)
-                    message += "Status: Under Construction (\(progress)%)\n"
-                case .completed:
-                    message += "Status: Completed ✅\n"
-                    message += "Health: \(building.health)/\(building.maxHealth)\n"
-                case .damaged:
-                    message += "Status: Damaged ⚠️\n"
-                    message += "Health: \(building.health)/\(building.maxHealth)\n"
-                case .destroyed:
-                    message += "Status: Destroyed ❌\n"
+                message = building.buildingType.description
+                message += "\nOwner: \(building.owner?.name ?? "Unknown")"
+                message += "\nHealth: \(Int(building.health))/\(Int(building.maxHealth))"
+                if building.state == .constructing {
+                    message += "\n🔨 Construction: \(Int(building.constructionProgress * 100))%"
                 }
-                
-                message += "\n\(building.buildingType.description)"
+            } else {
+                message = "Explored - Last seen: Building here"
             }
-            
-            if buildingAtTile == nil, let resourcePoint = gameScene.hexMap.getResourcePoint(at: coordinate) {
-                title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
-                message = resourcePoint.getDescription()
-                
-                if resourcePoint.isBeingGathered {
-                    message += "\n\n🔨 Currently being gathered"
-                }
-            }
-            
+        } else if let resourcePoint = gameScene.hexMap.getResourcePoint(at: coordinate), visibility == .visible {
+            title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
+            message = resourcePoint.getDescription()
+            if resourcePoint.isBeingGathered { message += "\n\n🔨 Currently being gathered" }
         }
         
-        let alert = UIAlertController(
-            title: title,
-            message: message,
-            preferredStyle: .alert
-        )
-        
+        var actions: [AlertAction] = []
         let entitiesAtTile = gameScene.hexMap.entities.filter { $0.coordinate == coordinate }
-
         
-        // Only allow actions on visible tiles
-        if visibility == .visible {
-            
-            // ✅ FIX: Only show "Move Unit Here" if there are NO entities on this tile
-            if entitiesAtTile.isEmpty {
-                alert.addAction(UIAlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] _ in
-                    self?.gameScene.initiateMove(to: coordinate)
-                })
-            }
-        } else if visibility == .explored {
-            if entitiesAtTile.isEmpty {
-                alert.addAction(UIAlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] _ in
-                    self?.gameScene.initiateMove(to: coordinate)
-                })
-            }
-            
+        if (visibility == .visible || visibility == .explored) && entitiesAtTile.isEmpty {
+            actions.append(AlertAction(title: "🚶 Move Unit Here") { [weak self] in
+                self?.gameScene.initiateMove(to: coordinate)
+            })
         }
         
-        // Cancel action
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.gameScene.deselectAll()
-        })
-        
-        // For iPad
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: title,
+            message: message.isEmpty ? nil : message,
+            actions: actions,
+            onCancel: { [weak self] in self?.gameScene.deselectAll() }
+        )
     }
     
     func showBuildingDetailViewController(building: BuildingNode) {
@@ -513,87 +397,26 @@ class GameViewController: UIViewController {
     }
     
     func showEntitySelectionMenu(at coordinate: HexCoordinate, entities: [EntityNode]) {
-        // ✅ FIX: Double-check visibility and filter again
-        let visibility = player.getVisibilityLevel(at: coordinate)
+        var actions: [AlertAction] = []
         
-        guard visibility == .visible else {
-            // Tile is explored but not visible - show tile info instead
-            showTileInfoMenu(for: coordinate)
-            return
-        }
-        
-        // ✅ FIX: Only show entities that are actually visible
-        let visibleEntities = entities.filter { entity in
-            if let fogOfWar = player.fogOfWar {
-                return fogOfWar.shouldShowEntity(entity.entity, at: coordinate)
+        for entity in entities {
+            var title = "\(entity.entityType.icon) "
+            if entity.entityType == .army, let army = entity.entity as? Army {
+                title += "\(army.name) (\(army.getUnitCount() + army.getTotalMilitaryUnits()) units)"
+            } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
+                title += "\(villagers.name) (\(villagers.villagerCount) villagers)"
             }
-            return false
-        }
-        
-        guard !visibleEntities.isEmpty else {
-            // No visible entities - show tile info instead
-            showTileInfoMenu(for: coordinate)
-            return
-        }
-        
-        var title = "Select Entity"
-        var message = "Tile: (\(coordinate.q), \(coordinate.r))\n"
-        
-        // Check if there's also a building here
-        if let building = gameScene.hexMap.getBuilding(at: coordinate) {
-            message += "\n🏗️ Building: \(building.buildingType.displayName) (\(building.state))"
-        }
-        
-        let alert = UIAlertController(
-            title: title,
-            message: message,
-            preferredStyle: .actionSheet
-        )
-        
-        // Add an action for each VISIBLE entity
-        for entity in visibleEntities {
-            var buttonTitle = ""
-            var buttonStyle: UIAlertAction.Style = .default
-            
-            if entity.entityType == .villagerGroup {
-                if let villagers = entity.entity as? VillagerGroup {
-                    buttonTitle = "👷 \(villagers.name) (\(villagers.villagerCount) villagers)"
-                } else {
-                    buttonTitle = "👷 Villager Group"
-                }
-            } else if entity.entityType == .army {
-                if let army = entity.entity as? Army {
-                    let totalUnits = army.getTotalMilitaryUnits() + army.getUnitCount()
-                    buttonTitle = "🛡️ \(army.name) (\(totalUnits) units)"
-                } else {
-                    buttonTitle = "🛡️ Army"
-                }
-            }
-            
-            alert.addAction(UIAlertAction(title: buttonTitle, style: buttonStyle) { [weak self] _ in
+            actions.append(AlertAction(title: title) { [weak self] in
                 self?.showEntityActionMenu(for: entity, at: coordinate)
             })
         }
         
-        // Option to view tile/building info
-        if let building = gameScene.hexMap.getBuilding(at: coordinate) {
-            alert.addAction(UIAlertAction(title: "🏗️ View Building", style: .default) { [weak self] _ in
-                self?.showTileInfoMenu(for: coordinate)
-            })
-        }
-        
-        // Cancel action
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.gameScene.deselectAll()
-        })
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "📍 Entities at Location",
+            message: "Select an entity to interact with",
+            actions: actions,
+            onCancel: { [weak self] in self?.gameScene.deselectAll() }
+        )
     }
 
     func deployVillagersFromCityCenter(building: BuildingNode, count: Int) {
@@ -636,154 +459,97 @@ class GameViewController: UIViewController {
     }
     
     func showVillagerMenu(at coordinate: HexCoordinate, villagerGroup: EntityNode) {
+        
         guard let villagers = villagerGroup.entity as? VillagerGroup else { return }
         
-        var message = "Villagers: \(villagers.villagerCount)\n"
-        message += "Status: \(villagers.currentTask.displayName)"
-        
-        let alert = UIAlertController(
-            title: "👷 \(villagers.name)",
-            message: message,
-            preferredStyle: .actionSheet
-        )
-        
-        // Check if there's already a building on this tile
+        let message = "Villagers: \(villagers.villagerCount)\nStatus: \(villagers.currentTask.displayName)"
         let buildingExists = gameScene.hexMap.getBuilding(at: coordinate) != nil
         
-        // Build action
-        let buildAction = UIAlertAction(title: "🗠️ Build", style: .default) { [weak self] _ in
-            self?.showBuildingMenu(at: coordinate, villagerGroup: villagerGroup)
-        }
-        buildAction.isEnabled = !buildingExists
-        alert.addAction(buildAction)
+        var actions: [AlertAction] = []
         
-        // If building exists, show why it's disabled
-        if buildingExists {
-            alert.addAction(UIAlertAction(title: "ℹ️ Building Already Exists Here", style: .default, handler: nil))
+        if !buildingExists {
+            actions.append(AlertAction(title: "🏗️ Build") { [weak self] in
+                self?.showBuildingMenu(at: coordinate, villagerGroup: villagerGroup)
+            })
+        } else {
+            actions.append(AlertAction(title: "ℹ️ Building Already Exists Here", handler: nil))
         }
         
-        // Move action
-        alert.addAction(UIAlertAction(title: "🚶 Move", style: .default) { [weak self] _ in
-            // Deselect and wait for next tile click to move
-            self?.gameScene.deselectAll()
-            // The user will now click another tile to move there
-        })
-        
-        // Cancel action
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+        actions.append(AlertAction(title: "🚶 Move") { [weak self] in
             self?.gameScene.deselectAll()
         })
         
-        // For iPad
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "👷 \(villagers.name)",
+            message: message,
+            actions: actions,
+            onCancel: { [weak self] in self?.gameScene.deselectAll() }
+        )
     }
     
     func showBuildingMenu(at coordinate: HexCoordinate, villagerGroup: EntityNode?) {
         
-        let alert = UIAlertController(
-            title: "🗠️ Select Building",
-            message: "Choose what to build at (\(coordinate.q), \(coordinate.r))",
-            preferredStyle: .actionSheet
-        )
+        var actions: [AlertAction] = []
         
-        // Group buildings by category
         let economicBuildings = BuildingType.allCases.filter { $0.category == .economic }
-        let militaryBuildings = BuildingType.allCases.filter { $0.category == .military }
-        
-        // Economic Buildings Section
         for buildingType in economicBuildings {
             let canAfford = player.canAfford(buildingType)
             let costString = formatBuildingCost(buildingType)
-            let title = "\(buildingType.icon) \(buildingType.displayName) - \(costString)"
+            let prefix = canAfford ? "" : "❌ "
+            let title = "\(prefix)\(buildingType.icon) \(buildingType.displayName) - \(costString)"
             
-            let action = UIAlertAction(title: title, style: .default) { [weak self] _ in
-                self?.showBuildingConfirmation(buildingType: buildingType, at: coordinate)
-            }
-            
-            // Disable if can't afford
-            action.isEnabled = canAfford
-            alert.addAction(action)
+            actions.append(AlertAction(title: title) { [weak self] in
+                if canAfford {
+                    self?.showBuildingConfirmation(buildingType: buildingType, at: coordinate)
+                } else {
+                    self?.showAlert(title: "Cannot Afford", message: "You need \(costString) to build \(buildingType.displayName)")
+                }
+            })
         }
         
-        // Separator
-        alert.addAction(UIAlertAction(title: "--- Military Buildings ---", style: .default, handler: nil))
+        actions.append(AlertAction(title: "--- Military Buildings ---", handler: nil))
         
-        // Military Buildings Section
+        let militaryBuildings = BuildingType.allCases.filter { $0.category == .military }
         for buildingType in militaryBuildings {
             let canAfford = player.canAfford(buildingType)
             let costString = formatBuildingCost(buildingType)
-            let title = "\(buildingType.icon) \(buildingType.displayName) - \(costString)"
+            let prefix = canAfford ? "" : "❌ "
+            let title = "\(prefix)\(buildingType.icon) \(buildingType.displayName) - \(costString)"
             
-            let action = UIAlertAction(title: title, style: .default) { [weak self] _ in
-                self?.showBuildingConfirmation(buildingType: buildingType, at: coordinate)
-            }
-            
-            // Disable if can't afford
-            action.isEnabled = canAfford
-            alert.addAction(action)
+            actions.append(AlertAction(title: title) { [weak self] in
+                if canAfford {
+                    self?.showBuildingConfirmation(buildingType: buildingType, at: coordinate)
+                } else {
+                    self?.showAlert(title: "Cannot Afford", message: "You need \(costString) to build \(buildingType.displayName)")
+                }
+            })
         }
         
-        // Cancel action
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.gameScene.deselectAll()
-        })
-        
-        // For iPad - need to set source
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "🏗️ Select Building",
+            message: "Choose what to build at (\(coordinate.q), \(coordinate.r))",
+            actions: actions,
+            onCancel: { [weak self] in self?.gameScene.deselectAll() }
+        )
     }
     
     func showBuildingConfirmation(buildingType: BuildingType, at coordinate: HexCoordinate) {
-        let canAfford = player.canAfford(buildingType)
-        
-        var message = "\(buildingType.description)\n\n"
-        message += "Cost:\n"
+        var message = "\(buildingType.description)\n\nCost:\n"
         
         for (resourceType, amount) in buildingType.buildCost.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let current = player.getResource(resourceType)
-            let statusIcon = current >= amount ? "✓" : "✗"
+            let statusIcon = current >= amount ? "✅" : "❌"
             message += "\(statusIcon) \(resourceType.icon) \(resourceType.displayName): \(amount) (You have: \(current))\n"
         }
         
-        message += "\nBuild Time: \(Int(buildingType.buildTime))s"
-        
-        if let bonus = buildingType.resourceBonus {
-            message += "\n\nBonus:"
-            for (resourceType, amount) in bonus {
-                message += "\n+\(String(format: "%.1f", amount)) \(resourceType.displayName)/s"
-            }
-        }
-        
-        let alert = UIAlertController(
-            title: "Build \(buildingType.displayName)?",
+        showConfirmation(
+            title: "\(buildingType.icon) Build \(buildingType.displayName)?",
             message: message,
-            preferredStyle: .alert
+            confirmTitle: "Build",
+            onConfirm: { [weak self] in
+                self?.startConstruction(buildingType: buildingType, at: coordinate)
+            }
         )
-        
-        // Confirm action
-        let confirmAction = UIAlertAction(title: "Build", style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            self.gameScene.placeBuilding(type: buildingType, at: coordinate, owner: self.player)
-            self.gameScene.deselectAll()
-        }
-        confirmAction.isEnabled = canAfford
-        alert.addAction(confirmAction)
-        
-        // Cancel action
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        present(alert, animated: true)
     }
     
     func formatBuildingCost(_ buildingType: BuildingType) -> String {
@@ -889,29 +655,15 @@ class GameViewController: UIViewController {
     }
     
     @objc func showGameMenu() {
-        let alert = UIAlertController(title: "⚙️ Game Menu", message: nil, preferredStyle: .actionSheet)
-        
-        alert.addAction(UIAlertAction(title: "💾 Save Game", style: .default) { [weak self] _ in
-            self?.manualSave()
-        })
-        
-        alert.addAction(UIAlertAction(title: "📂 Load Game", style: .default) { [weak self] _ in
-            self?.confirmLoad()
-        })
-        
-        alert.addAction(UIAlertAction(title: "🏠 Main Menu", style: .default) { [weak self] _ in
-            self?.returnToMainMenu()
-        })
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.width - 70, y: 50, width: 0, height: 0)
-            popover.permittedArrowDirections = .up
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "⚙️ Game Menu",
+            actions: [
+                AlertAction(title: "💾 Save Game") { [weak self] in self?.manualSave() },
+                AlertAction(title: "📂 Load Game") { [weak self] in self?.confirmLoad() },
+                AlertAction(title: "🏠 Main Menu") { [weak self] in self?.returnToMainMenu() }
+            ],
+            sourceRect: CGRect(x: view.bounds.width - 70, y: 50, width: 0, height: 0)
+        )
     }
     
     @objc func showTrainingOverview() {
@@ -924,16 +676,12 @@ class GameViewController: UIViewController {
     }
 
     func confirmLoad() {
-        let alert = UIAlertController(
+        showConfirmation(
             title: "⚠️ Load Game?",
             message: "Any unsaved progress will be lost. Continue?",
-            preferredStyle: .alert
+            confirmTitle: "Load",
+            onConfirm: { [weak self] in self?.loadGame() }
         )
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Load", style: .destructive) { [weak self] _ in
-            self?.loadGame()
-        })
-        present(alert, animated: true)
     }
 
     func returnToMainMenu() {
@@ -985,20 +733,17 @@ class GameViewController: UIViewController {
     // MARK: - Garrison Management
     
     func showGarrisonMenu(for building: BuildingNode) {
-        // ✅ Use NEW garrison system
-        let militaryCount = building.getTotalGarrisonedUnits()  // This uses garrison property
+        let militaryCount = building.getTotalGarrisonedUnits()
         let villagerCount = building.villagerGarrison
         let totalCount = militaryCount + villagerCount
         let capacity = building.getGarrisonCapacity()
         
         var message = "Garrisoned Units: \(totalCount)/\(capacity)\n\n"
         
-        // Show villagers
         if villagerCount > 0 {
             message += "👷 Villagers: \(villagerCount)\n"
         }
         
-        // Show military units
         if militaryCount > 0 {
             message += "\n⚔️ Military Units:\n"
             for (unitType, count) in building.garrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
@@ -1011,50 +756,27 @@ class GameViewController: UIViewController {
             message = "No units garrisoned."
         }
         
-        let alert = UIAlertController(
-            title: "🏰 Garrison",
-            message: message,
-            preferredStyle: .alert
-        )
-        
-        alert.addAction(UIAlertAction(title: "Close", style: .cancel))
-        
-        present(alert, animated: true)
+        showAlert(title: "🏰 Garrison", message: message)
     }
     
     func showArmyDetails(_ army: Army, at coordinate: HexCoordinate) {
         let message = formatArmyComposition(army)
         
-        let alert = UIAlertController(
+        showActionSheet(
             title: "🛡️ \(army.name)",
             message: message,
-            preferredStyle: .alert
+            actions: [
+                AlertAction(title: "🚶 Select to Move") { [weak self] in
+                    guard let self = self else { return }
+                    if let entityNode = self.gameScene.hexMap.entities.first(where: {
+                        ($0.entity as? Army)?.id == army.id
+                    }) {
+                        self.gameScene.selectEntity(entityNode)
+                    }
+                }
+            ],
+            onCancel: { [weak self] in self?.gameScene.deselectAll() }
         )
-    
-        // Select for movement option
-        alert.addAction(UIAlertAction(title: "🚶 Select to Move", style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            // Find the entity node for this army
-            if let entityNode = self.gameScene.hexMap.entities.first(where: {
-                ($0.entity as? Army)?.id == army.id
-            }) {
-                self.gameScene.selectEntity(entityNode)
-            }
-        })
-        
-        // Close option
-        alert.addAction(UIAlertAction(title: "Close", style: .cancel) { [weak self] _ in
-            self?.gameScene.deselectAll()
-        })
-        
-        // For iPad
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
     }
     
     // Add this helper method too:
@@ -1116,70 +838,50 @@ class GameViewController: UIViewController {
     func showReinforcementSourceSelection(for army: Army) {
         let buildingsWithGarrison = player.buildings.filter { $0.getTotalGarrisonedUnits() > 0 }
         
-        let alert = UIAlertController(
-            title: "🔄 Select Garrison Source",
-            message: "Choose which building to reinforce \(army.name) from:",
-            preferredStyle: .actionSheet
-        )
+        var actions: [AlertAction] = []
         
         for building in buildingsWithGarrison {
             let garrisonCount = building.getTotalGarrisonedUnits()
             let title = "\(building.buildingType.icon) \(building.buildingType.displayName) (\(garrisonCount) units) - (\(building.coordinate.q), \(building.coordinate.r))"
             
-            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: title) { [weak self] in
                 self?.showReinforcementUnitSelection(from: building, to: army)
             })
         }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "🔄 Select Garrison Source",
+            message: "Choose which building to reinforce \(army.name) from:",
+            actions: actions
+        )
     }
     
     func showReinforcementTargetSelection(from building: BuildingNode) {
-        let armiesOnField = player.getArmies().filter { army in
-            // Include all armies, even empty ones
-            return true
-        }
+        let armiesOnField = player.getArmies()
         
         guard !armiesOnField.isEmpty else {
-            showSimpleAlert(title: "No Armies", message: "You don't have any armies to reinforce. Recruit a commander first!")
+            showAlert(title: "No Armies", message: "You don't have any armies to reinforce. Recruit a commander first!")
             return
         }
         
-        let alert = UIAlertController(
-            title: "⚔️ Select Army to Reinforce",
-            message: "Choose which army to reinforce from \(building.buildingType.displayName):\n\nGarrison: \(building.getTotalGarrisonCount()) units available",
-            preferredStyle: .actionSheet
-        )
+        var actions: [AlertAction] = []
         
         for army in armiesOnField {
             let unitCount = army.getTotalMilitaryUnits()
             let commanderName = army.commander?.name ?? "No Commander"
             let distance = army.coordinate.distance(to: building.coordinate)
-            
             let title = "🛡️ \(army.name) - \(commanderName) (\(unitCount) units) - Distance: \(distance)"
             
-            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: title) { [weak self] in
                 self?.showReinforcementUnitSelection(from: building, to: army)
             })
         }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "⚔️ Select Army to Reinforce",
+            message: "Choose which army to reinforce from \(building.buildingType.displayName):\n\nGarrison: \(building.getTotalGarrisonedUnits()) units available",
+            actions: actions
+        )
     }
     
     /// Shows a detailed menu with sliders to select which units and how many to transfer
@@ -1300,68 +1002,49 @@ class GameViewController: UIViewController {
         }
         
         if totalTransferred > 0 {
-            let alert = UIAlertController(
+            showAlert(
                 title: "✅ Reinforcement Complete",
-                message: "Transferred \(totalTransferred) units to \(army.name)\nNew Army Size: \(army.getTotalMilitaryUnits()) units",
-                preferredStyle: .alert
+                message: "Transferred \(totalTransferred) units to \(army.name)\nNew Army Size: \(army.getTotalMilitaryUnits()) units"
             )
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            present(alert, animated: true)
-            
             print("✅ Reinforced \(army.name) with \(totalTransferred) units from \(building.buildingType.displayName)")
         }
     }
     
     func showMoveSelectionMenu(to coordinate: HexCoordinate, from entities: [EntityNode]) {
-        let alert = UIAlertController(
-            title: "🚶 Select Unit to Move",
-            message: "Choose which unit to move to (\(coordinate.q), \(coordinate.r))",
-            preferredStyle: .actionSheet
-        )
-        
-        // ✅ FIX: Filter to only show player-owned, visible entities
         let validEntities = entities.filter { entity in
-            // Must be owned by player
             guard entity.entity.owner?.id == player.id else { return false }
-            
-            // Entity's current location must be visible
-            let currentVisibility = player.getVisibilityLevel(at: entity.coordinate)
-            return currentVisibility == .visible
+            return player.getVisibilityLevel(at: entity.coordinate) == .visible
         }
         
         guard !validEntities.isEmpty else {
-            showSimpleAlert(title: "No Units Available", message: "You don't have any visible units that can move.")
+            showAlert(title: "No Units Available", message: "You don't have any visible units that can move.")
             return
         }
+        
+        var actions: [AlertAction] = []
         
         for entity in validEntities {
             let distance = entity.coordinate.distance(to: coordinate)
             var title = "\(entity.entityType.icon) "
             
             if entity.entityType == .army, let army = entity.entity as? Army {
-                let totalUnits = army.getUnitCount() + army.getTotalMilitaryUnits()
-                title += "\(army.name) (\(totalUnits) units) - Distance: \(distance)"
+                title += "\(army.name) (\(army.getUnitCount() + army.getTotalMilitaryUnits()) units) - Distance: \(distance)"
             } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
                 title += "\(villagers.name) (\(villagers.villagerCount) villagers) - Distance: \(distance)"
             }
             
-            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: title) { [weak self] in
                 self?.gameScene.moveEntity(entity, to: coordinate)
                 self?.gameScene.deselectAll()
             })
         }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.gameScene.deselectAll()
-        })
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "🚶 Select Unit to Move",
+            message: "Choose which unit to move to (\(coordinate.q), \(coordinate.r))",
+            actions: actions,
+            onCancel: { [weak self] in self?.gameScene.deselectAll() }
+        )
     }
     
     func showVillagerSelectionForGathering(resourcePoint: ResourcePointNode) {
@@ -1371,34 +1054,26 @@ class GameViewController: UIViewController {
         }
         
         guard !availableVillagers.isEmpty else {
-            showSimpleAlert(title: "No Villagers", message: "No idle villagers available nearby to gather resources.")
+            showAlert(title: "No Villagers", message: "No idle villagers available nearby to gather resources.")
             return
         }
-            
-        let alert = UIAlertController(
-            title: "Select Villagers",
-            message: "Choose which villager group to gather \(resourcePoint.resourceType.displayName)\n\nRemaining: \(resourcePoint.remainingAmount)",
-            preferredStyle: .actionSheet
-        )
+        
+        var actions: [AlertAction] = []
         
         for villagerGroup in availableVillagers {
             let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
             let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
             
-            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: title) { [weak self] in
                 self?.assignVillagersToGather(villagerGroup: villagerGroup, resourcePoint: resourcePoint)
             })
         }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "Select Villagers",
+            message: "Choose which villager group to gather \(resourcePoint.resourceType.displayName)\n\nRemaining: \(resourcePoint.remainingAmount)",
+            actions: actions
+        )
     }
         
     func assignVillagersToGather(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
@@ -1419,11 +1094,6 @@ class GameViewController: UIViewController {
             gameScene.moveEntity(entityNode, to: resourcePoint.coordinate)
         }
         
-        showSimpleAlert(
-            title: "✅ Gathering Started",
-            message: "\(villagerGroup.name) will gather \(resourcePoint.resourceType.displayName) (\(resourcePoint.resourceType.resourceYield.icon) +\(Int(resourcePoint.resourceType.gatherRate))/s)"
-        )
-        
         print("✅ Assigned \(villagerGroup.name) to gather \(resourcePoint.resourceType.displayName)")
     }
 
@@ -1434,35 +1104,26 @@ class GameViewController: UIViewController {
         let availableArmies = player.getArmies().filter { $0.hasMilitaryUnits() }
         
         guard !availableArmies.isEmpty else {
-            showSimpleAlert(title: "No Armies", message: "No armies available to hunt.")
+            showAlert(title: "No Armies", message: "No armies available to hunt.")
             return
         }
         
-        let alert = UIAlertController(
-            title: "⚔️ Hunt \(resourcePoint.resourceType.displayName)",
-            message: resourcePoint.getDescription(),
-            preferredStyle: .actionSheet
-        )
+        var actions: [AlertAction] = []
         
         for army in availableArmies {
             let distance = army.coordinate.distance(to: resourcePoint.coordinate)
-            let totalUnits = army.getTotalMilitaryUnits()
-            let title = "🛡️ \(army.name) (\(totalUnits) units) - Distance: \(distance)"
+            let title = "🛡️ \(army.name) (\(army.getTotalMilitaryUnits()) units) - Distance: \(distance)"
             
-            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: title) { [weak self] in
                 self?.huntAnimal(army: army, resourcePoint: resourcePoint)
             })
         }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "⚔️ Hunt \(resourcePoint.resourceType.displayName)",
+            message: resourcePoint.getDescription(),
+            actions: actions
+        )
     }
 
     func huntAnimal(army: Army, resourcePoint: ResourcePointNode) {
@@ -1488,17 +1149,7 @@ class GameViewController: UIViewController {
             gameScene.hexMap.removeResourcePoint(resourcePoint)
             resourcePoint.removeFromParent()
             
-            showSimpleAlert(
-                title: "🎉 Hunt Successful",
-                message: "\(army.name) hunted the \(resourcePoint.resourceType.displayName)\nGained: 🌾 \(foodGained) Food"
-            )
-            
             print("✅ Army hunted \(resourcePoint.resourceType.displayName) - gained \(foodGained) food")
-        } else {
-            showSimpleAlert(
-                title: "⚔️ Combat",
-                message: "The \(resourcePoint.resourceType.displayName) took \(netDamage) damage\nRemaining health: \(resourcePoint.currentHealth)/\(resourcePoint.resourceType.health)"
-            )
         }
     }
     
@@ -2033,5 +1684,103 @@ class GameViewController: UIViewController {
             message: "Deployed \(removed) villagers at (\(coordinate.q), \(coordinate.r))"
         )
     }
+    
+    func showMergeOption(for group1: EntityNode, and group2: EntityNode) {
+        guard let villagers1 = group1.entity as? VillagerGroup,
+              let villagers2 = group2.entity as? VillagerGroup else {
+            return
+        }
+        
+        let totalCount = villagers1.villagerCount + villagers2.villagerCount
+        
+        let alert = UIAlertController(
+            title: "Merge Villagers?",
+            message: "Two villager groups are on the same tile.\n\nGroup 1: \(villagers1.villagerCount) villagers\nGroup 2: \(villagers2.villagerCount) villagers\n\nTotal: \(totalCount) villagers",
+            preferredStyle: .alert
+        )
+        
+        // Quick Merge - combines all into group 1
+        alert.addAction(UIAlertAction(title: "⚡️ Quick Merge All", style: .default) { [weak self] _ in
+            self?.gameScene.performMerge(group1: group1, group2: group2, newCount1: totalCount, newCount2: 0)
+        })
+        
+        // Custom Split - shows slider interface
+        alert.addAction(UIAlertAction(title: "🔀 Split & Merge", style: .default) { [weak self] _ in
+            self?.showMergeViewController(for: group1, and: group2)
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        present(alert, animated: true)
+    }
 
+    func showMergeViewController(for group1: EntityNode, and group2: EntityNode) {
+        guard let villagers1 = group1.entity as? VillagerGroup,
+              let villagers2 = group2.entity as? VillagerGroup else {
+            return
+        }
+        
+        let mergeVC = VillagerMergeViewController()
+        mergeVC.villagerGroup1 = villagers1
+        mergeVC.villagerGroup2 = villagers2
+        mergeVC.modalPresentationStyle = .overFullScreen
+        mergeVC.modalTransitionStyle = .crossDissolve
+        
+        mergeVC.onMergeComplete = { [weak self] count1, count2 in
+            self?.gameScene.performMerge(group1: group1, group2: group2, newCount1: count1, newCount2: count2)
+        }
+        
+        present(mergeVC, animated: true)
+    }
+
+}
+
+extension GameViewController: MenuCoordinatorDelegate {
+    // player and gameScene already exist as properties
+    
+    func deselectAll() {
+        gameScene.deselectAll()
+    }
+}
+
+extension GameViewController: EntityActionHandlerDelegate {
+    // player and gameScene already exist as properties
+    // updateResourceDisplay() already exists
+    // showSimpleAlert() already exists
+}
+
+extension GameViewController: GameSceneDelegate {
+    
+    func gameScene(_ scene: GameScene, didRequestMenuForTile coordinate: HexCoordinate) {
+        menuCoordinator.showTileActionMenu(for: coordinate)
+    }
+    
+    func gameScene(_ scene: GameScene, didRequestMoveSelection destination: HexCoordinate, availableEntities: [EntityNode]) {
+        menuCoordinator.showMoveSelectionMenu(to: destination, from: availableEntities)
+    }
+    
+    func gameScene(_ scene: GameScene, didSelectEntity entity: EntityNode, at coordinate: HexCoordinate) {
+        menuCoordinator.showEntityActionMenu(for: entity, at: coordinate)
+    }
+    
+    func gameScene(_ scene: GameScene, didSelectVillagerGroup entity: EntityNode, at coordinate: HexCoordinate) {
+        menuCoordinator.showVillagerMenu(at: coordinate, villagerGroup: entity)
+    }
+    
+    func gameScene(_ scene: GameScene, didRequestBuildMenu coordinate: HexCoordinate, builder: EntityNode) {
+        menuCoordinator.showBuildingMenu(at: coordinate, villagerGroup: builder)
+    }
+    
+    func gameScene(_ scene: GameScene, didStartCombat record: CombatRecord, completion: @escaping () -> Void) {
+        // Your existing combat timer UI logic
+        // showCombatTimer?(record, completion)
+    }
+    
+    func gameScene(_ scene: GameScene, showAlertWithTitle title: String, message: String) {
+        showSimpleAlert(title: title, message: message)
+    }
+    
+    func gameSceneDidUpdateResources(_ scene: GameScene) {
+        updateResourceDisplay()
+    }
 }

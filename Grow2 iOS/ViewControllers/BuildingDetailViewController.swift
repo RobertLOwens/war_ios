@@ -443,10 +443,8 @@ class BuildingDetailViewController: UIViewController {
         }
         
         if !canAfford {
-            print("❌ Cannot afford training")
             let message = "Insufficient resources:\n" + missingResources.joined(separator: "\n")
             showAlert(title: "Cannot Afford", message: message)
-            return
         }
         
         // Deduct resources
@@ -479,8 +477,10 @@ class BuildingDetailViewController: UIViewController {
         print("🔄 Updating queue display...")
         updateQueueDisplay()
         
-        showAlert(title: "✅ Training Started",
-                 message: "Training \(quantity) \(unitType.displayName)\(quantity > 1 ? "s" : ""). Units will be garrisoned when complete.")
+        showAlert(
+            title: "✅ Training Started",
+            message: "Training \(quantity) \(unitType.displayName)\(quantity > 1 ? "s" : "")"
+        )
     }
     
     func updateQueueDisplay() {
@@ -569,12 +569,6 @@ class BuildingDetailViewController: UIViewController {
         return button
     }
     
-    func showAlert(title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
-    
     @objc func trainVillagersTapped() {
         // Don't dismiss - show training UI inline
         print("🎯 Train Villagers tapped - showing inline training")
@@ -597,6 +591,10 @@ class BuildingDetailViewController: UIViewController {
         }) {
             scrollView.scrollRectToVisible(trainingSection.frame, animated: true)
         }
+    }
+    
+    func showDeployError_Updated() {
+        showAlert(title: "Cannot Deploy", message: "No walkable location near \(building.buildingType.displayName) to deploy villagers.")
     }
 
     @objc func deployVillagersTapped() {
@@ -669,7 +667,6 @@ class BuildingDetailViewController: UIViewController {
     }
     
     func deployVillagers(count: Int, at coordinate: HexCoordinate) {
-        // Remove villagers from garrison
         let removed = building.removeVillagersFromGarrison(quantity: count)
         
         guard removed > 0 else {
@@ -694,7 +691,7 @@ class BuildingDetailViewController: UIViewController {
         
         // Dismiss and show success
         dismiss(animated: true) { [weak self] in
-            self?.gameViewController?.showSimpleAlert(
+            self?.gameViewController?.showAlert(
                 title: "✅ Villagers Deployed",
                 message: "Deployed \(removed) villagers at (\(coordinate.q), \(coordinate.r))"
             )
@@ -702,57 +699,44 @@ class BuildingDetailViewController: UIViewController {
     }
 
     @objc func reinforceArmyTapped() {
-        let armiesOnField = player.getArmies().filter { _ in true } // Include all armies
+        let armiesOnField = player.getArmies()
         
         guard !armiesOnField.isEmpty else {
             showAlert(title: "No Armies", message: "You don't have any armies to reinforce. Recruit a commander first!")
             return
         }
         
-        let alert = UIAlertController(
-            title: "⚔️ Select Army to Reinforce",
-            message: "Choose which army to reinforce from \(building.buildingType.displayName):\n\nGarrison: \(building.getTotalGarrisonedUnits()) units available",
-            preferredStyle: .actionSheet
-        )
+        var actions: [AlertAction] = []
         
         for army in armiesOnField {
             let unitCount = army.getTotalMilitaryUnits()
             let commanderName = army.commander?.name ?? "No Commander"
             let distance = army.coordinate.distance(to: building.coordinate)
-            
             let title = "🛡️ \(army.name) - \(commanderName) (\(unitCount) units) - Distance: \(distance)"
             
-            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: title) { [weak self] in
                 self?.showReinforceMenu(for: army)
             })
         }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "⚔️ Select Army to Reinforce",
+            message: "Choose which army to reinforce from \(building.buildingType.displayName):\n\nGarrison: \(building.getTotalGarrisonedUnits()) units available",
+            actions: actions
+        )
     }
     
     func showReinforceMenu(for army: Army) {
-        // ✅ Use the NEW garrison system (not garrisonedUnits)
-        let militaryGarrison = building.garrison  // This is [MilitaryUnitType: Int]
+        
+        let militaryGarrison = building.garrison
         
         guard !militaryGarrison.isEmpty else {
-            showAlert(title: "No Military Units", message: "This building has no military units to reinforce with. Only military units can reinforce armies.")
+            showAlert(
+                title: "No Military Units",
+                message: "This building has no military units to reinforce with. Only military units can reinforce armies."
+            )
             return
         }
-        
-        // Create custom alert with sliders
-        let alert = UIAlertController(
-            title: "⚔️ Reinforce \(army.name)",
-            message: "Select military units to transfer from garrison\n\n",
-            preferredStyle: .alert
-        )
         
         // Create container for sliders
         let containerVC = UIViewController()

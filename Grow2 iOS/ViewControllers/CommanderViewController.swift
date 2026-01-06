@@ -272,7 +272,35 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
     }
     
     @objc func recruitCommanderTapped() {
-        showRecruitmentMenu()
+        guard let player = player else { return }
+        
+        // Calculate recruitment cost
+        let baseCost: [ResourceType: Int] = [.food: 100, .ore: 50]
+        let commanderCount = player.commanders.count
+        let multiplier = 1.0 + (Double(commanderCount) * 0.5)
+        
+        var recruitmentCost: [ResourceType: Int] = [:]
+        for (resource, amount) in baseCost {
+            recruitmentCost[resource] = Int(Double(amount) * multiplier)
+        }
+        
+        // Check if can afford
+        var canAfford = true
+        var costMessage = "Recruitment Cost:\n\n"
+        
+        for (resourceType, amount) in recruitmentCost {
+            let current = player.getResource(resourceType)
+            let statusIcon = current >= amount ? "✅" : "❌"
+            costMessage += "\(statusIcon) \(resourceType.icon) \(resourceType.displayName): \(amount) (You have: \(current))\n"
+            if current < amount { canAfford = false }
+        }
+        
+        if !canAfford {
+            showAlert(title: "Insufficient Resources", message: costMessage)
+            return
+        }
+        
+        showSpecialtySelection(recruitmentCost: recruitmentCost)
     }
 
     func showRecruitmentMenu() {
@@ -314,53 +342,34 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
     }
 
     func showSpecialtySelection(recruitmentCost: [ResourceType: Int]) {
-        let alert = UIAlertController(
-            title: "🎖️ Choose Commander Specialty",
-            message: "Select the specialty for your new commander:",
-            preferredStyle: .actionSheet
-        )
+        var actions: [AlertAction] = []
         
         for specialty in CommanderSpecialty.allCases {
-            alert.addAction(UIAlertAction(title: "\(specialty.icon) \(specialty.displayName) - \(specialty.description)", style: .default) { [weak self] _ in
+            actions.append(AlertAction(title: "\(specialty.icon) \(specialty.displayName) - \(specialty.description)") { [weak self] in
                 self?.showNameInput(specialty: specialty, recruitmentCost: recruitmentCost)
             })
         }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
+        showActionSheet(
+            title: "🎖️ Choose Commander Specialty",
+            message: "Select the specialty for your new commander:",
+            actions: actions
+        )
     }
 
     func showNameInput(specialty: CommanderSpecialty, recruitmentCost: [ResourceType: Int]) {
-        let alert = UIAlertController(
+        showTextInput(
             title: "👤 Name Your Commander",
             message: "Enter a name for your new \(specialty.displayName) commander:",
-            preferredStyle: .alert
-        )
-        
-        alert.addTextField { textField in
-            textField.placeholder = "Commander Name"
-            textField.autocapitalizationType = .words
-        }
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        alert.addAction(UIAlertAction(title: "Recruit", style: .default) { [weak self] _ in
-            guard let name = alert.textFields?.first?.text, !name.isEmpty else {
-                self?.showError(message: "Please enter a valid name.")
-                return
+            placeholder: "Commander Name",
+            onSubmit: { [weak self] name in
+                guard !name.isEmpty else {
+                    self?.showError(message: "Please enter a valid name.")
+                    return
+                }
+                self?.recruitCommander(name: name, specialty: specialty, recruitmentCost: recruitmentCost)
             }
-            
-            self?.recruitCommander(name: name, specialty: specialty, recruitmentCost: recruitmentCost)
-        })
-        
-        present(alert, animated: true)
+        )
     }
 
     func recruitCommander(name: String, specialty: CommanderSpecialty, recruitmentCost: [ResourceType: Int]) {
@@ -461,26 +470,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         
         print("✅ Deployed \(commander.name)'s Army at City Center (\(spawnCoord.q), \(spawnCoord.r))")
     }
-    
-    func showError(message: String) {
-        let alert = UIAlertController(
-            title: "Error",
-            message: message,
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
 
-    func showSuccess(message: String) {
-        let alert = UIAlertController(
-            title: "Success",
-            message: message,
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
 }
 
 class CommanderCell: UITableViewCell {

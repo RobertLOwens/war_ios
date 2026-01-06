@@ -39,6 +39,11 @@
 		3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */; };
 		3FF8CF572F0B8002002FA5D7 /* TrainingOverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */; };
 		3FF8CF592F0B810D002FA5D7 /* BuildingDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */; };
+		3FF8CF5B2F0D92CE002FA5D7 /* VillagerMergeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */; };
+		3FF8CF5D2F0DA5CC002FA5D7 /* AlertHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */; };
+		3FF8CF5F2F0DA5E3002FA5D7 /* GameSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */; };
+		3FF8CF612F0DA5F4002FA5D7 /* MenuCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */; };
+		3FF8CF632F0DA614002FA5D7 /* EntityActionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF622F0DA614002FA5D7 /* EntityActionHandler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -67,7 +72,7 @@
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
 		3FF8CF482F030F04002FA5D7 /* Resource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Resource.swift; sourceTree = "<group>"; };
-		3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MainMenuViewController.swift; path = "Grow2 iOS/MainMenuViewController.swift"; sourceTree = SOURCE_ROOT; };
+		3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MainMenuViewController.swift; path = "Grow2 iOS/ViewControllers/MainMenuViewController.swift"; sourceTree = SOURCE_ROOT; };
 		3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSetupViewController.swift; sourceTree = "<group>"; };
 		3FF8CF4E2F08313F002FA5D7 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
 		3FF8CF502F083158002FA5D7 /* AboutViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewController.swift; sourceTree = "<group>"; };
@@ -75,6 +80,11 @@
 		3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTimeManager.swift; sourceTree = "<group>"; };
 		3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingOverViewController.swift; sourceTree = "<group>"; };
 		3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingDetailViewController.swift; sourceTree = "<group>"; };
+		3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerMergeViewController.swift; sourceTree = "<group>"; };
+		3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHelper.swift; sourceTree = "<group>"; };
+		3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneDelegate.swift; sourceTree = "<group>"; };
+		3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuCoordinator.swift; sourceTree = "<group>"; };
+		3FF8CF622F0DA614002FA5D7 /* EntityActionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityActionHandler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				3FC0F0F62EC7965C007C0782 /* GameScene.swift */,
+				3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */,
 				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
 				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
 				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
@@ -135,7 +146,31 @@
 		3FC0F0FE2EC7965F007C0782 /* Grow2 iOS */ = {
 			isa = PBXGroup;
 			children = (
+				3FF8CF652F0DB0B8002FA5D7 /* ViewControllers */,
+				3FF8CF642F0DB076002FA5D7 /* Utilities */,
+				3FF8CF672F0DB10A002FA5D7 /* Coordinators */,
+				3FF8CF662F0DB0D4002FA5D7 /* Handlers */,
+				3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */,
+				3FC0F1032EC7965F007C0782 /* Main.storyboard */,
+				3FC0F1062EC7965F007C0782 /* LaunchScreen.storyboard */,
+			);
+			path = "Grow2 iOS";
+			sourceTree = "<group>";
+		};
+		3FF8CF642F0DB076002FA5D7 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		3FF8CF652F0DB0B8002FA5D7 /* ViewControllers */ = {
+			isa = PBXGroup;
+			children = (
 				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
+				3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */,
+				3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */,
 				3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */,
 				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
 				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
@@ -143,12 +178,24 @@
 				3FF8CF502F083158002FA5D7 /* AboutViewController.swift */,
 				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
 				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
-				3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */,
-				3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */,
-				3FC0F1032EC7965F007C0782 /* Main.storyboard */,
-				3FC0F1062EC7965F007C0782 /* LaunchScreen.storyboard */,
 			);
-			path = "Grow2 iOS";
+			path = ViewControllers;
+			sourceTree = "<group>";
+		};
+		3FF8CF662F0DB0D4002FA5D7 /* Handlers */ = {
+			isa = PBXGroup;
+			children = (
+				3FF8CF622F0DA614002FA5D7 /* EntityActionHandler.swift */,
+			);
+			path = Handlers;
+			sourceTree = "<group>";
+		};
+		3FF8CF672F0DB10A002FA5D7 /* Coordinators */ = {
+			isa = PBXGroup;
+			children = (
+				3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */,
+			);
+			path = Coordinators;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -225,6 +272,7 @@
 			files = (
 				3FF8CF472F03073C002FA5D7 /* CombatSystem.swift in Sources */,
 				3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */,
+				3FF8CF632F0DA614002FA5D7 /* EntityActionHandler.swift in Sources */,
 				3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */,
 				3FC0F10B2EC7965F007C0782 /* GameScene.swift in Sources */,
 				3F8B8CB82EC7D65B000A4BFF /* Unit.swift in Sources */,
@@ -232,6 +280,7 @@
 				3FF8CF512F083158002FA5D7 /* AboutViewController.swift in Sources */,
 				3FC0F1022EC7965F007C0782 /* GameViewController.swift in Sources */,
 				3FEBD2072EF3B10200341AEE /* Diplomacy.swift in Sources */,
+				3FF8CF612F0DA5F4002FA5D7 /* MenuCoordinator.swift in Sources */,
 				3FD1D5E42ED514BD001398FB /* MilitaryUnit.swift in Sources */,
 				3FEBD1FD2EEF5C6400341AEE /* Commander.swift in Sources */,
 				3F34D5AD2ECA584A00AE6DF0 /* Player.swift in Sources */,
@@ -241,12 +290,15 @@
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
 				3F34D5B12ECA5CD900AE6DF0 /* Building.swift in Sources */,
 				3FF8CF572F0B8002002FA5D7 /* TrainingOverViewController.swift in Sources */,
+				3FF8CF5D2F0DA5CC002FA5D7 /* AlertHelper.swift in Sources */,
+				3FF8CF5F2F0DA5E3002FA5D7 /* GameSceneDelegate.swift in Sources */,
 				3FF8CF4F2F08313F002FA5D7 /* SettingsViewController.swift in Sources */,
 				3F34D5B52ECBB6B200AE6DF0 /* Map Entity.swift in Sources */,
 				3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */,
 				3FF8CF4D2F08312E002FA5D7 /* GameSetupViewController.swift in Sources */,
 				3FF8CF532F099148002FA5D7 /* GameSaveManager.swift in Sources */,
 				3F34D5B32ECABDFF00AE6DF0 /* Entity Node.swift in Sources */,
+				3FF8CF5B2F0D92CE002FA5D7 /* VillagerMergeViewController.swift in Sources */,
 				3F34D5B72ECBB7B800AE6DF0 /* HexMap.swift in Sources */,
 				3FF8CF4B2F08310E002FA5D7 /* MainMenuViewController.swift in Sources */,
 				3F34D5B92ECC057900AE6DF0 /* HexCoordinate.swift in Sources */,
