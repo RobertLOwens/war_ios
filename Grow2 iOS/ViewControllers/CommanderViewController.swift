@@ -230,7 +230,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         
         // Find assigned army
         if let army = player?.armies.first(where: { $0.commander?.id == commander.id }) {
-            let unitCount = army.getTotalMilitaryUnits() + army.getUnitCount()
+            let unitCount = army.getTotalMilitaryUnits()
             armyLabel.text = "🛡️ Army: \(army.name) (\(unitCount) units)"
             locationLabel.text = "📍 Location: (\(army.coordinate.q), \(army.coordinate.r))"
         } else {

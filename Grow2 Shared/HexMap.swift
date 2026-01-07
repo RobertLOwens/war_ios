@@ -96,7 +96,6 @@ class HexTileNode: SKShapeNode {
 
 class HexMap {
     var tiles: [HexCoordinate: HexTileNode] = [:]
-    var units: [UnitNode] = []
     var buildings: [BuildingNode] = []
     var entities: [EntityNode] = []
     var resourcePoints: [ResourcePointNode] = []  // ✅ NEW
@@ -250,10 +249,6 @@ class HexMap {
         return tile.terrain.isWalkable
     }
     
-    func getUnit(at coordinate: HexCoordinate) -> UnitNode? {
-        return units.first { $0.coordinate == coordinate }
-    }
-    
     func getBuilding(at coordinate: HexCoordinate) -> BuildingNode? {
         return buildings.first { $0.coordinate == coordinate }
     }
@@ -277,14 +272,6 @@ class HexMap {
         guard getBuilding(at: coordinate) == nil else { return false }
         guard getResourcePoint(at: coordinate) == nil else { return false }  // ✅ NEW
         return true
-    }
-    
-    func addUnit(_ unit: UnitNode) {
-        units.append(unit)
-    }
-    
-    func removeUnit(_ unit: UnitNode) {
-        units.removeAll { $0 === unit }
     }
     
     func addBuilding(_ building: BuildingNode) {

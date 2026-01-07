@@ -136,15 +136,6 @@ class Player {
         return true
     }
     
-    func canAffordUnit(_ unitType: UnitType) -> Bool {
-        for (resourceType, amount) in unitType.trainingCost {
-            if !hasResource(resourceType, amount: amount) {
-                return false
-            }
-        }
-        return true
-    }
-    
     func canAffordMilitaryUnit(_ unitType: MilitaryUnitType) -> Bool {
          for (resourceType, amount) in unitType.trainingCost {
              if !hasResource(resourceType, amount: amount) {
@@ -248,7 +239,7 @@ class Player {
     }
     
     func getTotalMilitaryUnits() -> Int {
-        return getArmies().reduce(0) { $0 + $1.getUnitCount() }
+        return getArmies().reduce(0) { $0 + $1.getTotalUnits() }
     }
     
     // MARK: - Building Management
@@ -330,11 +321,17 @@ class Player {
     func addCommander(_ commander: Commander) {
         if !commanders.contains(where: { $0.id == commander.id }) {
             commanders.append(commander)
+            commander.owner = self
         }
     }
-
+    
     func removeCommander(_ commander: Commander) {
         commanders.removeAll { $0.id == commander.id }
+        if commander.owner === self {
+            commander.owner = nil
+        }
+        // Also remove from any army they were commanding
+        commander.removeFromArmy()
     }
 
     func getUnassignedCommanders() -> [Commander] {

@@ -727,18 +727,14 @@ class BuildingDetailViewController: UIViewController {
     }
     
     func showReinforceMenu(for army: Army) {
-        
         let militaryGarrison = building.garrison
         
         guard !militaryGarrison.isEmpty else {
-            showAlert(
-                title: "No Military Units",
-                message: "This building has no military units to reinforce with. Only military units can reinforce armies."
-            )
+            showAlert(title: "No Military Units", message: "This building has no military units to reinforce with. Only military units can reinforce armies.")
             return
         }
         
-        // Create container for sliders
+        // Build the custom slider container
         let containerVC = UIViewController()
         let containerHeight = CGFloat(militaryGarrison.count * 90 + 40)
         containerVC.preferredContentSize = CGSize(width: 270, height: min(containerHeight, 400))
@@ -749,7 +745,6 @@ class BuildingDetailViewController: UIViewController {
         var unitLabels: [MilitaryUnitType: UILabel] = [:]
         var yOffset: CGFloat = 20
         
-        // ✅ Iterate over the NEW garrison system
         for (militaryType, count) in militaryGarrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
             guard count > 0 else { continue }
             
@@ -787,35 +782,58 @@ class BuildingDetailViewController: UIViewController {
         objc_setAssociatedObject(self, &AssociatedKeys.unitLabels, unitLabels, .OBJC_ASSOCIATION_RETAIN)
         objc_setAssociatedObject(self, &AssociatedKeys.garrisonData, militaryGarrison, .OBJC_ASSOCIATION_RETAIN)
         
-        // Add slider target
+        // Add slider targets
         for slider in unitSliders.values {
             slider.addTarget(self, action: #selector(reinforceSliderChanged(_:)), for: .valueChanged)
         }
         
         contentView.frame.size.height = yOffset
         containerVC.view.addSubview(contentView)
-        alert.setValue(containerVC, forKey: "contentViewController")
         
-        // Reinforce action
-        alert.addAction(UIAlertAction(title: "Reinforce", style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            
-            var unitsToTransfer: [MilitaryUnitType: Int] = [:]
-            for (militaryType, slider) in unitSliders {
-                let count = Int(slider.value)
-                if count > 0 {
-                    unitsToTransfer[militaryType] = count
-                }
+        // Use showAlertWithCustomContent from AlertHelper
+        showAlertWithCustomContent(
+            title: "⚔️ Reinforce \(army.name)",
+            message: "Select military units to transfer from garrison",
+            contentViewController: containerVC,
+            actions: [
+                AlertAction(title: "Reinforce") { [weak self, unitSliders] in
+                    guard let self = self else { return }
+                    
+                    var unitsToTransfer: [MilitaryUnitType: Int] = [:]
+                    for (unitType, slider) in unitSliders {
+                        let count = Int(slider.value)
+                        if count > 0 {
+                            unitsToTransfer[unitType] = count
+                        }
+                    }
+                    
+                    if !unitsToTransfer.isEmpty {
+                        self.executeReinforcement(to: army, units: unitsToTransfer)
+                    }
+                },
+                .cancel()
+            ]
+        )
+    }
+    
+    func executeReinforcement(to army: Army, units: [MilitaryUnitType: Int]) {
+        var totalTransferred = 0
+        
+        for (unitType, count) in units {
+            let removed = building.removeFromGarrison(unitType: unitType, quantity: count)
+            if removed > 0 {
+                army.addMilitaryUnits(unitType, count: removed)
+                totalTransferred += removed
             }
-            
-            if !unitsToTransfer.isEmpty {
-                self.reinforceArmy(army, with: unitsToTransfer)
-            }
-        })
+        }
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        present(alert, animated: true)
+        if totalTransferred > 0 {
+            showAlert(
+                title: "✅ Reinforcement Complete",
+                message: "Transferred \(totalTransferred) units to \(army.name)\nNew Army Size: \(army.getTotalMilitaryUnits()) units"
+            )
+            print("✅ Reinforced \(army.name) with \(totalTransferred) units from \(building.buildingType.displayName)")
+        }
     }
     
     func reinforceArmy(_ army: Army, with units: [MilitaryUnitType: Int]) {
@@ -847,10 +865,10 @@ class BuildingDetailViewController: UIViewController {
             return
         }
         
-        // Find which unit type this slider corresponds to
-        for (militaryType, label) in labelsDict {
-            if slider.tag == militaryType.hashValue {
-                let available = garrisonDict[militaryType] ?? 0
+        // Find the label that matches this slider's tag
+        for (unitType, label) in labelsDict {
+            if unitType.hashValue == slider.tag {
+                let available = garrisonDict[unitType] ?? 0
                 let sliderValue = Int(slider.value)
                 label.text = "\(sliderValue) / \(available) units"
                 break

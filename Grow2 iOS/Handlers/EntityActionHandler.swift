@@ -133,8 +133,8 @@ class EntityActionHandler {
         }
         
         // Set task and move to resource
-        villagerGroup.setTask(.gatheringResource(resource))
-        resource.isBeingGathered = true
+        villagerGroup.assignTask(.gathering(resource.resourceType.resourceYield))
+        resource.startGathering(by: villagerGroup)
         resource.assignedVillagerGroup = villagerGroup
         
         // Move villagers to resource location
@@ -170,8 +170,8 @@ class EntityActionHandler {
               let hexMap = hexMap else { return }
         
         // Calculate combat
-        let armyAttack = army.getModifiedAttack()
-        let animalDefense = target.resourceType.defense
+        let armyAttack = army.getModifiedStrength()
+        let animalDefense = target.resourceType.defensePower
         
         let netDamage = max(1, armyAttack - animalDefense)
         let isDead = target.takeDamage(netDamage)
@@ -401,46 +401,3 @@ class EntityActionHandler {
     }
 }
 
-// MARK: - Trainable Unit Type
-
-/// Unified enum for both villagers and military units
-enum TrainableUnitType {
-    case villager
-    case military(MilitaryUnitType)
-    
-    var displayName: String {
-        switch self {
-        case .villager:
-            return "Villager"
-        case .military(let type):
-            return type.displayName
-        }
-    }
-    
-    var icon: String {
-        switch self {
-        case .villager:
-            return "👷"
-        case .military(let type):
-            return type.icon
-        }
-    }
-    
-    var trainingCost: [ResourceType: Int] {
-        switch self {
-        case .villager:
-            return [.food: 50]
-        case .military(let type):
-            return type.trainingCost
-        }
-    }
-    
-    var trainingTime: TimeInterval {
-        switch self {
-        case .villager:
-            return 15.0
-        case .military(let type):
-            return type.trainingTime
-        }
-    }
-}

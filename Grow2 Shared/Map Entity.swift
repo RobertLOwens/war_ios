@@ -28,7 +28,6 @@ class Army: MapEntity {
     var coordinate: HexCoordinate
     var commander: Commander?  // ✅ CHANGED: Made optional for now (until commander system fully implemented)
     
-    private(set) var unitComposition: [UnitType: Int] = [:]
     private(set) var militaryComposition: [MilitaryUnitType: Int] = [:]
 
     // ✅ UPDATED: Commander is optional
@@ -38,33 +37,28 @@ class Army: MapEntity {
         super.init(id: UUID(), name: name, entityType: .army)  // ✅ No units parameter
         self.owner = owner
     }
-
-    func addUnits(_ unitType: UnitType, count: Int) {
-        guard unitType.category == .military else {
-            print("Cannot add civilian units to an army")
-            return
-        }
-        unitComposition[unitType, default: 0] += count
-    }
     
     func addMilitaryUnits(_ unitType: MilitaryUnitType, count: Int) {
         militaryComposition[unitType, default: 0] += count
     }
     
-    func removeUnits(_ unitType: UnitType, count: Int) -> Int {
-        let current = unitComposition[unitType] ?? 0
-        let toRemove = min(current, count)
-        
-        if toRemove > 0 {
-            let remaining = current - toRemove
-            if remaining > 0 {
-                unitComposition[unitType] = remaining
-            } else {
-                unitComposition.removeValue(forKey: unitType)
-            }
+    func setCommander(_ newCommander: Commander?) {
+        // Clear old commander's reference
+        if let oldCommander = commander {
+            oldCommander.assignedArmy = nil
         }
         
-        return toRemove
+        // Set new commander
+        commander = newCommander
+        
+        // Update new commander's reference
+        if let newCommander = newCommander {
+            // Remove from their old army if any
+            if let oldArmy = newCommander.assignedArmy, oldArmy.id != self.id {
+                oldArmy.commander = nil
+            }
+            newCommander.assignedArmy = self
+        }
     }
     
     func removeMilitaryUnits(_ unitType: MilitaryUnitType, count: Int) -> Int {
@@ -93,7 +87,7 @@ class Army: MapEntity {
     }
     
     func getTotalUnits() -> Int {
-        return getUnitCount() + getTotalMilitaryUnits()
+        return getTotalMilitaryUnits()
     }
     
     // ✅ UPDATED: Handle optional commander
@@ -118,9 +112,7 @@ class Army: MapEntity {
     
     // ✅ UPDATED: Handle optional commander
     func getDescription() -> String {
-         let oldUnits = getUnitCount()
-         let newUnits = getTotalMilitaryUnits()
-         let totalUnits = oldUnits + newUnits
+         let totalUnits = getTotalMilitaryUnits()
          
          guard totalUnits > 0 else { return "\(name) (Empty)" }
          
@@ -132,30 +124,12 @@ class Army: MapEntity {
              desc += "⚠️ No Commander\n"
          }
          
-         // Old unit system
-         for (unitType, count) in unitComposition.sorted(by: { $0.key.displayName < $1.key.displayName }) {
-             desc += "\n  • \(count)x \(unitType.displayName)"
-         }
-         
-         // New military unit system
          for (unitType, count) in militaryComposition.sorted(by: { $0.key.displayName < $1.key.displayName }) {
              desc += "\n  • \(count)x \(unitType.icon) \(unitType.displayName)"
          }
          
          return desc
      }
-    
-    func getUnitCount() -> Int {
-        return unitComposition.values.reduce(0, +)
-    }
-    
-    func getUnitCount(ofType type: UnitType) -> Int {
-        return unitComposition[type] ?? 0
-    }
-    
-    func hasUnits() -> Bool {
-        return getUnitCount() > 0
-    }
     
     func getMilitaryUnitCount(ofType type: MilitaryUnitType) -> Int {
         return militaryComposition[type] ?? 0
@@ -174,11 +148,6 @@ class Army: MapEntity {
     func getTotalStrength() -> Double {
         var strength = 0.0
          
-         // Old unit system
-         for (unitType, count) in unitComposition {
-             strength += unitType.attackPower * Double(count)
-         }
-         
          // New military unit system
          for (unitType, count) in militaryComposition {
          strength += unitType.attackPower * Double(count)
@@ -190,11 +159,6 @@ class Army: MapEntity {
     func getTotalDefense() -> Double {
          var defense = 0.0
         
-         // Old unit system
-         for (unitType, count) in unitComposition {
-             defense += unitType.defensePower * Double(count)
-         }
-         
          // New military unit system
          for (unitType, count) in militaryComposition {
              defense += unitType.defensePower * Double(count)
@@ -206,11 +170,6 @@ class Army: MapEntity {
     // MARK: - Merging Armies
     
     func merge(with otherArmy: Army) {
-        // Merge old unit system
-        for (unitType, count) in otherArmy.unitComposition {
-            addUnits(unitType, count: count)
-        }
-        
         // Merge new military unit system
         for (unitType, count) in otherArmy.militaryComposition {
             addMilitaryUnits(unitType, count: count)

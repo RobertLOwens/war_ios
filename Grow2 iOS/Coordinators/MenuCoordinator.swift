@@ -17,7 +17,7 @@ protocol MenuCoordinatorDelegate: AnyObject {
     func updateResourceDisplay()
     func deselectAll()
 }
-
+ 
 // MARK: - Menu Coordinator
 
 class MenuCoordinator {
@@ -40,38 +40,20 @@ class MenuCoordinator {
     
     // MARK: - Tile Menus
     
-    /// Shows the appropriate menu for a tile based on its contents
     func showTileActionMenu(for coordinate: HexCoordinate) {
-        guard let player = player else { return }
-        
-        let visibility = player.getVisibilityLevel(at: coordinate)
-        
-        // Filter entities - only show if tile is VISIBLE
-        let entitiesAtTile = hexMap?.entities.filter { entity in
-            entity.coordinate == coordinate && visibility == .visible
-        } ?? []
-        
-        // If there are visible entities, show entity selection menu FIRST
-        if !entitiesAtTile.isEmpty {
-            showEntitySelectionMenu(at: coordinate, entities: entitiesAtTile)
-            return
-        }
-        
-        // Otherwise, show normal tile menu
-        showTileInfoMenu(for: coordinate)
-    }
-    
-    /// Shows info about a tile with available actions
-    func showTileInfoMenu(for coordinate: HexCoordinate) {
         guard let player = player,
               let hexMap = hexMap,
+              let gameScene = gameScene,
               let vc = viewController else { return }
         
         let visibility = player.getVisibilityLevel(at: coordinate)
         var title = "Tile (\(coordinate.q), \(coordinate.r))"
         var message = ""
+        var actions: [AlertAction] = []
         
-        // Check for building
+        // -------------------------
+        // MARK: - Building Info
+        // -------------------------
         if let building = hexMap.getBuilding(at: coordinate) {
             if visibility == .visible || building.owner?.id == player.id {
                 title = "\(building.buildingType.icon) \(building.buildingType.displayName)"
@@ -83,32 +65,103 @@ class MenuCoordinator {
                     let progress = Int(building.constructionProgress * 100)
                     message += "\n🔨 Construction: \(progress)%"
                 }
-            } else {
+                
+                // ✅ Open Building action (only for completed, player-owned buildings)
+                if building.state == .completed && building.owner?.id == player.id {
+                    let buildingName = building.buildingType.displayName
+                    actions.append(AlertAction(title: "🏗️ Open \(buildingName)", style: .default) { [weak self] in
+                        self?.presentBuildingDetail(for: building)
+                    })
+                }
+            } else if visibility == .explored {
                 message = "Explored - Last seen: Building here"
             }
         }
-        // Check for resource point
-        else if let resourcePoint = hexMap.getResourcePoint(at: coordinate) {
-            if visibility == .visible {
-                title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
-                message = resourcePoint.getDescription()
-                
-                if resourcePoint.isBeingGathered {
-                    message += "\n\n🔨 Currently being gathered"
-                }
+        // Check for resource point (only if no building)
+        else if let resourcePoint = hexMap.getResourcePoint(at: coordinate), visibility == .visible {
+            title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
+            message = resourcePoint.getDescription()
+            if resourcePoint.isBeingGathered {
+                message += "\n\n🔨 Currently being gathered"
             }
         }
         
-        var actions: [AlertAction] = []
+        // -------------------------
+        // MARK: - Entities on Tile
+        // -------------------------
         let entitiesAtTile = hexMap.entities.filter { $0.coordinate == coordinate }
         
-        // Only allow actions on visible/explored tiles with no entities
-        if (visibility == .visible || visibility == .explored) && entitiesAtTile.isEmpty {
-            actions.append(AlertAction(title: "🚶 Move Unit Here") { [weak self] in
-                self?.gameScene?.initiateMove(to: coordinate)
+        // Filter to only visible entities
+        let visibleEntities: [EntityNode]
+        if visibility == .visible {
+            visibleEntities = entitiesAtTile.filter { entity in
+                if let fogOfWar = player.fogOfWar {
+                    return fogOfWar.shouldShowEntity(entity.entity, at: coordinate)
+                }
+                return true
+            }
+        } else {
+            visibleEntities = []
+        }
+        
+        // Add entity count to message if there are entities
+        if !visibleEntities.isEmpty {
+            if !message.isEmpty { message += "\n" }
+            message += "\n📍 \(visibleEntities.count) unit(s) on this tile"
+        }
+        
+        // ✅ Add action for each visible entity
+        for entity in visibleEntities {
+            var buttonTitle = ""
+            
+            if entity.entityType == .villagerGroup {
+                if let villagers = entity.entity as? VillagerGroup {
+                    buttonTitle = "👷 \(villagers.name) (\(villagers.villagerCount) villagers)"
+                } else {
+                    buttonTitle = "👷 Villager Group"
+                }
+            } else if entity.entityType == .army {
+                if let army = entity.entity as? Army {
+                    let totalUnits = army.getTotalMilitaryUnits()
+                    buttonTitle = "🛡️ \(army.name) (\(totalUnits) units)"
+                } else {
+                    buttonTitle = "🛡️ Army"
+                }
+            }
+            
+            actions.append(AlertAction(title: buttonTitle, style: .default) { [weak self] in
+                self?.showEntityActionMenu(for: entity, at: coordinate)
             })
         }
         
+        // -------------------------
+        // MARK: - Movement Action
+        // -------------------------
+        // Only show "Move Unit Here" if:
+        // 1. Tile is visible or explored
+        // 2. No hostile (neutral or enemy) entities on the tile
+        if visibility == .visible || visibility == .explored {
+            let hasHostileEntities = entitiesAtTile.contains { entity in
+                let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
+                return diplomacyStatus == .neutral || diplomacyStatus == .enemy
+            }
+            
+            // Can only move if no hostile entities present
+            // (Friendly entities or empty tile is fine)
+            if !hasHostileEntities {
+                actions.append(AlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] in
+                    self?.gameScene?.initiateMove(to: coordinate)
+                })
+            } else {
+                // Optional: Show why movement is blocked
+                if !message.isEmpty { message += "\n" }
+                message += "\n⚠️ Cannot move here - hostile units present"
+            }
+        }
+        
+        // -------------------------
+        // MARK: - Show Menu
+        // -------------------------
         vc.showActionSheet(
             title: title,
             message: message.isEmpty ? nil : message,
@@ -120,29 +173,6 @@ class MenuCoordinator {
     }
     
     // MARK: - Entity Selection Menus
-    
-    /// Shows a menu to select between multiple entities at a location
-    func showEntitySelectionMenu(at coordinate: HexCoordinate, entities: [EntityNode]) {
-        guard let vc = viewController else { return }
-        
-        var actions: [AlertAction] = []
-        
-        for entity in entities {
-            let title = formatEntityTitle(entity)
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.showEntityActionMenu(for: entity, at: coordinate)
-            })
-        }
-        
-        vc.showActionSheet(
-            title: "📍 Entities at Location",
-            message: "Select an entity to interact with",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
-    }
     
     /// Shows available actions for a specific entity
     func showEntityActionMenu(for entity: EntityNode, at coordinate: HexCoordinate) {
@@ -177,13 +207,9 @@ class MenuCoordinator {
             }
         }
         
-        // Back option if multiple entities
-        let entitiesAtTile = hexMap?.entities.filter { $0.coordinate == coordinate } ?? []
-        if entitiesAtTile.count > 1 {
-            actions.append(AlertAction(title: "← Back to Entity List") { [weak self] in
-                self?.showEntitySelectionMenu(at: coordinate, entities: entitiesAtTile)
-            })
-        }
+        actions.append(AlertAction(title: "← Back") { [weak self] in
+            self?.showTileActionMenu(for: coordinate)
+        })
         
         vc.showActionSheet(
             title: "Entity Actions",
@@ -216,7 +242,7 @@ class MenuCoordinator {
             var title = "\(entity.entityType.icon) "
             
             if entity.entityType == .army, let army = entity.entity as? Army {
-                let totalUnits = army.getUnitCount() + army.getTotalMilitaryUnits()
+                let totalUnits = army.getTotalMilitaryUnits()
                 title += "\(army.name) (\(totalUnits) units) - Distance: \(distance)"
             } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
                 title += "\(villagers.name) (\(villagers.villagerCount) villagers) - Distance: \(distance)"
@@ -262,13 +288,7 @@ class MenuCoordinator {
         } else {
             actions.append(AlertAction(title: "ℹ️ Building Already Exists Here", handler: nil))
         }
-        
-        // Move action
-        actions.append(AlertAction(title: "🚶 Move") { [weak self] in
-            self?.delegate?.deselectAll()
-            // User will click another tile to move
-        })
-        
+
         vc.showActionSheet(
             title: "👷 \(villagers.name)",
             message: message,
@@ -292,8 +312,8 @@ class MenuCoordinator {
         let economicBuildings: [BuildingType] = [.cityCenter, .farm, .neighborhood, .lumberCamp, .miningCamp, .market, .warehouse, .blacksmith, .university]
         
         for buildingType in economicBuildings {
-            let canAfford = player.canAfford(buildingType.cost)
-            let costString = formatCost(buildingType.cost)
+            let canAfford = player.canAfford(buildingType)
+            let costString = formatCost(buildingType.buildCost)
             let title = "\(buildingType.icon) \(buildingType.displayName) - \(costString)"
             
             if canAfford {
@@ -313,8 +333,8 @@ class MenuCoordinator {
         let militaryBuildings: [BuildingType] = [.barracks, .archeryRange, .stable, .siegeWorkshop, .tower, .woodenFort, .castle]
         
         for buildingType in militaryBuildings {
-            let canAfford = player.canAfford(buildingType.cost)
-            let costString = formatCost(buildingType.cost)
+            let canAfford = player.canAfford(buildingType)
+            let costString = formatCost(buildingType.buildCost)
             let title = "\(buildingType.icon) \(buildingType.displayName) - \(costString)"
             
             if canAfford {
@@ -561,7 +581,7 @@ class MenuCoordinator {
         var title = "\(entity.entityType.icon) "
         
         if entity.entityType == .army, let army = entity.entity as? Army {
-            let totalUnits = army.getUnitCount() + army.getTotalMilitaryUnits()
+            let totalUnits = army.getTotalMilitaryUnits()
             title += "\(army.name) (\(totalUnits) units)"
         } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
             title += "\(villagers.name) (\(villagers.villagerCount) villagers)"
@@ -576,30 +596,8 @@ class MenuCoordinator {
     
     private func formatArmyComposition(_ army: Army) -> String {
         var message = ""
-        
-        let oldSystemTotal = army.getUnitCount()
-        let newSystemTotal = army.getTotalMilitaryUnits()
-        let totalUnits = oldSystemTotal + newSystemTotal
-        
+        let totalUnits = army.getTotalMilitaryUnits()
         message += "Total Units: \(totalUnits)\n\n"
-        
-        if oldSystemTotal > 0 {
-            message += "📊 Unit Composition:\n"
-            for (unitType, count) in army.unitComposition.sorted(by: { $0.key.displayName < $1.key.displayName }) {
-                let percentage = totalUnits > 0 ? Int((Double(count) / Double(totalUnits)) * 100) : 0
-                message += "\(unitType.icon) \(unitType.displayName): \(count) (\(percentage)%)\n"
-            }
-            message += "\n"
-        }
-        
-        if newSystemTotal > 0 {
-            message += "⚔️ Military Units:\n"
-            for (unitType, count) in army.militaryComposition.sorted(by: { $0.key.displayName < $1.key.displayName }) {
-                let percentage = totalUnits > 0 ? Int((Double(count) / Double(totalUnits)) * 100) : 0
-                message += "\(unitType.icon) \(unitType.displayName): \(count) (\(percentage)%)\n"
-            }
-        }
-        
         return message
     }
     
@@ -608,7 +606,7 @@ class MenuCoordinator {
               let gameScene = gameScene else { return }
         
         // Deduct resources
-        for (resourceType, amount) in buildingType.cost {
+        for (resourceType, amount) in buildingType.buildCost {
             player.removeResource(resourceType, amount: amount)
         }
         
@@ -619,7 +617,7 @@ class MenuCoordinator {
         if let villagerEntity = builder,
            let villagers = villagerEntity.entity as? VillagerGroup,
            let building = hexMap?.getBuilding(at: coordinate) {
-            villagers.setTask(.building(building))
+            villagers.assignTask(.building(building))
             villagerEntity.isMoving = true
             building.builderEntity = villagerEntity
         }
@@ -647,4 +645,28 @@ class MenuCoordinator {
             )
         }
     }
+    
+    func presentBuildingDetail(for building: BuildingNode) {
+        guard let vc = viewController as? GameViewController,
+              let player = player,
+              let hexMap = hexMap,
+              let gameScene = gameScene else { return }
+        
+        let detailVC = BuildingDetailViewController()
+        detailVC.building = building
+        detailVC.player = player
+        detailVC.hexMap = hexMap
+        detailVC.gameScene = gameScene
+        detailVC.gameViewController = vc
+        detailVC.modalPresentationStyle = .pageSheet
+        
+        if let sheet = detailVC.sheetPresentationController {
+            sheet.detents = [.large()]
+            sheet.prefersGrabberVisible = true
+            sheet.selectedDetentIdentifier = .large
+        }
+        
+        vc.present(detailVC, animated: true)
+    }
+    
 }

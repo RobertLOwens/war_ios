@@ -106,10 +106,13 @@ class Commander {
     var name: String
     var rank: CommanderRank
     var specialty: CommanderSpecialty
+    weak var owner: Player?
+    weak var assignedArmy: Army?
     
-    // Experience and leveling
     private(set) var experience: Int = 0
     private(set) var level: Int = 1
+    private let baseLeadership: Int
+    private let baseTactics: Int
     
     // Stats
     var leadership: Int {
@@ -120,21 +123,15 @@ class Commander {
         return baseTactics + (level - 1) * 2
     }
     
-    private let baseLeadership: Int
-    private let baseTactics: Int
-    
+    var isAssigned: Bool {
+        return assignedArmy != nil
+    }
+
     // Portrait color for visual identification
     var portraitColor: UIColor
     
-    init(
-        id: UUID = UUID(),
-        name: String,
-        rank: CommanderRank = .recruit,
-        specialty: CommanderSpecialty,
-        baseLeadership: Int = 10,
-        baseTactics: Int = 10,
-        portraitColor: UIColor = .blue
-    ) {
+    init(id: UUID = UUID(), name: String, rank: CommanderRank = .recruit, specialty: CommanderSpecialty,
+         baseLeadership: Int = 10, baseTactics: Int = 10, portraitColor: UIColor = .blue, owner: Player? = nil) {
         self.id = id
         self.name = name
         self.rank = rank
@@ -142,6 +139,7 @@ class Commander {
         self.baseLeadership = baseLeadership
         self.baseTactics = baseTactics
         self.portraitColor = portraitColor
+        self.owner = owner
     }
     
     // MARK: - Experience and Leveling
@@ -228,7 +226,7 @@ class Commander {
         
     // MARK: - Factory Methods
     
-    static func createRandom(name: String? = nil) -> Commander {
+    static func createRandom(name: String? = nil, owner: Player? = nil) -> Commander {
         let randomNames = [
             "Alexander", "Caesar", "Napoleon", "Hannibal", "Genghis",
             "Joan", "Boudicca", "Cleopatra", "Tomyris", "Zenobia",
@@ -250,8 +248,36 @@ class Commander {
             specialty: specialty,
             baseLeadership: baseLeadership,
             baseTactics: baseTactics,
-            portraitColor: color
+            portraitColor: color,
+            owner: owner
         )
+    }
+    
+    func assignToArmy(_ army: Army) {
+        // Remove from current army if assigned
+        if let currentArmy = assignedArmy {
+            currentArmy.commander = nil
+        }
+        
+        // Remove any existing commander from target army
+        if let existingCommander = army.commander {
+            existingCommander.assignedArmy = nil
+        }
+        
+        // Make the assignment
+        assignedArmy = army
+        army.commander = self
+        
+        print("✅ \(name) assigned to \(army.name)")
+    }
+    
+    /// Removes this commander from their current army
+    func removeFromArmy() {
+        if let army = assignedArmy {
+            army.commander = nil
+            assignedArmy = nil
+            print("✅ \(name) removed from army")
+        }
     }
 
 }

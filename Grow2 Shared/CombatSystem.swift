@@ -154,13 +154,5 @@ class CombatSystem {
             army.removeMilitaryUnits(unitType, count: toRemove)
             remainingCasualties -= toRemove
         }
-        
-        // Remove from old unit system if needed
-        for (unitType, count) in army.unitComposition.sorted(by: { $0.key.displayName < $1.key.displayName }) {
-            if remainingCasualties <= 0 { break }
-            let toRemove = min(count, remainingCasualties)
-            army.removeUnits(unitType, count: toRemove)
-            remainingCasualties -= toRemove
-        }
     }
 }

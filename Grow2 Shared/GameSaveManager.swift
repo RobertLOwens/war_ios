@@ -443,9 +443,6 @@ class GameSaveManager {
     
     private func createArmySaveData(from army: Army) -> ArmySaveData {
         var unitComp: [String: Int] = [:]
-        for (unitType, count) in army.unitComposition {
-            unitComp[unitTypeToString(unitType)] = count
-        }
         
         var militaryComp: [String: Int] = [:]
         for (unitType, count) in army.militaryComposition {
@@ -673,13 +670,6 @@ class GameSaveManager {
             owner: player
         )
         
-        // Restore unit composition
-        for (unitKey, count) in data.unitComposition {
-            if let unitType = stringToUnitType(unitKey) {
-                army.addUnits(unitType, count: count)
-            }
-        }
-        
         // Restore military composition
         for (unitKey, count) in data.militaryComposition {
             if let unitType = MilitaryUnitType(rawValue: unitKey) {
@@ -802,31 +792,6 @@ class GameSaveManager {
         case "forest": return .forest
         case "hill": return .hill
         default: return .grass
-        }
-    }
-    
-    private func unitTypeToString(_ unitType: UnitType) -> String {
-        switch unitType {
-        case .soldier: return "soldier"
-        case .tank: return "tank"
-        case .scout: return "scout"
-        case .villager: return "villager"
-        case .archer: return "archer"
-        case .cavalry: return "cavalry"
-        case .catapult: return "catapult"
-        }
-    }
-    
-    private func stringToUnitType(_ string: String) -> UnitType? {
-        switch string {
-        case "soldier": return .soldier
-        case "tank": return .tank
-        case "scout": return .scout
-        case "villager": return .villager
-        case "archer": return .archer
-        case "cavalry": return .cavalry
-        case "catapult": return .catapult
-        default: return nil
         }
     }
     

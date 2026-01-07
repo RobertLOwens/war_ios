@@ -10,6 +10,7 @@ import UIKit
 // MARK: - Resource Point Type
 
 enum ResourcePointType: String, CaseIterable {
+    
     case trees = "Trees"
     case forage = "Forage"
     case oreMine = "Ore Mine"

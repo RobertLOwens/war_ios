@@ -11,7 +11,6 @@ class GameScene: SKScene {
     var buildingsNode: SKNode!
     var entitiesNode: SKNode!
     var selectedTile: HexTileNode?
-    var selectedUnit: UnitNode?
     var selectedEntity: EntityNode?
     var cameraNode: SKCameraNode!
     var showAlert: ((String, String) -> Void)?
@@ -26,7 +25,7 @@ class GameScene: SKScene {
     var resourceDensity: Double = 1.0
     var movementPathLine: SKShapeNode?
     var showMergeOption: ((EntityNode, EntityNode) -> Void)?
-    weak var delegate: GameSceneDelegate?
+    weak var gameDelegate: GameSceneDelegate?
     var lastUpdateTime: TimeInterval?
     
     override func didMove(to view: SKView) {
@@ -422,7 +421,7 @@ class GameScene: SKScene {
         let visibility = player.getVisibilityLevel(at: entity.coordinate)
         guard visibility == .visible else {
             print("❌ Cannot select entity in fog of war")
-            delegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible due to fog of war.")
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible due to fog of war.")
             return
         }
         
@@ -430,13 +429,12 @@ class GameScene: SKScene {
         if let fogOfWar = player.fogOfWar {
             guard fogOfWar.shouldShowEntity(entity.entity, at: entity.coordinate) else {
                 print("❌ Entity not visible according to fog of war")
-                delegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible.")
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible.")
                 return
             }
         }
         
         selectedEntity = nil
-        selectedUnit = nil
         selectedTile?.isSelected = false
         selectedTile = nil
         
@@ -449,14 +447,14 @@ class GameScene: SKScene {
         
         print("Selected \(entity.entityType.displayName) at q:\(entity.coordinate.q), r:\(entity.coordinate.r)")
         
-        delegate?.gameScene(self, didRequestMenuForTile: entity.coordinate)
+        gameDelegate?.gameScene(self, didRequestMenuForTile: entity.coordinate)
     }
     
     override func update(_ currentTime: TimeInterval) {
         let realWorldTime = Date().timeIntervalSince1970
         
         if let player = player {
-            delegate?.gameSceneDidUpdateResources(self)
+            gameDelegate?.gameSceneDidUpdateResources(self)
             
             // Update vision every frame so it follows moving entities
             player.updateVision(allPlayers: allGamePlayers)
@@ -475,7 +473,7 @@ class GameScene: SKScene {
             
             // Only update resource display periodically to avoid UI lag
             if lastUpdateTime == nil || currentTime - lastUpdateTime! >= 0.5 {
-                delegate?.gameSceneDidUpdateResources(self)
+                gameDelegate?.gameSceneDidUpdateResources(self)
                 lastUpdateTime = currentTime
             }
         }
@@ -646,7 +644,6 @@ class GameScene: SKScene {
         
         // Otherwise, select the tile and show menu
         selectedTile?.isSelected = false
-        selectedUnit = nil
         selectedEntity = nil
         
         tile.isSelected = true
@@ -654,7 +651,7 @@ class GameScene: SKScene {
         
         print("Selected tile at q:\(tile.coordinate.q), r:\(tile.coordinate.r)")
         
-        delegate?.gameScene(self, didRequestMenuForTile: tile.coordinate)
+        gameDelegate?.gameScene(self, didRequestMenuForTile: tile.coordinate)
     }
     
     func deselectAll() {
@@ -674,13 +671,13 @@ class GameScene: SKScene {
         
         guard !availableEntities.isEmpty else {
             print("❌ No entities available to move")
-            delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message:"You don't have any units available to move.")
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message:"You don't have any units available to move.")
             return
         }
         
         // ✅ Use the dedicated move menu that doesn't open entity action menus
         print("✅ Calling showMoveSelectionMenu...")
-        delegate?.gameScene(self, didRequestMoveSelection: destination, availableEntities: availableEntities)
+        gameDelegate?.gameScene(self, didRequestMoveSelection: destination, availableEntities: availableEntities)
     }
 
     func moveEntity(_ entity: EntityNode, to destination: HexCoordinate) {
@@ -688,7 +685,7 @@ class GameScene: SKScene {
         let diplomacyStatus = player?.getDiplomacyStatus(with: entity.entity.owner) ?? .neutral
         if diplomacyStatus != .me {
             print("❌ Cannot move entities you don't own")
-            delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "You can only move your own units!")
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "You can only move your own units!")
             return
         }
         
@@ -697,7 +694,7 @@ class GameScene: SKScene {
             let destDiplomacy = player?.getDiplomacyStatus(with: entityAtDestination.entity.owner) ?? .neutral
             if destDiplomacy == .enemy {
                 print("❌ Cannot move onto enemy-occupied tile")
-                delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "Cannot move onto an enemy-occupied tile! Use the Attack command instead.")
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "Cannot move onto an enemy-occupied tile! Use the Attack command instead.")
                 return
             }
         }
@@ -709,7 +706,7 @@ class GameScene: SKScene {
                 if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
                     if !resourcePoint.isDepleted() && resourcePoint.parent != nil {
                         print("❌ Villagers are busy gathering")
-                        delegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
+                        gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
                                             message: "These villagers are gathering \(resourcePoint.resourceType.displayName) and cannot move. Cancel the gathering task first.")
                         return
                     } else {
@@ -727,21 +724,21 @@ class GameScene: SKScene {
                     } else {
                         let progress = Int(building.constructionProgress * 100)
                         print("❌ Villagers are busy building (\(progress)%)")
-                        delegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
+                        gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
                                             message:  "These villagers are busy constructing \(building.buildingType.displayName) (\(progress)% complete) and cannot move until construction is complete.")
                         return
                     }
                 }
             } else {
                 print("❌ Entity is already moving")
-                delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "This entity is already on the move.")
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "This entity is already on the move.")
                 return
             }
         }
         
         guard let path = hexMap.findPath(from: entity.coordinate, to: destination) else {
             print("❌ No valid path to destination")
-            delegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "No valid path to the destination.")
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "No valid path to the destination.")
             return
         }
         
@@ -762,14 +759,14 @@ class GameScene: SKScene {
         // Check if there's already a building on this tile
         if let existingBuilding = hexMap.getBuilding(at: coordinate) {
             print("❌ Building already exists at this location: \(existingBuilding.buildingType.displayName)")
-            delegate?.gameScene(self, showAlertWithTitle: "Cannot Build", message: "There is already a \(existingBuilding.buildingType.displayName) on this tile.")
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build", message: "There is already a \(existingBuilding.buildingType.displayName) on this tile.")
             return
         }
         
         // Check if tile is valid for building
         guard hexMap.canPlaceBuilding(at: coordinate) else {
             print("❌ Cannot place building at this location")
-            delegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
                                 message:"This location is blocked or not suitable for building.")
             return
         }
@@ -785,7 +782,7 @@ class GameScene: SKScene {
         
         if !missingResources.isEmpty {
             let message = "Insufficient resources:\n" + missingResources.joined(separator: "\n")
-            delegate?.gameScene(self, showAlertWithTitle: "Cannot Afford", message: message)
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Afford", message: message)
             return
         }
         
@@ -793,7 +790,7 @@ class GameScene: SKScene {
         guard let villagerEntity = hexMap.getEntity(at: coordinate),
               villagerEntity.entityType == .villagerGroup else {
             print("❌ No villager group at this location")
-                delegate?.gameScene(self, showAlertWithTitle: "Cannot Build", 
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
                                     message:"You need a villager group at this location to build.")
             return
         }
@@ -831,7 +828,7 @@ class GameScene: SKScene {
         print("✅ Placed \(type.displayName) at (\(coordinate.q), \(coordinate.r))")
         print("✅ Villagers are now locked to this tile until construction completes")
         
-        delegate?.gameSceneDidUpdateResources(self)
+        gameDelegate?.gameSceneDidUpdateResources(self)
     }
     
     // This method is in GameScene.swift class
@@ -873,7 +870,7 @@ class GameScene: SKScene {
         
         message += "\n\(building.buildingType.description)"
         
-        delegate?.gameScene(self, didRequestMenuForTile: building.coordinate)
+        gameDelegate?.gameScene(self, didRequestMenuForTile: building.coordinate)
     }
     
     func updateBuildingTimers() {
@@ -952,7 +949,7 @@ class GameScene: SKScene {
         )
         
         // Show combat timer
-        delegate?.gameScene(self, didStartCombat: record) { [weak self] in
+        gameDelegate?.gameScene(self, didStartCombat: record) { [weak self] in
             // Apply results after timer completes
             CombatSystem.shared.applyCombatResults(
                 record: record,
