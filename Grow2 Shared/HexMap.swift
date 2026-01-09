@@ -267,11 +267,97 @@ class HexMap {
         resourcePoints.removeAll { $0 === resource }
     }
     
-    func canPlaceBuilding(at coordinate: HexCoordinate) -> Bool {
+    func canPlaceBuilding(at coordinate: HexCoordinate, buildingType: BuildingType? = nil) -> Bool {
         guard isValidCoordinate(coordinate) && isWalkable(coordinate) else { return false }
         guard getBuilding(at: coordinate) == nil else { return false }
-        guard getResourcePoint(at: coordinate) == nil else { return false }  // ✅ NEW
+        
+        // Mining camps and lumber camps CAN be placed on their required resource
+        if let type = buildingType {
+            if type == .miningCamp {
+                // Mining camp requires ore or stone resource
+                if let resource = getResourcePoint(at: coordinate) {
+                    return resource.resourceType == .oreMine || resource.resourceType == .stoneQuarry
+                }
+                return false  // No valid resource here
+            }
+            if type == .lumberCamp {
+                // Lumber camp requires trees
+                if let resource = getResourcePoint(at: coordinate) {
+                    return resource.resourceType == .trees
+                }
+                return false  // No trees here
+            }
+        }
+        
+        // Other buildings: allow on resources (will warn user and remove resource)
         return true
+    }
+    
+    func hasCampCoverage(at coordinate: HexCoordinate, forResourceType resourceType: ResourcePointType) -> Bool {
+        guard let requiredCamp = resourceType.requiredCampType else {
+            return true  // No camp required for this resource type
+        }
+        
+        // Check the tile itself and all neighbors within 1 tile
+        let tilesToCheck = [coordinate] + coordinate.neighbors()
+        
+        for coord in tilesToCheck {
+            if let building = getBuilding(at: coord),
+               building.buildingType == requiredCamp,
+               building.state == .completed {
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    func getResourcesInCampRange(campCoordinate: HexCoordinate, campType: BuildingType) -> [ResourcePointNode] {
+        let tilesToCheck = [campCoordinate] + campCoordinate.neighbors()
+        var resources: [ResourcePointNode] = []
+        
+        for coord in tilesToCheck {
+            if let resource = getResourcePoint(at: coord) {
+                // Check if this resource type matches the camp type
+                if campType == .lumberCamp && resource.resourceType == .trees {
+                    resources.append(resource)
+                } else if campType == .miningCamp &&
+                          (resource.resourceType == .oreMine || resource.resourceType == .stoneQuarry) {
+                    resources.append(resource)
+                }
+            }
+        }
+        
+        return resources
+    }
+    
+    func createCarcass(from huntedAnimal: ResourcePointNode, scene: SKNode) -> ResourcePointNode? {
+        let carcassType: ResourcePointType
+        
+        switch huntedAnimal.resourceType {
+        case .deer:
+            carcassType = .deerCarcass
+        case .wildBoar:
+            carcassType = .boarCarcass
+        default:
+            return nil  // Not a huntable animal
+        }
+        
+        // Create carcass with remaining food amount
+        let carcass = ResourcePointNode(
+            coordinate: huntedAnimal.coordinate,
+            resourceType: carcassType
+        )
+        
+        let position = HexMap.hexToPixel(q: huntedAnimal.coordinate.q, r: huntedAnimal.coordinate.r)
+        carcass.position = position
+        
+        resourcePoints.append(carcass)
+        scene.addChild(carcass)
+        
+        print("✅ Created \(carcassType.displayName) at (\(huntedAnimal.coordinate.q), \(huntedAnimal.coordinate.r)) with \(huntedAnimal.remainingAmount) food")
+        
+        return carcass
     }
     
     func addBuilding(_ building: BuildingNode) {
@@ -283,6 +369,11 @@ class HexMap {
     }
     
     func addEntity(_ entity: EntityNode) {
+        // ✅ FIX: Check for duplicates before adding
+        guard !entities.contains(where: { $0.entity.id == entity.entity.id }) else {
+            print("⚠️ Attempted to add duplicate entity: \(entity.entity.name) (ID: \(entity.entity.id))")
+            return
+        }
         entities.append(entity)
     }
     
@@ -489,5 +580,4 @@ class HexMap {
         
         print("✅ Spawned \(resourcePoints.count) resource points (density: \(densityMultiplier)x)")
     }
-    
 }

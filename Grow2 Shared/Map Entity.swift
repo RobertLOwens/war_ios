@@ -30,14 +30,12 @@ class Army: MapEntity {
     
     private(set) var militaryComposition: [MilitaryUnitType: Int] = [:]
 
-    // ✅ UPDATED: Commander is optional
-    init(name: String = "Army", coordinate: HexCoordinate, commander: Commander? = nil, owner: Player? = nil) {
+    init(id: UUID = UUID(), name: String = "Army", coordinate: HexCoordinate, commander: Commander? = nil, owner: Player? = nil) {
         self.coordinate = coordinate
         self.commander = commander
-        super.init(id: UUID(), name: name, entityType: .army)  // ✅ No units parameter
+        super.init(id: id, name: name, entityType: .army)
         self.owner = owner
     }
-    
     func addMilitaryUnits(_ unitType: MilitaryUnitType, count: Int) {
         militaryComposition[unitType, default: 0] += count
     }
@@ -265,7 +263,8 @@ enum VillagerTask: Equatable {
     case idle
     case building(BuildingNode)
     case gathering(ResourceType)
-    case gatheringResource(ResourcePointNode) // ✅ NEW: Gathering from specific resource point
+    case gatheringResource(ResourcePointNode)
+    case hunting(ResourcePointNode)  // ✅ NEW: Hunting an animal
     case repairing(BuildingNode)
     case moving(HexCoordinate)
     
@@ -279,6 +278,8 @@ enum VillagerTask: Equatable {
             return "Gathering \(resource.displayName)"
         case .gatheringResource(let resourcePoint):
             return "Gathering \(resourcePoint.resourceType.displayName)"
+        case .hunting(let resourcePoint):
+            return "Hunting \(resourcePoint.resourceType.displayName)"
         case .repairing(let building):
             return "Repairing \(building.buildingType.displayName)"
         case .moving(let coord):
@@ -295,6 +296,8 @@ enum VillagerTask: Equatable {
         case (.gathering(let lhsResource), .gathering(let rhsResource)):
             return lhsResource == rhsResource
         case (.gatheringResource(let lhsResource), .gatheringResource(let rhsResource)):
+            return lhsResource === rhsResource
+        case (.hunting(let lhsResource), .hunting(let rhsResource)):
             return lhsResource === rhsResource
         case (.repairing(let lhsBuilding), .repairing(let rhsBuilding)):
             return lhsBuilding === rhsBuilding

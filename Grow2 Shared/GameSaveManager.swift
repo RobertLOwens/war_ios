@@ -147,7 +147,7 @@ struct ResourcePointSaveData: Codable {
     let remainingAmount: Int
     let currentHealth: Double
     let isBeingGathered: Bool
-    let assignedVillagerGroupID: String?
+    let assignedVillagerGroupIDs: [String]  // Changed from single ID to array
 }
 
 // MARK: - Game Save Manager
@@ -217,9 +217,14 @@ class GameSaveManager {
             
             print("✅ Save file loaded - Version: \(saveData.version), Date: \(saveData.saveDate)")
             
-            // Reconstruct game state
+            // Reconstruct all players
             let allPlayers = saveData.allPlayersData.map { reconstructPlayer(from: $0) }
-            let player = reconstructPlayer(from: saveData.playerData)
+            
+            guard let player = allPlayers.first(where: { $0.id.uuidString == saveData.playerData.id }) else {
+                print("❌ Could not find player in allPlayers array")
+                return nil
+            }
+            
             let hexMap = reconstructHexMap(from: saveData.mapData, player: player)
             
             // Restore player references
@@ -249,7 +254,8 @@ class GameSaveManager {
             print("✅ Game loaded successfully")
             print("   Map: \(hexMap.width)x\(hexMap.height)")
             print("   Player: \(player.name)")
-            print("   Buildings: \(hexMap.buildings.count)")
+            print("   Player Buildings: \(player.buildings.count)")  // ✅ Now shows correct count
+            print("   HexMap Buildings: \(hexMap.buildings.count)")
             print("   Entities: \(player.entities.count)")
             
             return (hexMap, player, allPlayers)
@@ -259,6 +265,7 @@ class GameSaveManager {
             return nil
         }
     }
+
     
     // MARK: - Check Save Exists
     
@@ -313,7 +320,7 @@ class GameSaveManager {
                 remainingAmount: resource.remainingAmount,
                 currentHealth: resource.currentHealth,
                 isBeingGathered: resource.isBeingGathered,
-                assignedVillagerGroupID: resource.assignedVillagerGroup?.id.uuidString
+                assignedVillagerGroupIDs: resource.assignedVillagerGroups.map { $0.id.uuidString }
             )
         }
 
@@ -410,6 +417,8 @@ class GameSaveManager {
             taskString = "moving"
             taskQ = coord.q
             taskR = coord.r
+        case .hunting(let resourcePointNode):
+            taskString = "Hunting"
         }
         
         return EntitySaveData(
@@ -473,14 +482,15 @@ class GameSaveManager {
             specialty: commander.specialty.rawValue,
             experience: commander.experience,
             level: commander.level,
-            baseLeadership: 10,  // Default base values
-            baseTactics: 10,
+            baseLeadership: commander.getBaseLeadership(),
+            baseTactics: commander.getBaseTactics(),
             colorRed: red,
             colorGreen: green,
             colorBlue: blue,
             colorAlpha: alpha
         )
     }
+
     
     private func createBuildingSaveData(from building: BuildingNode) -> BuildingSaveData {
         var garrison: [String: Int] = [:]
@@ -664,11 +674,17 @@ class GameSaveManager {
         }
         
         let army = Army(
+            id: UUID(uuidString: data.id) ?? UUID(),  // ✅ FIX: Preserve original army ID
             name: data.name,
             coordinate: coord,
             commander: commander,
             owner: player
         )
+        
+        // ✅ FIX: Re-establish the two-way commander-army linkage
+        if let cmd = commander {
+            cmd.assignedArmy = army
+        }
         
         // Restore military composition
         for (unitKey, count) in data.militaryComposition {
@@ -679,6 +695,7 @@ class GameSaveManager {
         
         return army
     }
+
     
     private func reconstructVillagerGroup(from data: EntitySaveData, player: Player) -> VillagerGroup? {
         let coord = HexCoordinate(q: data.q, r: data.r)

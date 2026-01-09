@@ -17,60 +17,114 @@ enum ResourcePointType: String, CaseIterable {
     case stoneQuarry = "Stone Quarry"
     case deer = "Deer"
     case wildBoar = "Wild Boar"
+    case deerCarcass = "Deer Carcass"
+    case boarCarcass = "Boar Carcass"
     
     var displayName: String {
         return rawValue
     }
     
-    var icon: String {
-        switch self {
-        case .trees: return "🌲"
-        case .forage: return "🍄"
-        case .oreMine: return "⛏️"
-        case .stoneQuarry: return "🪨"
-        case .deer: return "🦌"
-        case .wildBoar: return "🐗"
+    // MARK: - UPDATE: icon computed property
+    // LOCATION: Inside ResourcePointType enum, add cases to icon
+
+        var icon: String {
+            switch self {
+            case .trees: return "🌲"
+            case .forage: return "🍄"
+            case .oreMine: return "⛏️"
+            case .stoneQuarry: return "🪨"
+            case .deer: return "🦌"
+            case .wildBoar: return "🐗"
+            case .deerCarcass: return "🥩"
+            case .boarCarcass: return "🥩"
+            }
         }
-    }
-    
-    var resourceYield: ResourceType {
-        switch self {
-        case .trees: return .wood
-        case .forage: return .food
-        case .oreMine: return .ore
-        case .stoneQuarry: return .stone
-        case .deer, .wildBoar: return .food
+
+    // MARK: - UPDATE: resourceYield computed property
+    // LOCATION: Inside ResourcePointType enum, add cases
+
+        var resourceYield: ResourceType {
+            switch self {
+            case .trees: return .wood
+            case .forage: return .food
+            case .oreMine: return .ore
+            case .stoneQuarry: return .stone
+            case .deer, .wildBoar, .deerCarcass, .boarCarcass: return .food
+            }
         }
-    }
-    
-    var initialAmount: Int {
-        switch self {
-        case .trees: return 500
-        case .forage: return 300
-        case .oreMine: return 800
-        case .stoneQuarry: return 600
-        case .deer: return 200
-        case .wildBoar: return 150
+
+    // MARK: - UPDATE: initialAmount computed property
+    // LOCATION: Inside ResourcePointType enum, add cases
+
+        var initialAmount: Int {
+            switch self {
+            case .trees: return 500
+            case .forage: return 300
+            case .oreMine: return 800
+            case .stoneQuarry: return 600
+            case .deer: return 200
+            case .wildBoar: return 150
+            case .deerCarcass: return 200  // Same as deer
+            case .boarCarcass: return 150  // Same as boar
+            }
         }
-    }
-    
-    // Per second
-    var gatherRate: Double {
-        switch self {
-        case .trees: return 5.0
-        case .forage: return 3.0
-        case .oreMine: return 2.0
-        case .stoneQuarry: return 2.5
-        case .deer: return 1.0
-        case .wildBoar: return 1.0
+
+    // MARK: - UPDATE: gatherRate computed property (BASE rate - will be modified by villager count)
+    // LOCATION: Inside ResourcePointType enum
+
+        var baseGatherRate: Double {
+            switch self {
+            case .trees: return 0.5          // Base rate, multiplied by villagers
+            case .forage: return 0.5
+            case .oreMine: return 0.5
+            case .stoneQuarry: return 0.5
+            case .deer: return 0.0           // Can't gather live animals
+            case .wildBoar: return 0.0
+            case .deerCarcass: return 0.5    // Gather rate for carcasses
+            case .boarCarcass: return 0.5
+            }
         }
-    }
+
+    // MARK: - ADD: New property to check if resource requires a camp
+    // LOCATION: Inside ResourcePointType enum, after isHuntable
+
+        var requiresCamp: Bool {
+            switch self {
+            case .trees, .oreMine, .stoneQuarry: return true
+            case .forage, .deer, .wildBoar, .deerCarcass, .boarCarcass: return false
+            }
+        }
+        
+        var isCarcass: Bool {
+            switch self {
+            case .deerCarcass, .boarCarcass: return true
+            default: return false
+            }
+        }
+        
+        var isGatherable: Bool {
+            switch self {
+            case .deer, .wildBoar: return false  // Must hunt first
+            default: return true
+            }
+        }
+
+    // MARK: - ADD: Required camp type for this resource
+    // LOCATION: Inside ResourcePointType enum
+
+        var requiredCampType: BuildingType? {
+            switch self {
+            case .trees: return .lumberCamp
+            case .oreMine, .stoneQuarry: return .miningCamp
+            default: return nil
+            }
+        }
     
     var requiredTerrain: TerrainType? {
         switch self {
         case .forage: return .forest
         case .oreMine, .stoneQuarry: return .mountain
-        case .trees, .deer, .wildBoar: return nil // Can appear on any walkable terrain
+        case .trees, .deer, .wildBoar, .boarCarcass, .deerCarcass: return nil // Can appear on any walkable terrain
         }
     }
     
@@ -115,6 +169,8 @@ class ResourcePointNode: SKSpriteNode {
     private(set) var remainingAmount: Int
     private(set) var isBeingGathered: Bool = false
     private(set) var currentHealth: Double
+    static let maxVillagersPerTile = 20
+    private(set) var assignedVillagerGroups: [VillagerGroup] = []
     
     weak var assignedVillagerGroup: VillagerGroup?
     
@@ -155,9 +211,9 @@ class ResourcePointNode: SKSpriteNode {
                 bgColor = UIColor(red: 0.4, green: 0.4, blue: 0.5, alpha: 1.0)
             case .stoneQuarry:
                 bgColor = UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
-            case .deer:
+            case .deer, .deerCarcass:
                 bgColor = UIColor(red: 0.7, green: 0.5, blue: 0.3, alpha: 1.0)
-            case .wildBoar:
+            case .wildBoar, .boarCarcass:
                 bgColor = UIColor(red: 0.5, green: 0.3, blue: 0.2, alpha: 1.0)
             }
             
@@ -211,6 +267,25 @@ class ResourcePointNode: SKSpriteNode {
         addChild(amountLabel)
     }
     
+    var currentGatherRate: Double {
+        let villagerCount = getTotalVillagersGathering()
+        let perVillagerRate = 0.2  // Each villager adds 0.2 per second
+        return resourceType.baseGatherRate + (Double(villagerCount) * perVillagerRate)
+    }
+    
+    func canAddVillagers(_ count: Int) -> Bool {
+        return getTotalVillagersGathering() + count <= ResourcePointNode.maxVillagersPerTile
+    }
+    
+    func getRemainingCapacity() -> Int {
+        return max(0, ResourcePointNode.maxVillagersPerTile - getTotalVillagersGathering())
+    }
+
+    
+    func getTotalVillagersGathering() -> Int {
+        return assignedVillagerGroups.reduce(0) { $0 + $1.villagerCount }
+    }
+    
     // Add method to set remaining amount (for loading saves)
     func setRemainingAmount(_ amount: Int) {
         remainingAmount = max(0, min(amount, resourceType.initialAmount))
@@ -223,10 +298,15 @@ class ResourcePointNode: SKSpriteNode {
     }
     
     func updateLabel() {
-        if let label = childNode(withName: "amountLabel") as? SKLabelNode {
-            label.text = "\(remainingAmount)"
+        if let label = children.first(where: { $0 is SKLabelNode }) as? SKLabelNode {
+            let villagerCount = getTotalVillagersGathering()
+            if villagerCount > 0 {
+                label.text = "\(remainingAmount) 👷\(villagerCount)"
+            } else {
+                label.text = "\(remainingAmount)"
+            }
             if let shadow = label.childNode(withName: "//shadow") as? SKLabelNode {
-                shadow.text = "\(remainingAmount)"
+                shadow.text = label.text
             }
         }
     }
@@ -237,21 +317,8 @@ class ResourcePointNode: SKSpriteNode {
         updateLabel()
         
         if remainingAmount == 0 {
-            // ✅ FIX: Stop gathering and revert collection rate before removing
-            if let villagerGroup = assignedVillagerGroup,
-               let owner = villagerGroup.owner {
-                // Revert the collection rate bonus
-                let resourceYield = resourceType.resourceYield
-                owner.decreaseCollectionRate(resourceYield, amount: resourceType.gatherRate)
-                print("✅ Reverted \(resourceYield.displayName) collection rate for \(owner.name)")
-                
-                // Clear the task
-                villagerGroup.clearTask()
-            }
-            
-            stopGathering()
-            
-            // Fade out and remove
+            // Resource depleted - cleanup will be handled by GameScene update loop
+            // Just fade out the visual
             let fadeOut = SKAction.fadeOut(withDuration: 1.0)
             run(fadeOut) { [weak self] in
                 self?.removeFromParent()
@@ -284,32 +351,64 @@ class ResourcePointNode: SKSpriteNode {
     }
     
     func startGathering(by villagerGroup: VillagerGroup) {
-        isBeingGathered = true
-        assignedVillagerGroup = villagerGroup
-    }
+            guard !assignedVillagerGroups.contains(where: { $0.id == villagerGroup.id }) else {
+                print("⚠️ Villager group already gathering here")
+                return
+            }
+            
+            guard canAddVillagers(villagerGroup.villagerCount) else {
+                print("❌ Too many villagers at this resource (max: \(ResourcePointNode.maxVillagersPerTile))")
+                return
+            }
+            
+            isBeingGathered = true
+            assignedVillagerGroups.append(villagerGroup)
+            updateLabel()
+            
+            print("✅ Added \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourceType.displayName)")
+            print("   Total villagers gathering: \(getTotalVillagersGathering())/\(ResourcePointNode.maxVillagersPerTile)")
+        }
+
     
-    func stopGathering() {
-        isBeingGathered = false
-        assignedVillagerGroup = nil
+    func stopGathering(by villagerGroup: VillagerGroup? = nil) {
+        if let group = villagerGroup {
+            assignedVillagerGroups.removeAll { $0.id == group.id }
+            print("✅ Removed \(group.name) from gathering")
+        } else {
+            assignedVillagerGroups.removeAll()
+        }
+        
+        isBeingGathered = !assignedVillagerGroups.isEmpty
+        updateLabel()
     }
     
     func getDescription() -> String {
-        var desc = "\(resourceType.icon) \(resourceType.displayName)\n"
-        desc += "Remaining: \(remainingAmount)/\(resourceType.initialAmount)\n"
-        desc += "Yields: \(resourceType.resourceYield.icon) \(resourceType.resourceYield.displayName)"
-        
-        if resourceType.isHuntable {
-            desc += "\n\nHealth: \(currentHealth)/\(resourceType.health)"
-            desc += "\n⚔️ Attack: \(resourceType.attackPower)"
-            desc += "\n🛡️ Defense: \(resourceType.defensePower)"
-        } else {
-            desc += "\nGather Rate: \(resourceType.gatherRate)/s"
+            var desc = "\(resourceType.icon) \(resourceType.displayName)\n"
+            desc += "Remaining: \(remainingAmount)/\(resourceType.initialAmount)\n"
+            desc += "Yields: \(resourceType.resourceYield.icon) \(resourceType.resourceYield.displayName)"
+            
+            if resourceType.isHuntable {
+                desc += "\n\nHealth: \(Int(currentHealth))/\(Int(resourceType.health))"
+                desc += "\n⚔️ Attack: \(Int(resourceType.attackPower))"
+                desc += "\n🛡️ Defense: \(Int(resourceType.defensePower))"
+            } else if resourceType.isGatherable {
+                let villagerCount = getTotalVillagersGathering()
+                desc += "\n\n📊 Gather Rate: \(String(format: "%.1f", currentGatherRate))/s"
+                desc += "\n👷 Villagers: \(villagerCount)/\(ResourcePointNode.maxVillagersPerTile)"
+                
+                if resourceType.requiresCamp {
+                    desc += "\n⚠️ Requires \(resourceType.requiredCampType?.displayName ?? "Camp") nearby"
+                }
+            }
+            
+            if isBeingGathered && !assignedVillagerGroups.isEmpty {
+                desc += "\n\n🔨 Being gathered by:"
+                for group in assignedVillagerGroups {
+                    desc += "\n  • \(group.name) (\(group.villagerCount))"
+                }
+            }
+            
+            return desc
         }
-        
-        if isBeingGathered {
-            desc += "\n\n🔨 Being gathered by \(assignedVillagerGroup?.name ?? "villagers")"
-        }
-        
-        return desc
-    }
+    
 }

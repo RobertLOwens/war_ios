@@ -39,34 +39,48 @@ class GameViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+    
         // Initialize player
         player = Player(name: "Player 1", color: .blue)
-        
+    
         setupSKView()
-        setupScene()
         setupUI()
-        
+    
         menuCoordinator = MenuCoordinator(viewController: self, delegate: self)
         entityActionHandler = EntityActionHandler(viewController: self, delegate: self)
-        
+    
         setupAutoSave()
-        
-        // Check if we should load a saved game
+    
+        // ✅ FIX: Only setup a new scene if NOT loading a saved game
         if shouldLoadGame {
+            // Create an empty scene shell - loadGame() will populate it
+            setupEmptyScene()
+    
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?.loadGame()
+    
+                // Process background time AFTER loading
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.processBackgroundTime()
+                }
             }
         } else {
-            // Initial resource display update
+            // New game - setup scene normally (this generates the map)
+            setupScene()
             updateResourceDisplay()
         }
-        
-        if shouldLoadGame || GameSaveManager.shared.saveExists() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                self?.processBackgroundTime()
-            }
-        }
+    }
+    
+    func setupEmptyScene() {
+        gameScene = GameScene(size: skView.bounds.size)
+        gameScene.scaleMode = .resizeFill
+        gameScene.player = player
+        gameScene.gameDelegate = self
+    
+        // ✅ Set a flag to tell GameScene NOT to generate a new map
+        gameScene.skipInitialSetup = true
+    
+        skView.presentScene(gameScene)
     }
     
     func initializePlayers() {
@@ -802,112 +816,6 @@ class GameViewController: UIViewController {
         )
     }
     
-    func showVillagerSelectionForGathering(resourcePoint: ResourcePointNode) {
-        
-        let availableVillagers = player.getVillagerGroups().filter {
-            $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
-        }
-        
-        guard !availableVillagers.isEmpty else {
-            showAlert(title: "No Villagers", message: "No idle villagers available nearby to gather resources.")
-            return
-        }
-        
-        var actions: [AlertAction] = []
-        
-        for villagerGroup in availableVillagers {
-            let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
-            let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.assignVillagersToGather(villagerGroup: villagerGroup, resourcePoint: resourcePoint)
-            })
-        }
-        
-        showActionSheet(
-            title: "Select Villagers",
-            message: "Choose which villager group to gather \(resourcePoint.resourceType.displayName)\n\nRemaining: \(resourcePoint.remainingAmount)",
-            actions: actions
-        )
-    }
-        
-    func assignVillagersToGather(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
-        // Assign task
-        villagerGroup.assignTask(.gatheringResource(resourcePoint), target: resourcePoint.coordinate)
-        resourcePoint.startGathering(by: villagerGroup)
-        
-        // ✅ FIX: Apply collection rate bonus when starting to gather
-        let resourceYield = resourcePoint.resourceType.resourceYield
-        let gatherRate = resourcePoint.resourceType.gatherRate
-        player.increaseCollectionRate(resourceYield, amount: gatherRate)
-        print("✅ Increased \(resourceYield.displayName) collection rate by \(gatherRate)/s")
-        
-        // Find entity node and move to resource
-        if let entityNode = gameScene.hexMap.entities.first(where: {
-            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-        }) {
-            gameScene.moveEntity(entityNode, to: resourcePoint.coordinate)
-        }
-        
-        print("✅ Assigned \(villagerGroup.name) to gather \(resourcePoint.resourceType.displayName)")
-    }
-
-
-
-
-    func showArmySelectionForHunting(resourcePoint: ResourcePointNode) {
-        let availableArmies = player.getArmies().filter { $0.hasMilitaryUnits() }
-        
-        guard !availableArmies.isEmpty else {
-            showAlert(title: "No Armies", message: "No armies available to hunt.")
-            return
-        }
-        
-        var actions: [AlertAction] = []
-        
-        for army in availableArmies {
-            let distance = army.coordinate.distance(to: resourcePoint.coordinate)
-            let title = "🛡️ \(army.name) (\(army.getTotalMilitaryUnits()) units) - Distance: \(distance)"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.huntAnimal(army: army, resourcePoint: resourcePoint)
-            })
-        }
-        
-        showActionSheet(
-            title: "⚔️ Hunt \(resourcePoint.resourceType.displayName)",
-            message: resourcePoint.getDescription(),
-            actions: actions
-        )
-    }
-
-    func huntAnimal(army: Army, resourcePoint: ResourcePointNode) {
-        guard resourcePoint.resourceType.isHuntable else { return }
-        
-        // Calculate combat
-        let armyAttack = army.getModifiedStrength()
-        let animalDefense = resourcePoint.resourceType.defensePower
-        let animalAttack = resourcePoint.resourceType.attackPower
-        let armyDefense = army.getModifiedDefense()
-        
-        // Simple combat calculation
-        let netDamage = max(1, armyAttack - animalDefense)
-        let isDead = resourcePoint.takeDamage(netDamage)
-        
-        if isDead {
-            // Animal killed - award food
-            let foodGained = resourcePoint.remainingAmount
-            player.addResource(.food, amount: foodGained)
-            updateResourceDisplay()
-            
-            // Remove resource point
-            gameScene.hexMap.removeResourcePoint(resourcePoint)
-            resourcePoint.removeFromParent()
-            
-            print("✅ Army hunted \(resourcePoint.resourceType.displayName) - gained \(foodGained) food")
-        }
-    }
-    
     @objc func showCommandersScreen() {
         let commandersVC = CommandersViewController()
         commandersVC.player = player
@@ -976,7 +884,11 @@ class GameViewController: UIViewController {
     }
 
     func loadGame() {
+        // ✅ FIX: Set loading flag to pause update() loop
+        gameScene.isLoading = true
+        
         guard let loadedData = GameSaveManager.shared.loadGame() else {
+            gameScene.isLoading = false
             showSimpleAlert(title: "❌ Load Failed", message: "Could not load the saved game.")
             return
         }
@@ -989,6 +901,9 @@ class GameViewController: UIViewController {
         
         // Rebuild the scene
         rebuildSceneWithLoadedData(hexMap: loadedData.hexMap, player: loadedData.player, allPlayers: loadedData.allPlayers)
+        
+        // ✅ FIX: Clear loading flag AFTER everything is rebuilt
+        gameScene.isLoading = false
         
         // ✅ DEBUG: Check fog stats after everything is loaded
         if let fogOfWar = player.fogOfWar {
@@ -1013,6 +928,9 @@ class GameViewController: UIViewController {
     }
 
     func rebuildSceneWithLoadedData(hexMap: HexMap, player: Player, allPlayers: [Player]) {
+        // ✅ Ensure hexMap is assigned to scene first
+        gameScene.hexMap = hexMap
+        
         // Clear existing scene
         gameScene.mapNode.removeAllChildren()
         gameScene.buildingsNode.removeAllChildren()
@@ -1020,6 +938,13 @@ class GameViewController: UIViewController {
         
         // Remove old fog node
         gameScene.childNode(withName: "fogNode")?.removeFromParent()
+        
+        // Remove old resources node and recreate
+        gameScene.childNode(withName: "resourcesNode")?.removeFromParent()
+        let resourcesNode = SKNode()
+        resourcesNode.name = "resourcesNode"
+        resourcesNode.zPosition = 2
+        gameScene.addChild(resourcesNode)
         
         // Rebuild map tiles
         for (coord, tile) in hexMap.tiles {
@@ -1029,13 +954,10 @@ class GameViewController: UIViewController {
         }
         
         // Rebuild resource points
-        if let resourcesNode = gameScene.childNode(withName: "resourcesNode") {
-            resourcesNode.removeAllChildren()
-            for resource in hexMap.resourcePoints {
-                let position = HexMap.hexToPixel(q: resource.coordinate.q, r: resource.coordinate.r)
-                resource.position = position
-                resourcesNode.addChild(resource)
-            }
+        for resource in hexMap.resourcePoints {
+            let position = HexMap.hexToPixel(q: resource.coordinate.q, r: resource.coordinate.r)
+            resource.position = position
+            resourcesNode.addChild(resource)
         }
         
         // Rebuild buildings
@@ -1049,6 +971,9 @@ class GameViewController: UIViewController {
             building.updateAppearance()
             building.updateUIVisibility()
         }
+        
+        // Clear existing entities from hexMap to avoid duplicates
+        hexMap.entities.removeAll()
         
         // Rebuild entities
         for playerData in allPlayers {
@@ -1080,9 +1005,6 @@ class GameViewController: UIViewController {
             }
         }
         
-        // ✅ FIX: DON'T call initializeFogOfWar here - it's already done in reconstructHexMap
-        // Instead, just setup the visual fog overlays
-        
         // Create fresh fog node for overlays
         let fogNode = SKNode()
         fogNode.name = "fogNode"
@@ -1092,7 +1014,7 @@ class GameViewController: UIViewController {
         // Setup fog overlays (visual only)
         hexMap.setupFogOverlays(in: fogNode)
         
-        // ✅ IMPORTANT: Update vision to reveal visible tiles (but keep explored tiles)
+        // Update vision to reveal visible tiles (but keep explored tiles)
         player.updateVision(allPlayers: allPlayers)
         
         // Apply fog overlay visuals
@@ -1113,9 +1035,12 @@ class GameViewController: UIViewController {
         updateResourceDisplay()
         
         print("🔄 Scene rebuilt with loaded data")
+        print("   Tiles: \(hexMap.tiles.count)")
+        print("   Buildings: \(hexMap.buildings.count)")
+        print("   Entities: \(hexMap.entities.count)")
+        print("   Resources: \(hexMap.resourcePoints.count)")
         print("   Explored tiles: \(player.fogOfWar?.getExploredCount() ?? 0)")
     }
-
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
@@ -1505,6 +1430,11 @@ extension GameViewController: EntityActionHandlerDelegate {
 }
 
 extension GameViewController: GameSceneDelegate {
+    
+    func gameScene(_ scene: GameScene, villagerArrivedForHunt villagerGroup: VillagerGroup, target: ResourcePointNode, entityNode: EntityNode) {
+        // Execute the hunt through the menu coordinator
+        menuCoordinator?.executeHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
+    }
     
     func gameScene(_ scene: GameScene, didRequestMenuForTile coordinate: HexCoordinate) {
         menuCoordinator.showTileActionMenu(for: coordinate)

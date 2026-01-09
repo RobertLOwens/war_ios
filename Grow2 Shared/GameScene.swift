@@ -27,13 +27,50 @@ class GameScene: SKScene {
     var showMergeOption: ((EntityNode, EntityNode) -> Void)?
     weak var gameDelegate: GameSceneDelegate?
     var lastUpdateTime: TimeInterval?
+    var skipInitialSetup: Bool = false
+    var isLoading: Bool = false
     
     override func didMove(to view: SKView) {
         setupScene()
         setupCamera()
-        setupMap()
-        spawnTestEntities()
-        initializeFogOfWar()
+    
+        // ✅ FIX: Only generate map and entities for NEW games
+        if !skipInitialSetup {
+            setupMap()
+            spawnTestEntities()
+            initializeFogOfWar()
+        } else {
+            setupEmptyNodeStructure()
+        }
+    }
+    
+    func setupEmptyNodeStructure() {
+        mapNode?.removeFromParent()
+        unitsNode?.removeFromParent()
+        buildingsNode?.removeFromParent()
+        entitiesNode?.removeFromParent()
+    
+        mapNode = SKNode()
+        mapNode.name = "mapNode"
+        addChild(mapNode)
+    
+        let resourcesNode = SKNode()
+        resourcesNode.name = "resourcesNode"
+        addChild(resourcesNode)
+    
+        buildingsNode = SKNode()
+        buildingsNode.name = "buildingsNode"
+        addChild(buildingsNode)
+    
+        entitiesNode = SKNode()
+        entitiesNode.name = "entitiesNode"
+        addChild(entitiesNode)
+    
+        unitsNode = SKNode()
+        unitsNode.name = "unitsNode"
+        addChild(unitsNode)
+    
+        print("📦 Empty node structure created for saved game loading")
     }
     
     deinit {
@@ -451,10 +488,13 @@ class GameScene: SKScene {
     }
     
     override func update(_ currentTime: TimeInterval) {
+        
         let realWorldTime = Date().timeIntervalSince1970
+        guard !isLoading, hexMap != nil else { return }
         
         if let player = player {
-            gameDelegate?.gameSceneDidUpdateResources(self)
+            // ✅ FIX 1: Call the resource ticker to add resources based on collection rates
+            player.updateResources(currentTime: realWorldTime)
             
             // Update vision every frame so it follows moving entities
             player.updateVision(allPlayers: allGamePlayers)
@@ -480,11 +520,9 @@ class GameScene: SKScene {
         
         // Update building construction and timers
         for building in hexMap.buildings {
-            // ✅ Only update timers for buildings that are actually constructing
             if building.state == .constructing {
                 building.updateTimerLabel()
             } else {
-                // ✅ Ensure no timer elements exist on non-constructing buildings
                 building.timerLabel?.removeFromParent()
                 building.timerLabel = nil
                 building.progressBar?.removeFromParent()
@@ -497,37 +535,58 @@ class GameScene: SKScene {
             building.updateVillagerTraining(currentTime: realWorldTime)
         }
         
-        // Resource gathering update
+        // ✅ FIX 2: Resource gathering update - properly diminish resources
         if let player = player {
-            for villagerGroup in player.getVillagerGroups() {
-                if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
-                    if resourcePoint.isDepleted() || resourcePoint.parent == nil {
-                        villagerGroup.clearTask()
-                        resourcePoint.stopGathering()
+            // Process all resource points that are being gathered
+            for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered {
+                // Check if depleted
+                if resourcePoint.isDepleted() {
+                    // Clear all villagers gathering here
+                    for villagerGroup in resourcePoint.assignedVillagerGroups {
+                        // Revert collection rate
+                        let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
+                        player.decreaseCollectionRate(resourcePoint.resourceType.resourceYield, amount: rateContribution)
                         
-                        // ✅ ADD: Unlock the entity when gathering completes
+                        villagerGroup.clearTask()
+                        
+                        // Unlock the entity
                         if let entityNode = hexMap.entities.first(where: {
                             ($0.entity as? VillagerGroup)?.id == villagerGroup.id
                         }) {
                             entityNode.isMoving = false
                         }
-                        
-                        print("✅ Resource depleted, villagers now idle and unlocked")
-                        continue
                     }
-                    
+                    resourcePoint.stopGathering()
+                    print("✅ Resource depleted, all villagers now idle")
+                    continue
+                }
+                
+                // Calculate total gather amount from all villagers ON the tile
+                var totalGatherAmount = 0.0
+                for villagerGroup in resourcePoint.assignedVillagerGroups {
+                    // Only gather if villagers have arrived at the resource
                     if villagerGroup.coordinate == resourcePoint.coordinate {
-                        let gatherAmount = Int(resourcePoint.resourceType.gatherRate * 0.5)
-                        if gatherAmount > 0 {
-                            let gathered = resourcePoint.gather(amount: gatherAmount)
-                            player.addResource(resourcePoint.resourceType.resourceYield, amount: gathered)
-                        }
+                        // Each villager gathers 0.2 per second, update runs ~2x per second
+                        let villagerContribution = 0.2 * Double(villagerGroup.villagerCount) * 0.5
+                        totalGatherAmount += villagerContribution
+                    }
+                }
+                
+                // Apply gathering
+                if totalGatherAmount > 0 {
+                    let gatherInt = max(1, Int(totalGatherAmount))
+                    let gathered = resourcePoint.gather(amount: gatherInt)
+                    
+                    // Resources are added via collection rate, but we need to diminish the resource
+                    // The collection rate already handles adding to player, so just log it
+                    if gathered > 0 {
+                        print("⛏️ Gathered \(gathered) \(resourcePoint.resourceType.resourceYield.displayName) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
                     }
                 }
             }
         }
     }
-    
+
     // MARK: - Touch Handling
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -756,19 +815,40 @@ class GameScene: SKScene {
     }
     
     func placeBuilding(type: BuildingType, at coordinate: HexCoordinate, owner: Player) {
-        // Check if there's already a building on this tile
-        if let existingBuilding = hexMap.getBuilding(at: coordinate) {
-            print("❌ Building already exists at this location: \(existingBuilding.buildingType.displayName)")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build", message: "There is already a \(existingBuilding.buildingType.displayName) on this tile.")
+        guard let villagerEntity = hexMap.getEntity(at: coordinate),
+              villagerEntity.entityType == .villagerGroup else {
+            print("❌ No villager group at this location")
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
+                                    message: "You need a villager group at this location to build.")
             return
         }
         
-        // Check if tile is valid for building
-        guard hexMap.canPlaceBuilding(at: coordinate) else {
-            print("❌ Cannot place building at this location")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
-                                message:"This location is blocked or not suitable for building.")
+        // Check if tile is valid for this building type
+        guard hexMap.canPlaceBuilding(at: coordinate, buildingType: type) else {
+            // Special messages for camps
+            if type == .miningCamp {
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
+                                        message: "Mining Camps must be built on Ore or Stone resources.")
+            } else if type == .lumberCamp {
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
+                                        message: "Lumber Camps must be built on Trees.")
+            } else {
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
+                                        message: "This location is blocked or not suitable for building.")
+            }
             return
+        }
+        
+        // Check if there's a resource here (not for camps - they require it)
+        if let resource = hexMap.getResourcePoint(at: coordinate) {
+            if type != .miningCamp && type != .lumberCamp {
+                // Will be handled by the warning confirmation in MenuCoordinator
+                // Remove the resource when building is placed
+                hexMap.removeResourcePoint(resource)
+                resource.removeFromParent()
+                print("✅ Removed \(resource.resourceType.displayName) to place \(type.displayName)")
+            }
+            // For camps, keep the resource - it will be gatherable via the camp
         }
         
         // Check if player has enough resources
@@ -786,15 +866,6 @@ class GameScene: SKScene {
             return
         }
         
-        // Find the villager group at this location
-        guard let villagerEntity = hexMap.getEntity(at: coordinate),
-              villagerEntity.entityType == .villagerGroup else {
-            print("❌ No villager group at this location")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
-                                    message:"You need a villager group at this location to build.")
-            return
-        }
-        
         // Deduct resources
         for (resourceType, amount) in type.buildCost {
             owner.removeResource(resourceType, amount: amount)
@@ -805,7 +876,7 @@ class GameScene: SKScene {
         let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
         building.position = position
         
-        // ✅ Store reference to the builder entity
+        // Store reference to the builder entity
         building.builderEntity = villagerEntity
         
         // Start construction
@@ -816,17 +887,16 @@ class GameScene: SKScene {
         buildingsNode.addChild(building)
         owner.addBuilding(building)
         
-        // ✅ Mark villager entity as busy building
+        // Mark villager entity as busy building
         villagerEntity.isMoving = true
         
-        // ✅ Assign task to villager group
+        // Assign task to villager group
         if let villagerGroup = villagerEntity.entity as? VillagerGroup {
             villagerGroup.assignTask(.building(building), target: coordinate)
             print("✅ Assigned building task to \(villagerGroup.name)")
         }
         
         print("✅ Placed \(type.displayName) at (\(coordinate.q), \(coordinate.r))")
-        print("✅ Villagers are now locked to this tile until construction completes")
         
         gameDelegate?.gameSceneDidUpdateResources(self)
     }

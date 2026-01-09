@@ -279,5 +279,13 @@ class Commander {
             print("✅ \(name) removed from army")
         }
     }
+    
+    func getBaseLeadership() -> Int {
+        return baseLeadership
+    }
+
+    func getBaseTactics() -> Int {
+        return baseTactics
+    }
 
 }

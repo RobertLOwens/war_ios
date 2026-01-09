@@ -164,42 +164,7 @@ class EntityActionHandler {
         }
     }
     
-    /// Handles hunting an animal resource point with an army
-    func huntWithArmy(_ army: Army, target: ResourcePointNode) {
-        guard let player = player,
-              let hexMap = hexMap else { return }
-        
-        // Calculate combat
-        let armyAttack = army.getModifiedStrength()
-        let animalDefense = target.resourceType.defensePower
-        
-        let netDamage = max(1, armyAttack - animalDefense)
-        let isDead = target.takeDamage(netDamage)
-        
-        if isDead {
-            // Animal killed - award food
-            let foodGained = target.remainingAmount
-            player.addResource(.food, amount: foodGained)
-            delegate?.updateResourceDisplay()
-            
-            // Remove resource point
-            hexMap.removeResourcePoint(target)
-            target.removeFromParent()
-            
-            delegate?.showSimpleAlert(
-                title: "🎉 Hunt Successful",
-                message: "\(army.name) hunted the \(target.resourceType.displayName)\nGained: 🌾 \(foodGained) Food"
-            )
-            
-            print("✅ Army hunted \(target.resourceType.displayName) - gained \(foodGained) food")
-        } else {
-            delegate?.showSimpleAlert(
-                title: "⚔️ Combat",
-                message: "The \(target.resourceType.displayName) took \(netDamage) damage\nRemaining health: \(target.currentHealth)/\(target.resourceType.health)"
-            )
-        }
-    }
-    
+  
     // MARK: - Commander Actions
     
     /// Deploys a commander at the player's city center

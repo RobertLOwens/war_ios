@@ -14,6 +14,8 @@ protocol GameSceneDelegate: AnyObject {
     
     // MARK: - Tile Interactions
     
+    func gameScene(_ scene: GameScene, villagerArrivedForHunt villagerGroup: VillagerGroup, target: ResourcePointNode, entityNode: EntityNode)
+    
     /// Called when a tile is selected and menu should be shown
     func gameScene(_ scene: GameScene, didRequestMenuForTile coordinate: HexCoordinate)
     
@@ -21,9 +23,6 @@ protocol GameSceneDelegate: AnyObject {
     func gameScene(_ scene: GameScene, didRequestMoveSelection destination: HexCoordinate, availableEntities: [EntityNode])
     
     // MARK: - Entity Interactions
-    
-    /// Called when an entity is tapped and actions should be shown
-    func gameScene(_ scene: GameScene, didSelectEntity entity: EntityNode, at coordinate: HexCoordinate)
     
     /// Called when a villager group needs to show its action menu
     func gameScene(_ scene: GameScene, didSelectVillagerGroup entity: EntityNode, at coordinate: HexCoordinate)

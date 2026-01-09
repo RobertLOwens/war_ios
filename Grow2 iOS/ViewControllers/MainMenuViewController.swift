@@ -134,6 +134,11 @@ class MainMenuViewController: UIViewController {
     }
     
     func startNewGame() {
+        // ✅ FIX: Clear background time data so new game doesn't inherit old resources
+        BackgroundTimeManager.shared.clearExitTime()
+    
+         _ = GameSaveManager.shared.deleteSave()
+    
         let gameVC = GameViewController()
         gameVC.modalPresentationStyle = .fullScreen
         present(gameVC, animated: true)

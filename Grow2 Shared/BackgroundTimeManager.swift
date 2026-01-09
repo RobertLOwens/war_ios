@@ -210,5 +210,10 @@ class BackgroundTimeManager {
             return "\(Int(seconds)) seconds"
         }
     }
+    
+    func clearExitTime() {
+        UserDefaults.standard.removeObject(forKey: lastExitTimeKey)
+        print("🧹 Cleared lastExitTime for new game")
+    }
 }
 

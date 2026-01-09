@@ -792,6 +792,23 @@ class BuildingNode: SKSpriteNode {
             updateUIVisibility()  // Show appropriate UI
         }
     }
-
+    
+    func getAssociatedResource(from hexMap: HexMap) -> ResourcePointNode? {
+        guard buildingType == .miningCamp || buildingType == .lumberCamp else { return nil }
+        return hexMap.getResourcePoint(at: coordinate)
+    }
+    
+    func getResourceGatheringSummary(from hexMap: HexMap) -> String? {
+        guard let resource = getAssociatedResource(from: hexMap) else { return nil }
+        
+        var summary = "\(resource.resourceType.icon) \(resource.remainingAmount)"
+        
+        let villagerCount = resource.getTotalVillagersGathering()
+        if villagerCount > 0 {
+            summary += " 👷\(villagerCount)"
+        }
+        
+        return summary
+    }
     
 }
