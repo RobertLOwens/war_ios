@@ -44,10 +44,10 @@ class Player {
     
     // Resource collection rates (per second)
     private(set) var collectionRates: [ResourceType: Double] = [
-        .wood: 1.0,
-        .food: 1.0,
-        .stone: 0.5,
-        .ore: 0.25
+        .wood: 0,
+        .food: 0,
+        .stone: 0,
+        .ore: 0
     ]
     
     // Entities owned by this player (armies and villager groups)
@@ -67,6 +67,9 @@ class Player {
     // Last update time for resource generation
     private var lastUpdateTime: TimeInterval?
     private(set) var armies: [Army] = []
+    
+    private var foodConsumptionAccumulator: Double = 0.0
+    static let foodConsumptionPerPop: Double = 0.1
 
     // MARK: - Initialization
     
@@ -205,6 +208,17 @@ class Player {
                 addResource(type, amount: wholeAmount)
                 resourceAccumulators[type] = (resourceAccumulators[type] ?? 0.0) - Double(wholeAmount)
             }
+        }
+        
+        let foodConsumptionRate = getFoodConsumptionRate()
+        let foodConsumed = foodConsumptionRate * deltaTime
+        
+        foodConsumptionAccumulator += foodConsumed
+        let wholeConsumption = Int(foodConsumptionAccumulator)
+        if wholeConsumption > 0 {
+            let currentFood = resources[.food] ?? 0
+            resources[.food] = max(0, currentFood - wholeConsumption)
+            foodConsumptionAccumulator -= Double(wholeConsumption)
         }
         
         lastUpdateTime = currentTime
@@ -359,5 +373,66 @@ class Player {
         let current = collectionRates[type] ?? 0.0
         collectionRates[type] = max(0, current - amount)
         print("📉 \(type.displayName) rate: \(current)/s → \(collectionRates[type] ?? 0)/s")
+    }
+    
+    func setResource(_ type: ResourceType, amount: Int) {
+        resources[type] = max(0, amount)
+    }
+
+    /// Directly sets a collection rate (used for loading saves)
+    func setCollectionRate(_ type: ResourceType, rate: Double) {
+        collectionRates[type] = max(0, rate)
+    }
+    
+    func getPopulationCapacity() -> Int {
+        return buildings
+            .filter { $0.isOperational }
+            .reduce(0) { $0 + $1.buildingType.populationCapacity }
+    }
+        
+    func getCurrentPopulation() -> Int {
+        var total = 0
+        
+        // Count villagers on field
+        total += getTotalVillagerCount()
+        
+        // Count military units in armies
+        total += getTotalMilitaryUnits()
+        
+        // Count garrisoned units in buildings
+        for building in buildings {
+            total += building.villagerGarrison
+            total += building.getTotalGarrisonedUnits()
+        }
+        
+        // Count units currently in training queues
+        for building in buildings {
+            // Military training queue
+            for entry in building.trainingQueue {
+                total += entry.quantity
+            }
+            
+            // Villager training queue
+            for entry in building.villagerTrainingQueue {
+                total += entry.quantity
+            }
+        }
+        
+        return total
+    }
+        
+    /// Returns available population space
+    func getAvailablePopulation() -> Int {
+        return max(0, getPopulationCapacity() - getCurrentPopulation())
+    }
+    
+    /// Returns true if player has room for more population
+    func hasPopulationSpace(for amount: Int = 1) -> Bool {
+        return getAvailablePopulation() >= amount
+    }
+    
+    /// Returns the food consumption rate per second based on current population
+    func getFoodConsumptionRate() -> Double {
+        return Double(getCurrentPopulation()) * Player.foodConsumptionPerPop
     }
 }

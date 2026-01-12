@@ -130,7 +130,7 @@ class FogOfWarManager {
         
         // Vision from buildings (1 tile radius)
         var buildingVisionCount = 0
-        for building in hexMap.buildings where building.state == .completed && building.owner?.id == player.id {
+        for building in hexMap.buildings where building.isOperational && building.owner?.id == player.id {
             let visibleTiles = getVisibleTilesInRadius(center: building.coordinate, radius: 1)
             buildingVisionCount += visibleTiles.count
             for coord in visibleTiles {
@@ -332,6 +332,21 @@ class FogOfWarManager {
         if coord.q % 10 == 0 && coord.r % 10 == 0 {
             print("  Marking (\(coord.q), \(coord.r)) as explored (was: \(previousState ?? .unexplored))")
         }
+    }
+    
+    func restoreExploredTiles(_ coordinates: [HexCoordinate]) {
+        for coord in coordinates {
+            if visionMap[coord] == .unexplored {
+                visionMap[coord] = .explored
+                
+                // Also create memory entry if needed
+                if memoryMap[coord] == nil, let hexMap = hexMap, let tile = hexMap.getTile(at: coord) {
+                    let memory = TileMemory(terrain: tile.terrain, lastSeenTime: Date().timeIntervalSince1970)
+                    memoryMap[coord] = memory
+                }
+            }
+        }
+        print("🗺️ Restored \(coordinates.count) explored tiles from save")
     }
     
     func getExploredCount() -> Int {

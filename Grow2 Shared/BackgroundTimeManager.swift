@@ -46,6 +46,8 @@ class BackgroundTimeManager {
         // Process unit training
         processUnitTraining(hexMap: hexMap, currentTime: currentTime)
         
+        processBuildingUpgrades(hexMap: hexMap, currentTime: currentTime)
+        
         // Clear the saved time
         UserDefaults.standard.removeObject(forKey: lastExitTimeKey)
         
@@ -71,6 +73,16 @@ class BackgroundTimeManager {
         // Log what was gained
         for (type, amount) in resourcesGained {
             print("  +\(amount) \(type.icon) \(type.displayName)")
+        }
+        
+        // Remove food from population
+        let foodConsumption = player.getFoodConsumptionRate() * elapsedTime
+        let wholeConsumption = Int(foodConsumption)
+        if wholeConsumption > 0 {
+            let currentFood = player.getResource(.food)
+            let consumed = min(currentFood, wholeConsumption)
+            player.removeResource(.food, amount: consumed)
+            print("  -\(consumed) 🌾 Food (population consumption)")
         }
     }
     
@@ -211,9 +223,45 @@ class BackgroundTimeManager {
         }
     }
     
+    func getElapsedTime() -> TimeInterval? {
+        guard let lastExitTime = UserDefaults.standard.object(forKey: lastExitTimeKey) as? TimeInterval else {
+            return nil
+        }
+        
+        let currentTime = Date().timeIntervalSince1970
+        let elapsed = currentTime - lastExitTime
+        
+        // Only return if meaningful time passed
+        guard elapsed > 1 else { return nil }
+        
+        return elapsed
+    }
+
+    /// Clears the saved exit time (call after processing)
     func clearExitTime() {
         UserDefaults.standard.removeObject(forKey: lastExitTimeKey)
-        print("🧹 Cleared lastExitTime for new game")
+        print("📱 Cleared exit time")
     }
+    
+    private func processBuildingUpgrades(hexMap: HexMap, currentTime: TimeInterval) {
+            print("⬆️ Processing building upgrades...")
+            
+            var completedUpgrades: [BuildingNode] = []
+            
+            for building in hexMap.buildings where building.state == .upgrading {
+                guard let startTime = building.upgradeStartTime,
+                      let upgradeTime = building.getUpgradeTime() else { continue }
+                
+                let totalElapsed = currentTime - startTime
+                let newProgress = min(1.0, totalElapsed / upgradeTime)
+                building.upgradeProgress = newProgress
+                
+                if newProgress >= 1.0 {
+                    building.completeUpgrade()
+                    completedUpgrades.append(building)
+                    print("  ✅ \(building.buildingType.displayName) upgraded to level \(building.level)!")
+                }
+            }
+        }
 }
 

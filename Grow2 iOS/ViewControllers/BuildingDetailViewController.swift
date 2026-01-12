@@ -64,6 +64,9 @@ class BuildingDetailViewController: UIViewController {
                 timer.invalidate()
                 return
             }
+            if self.building.state == .upgrading {
+                self.updateUpgradeProgressDisplay()
+            }
             self.updateQueueDisplay()
         }
     }
@@ -146,6 +149,27 @@ class BuildingDetailViewController: UIViewController {
         healthLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
         contentView.addSubview(healthLabel)
         yOffset += 30
+        
+        let levelLabel = createLabel(text: "⭐ Level: \(building.level)/\(building.maxLevel)",
+                                    fontSize: 16,
+                                    color: UIColor(white: 0.9, alpha: 1.0))
+        levelLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
+        contentView.addSubview(levelLabel)
+        yOffset += 35
+        
+        // Upgrade Section (only if building can be upgraded)
+        if building.state == .completed && building.canUpgrade {
+            yOffset = setupUpgradeSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+        } else if building.state == .upgrading {
+            yOffset = setupUpgradingProgressSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+        } else if building.level >= building.maxLevel {
+            let maxLevelLabel = createLabel(text: "✨ Maximum Level Reached",
+                                           fontSize: 14,
+                                           color: UIColor(red: 1.0, green: 0.85, blue: 0.4, alpha: 1.0))
+            maxLevelLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
+            contentView.addSubview(maxLevelLabel)
+            yOffset += 35
+        }
         
         // Location
         let locationLabel = createLabel(text: "📍 Location: (\(building.coordinate.q), \(building.coordinate.r))",
@@ -282,14 +306,21 @@ class BuildingDetailViewController: UIViewController {
         container.addSubview(titleLabel)
         containerY += 35
         
-        // Calculate max affordable
+        // Calculate max affordable based on resources
         var maxAffordable = 100
         for (resourceType, unitCost) in unitType.trainingCost {
             let available = player.getResource(resourceType)
             let canAfford = available / unitCost
             maxAffordable = min(maxAffordable, canAfford)
         }
-        maxAffordable = max(1, maxAffordable)
+        
+        // Also cap by available population space
+        let availablePop = player.getAvailablePopulation()
+        maxAffordable = min(maxAffordable, availablePop)
+        
+        // Ensure at least 1 for slider to work, but button will be disabled if 0
+        let sliderMax = max(1, maxAffordable)
+        let canTrain = maxAffordable >= 1
         
         // Create a training context object to hold all the data
         let trainingContext = TrainingSliderContext(
@@ -297,19 +328,25 @@ class BuildingDetailViewController: UIViewController {
             container: container,
             building: building
         )
-        
+
         // Slider
         let slider = UISlider(frame: CGRect(x: 15, y: containerY, width: containerInnerWidth, height: 30))
         slider.minimumValue = 1
-        slider.maximumValue = Float(min(maxAffordable, 20))
+        slider.maximumValue = Float(min(sliderMax, 20))
         slider.value = 1
         slider.isContinuous = true
-        slider.isEnabled = true
+        slider.isEnabled = canTrain
         slider.isUserInteractionEnabled = true
-        slider.tag = trainingContext.hashValue // Use context hash as tag
+        slider.alpha = canTrain ? 1.0 : 0.5
+        slider.tag = trainingContext.hashValue
         slider.addTarget(self, action: #selector(trainingSliderChanged(_:)), for: .valueChanged)
         container.addSubview(slider)
         containerY += 45
+        
+        slider.isEnabled = canTrain
+        if !canTrain {
+            slider.alpha = 0.5
+        }
         
         // Store context in a dictionary keyed by hash
         if trainingContexts == nil {
@@ -347,6 +384,16 @@ class BuildingDetailViewController: UIViewController {
         container.addSubview(timeLabel)
         containerY += 30
         
+        let currentPop = player.getCurrentPopulation()
+        let maxPop = player.getPopulationCapacity()
+        let popColor: UIColor = availablePop == 0 ? UIColor.systemRed : UIColor(white: 0.8, alpha: 1.0)
+        let popLabel = createLabel(text: "👥 Population: \(currentPop)/\(maxPop) (\(availablePop) available)",
+                                   fontSize: 13,
+                                   color: popColor)
+        popLabel.frame = CGRect(x: 15, y: containerY, width: containerInnerWidth, height: 20)
+        container.addSubview(popLabel)
+        containerY += 30
+        
         // Train button
         let trainButton = UIButton(type: .system)
         trainButton.frame = CGRect(x: 15, y: containerY, width: containerInnerWidth, height: 44)
@@ -361,6 +408,13 @@ class BuildingDetailViewController: UIViewController {
         trainButton.addTarget(self, action: #selector(trainButtonTapped(_:)), for: .touchUpInside)
         container.addSubview(trainButton)
         containerY += 55
+        
+        trainButton.isEnabled = canTrain
+        trainButton.alpha = canTrain ? 1.0 : 0.5
+        if !canTrain {
+            trainButton.setTitle("⚠️ Pop Limit Reached", for: .normal)
+            trainButton.backgroundColor = UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
+        }
         
         container.frame.size.height = containerY + 10
         
@@ -386,6 +440,12 @@ class BuildingDetailViewController: UIViewController {
         if let costLabel = container.viewWithTag(1001) as? UILabel {
             let totalCost = unitType.trainingCost.map { "\($0.value * count) \($0.key.icon) \($0.key.displayName)" }.joined(separator: ", ")
             costLabel.text = "Cost: \(totalCost)"
+        }
+        
+        let availablePop = player.getAvailablePopulation()
+        if count > availablePop {
+            // This shouldn't happen with proper slider max, but just in case
+            slider.value = Float(availablePop)
         }
         
         // Update time label
@@ -447,6 +507,17 @@ class BuildingDetailViewController: UIViewController {
             showAlert(title: "Cannot Afford", message: message)
         }
         
+        // Check popuation space
+        let popNeeded = quantity
+        if !player.hasPopulationSpace(for: popNeeded) {
+            let available = player.getAvailablePopulation()
+            showAlert(
+                title: "Population Limit Reached",
+                message: "Need \(popNeeded) population space, but only \(available) available.\n\nBuild more Neighborhoods or City Centers to increase capacity."
+            )
+            return
+        }
+        
         // Deduct resources
         print("💰 Deducting resources...")
         for (resourceType, unitCost) in unitType.trainingCost {
@@ -484,8 +555,6 @@ class BuildingDetailViewController: UIViewController {
     }
     
     func updateQueueDisplay() {
-        let queueText = getQueueText()
-        print("📋 Queue text: \(queueText)")
         
         queueLabel?.text = queueText
         
@@ -878,5 +947,335 @@ class BuildingDetailViewController: UIViewController {
 
     @objc func closeTapped() {
         dismiss(animated: true)
+    }
+    
+    func setupUpgradeSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
+       var currentY = yOffset
+       
+       // Section header
+       let upgradeHeader = createLabel(text: "⬆️ Upgrade to Level \(building.level + 1)",
+                                      fontSize: 18,
+                                      weight: .bold,
+                                      color: .cyan)
+       upgradeHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+       contentView.addSubview(upgradeHeader)
+       currentY += 30
+       
+       // Cost display
+       if let upgradeCost = building.getUpgradeCost() {
+           var costText = "Cost: "
+           var canAfford = true
+           
+           for (resourceType, amount) in upgradeCost {
+               let hasEnough = player.hasResource(resourceType, amount: amount)
+               let currentAmount = player.getResource(resourceType)
+               if !hasEnough { canAfford = false }
+               let checkmark = hasEnough ? "✅" : "❌"
+               costText += "\(checkmark) \(resourceType.icon)\(amount) (\(currentAmount)) "
+           }
+           
+           let costLabel = createLabel(text: costText,
+                                      fontSize: 14,
+                                      color: canAfford ? UIColor(white: 0.9, alpha: 1.0) : UIColor(red: 1.0, green: 0.5, blue: 0.5, alpha: 1.0))
+           costLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+           contentView.addSubview(costLabel)
+           currentY += 25
+       }
+       
+       // Time display
+       if let upgradeTime = building.getUpgradeTime() {
+           let minutes = Int(upgradeTime) / 60
+           let seconds = Int(upgradeTime) % 60
+           let timeLabel = createLabel(text: "⏱️ Time: \(minutes)m \(seconds)s",
+                                      fontSize: 14,
+                                      color: UIColor(white: 0.8, alpha: 1.0))
+           timeLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+           contentView.addSubview(timeLabel)
+           currentY += 30
+       }
+       
+       // Check for villager on tile
+       let villagerEntity = getVillagerEntityOnBuildingTile()
+       let hasVillager = villagerEntity != nil
+       
+       // Villager requirement label
+       let villagerStatusText = hasVillager
+           ? "✅ Villagers ready to upgrade"
+           : "⚠️ Send villagers to this tile to upgrade"
+       let villagerStatusColor = hasVillager
+           ? UIColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1.0)
+           : UIColor(red: 1.0, green: 0.7, blue: 0.3, alpha: 1.0)
+       
+       let villagerStatusLabel = createLabel(text: villagerStatusText,
+                                            fontSize: 13,
+                                            color: villagerStatusColor)
+       villagerStatusLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+       contentView.addSubview(villagerStatusLabel)
+       currentY += 30
+       
+       // Upgrade button
+       let canAffordUpgrade = canAffordUpgradeCost()
+       let buttonEnabled = hasVillager && canAffordUpgrade
+       let buttonColor: UIColor = buttonEnabled
+           ? UIColor(red: 0.2, green: 0.7, blue: 0.9, alpha: 1.0)
+           : UIColor(white: 0.4, alpha: 1.0)
+       
+       let upgradeButton = createActionButton(
+           title: "⬆️ Level Up",
+           y: currentY,
+           width: contentWidth,
+           leftMargin: leftMargin,
+           color: buttonColor,
+           action: #selector(upgradeBuildingTapped)
+       )
+       upgradeButton.isEnabled = buttonEnabled
+       upgradeButton.alpha = buttonEnabled ? 1.0 : 0.5
+       upgradeButton.tag = 999  // Tag to identify upgrade button
+       contentView.addSubview(upgradeButton)
+       currentY += 70
+       
+       return currentY
+   }
+   
+    func setupUpgradingProgressSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
+         var currentY = yOffset
+         
+         // Section header
+         let upgradeHeader = createLabel(text: "⬆️ Upgrading to Level \(building.level + 1)...",
+                                        fontSize: 18,
+                                        weight: .bold,
+                                        color: .cyan)
+         upgradeHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+         contentView.addSubview(upgradeHeader)
+         currentY += 30
+         
+         // Progress
+         let progressPercent = Int(building.upgradeProgress * 100)
+         let progressLabel = createLabel(text: "Progress: \(progressPercent)%",
+                                        fontSize: 14,
+                                        color: UIColor(white: 0.9, alpha: 1.0))
+         progressLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+         progressLabel.tag = 1001
+         contentView.addSubview(progressLabel)
+         currentY += 25
+         
+         // Progress bar background
+         let progressBarBg = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20))
+         progressBarBg.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+         progressBarBg.layer.cornerRadius = 10
+         progressBarBg.tag = 1004  // Tag for finding parent
+         contentView.addSubview(progressBarBg)
+         
+         // Progress bar fill
+         let progressBarFill = UIView(frame: CGRect(x: 2, y: 2, width: (contentWidth - 4) * CGFloat(building.upgradeProgress), height: 16))
+         progressBarFill.backgroundColor = .cyan
+         progressBarFill.layer.cornerRadius = 8
+         progressBarFill.tag = 1002
+         progressBarBg.addSubview(progressBarFill)
+         currentY += 25
+         
+         // Time remaining
+         if let startTime = building.upgradeStartTime,
+            let upgradeTime = building.getUpgradeTime() {
+             let currentTime = Date().timeIntervalSince1970
+             let elapsed = currentTime - startTime
+             let remaining = max(0, upgradeTime - elapsed)
+             let minutes = Int(remaining) / 60
+             let seconds = Int(remaining) % 60
+             
+             let timeLabel = createLabel(text: "⏱️ Time Remaining: \(minutes)m \(seconds)s",
+                                        fontSize: 14,
+                                        color: UIColor(white: 0.8, alpha: 1.0))
+             timeLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+             timeLabel.tag = 1003
+             contentView.addSubview(timeLabel)
+             currentY += 35
+         }
+         
+         // ✅ ADD: Cancel Upgrade button
+         let cancelButton = createActionButton(
+             title: "🚫 Cancel Upgrade",
+             y: currentY,
+             width: contentWidth,
+             leftMargin: leftMargin,
+             color: UIColor(red: 0.8, green: 0.3, blue: 0.3, alpha: 1.0),
+             action: #selector(cancelUpgradeTapped)
+         )
+         contentView.addSubview(cancelButton)
+         currentY += 70
+         
+         return currentY
+     }
+
+    func getVillagerEntityOnBuildingTile() -> EntityNode? {
+       guard let hexMap = hexMap else { return nil }
+       
+       // Find a villager entity at the building's coordinate that is idle (not busy)
+       for entity in hexMap.entities {
+           if entity.coordinate == building.coordinate &&
+              entity.entityType == .villagerGroup &&
+              !entity.isMoving {
+               // Check if villager group is idle
+               if let villagerGroup = entity.entity as? VillagerGroup {
+                   switch villagerGroup.currentTask {
+                   case .idle:
+                       return entity
+                   default:
+                       continue
+                   }
+               }
+           }
+       }
+       return nil
+   }
+   
+   func canAffordUpgradeCost() -> Bool {
+       guard let upgradeCost = building.getUpgradeCost() else { return false }
+       
+       for (resourceType, amount) in upgradeCost {
+           if !player.hasResource(resourceType, amount: amount) {
+               return false
+           }
+       }
+       return true
+   }
+   
+   @objc func upgradeBuildingTapped() {
+       guard building.canUpgrade else {
+           showSimpleAlert(title: "Cannot Upgrade", message: "This building cannot be upgraded.")
+           return
+       }
+       
+       guard let villagerEntity = getVillagerEntityOnBuildingTile() else {
+           showSimpleAlert(title: "No Villagers", message: "Send an idle villager group to this tile to perform the upgrade.")
+           return
+       }
+       
+       guard canAffordUpgradeCost() else {
+           showSimpleAlert(title: "Cannot Afford", message: "You don't have enough resources for this upgrade.")
+           return
+       }
+       
+       // Confirm upgrade
+       let upgradeCost = building.getUpgradeCost() ?? [:]
+       var costString = ""
+       for (resourceType, amount) in upgradeCost {
+           costString += "\(resourceType.icon)\(amount) "
+       }
+       
+       let alert = UIAlertController(
+           title: "⬆️ Confirm Upgrade",
+           message: "Upgrade \(building.buildingType.displayName) to Level \(building.level + 1)?\n\nCost: \(costString)",
+           preferredStyle: .alert
+       )
+       
+       alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+       alert.addAction(UIAlertAction(title: "Upgrade", style: .default) { [weak self] _ in
+           self?.performUpgrade(villagerEntity: villagerEntity)
+       })
+       
+       present(alert, animated: true)
+   }
+   
+    func performUpgrade(villagerEntity: EntityNode) {
+        guard let gameScene = gameScene else {
+            showSimpleAlert(title: "Error", message: "Game scene not available.")
+            return
+        }
+        
+        // Call the game scene to start the upgrade
+        gameScene.startBuildingUpgrade(building: building, villagerEntity: villagerEntity)
+        
+        // ✅ FIX: Don't dismiss - instead refresh the content to show upgrade progress
+        refreshContent()
+        
+        // Update resource display in game view
+        gameViewController?.updateResourceDisplay()
+    }
+   
+   func showSimpleAlert(title: String, message: String) {
+       let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+       alert.addAction(UIAlertAction(title: "OK", style: .default))
+       present(alert, animated: true)
+   }
+    
+    func updateUpgradeProgressDisplay() {
+        guard building.state == .upgrading else { return }
+        
+        // Update progress label (tag 1001)
+        if let progressLabel = contentView.viewWithTag(1001) as? UILabel {
+            let progressPercent = Int(building.upgradeProgress * 100)
+            progressLabel.text = "Progress: \(progressPercent)%"
+        }
+        
+        // Update progress bar (tag 1002)
+        if let progressBarFill = contentView.viewWithTag(1002) {
+            let contentWidth = view.bounds.width - 40  // leftMargin + rightMargin
+            let newWidth = (contentWidth - 4) * CGFloat(building.upgradeProgress)
+            progressBarFill.frame.size.width = newWidth
+        }
+        
+        // Update time remaining (tag 1003)
+        if let timeLabel = contentView.viewWithTag(1003) as? UILabel,
+           let startTime = building.upgradeStartTime,
+           let upgradeTime = building.getUpgradeTime() {
+            let currentTime = Date().timeIntervalSince1970
+            let elapsed = currentTime - startTime
+            let remaining = max(0, upgradeTime - elapsed)
+            let minutes = Int(remaining) / 60
+            let seconds = Int(remaining) % 60
+            timeLabel.text = "⏱️ Time Remaining: \(minutes)m \(seconds)s"
+            
+            // Check if upgrade completed
+            if remaining <= 0 {
+                // Refresh the entire view
+                refreshContent()
+            }
+        }
+    }
+        
+    func refreshContent() {
+        // Remove all content and rebuild
+        for subview in contentView.subviews {
+            subview.removeFromSuperview()
+        }
+        setupContent()
+    }
+    
+    @objc func cancelUpgradeTapped() {
+        guard building.state == .upgrading else {
+            showSimpleAlert(title: "Not Upgrading", message: "This building is not currently upgrading.")
+            return
+        }
+        
+        let alert = UIAlertController(
+            title: "🚫 Cancel Upgrade?",
+            message: "Cancel the upgrade to Level \(building.level + 1)?\n\nAll resources will be refunded.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Keep Upgrading", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel Upgrade", style: .destructive) { [weak self] _ in
+            self?.performCancelUpgrade()
+        })
+        
+        present(alert, animated: true)
+    }
+        
+    func performCancelUpgrade() {
+        guard let gameScene = gameScene else {
+            showSimpleAlert(title: "Error", message: "Game scene not available.")
+            return
+        }
+        
+        gameScene.cancelBuildingUpgrade(building: building)
+        
+        // Refresh the content to show completed state
+        refreshContent()
+        
+        // Update resource display
+        gameViewController?.updateResourceDisplay()
+        
+        showSimpleAlert(title: "✅ Upgrade Cancelled", message: "Resources have been refunded.")
     }
 }

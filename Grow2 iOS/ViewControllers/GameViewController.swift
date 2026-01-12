@@ -11,6 +11,8 @@ class GameViewController: UIViewController {
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
+    var populationLabel: UILabel!
+
     
     private var menuCoordinator: MenuCoordinator!
     private var entityActionHandler: EntityActionHandler!
@@ -69,6 +71,36 @@ class GameViewController: UIViewController {
             setupScene()
             updateResourceDisplay()
         }
+        
+        // Listen for app returning from background
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppWillSave),
+            name: .appWillSaveGame,
+            object: nil
+        )
+        
+    }
+    
+    @objc func handleAppWillEnterForeground() {
+        print("📱 App returning to foreground - processing background time")
+        processBackgroundTime()
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc func handleAppWillSave() {
+        print("📱 Received app save notification")
+        autoSaveGame()
     }
     
     func setupEmptyScene() {
@@ -327,11 +359,20 @@ class GameViewController: UIViewController {
     }
     
     func updateResourceDisplay() {
+        
         for (resourceType, label) in resourceLabels {
             let amount = player.getResource(resourceType)
             let rate = player.getCollectionRate(resourceType)
             label.text = "\(resourceType.icon) \(amount) (+\(String(format: "%.1f", rate))/s)"
         }
+        
+        let currentPop = player.getCurrentPopulation()
+        let maxPop = player.getPopulationCapacity()
+        let consumptionRate = player.getFoodConsumptionRate()
+        
+        let popColor: UIColor = currentPop >= maxPop ? .systemRed : .white
+        populationLabel.textColor = popColor
+        populationLabel.text = "👥 \(currentPop)/\(maxPop) (-\(String(format: "%.1f", consumptionRate)) 🌾/s)"
     }
     
     func setupUI() {
@@ -388,6 +429,12 @@ class GameViewController: UIViewController {
             resourceLabels[resourceType] = label
         }
         
+        populationLabel = UILabel(frame: CGRect(x: 20, y: startY + CGFloat(2) * verticalSpacing + 10, width: 300, height: 25))
+        populationLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 16, weight: .medium)
+        populationLabel.textColor = .white
+        populationLabel.text = "👥 0/0 (-0.0 🌾/s)"
+        resourcePanel.addSubview(populationLabel)
+        
         view.addSubview(resourcePanel)
         
         // Bottom instruction panel
@@ -421,6 +468,25 @@ class GameViewController: UIViewController {
         trainingButton.addTarget(self, action: #selector(showTrainingOverview), for: .touchUpInside)
         trainingButton.autoresizingMask = [.flexibleLeftMargin]
         resourcePanel.addSubview(trainingButton)
+        
+        let buildingsButton = UIButton(frame: CGRect(x: view.bounds.width - 460, y: 10, width: 140, height: 35))
+        buildingsButton.setTitle("🏛️ Buildings", for: .normal)
+        buildingsButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        buildingsButton.backgroundColor = UIColor(red: 0.5, green: 0.4, blue: 0.6, alpha: 1.0)
+        buildingsButton.layer.cornerRadius = 8
+        buildingsButton.addTarget(self, action: #selector(showBuildingsOverview), for: .touchUpInside)
+        buildingsButton.autoresizingMask = [.flexibleLeftMargin]
+        resourcePanel.addSubview(buildingsButton)
+    }
+    
+    @objc func showBuildingsOverview() {
+        let buildingsVC = BuildingsOverviewViewController()
+        buildingsVC.player = player
+        buildingsVC.hexMap = gameScene.hexMap
+        buildingsVC.gameScene = gameScene
+        buildingsVC.modalPresentationStyle = .fullScreen
+        present(buildingsVC, animated: true)
+        print("🏛️ Opening Buildings Overview screen")
     }
     
     @objc func showGameMenu() {
@@ -604,145 +670,7 @@ class GameViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    func showReinforcementSourceSelection(for army: Army) {
-        let buildingsWithGarrison = player.buildings.filter { $0.getTotalGarrisonedUnits() > 0 }
-        
-        var actions: [AlertAction] = []
-        
-        for building in buildingsWithGarrison {
-            let garrisonCount = building.getTotalGarrisonedUnits()
-            let title = "\(building.buildingType.icon) \(building.buildingType.displayName) (\(garrisonCount) units) - (\(building.coordinate.q), \(building.coordinate.r))"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.showReinforcementUnitSelection(from: building, to: army)
-            })
-        }
-        
-        showActionSheet(
-            title: "🔄 Select Garrison Source",
-            message: "Choose which building to reinforce \(army.name) from:",
-            actions: actions
-        )
-    }
-    
-    func showReinforcementTargetSelection(from building: BuildingNode) {
-        let armiesOnField = player.getArmies()
-        
-        guard !armiesOnField.isEmpty else {
-            showAlert(title: "No Armies", message: "You don't have any armies to reinforce. Recruit a commander first!")
-            return
-        }
-        
-        var actions: [AlertAction] = []
-        
-        for army in armiesOnField {
-            let unitCount = army.getTotalMilitaryUnits()
-            let commanderName = army.commander?.name ?? "No Commander"
-            let distance = army.coordinate.distance(to: building.coordinate)
-            let title = "🛡️ \(army.name) - \(commanderName) (\(unitCount) units) - Distance: \(distance)"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.showReinforcementUnitSelection(from: building, to: army)
-            })
-        }
-        
-        showActionSheet(
-            title: "⚔️ Select Army to Reinforce",
-            message: "Choose which army to reinforce from \(building.buildingType.displayName):\n\nGarrison: \(building.getTotalGarrisonedUnits()) units available",
-            actions: actions
-        )
-    }
-    
-    /// Shows a detailed menu with sliders to select which units and how many to transfer
-    func showReinforcementUnitSelection(from building: BuildingNode, to army: Army) {
-        let alert = UIAlertController(
-            title: "🔄 Reinforce \(army.name)",
-            message: "Select units from \(building.buildingType.displayName) garrison\nCurrent Army Size: \(army.getTotalMilitaryUnits()) units",
-            preferredStyle: .alert
-        )
-        
-        // Create a container view controller for custom UI with sliders
-        let containerVC = UIViewController()
-        containerVC.preferredContentSize = CGSize(width: 270, height: 350)
-        
-        let scrollView = UIScrollView(frame: CGRect(x: 0, y: 0, width: 270, height: 350))
-        scrollView.backgroundColor = .clear
-        
-        let contentView = UIView()
-        var yOffset: CGFloat = 10
-        
-        // Store slider references
-        var unitSliders: [MilitaryUnitType: UISlider] = [:]
-        var unitLabels: [MilitaryUnitType: UILabel] = [:]
-        
-        // Get garrison and create sliders for each unit type
-        let sortedGarrison = building.garrison.sorted(by: { $0.key.displayName < $1.key.displayName })
-        
-        for (unitType, available) in sortedGarrison {
-            // Unit type label
-            let titleLabel = UILabel(frame: CGRect(x: 20, y: yOffset, width: 230, height: 20))
-            titleLabel.text = "\(unitType.icon) \(unitType.displayName)"
-            titleLabel.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-            titleLabel.textColor = .label
-            contentView.addSubview(titleLabel)
-            yOffset += 25
-            
-            // Slider
-            let slider = UISlider(frame: CGRect(x: 20, y: yOffset, width: 230, height: 30))
-            slider.minimumValue = 0
-            slider.maximumValue = Float(available)
-            slider.value = 0
-            slider.isContinuous = true
-            slider.tag = unitType.hashValue // Store unit type in tag
-            contentView.addSubview(slider)
-            unitSliders[unitType] = slider
-            yOffset += 35
-            
-            // Count label
-            let countLabel = UILabel(frame: CGRect(x: 20, y: yOffset, width: 230, height: 20))
-            countLabel.text = "0 / \(available) units"
-            countLabel.font = UIFont.systemFont(ofSize: 12)
-            countLabel.textColor = .secondaryLabel
-            countLabel.textAlignment = .center
-            contentView.addSubview(countLabel)
-            unitLabels[unitType] = countLabel
-            yOffset += 30
-            
-            // Update label when slider moves
-            slider.addTarget(self, action: #selector(sliderValueChanged(_:)), for: .valueChanged)
-        }
-        
-        // Store references in objc associated objects so we can access in selector
-        objc_setAssociatedObject(self, &AssociatedKeys.unitLabels, unitLabels, .OBJC_ASSOCIATION_RETAIN)
-        objc_setAssociatedObject(self, &AssociatedKeys.garrisonData, building.garrison, .OBJC_ASSOCIATION_RETAIN)
-        
-        contentView.frame = CGRect(x: 0, y: 0, width: 270, height: yOffset)
-        scrollView.addSubview(contentView)
-        scrollView.contentSize = CGSize(width: 270, height: yOffset)
-        
-        containerVC.view.addSubview(scrollView)
-        alert.setValue(containerVC, forKey: "contentViewController")
-        
-        // Reinforce action
-        alert.addAction(UIAlertAction(title: "Reinforce", style: .default) { [weak self] _ in
-            var unitsToTransfer: [MilitaryUnitType: Int] = [:]
-            
-            for (unitType, slider) in unitSliders {
-                let count = Int(slider.value)
-                if count > 0 {
-                    unitsToTransfer[unitType] = count
-                }
-            }
-            
-            if !unitsToTransfer.isEmpty {
-                self?.reinforceArmy(army, from: building, with: unitsToTransfer)
-            }
-        })
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        present(alert, animated: true)
-    }
+
     
     @objc func sliderValueChanged(_ slider: UISlider) {
         // Get the stored labels dictionary
@@ -777,43 +705,6 @@ class GameViewController: UIViewController {
             )
             print("✅ Reinforced \(army.name) with \(totalTransferred) units from \(building.buildingType.displayName)")
         }
-    }
-    
-    func showMoveSelectionMenu(to coordinate: HexCoordinate, from entities: [EntityNode]) {
-        let validEntities = entities.filter { entity in
-            guard entity.entity.owner?.id == player.id else { return false }
-            return player.getVisibilityLevel(at: entity.coordinate) == .visible
-        }
-        
-        guard !validEntities.isEmpty else {
-            showAlert(title: "No Units Available", message: "You don't have any visible units that can move.")
-            return
-        }
-        
-        var actions: [AlertAction] = []
-        
-        for entity in validEntities {
-            let distance = entity.coordinate.distance(to: coordinate)
-            var title = "\(entity.entityType.icon) "
-            
-            if entity.entityType == .army, let army = entity.entity as? Army {
-                title += "\(army.name) (\(army.getTotalMilitaryUnits()) units) - Distance: \(distance)"
-            } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
-                title += "\(villagers.name) (\(villagers.villagerCount) villagers) - Distance: \(distance)"
-            }
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.gameScene.moveEntity(entity, to: coordinate)
-                self?.gameScene.deselectAll()
-            })
-        }
-        
-        showActionSheet(
-            title: "🚶 Select Unit to Move",
-            message: "Choose which unit to move to (\(coordinate.q), \(coordinate.r))",
-            actions: actions,
-            onCancel: { [weak self] in self?.gameScene.deselectAll() }
-        )
     }
     
     @objc func showCommandersScreen() {
@@ -1004,8 +895,36 @@ class GameViewController: UIViewController {
                 hexMap.addEntity(entityNode)
             }
         }
-        
-        // Create fresh fog node for overlays
+
+        // ✅ FIX: Reconnect villager gathering tasks to resource points
+        print("🔗 Reconnecting villager tasks to resources...")
+        for entity in hexMap.entities {
+            if let villagerGroup = entity.entity as? VillagerGroup,
+               let targetCoord = villagerGroup.taskTarget {
+                
+                // Find resource at the target coordinate
+                if let resourcePoint = hexMap.resourcePoints.first(where: {
+                    $0.coordinate == targetCoord
+                }) {
+                    // Re-establish the gathering relationship
+                    resourcePoint.startGathering(by: villagerGroup)
+                    villagerGroup.currentTask = .gatheringResource(resourcePoint)
+                    villagerGroup.taskTarget = nil  // Clear temporary storage
+                    entity.isMoving = true  // Mark as busy
+                
+                    
+                    print("✅ Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to \(resourcePoint.resourceType.displayName)")
+                } else {
+                    // Resource no longer exists (depleted), clear the task
+                    villagerGroup.currentTask = .idle
+                    villagerGroup.taskTarget = nil
+                    entity.isMoving = false
+                    print("⚠️ Resource at (\(targetCoord.q), \(targetCoord.r)) no longer exists, \(villagerGroup.name) is now idle")
+                }
+            }
+        }
+
+
         let fogNode = SKNode()
         fogNode.name = "fogNode"
         fogNode.zPosition = 100
@@ -1016,6 +935,10 @@ class GameViewController: UIViewController {
         
         // Update vision to reveal visible tiles (but keep explored tiles)
         player.updateVision(allPlayers: allPlayers)
+        
+        if let fogOfWar = player.fogOfWar {
+            print("🔍 After updateVision - Explored: \(fogOfWar.getExploredCount()), Visible: \(fogOfWar.getVisibleCount())")
+        }
         
         // Apply fog overlay visuals
         hexMap.updateFogOverlays(for: player)
@@ -1054,41 +977,135 @@ class GameViewController: UIViewController {
         
         // Save background time
         BackgroundTimeManager.shared.saveExitTime()
+        NotificationCenter.default.removeObserver(self, name: .appWillSaveGame, object: nil)
+
     }
     
     func processBackgroundTime() {
         guard let player = player,
               let hexMap = gameScene.hexMap,
               !gameScene.allGamePlayers.isEmpty else {
+            print("⚠️ Cannot process background time - game not ready")
             return
         }
         
-        // Get summary before processing
-        if let summary = BackgroundTimeManager.shared.getBackgroundSummary(
-            player: player,
-            hexMap: hexMap
-        ) {
-            // Show summary in alert
-            let alert = UIAlertController(
-                title: "Welcome Back!",
-                message: summary,
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            present(alert, animated: true)
+        // Get elapsed time
+        guard let elapsedSeconds = BackgroundTimeManager.shared.getElapsedTime() else {
+            print("⏰ No background time to process")
+            return
         }
         
-        // Process the background time
-        BackgroundTimeManager.shared.processBackgroundTime(
-            player: player,
-            hexMap: hexMap,
-            allPlayers: gameScene.allGamePlayers
-        )
+        // Cap offline time (e.g., max 8 hours)
+        let maxOfflineSeconds: TimeInterval = 8 * 60 * 60
+        let cappedElapsed = min(elapsedSeconds, maxOfflineSeconds)
         
-        // Update displays
+        guard cappedElapsed > 1 else {
+            print("⏰ Less than 1 second elapsed, skipping")
+            return
+        }
+        
+        print("⏰ Processing background time: \(Int(cappedElapsed)) seconds...")
+        
+        // Track changes for summary
+        var resourcesGathered: [ResourceType: Int] = [:]
+        var resourcesDepleted: [String] = []
+        
+        // Step 1: Deplete resources from active villagers
+        for entity in hexMap.entities {
+            guard let villagerGroup = entity.entity as? VillagerGroup else { continue }
+            
+            // Check if gathering
+            if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
+                // Verify resource still exists
+                guard resourcePoint.parent != nil, !resourcePoint.isDepleted() else {
+                    continue
+                }
+                
+                // Calculate depletion
+                let gatherRatePerSecond = 0.2 * Double(villagerGroup.villagerCount)
+                let wouldGather = Int(gatherRatePerSecond * cappedElapsed)
+                let actualGathered = min(wouldGather, resourcePoint.remainingAmount)
+                let newRemaining = resourcePoint.remainingAmount - actualGathered
+                
+                print("   ⛏️ \(villagerGroup.name): depleted \(actualGathered) from \(resourcePoint.resourceType.displayName)")
+                print("      \(resourcePoint.remainingAmount) → \(newRemaining)")
+                
+                // Apply depletion
+                resourcePoint.setRemainingAmount(newRemaining)
+                
+                // Track for summary
+                let resourceType = resourcePoint.resourceType.resourceYield
+                resourcesGathered[resourceType, default: 0] += actualGathered
+                
+                // Check if depleted
+                if newRemaining <= 0 {
+                    resourcesDepleted.append(resourcePoint.resourceType.displayName)
+                    
+                    // Clear villager task
+                    let rateContribution = gatherRatePerSecond
+                    player.decreaseCollectionRate(resourceType, amount: rateContribution)
+                    villagerGroup.clearTask()
+                    entity.isMoving = false
+                    
+                    // Remove resource visually
+                    resourcePoint.removeFromParent()
+                    hexMap.resourcePoints.removeAll { $0.coordinate == resourcePoint.coordinate }
+                    
+                    print("   ⚠️ Resource depleted! \(villagerGroup.name) is now idle")
+                }
+            }
+        }
+        
+        // Step 2: Apply resource accumulation from collection rates
+        print("   💰 Resource accumulation:")
+        for type in ResourceType.allCases {
+            let rate = player.getCollectionRate(type)
+            let accumulated = Int(rate * cappedElapsed)
+            
+            if accumulated > 0 {
+                player.addResource(type, amount: accumulated)
+                print("      \(type.displayName): +\(accumulated)")
+            }
+        }
+        
+        // Step 3: Clear the saved exit time
+        BackgroundTimeManager.shared.clearExitTime()
+        
+        // Step 4: Update displays
         updateResourceDisplay()
+        
+        // Step 5: Show summary to user
+        var summaryParts: [String] = []
+        summaryParts.append("Time away: \(formatDuration(cappedElapsed))")
+        
+        for (type, amount) in resourcesGathered where amount > 0 {
+            summaryParts.append("\(type.icon) +\(amount) \(type.displayName)")
+        }
+        
+        if !resourcesDepleted.isEmpty {
+            summaryParts.append("⚠️ Depleted: \(resourcesDepleted.joined(separator: ", "))")
+        }
+        
+        let summary = summaryParts.joined(separator: "\n")
+        showSimpleAlert(title: "Welcome Back!", message: summary)
+        
+        print("✅ Background time processed")
     }
-    
+
+    // Helper to format duration nicely
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let hours = Int(seconds) / 3600
+        let minutes = (Int(seconds) % 3600) / 60
+        let secs = Int(seconds) % 60
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "\(minutes)m \(secs)s"
+        } else {
+            return "\(secs)s"
+        }
+    }
     
     func showDeployVillagersMenu(from building: BuildingNode) {
         let villagerCount = building.villagerGarrison
@@ -1467,5 +1484,13 @@ extension GameViewController: GameSceneDelegate {
     
     func gameSceneDidUpdateResources(_ scene: GameScene) {
         updateResourceDisplay()
-                                          }
+    }
+    
+    func showSplitVillagerMenu(villagerGroup: VillagerGroup, entityNode: EntityNode) {
+        showSplitVillagerGroupMenu(villagerGroup: villagerGroup, entity: entityNode)
+    }
+    
+    func showMergeMenu(group1: EntityNode, group2: EntityNode) {
+        showMergeOption(for: group1, and: group2)
+    }
 }

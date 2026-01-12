@@ -115,6 +115,9 @@ struct BuildingSaveData: Codable {
     let constructionProgress: Double
     let constructionStartTime: TimeInterval?
     let buildersAssigned: Int
+    let level: Int
+    let upgradeProgress: Double
+    let upgradeStartTime: TimeInterval?
     
     // Garrison data
     let garrison: [String: Int]  // MilitaryUnitType: count
@@ -226,11 +229,28 @@ class GameSaveManager {
             }
             
             let hexMap = reconstructHexMap(from: saveData.mapData, player: player)
+
+            // ✅ DEBUG: Verify explored tiles were loaded
+            print("\n🔍 FOG DEBUG after reconstructHexMap:")
+            print("   exploredTiles in save data: \(saveData.mapData.exploredTiles.count)")
+            if let fogOfWar = player.fogOfWar {
+                fogOfWar.printFogStats()
+                
+                // Check first few explored tiles
+                for (index, tile) in saveData.mapData.exploredTiles.prefix(5).enumerated() {
+                    let coord = HexCoordinate(q: tile.q, r: tile.r)
+                    let actualLevel = fogOfWar.getVisibilityLevel(at: coord)
+                    print("   Sample tile \(index): (\(tile.q), \(tile.r)) -> \(actualLevel)")
+                }
+            }
             
-            // Restore player references
             for playerData in saveData.allPlayersData {
                 if let restoredPlayer = allPlayers.first(where: { $0.id.uuidString == playerData.id }) {
-                    restoredPlayer.initializeFogOfWar(hexMap: hexMap)
+                    // ✅ FIX: Only initialize fog for players OTHER than the main player
+                    // Main player's fog was already initialized and restored in reconstructHexMap
+                    if restoredPlayer.id != player.id {
+                        restoredPlayer.initializeFogOfWar(hexMap: hexMap)
+                    }
                 }
             }
             
@@ -244,13 +264,14 @@ class GameSaveManager {
                 }
             }
             
-            // Restore resource points to map
             for resourceData in saveData.mapData.resourcePoints {
                 if let resource = reconstructResourcePoint(from: resourceData) {
                     hexMap.resourcePoints.append(resource)
                 }
             }
-            
+
+            applyOfflineProgress(hexMap: hexMap, player: player, saveDate: saveData.saveDate)
+
             print("✅ Game loaded successfully")
             print("   Map: \(hexMap.width)x\(hexMap.height)")
             print("   Player: \(player.name)")
@@ -360,6 +381,12 @@ class GameSaveManager {
             rates[type.rawValue] = player.getCollectionRate(type)
         }
         
+        // ✅ DEBUG: Print what we're saving
+        print("💾 Saving player \(player.name):")
+        for type in ResourceType.allCases {
+            print("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
+        }
+        
         let entities = player.entities.compactMap { entity -> EntitySaveData? in
             if let villagers = entity as? VillagerGroup {
                 return createVillagerSaveData(from: villagers)
@@ -405,20 +432,39 @@ class GameSaveManager {
         switch villagers.currentTask {
         case .idle:
             taskString = "idle"
-        case .building:
+        case .building(let building):
             taskString = "building"
+            taskQ = building.coordinate.q
+            taskR = building.coordinate.r
         case .gathering(let resourceType):
             taskString = "gathering_\(resourceType.rawValue)"
-        case .gatheringResource:
+        case .gatheringResource(let resourcePoint):
+            // ✅ Save the resource coordinate
             taskString = "gatheringResource"
-        case .repairing:
+            taskQ = resourcePoint.coordinate.q
+            taskR = resourcePoint.coordinate.r
+            print("💾 Saving villager \(villagers.name) gathering at (\(taskQ!), \(taskR!))")
+        case .repairing(let building):
             taskString = "repairing"
+            taskQ = building.coordinate.q
+            taskR = building.coordinate.r
         case .moving(let coord):
             taskString = "moving"
             taskQ = coord.q
             taskR = coord.r
-        case .hunting(let resourcePointNode):
-            taskString = "Hunting"
+        case .hunting(let resourcePoint):
+            taskString = "hunting"
+            taskQ = resourcePoint.coordinate.q
+            taskR = resourcePoint.coordinate.r
+        case .upgrading:
+            taskString = "upgrading"
+        }
+        
+        // ✅ ALSO save taskTarget if it exists (belt and suspenders)
+        if taskQ == nil, let target = villagers.taskTarget {
+            taskQ = target.q
+            taskR = target.r
+            print("💾 Saving villager \(villagers.name) taskTarget at (\(taskQ!), \(taskR!))")
         }
         
         return EntitySaveData(
@@ -529,6 +575,9 @@ class GameSaveManager {
             constructionProgress: building.constructionProgress,
             constructionStartTime: building.constructionStartTime,
             buildersAssigned: building.buildersAssigned,
+            level: building.level,
+            upgradeProgress: building.upgradeProgress,
+            upgradeStartTime: building.upgradeStartTime,
             garrison: garrison,
             villagerGarrison: building.villagerGarrison,
             trainingQueue: trainingQueue,
@@ -571,7 +620,6 @@ class GameSaveManager {
         return hexMap
     }
 
-    
     private func reconstructPlayer(from data: PlayerSaveData) -> Player {
         let color = UIColor(
             red: data.colorRed,
@@ -586,18 +634,24 @@ class GameSaveManager {
             color: color
         )
         
-        // Restore resources
+        // ✅ FIX: SET resources directly (don't ADD to defaults)
         for (resourceKey, amount) in data.resources {
             if let resourceType = ResourceType(rawValue: resourceKey) {
-                player.addResource(resourceType, amount: amount)
+                player.setResource(resourceType, amount: amount)
             }
         }
         
-        // Restore collection rates
+        // ✅ FIX: SET collection rates directly (don't ADD to defaults)
         for (resourceKey, rate) in data.collectionRates {
             if let resourceType = ResourceType(rawValue: resourceKey) {
-                player.increaseCollectionRate(resourceType, amount: rate - 1.0)
+                player.setCollectionRate(resourceType, rate: rate)
             }
+        }
+        
+        // ✅ DEBUG: Print restored values
+        print("📊 Restored player \(player.name):")
+        for type in ResourceType.allCases {
+            print("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
         }
         
         // Restore commanders
@@ -624,9 +678,9 @@ class GameSaveManager {
             }
         }
         
-        // Restore diplomacy
+        // Restore diplomacy (will be connected after all players loaded)
         for (playerIDString, statusString) in data.diplomacyRelations {
-            // Will be set up after all players are loaded
+            // Placeholder - diplomacy reconnection happens elsewhere if needed
         }
         
         return player
@@ -706,17 +760,52 @@ class GameSaveManager {
             owner: player
         )
         
-        // Restore task (simplified - won't restore building/resource references)
+        // Restore task
         if let taskString = data.currentTask {
-            if taskString == "idle" {
+            switch taskString {
+            case "idle":
                 villagers.currentTask = .idle
-            } else if taskString.starts(with: "gathering_") {
-                let resourceName = String(taskString.dropFirst("gathering_".count))
-                if let resourceType = ResourceType(rawValue: resourceName) {
-                    villagers.currentTask = .gathering(resourceType)
+                
+            case "moving":
+                if let q = data.taskTargetQ, let r = data.taskTargetR {
+                    villagers.currentTask = .moving(HexCoordinate(q: q, r: r))
                 }
-            } else if taskString == "moving", let q = data.taskTargetQ, let r = data.taskTargetR {
-                villagers.currentTask = .moving(HexCoordinate(q: q, r: r))
+                
+            case "gatheringResource":
+                // ✅ Store target coordinate for offline processing
+                if let q = data.taskTargetQ, let r = data.taskTargetR {
+                    villagers.taskTarget = HexCoordinate(q: q, r: r)
+                    villagers.currentTask = .idle  // Will be reconnected later
+                    print("📂 Restored villager \(villagers.name) with taskTarget at (\(q), \(r))")
+                } else {
+                    print("⚠️ gatheringResource task but no coordinates for \(villagers.name)")
+                }
+                
+            case "hunting":
+                if let q = data.taskTargetQ, let r = data.taskTargetR {
+                    villagers.taskTarget = HexCoordinate(q: q, r: r)
+                    villagers.currentTask = .idle
+                    print("📂 Restored villager \(villagers.name) hunting target at (\(q), \(r))")
+                }
+                
+            case "building", "repairing":
+                if let q = data.taskTargetQ, let r = data.taskTargetR {
+                    villagers.taskTarget = HexCoordinate(q: q, r: r)
+                }
+                villagers.currentTask = .idle
+                
+            case "upgrading":
+                villagers.currentTask = .idle  // Can't restore building reference, set to idle
+                
+            default:
+                if taskString.starts(with: "gathering_") {
+                    let resourceName = String(taskString.dropFirst("gathering_".count))
+                    if let resourceType = ResourceType(rawValue: resourceName) {
+                        villagers.currentTask = .gathering(resourceType)
+                    }
+                } else {
+                    villagers.currentTask = .idle
+                }
             }
         }
         
@@ -737,6 +826,9 @@ class GameSaveManager {
         building.constructionProgress = data.constructionProgress
         building.constructionStartTime = data.constructionStartTime
         building.buildersAssigned = data.buildersAssigned
+        building.level = data.level
+        building.upgradeProgress = data.upgradeProgress
+        building.upgradeStartTime = data.upgradeStartTime
         
         // Restore garrison
         for (unitKey, count) in data.garrison {
@@ -774,15 +866,24 @@ class GameSaveManager {
     
     private func reconstructResourcePoint(from data: ResourcePointSaveData) -> ResourcePointNode? {
         guard let resourceType = ResourcePointType(rawValue: data.resourceType) else {
+            print("❌ Unknown resource type: \(data.resourceType)")
+            return nil
+        }
+        
+        // ✅ FIX: Skip depleted resources
+        if data.remainingAmount <= 0 {
+            print("⏭️ Skipping depleted resource at (\(data.q), \(data.r))")
             return nil
         }
         
         let coord = HexCoordinate(q: data.q, r: data.r)
         let resource = ResourcePointNode(coordinate: coord, resourceType: resourceType)
         
-        // Manually set remaining amount and health
-        // (Need to make these settable in ResourcePointNode)
-        // For now, they will reset to initial values
+        // ✅ FIX: Actually restore the saved values!
+        resource.setRemainingAmount(data.remainingAmount)
+        resource.setCurrentHealth(data.currentHealth)
+        
+        print("📦 Restored \(resourceType.displayName) at (\(coord.q), \(coord.r)) with \(data.remainingAmount) remaining")
         
         return resource
     }
@@ -819,6 +920,7 @@ class GameSaveManager {
         case .completed: return "completed"
         case .damaged: return "damaged"
         case .destroyed: return "destroyed"
+        case .upgrading: return "upgrading"
         }
     }
     
@@ -829,7 +931,132 @@ class GameSaveManager {
         case "completed": return .completed
         case "damaged": return .damaged
         case "destroyed": return .destroyed
+        case "upgrading": return .upgrading
         default: return .planning
+        }
+    }
+    
+    private func applyOfflineProgress(hexMap: HexMap, player: Player, saveDate: Date) {
+        let elapsedSeconds = Date().timeIntervalSince(saveDate)
+        
+        // Cap offline time (e.g., max 8 hours)
+        let maxOfflineSeconds: TimeInterval = 8 * 60 * 60
+        let cappedElapsed = min(elapsedSeconds, maxOfflineSeconds)
+        
+        guard cappedElapsed > 1 else {
+            print("⏰ Less than 1 second elapsed, skipping offline progress")
+            return
+        }
+        
+        print("⏰ Applying offline progress for \(Int(cappedElapsed)) seconds...")
+        print("   📊 Player entities count: \(player.entities.count)")
+        print("   📊 HexMap resource points count: \(hexMap.resourcePoints.count)")
+        
+        // Track which resources need rate adjustments due to depletion
+        var rateReductions: [ResourceType: Double] = [:]
+        var depletedResources: [ResourcePointNode] = []
+        var villagersFoundGathering = 0
+        
+        // Step 1: Handle resource depletion from active villagers
+        for entity in player.entities {
+            guard let villagerGroup = entity as? VillagerGroup else {
+                continue
+            }
+            
+            // Debug: Print villager info
+            print("   🔍 Checking villager: \(villagerGroup.name)")
+            print("      currentTask: \(villagerGroup.currentTask.displayName)")
+            
+            guard let targetCoord = villagerGroup.taskTarget else {
+                print("      ❌ No taskTarget, skipping")
+                continue
+            }
+            
+            // Find the resource they were gathering
+            guard let resourcePoint = hexMap.resourcePoints.first(where: {
+                $0.coordinate == targetCoord
+            }) else {
+                print("      ❌ No resource found at (\(targetCoord.q), \(targetCoord.r))")
+                // List all resource coordinates for debugging
+                print("      Available resources:")
+                for rp in hexMap.resourcePoints.prefix(5) {
+                    print("         - (\(rp.coordinate.q), \(rp.coordinate.r)): \(rp.resourceType.displayName)")
+                }
+                continue
+            }
+            
+            villagersFoundGathering += 1
+            print("      ✅ Found resource: \(resourcePoint.resourceType.displayName) at (\(targetCoord.q), \(targetCoord.r))")
+            print("      📦 Resource before: \(resourcePoint.remainingAmount)")
+            
+            // Calculate how much they would gather
+            let gatherRatePerSecond = 0.2 * Double(villagerGroup.villagerCount)
+            let wouldGather = Int(gatherRatePerSecond * cappedElapsed)
+            
+            // Cap by what's actually available
+            let actualGathered = min(wouldGather, resourcePoint.remainingAmount)
+            let newRemaining = resourcePoint.remainingAmount - actualGathered
+            
+            print("      ⛏️ \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers)")
+            print("         Rate: \(gatherRatePerSecond)/s × \(Int(cappedElapsed))s = \(wouldGather) potential")
+            print("         Actually depleted: \(actualGathered)")
+            print("         Resource: \(resourcePoint.remainingAmount) → \(newRemaining)")
+            
+            // Update resource remaining amount
+            resourcePoint.setRemainingAmount(newRemaining)
+            
+            // Verify it was set
+            print("      📦 Resource after setRemainingAmount: \(resourcePoint.remainingAmount)")
+            
+            // Check if resource is now depleted
+            if newRemaining <= 0 {
+                depletedResources.append(resourcePoint)
+                
+                // Track rate reduction needed
+                let resourceType = resourcePoint.resourceType.resourceYield
+                let rateContribution = gatherRatePerSecond
+                rateReductions[resourceType, default: 0] += rateContribution
+                
+                // Clear villager task
+                villagerGroup.clearTask()
+                
+                print("      ⚠️ Resource DEPLETED! \(villagerGroup.name) is now idle")
+            }
+        }
+        
+        print("   📊 Found \(villagersFoundGathering) villager(s) that were gathering")
+        
+        // Step 2: Apply rate reductions for depleted resources BEFORE calculating accumulation
+        for (resourceType, reduction) in rateReductions {
+            player.decreaseCollectionRate(resourceType, amount: reduction)
+            print("   📉 \(resourceType.displayName) rate reduced by \(reduction)/s due to depletion")
+        }
+        
+        // Step 3: Calculate resource accumulation using (potentially adjusted) rates
+        print("   💰 Resource accumulation:")
+        for type in ResourceType.allCases {
+            let rate = player.getCollectionRate(type)
+            let accumulated = Int(rate * cappedElapsed)
+            
+            if accumulated > 0 {
+                player.addResource(type, amount: accumulated)
+                print("      \(type.displayName): +\(accumulated) (rate \(rate)/s × \(Int(cappedElapsed))s)")
+            }
+        }
+        
+        // Step 4: Remove depleted resources from map
+        for resource in depletedResources {
+            hexMap.resourcePoints.removeAll { $0.coordinate == resource.coordinate }
+        }
+        
+        if !depletedResources.isEmpty {
+            print("   🗑️ Removed \(depletedResources.count) depleted resource(s)")
+        }
+        
+        // Final summary
+        print("📊 Final resources after offline progress:")
+        for type in ResourceType.allCases {
+            print("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
         }
     }
 }

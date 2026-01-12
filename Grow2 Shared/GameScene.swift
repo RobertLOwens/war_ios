@@ -29,6 +29,9 @@ class GameScene: SKScene {
     var lastUpdateTime: TimeInterval?
     var skipInitialSetup: Bool = false
     var isLoading: Bool = false
+    private var gatherAccumulators: [HexCoordinate: Double] = [:]
+    private var lastGatherUpdateTime: TimeInterval?
+
     
     override func didMove(to view: SKView) {
         setupScene()
@@ -535,8 +538,21 @@ class GameScene: SKScene {
             building.updateVillagerTraining(currentTime: realWorldTime)
         }
         
-        // ✅ FIX 2: Resource gathering update - properly diminish resources
         if let player = player {
+            // Calculate time delta for accurate timing
+            let gatherDeltaTime: TimeInterval
+            if let lastGather = lastGatherUpdateTime {
+                gatherDeltaTime = realWorldTime - lastGather
+            } else {
+                gatherDeltaTime = 0
+            }
+            lastGatherUpdateTime = realWorldTime
+            
+            // Skip if delta is too large (app was backgrounded) or zero
+            guard gatherDeltaTime > 0 && gatherDeltaTime < 1.0 else {
+                return
+            }
+            
             // Process all resource points that are being gathered
             for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered {
                 // Check if depleted
@@ -557,30 +573,48 @@ class GameScene: SKScene {
                         }
                     }
                     resourcePoint.stopGathering()
+                    
+                    // Clean up accumulator
+                    gatherAccumulators.removeValue(forKey: resourcePoint.coordinate)
+                    
                     print("✅ Resource depleted, all villagers now idle")
                     continue
                 }
                 
-                // Calculate total gather amount from all villagers ON the tile
-                var totalGatherAmount = 0.0
+                // Calculate gather rate from all villagers ON the tile
+                var gatherRatePerSecond = 0.0
                 for villagerGroup in resourcePoint.assignedVillagerGroups {
                     // Only gather if villagers have arrived at the resource
                     if villagerGroup.coordinate == resourcePoint.coordinate {
-                        // Each villager gathers 0.2 per second, update runs ~2x per second
-                        let villagerContribution = 0.2 * Double(villagerGroup.villagerCount) * 0.5
-                        totalGatherAmount += villagerContribution
+                        // Each villager gathers 0.2 per second (matches collection rate)
+                        gatherRatePerSecond += 0.2 * Double(villagerGroup.villagerCount)
                     }
                 }
                 
-                // Apply gathering
-                if totalGatherAmount > 0 {
-                    let gatherInt = max(1, Int(totalGatherAmount))
-                    let gathered = resourcePoint.gather(amount: gatherInt)
+                // Apply time-based gathering using accumulator
+                if gatherRatePerSecond > 0 {
+                    // Add fractional amount based on actual time elapsed
+                    let gatherThisFrame = gatherRatePerSecond * gatherDeltaTime
+                    let currentAccumulator = gatherAccumulators[resourcePoint.coordinate] ?? 0
+                    let newAccumulator = currentAccumulator + gatherThisFrame
                     
-                    // Resources are added via collection rate, but we need to diminish the resource
-                    // The collection rate already handles adding to player, so just log it
-                    if gathered > 0 {
-                        print("⛏️ Gathered \(gathered) \(resourcePoint.resourceType.resourceYield.displayName) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
+                    // Only deplete whole numbers
+                    let wholeAmount = Int(newAccumulator)
+                    if wholeAmount > 0 {
+                        let gathered = resourcePoint.gather(amount: wholeAmount)
+                        
+                        // Keep the fractional remainder
+                        gatherAccumulators[resourcePoint.coordinate] = newAccumulator - Double(wholeAmount)
+                        
+                        if gathered > 0 {
+                            // Only log occasionally to reduce spam
+                            if Int.random(in: 0...60) == 0 {
+                                print("⛏️ Depleted \(gathered) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
+                            }
+                        }
+                    } else {
+                        // Store fractional amount for next frame
+                        gatherAccumulators[resourcePoint.coordinate] = newAccumulator
                     }
                 }
             }
@@ -722,9 +756,19 @@ class GameScene: SKScene {
         print("🔍 initiateMove called")
         print("   Destination: (\(destination.q), \(destination.r))")
         
-        // ✅ Get all player-owned, non-moving entities
-        let availableEntities = hexMap.entities.filter {
-            !$0.isMoving && $0.entity.owner?.id == player?.id
+        let availableEntities = hexMap.entities.filter { entity in
+            // Must not be currently moving
+            guard !entity.isMoving else { return false }
+            
+            // Must be owned by player
+            guard entity.entity.owner?.id == player?.id else { return false }
+            
+            // If it's a villager group, must be idle
+            if let villagers = entity.entity as? VillagerGroup {
+                return villagers.currentTask == .idle
+            }
+            
+            return true
         }
         print("   Available player entities: \(availableEntities.count)")
         
@@ -936,6 +980,8 @@ class GameScene: SKScene {
             message += "Health: \(building.health)/\(building.maxHealth)\n"
         case .destroyed:
             message += "Status: Destroyed ❌\n"
+        case .upgrading:
+            message += "Upgrading \n"
         }
         
         message += "\n\(building.buildingType.description)"
@@ -947,6 +993,10 @@ class GameScene: SKScene {
         for building in hexMap.buildings {
             if building.state == .constructing {
                 building.updateTimerLabel()
+            }
+            // ✅ FIX: Explicitly call upgrade timer update for upgrading buildings
+            if building.state == .upgrading {
+                building.updateUpgradeTimerLabel()
             }
         }
     }
@@ -1392,5 +1442,104 @@ class GameScene: SKScene {
         
         print("✅ Merged villagers: Group 1 now has \(villagers1.villagerCount), Group 2 now has \(villagers2.villagerCount)")
     }
+    
+    func villagerArrivedForHunt(villagerGroup: VillagerGroup, target: ResourcePointNode, entityNode: EntityNode) {
+        print("🏹 GameScene: Villagers arrived for hunt at (\(target.coordinate.q), \(target.coordinate.r))")
+        
+        // Verify target still exists and is valid
+        guard target.parent != nil,
+              target.resourceType.isHuntable,
+              target.currentHealth > 0 else {
+            print("⚠️ Hunt target no longer valid")
+            villagerGroup.clearTask()
+            entityNode.isMoving = false
+            return
+        }
+        
+        // Notify delegate to execute the hunt
+        gameDelegate?.gameScene(self, villagerArrivedForHunt: villagerGroup, target: target, entityNode: entityNode)
+    }
+    
+    func startBuildingUpgrade(building: BuildingNode, villagerEntity: EntityNode) {
+            guard let owner = building.owner else {
+                print("❌ Building has no owner")
+                return
+            }
+            
+            guard building.canUpgrade else {
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Upgrade",
+                                        message: "This building is already at max level or not ready for upgrade.")
+                return
+            }
+            
+            guard let upgradeCost = building.getUpgradeCost() else {
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Upgrade",
+                                        message: "No upgrade available for this building.")
+                return
+            }
+            
+            // Check resources
+            var missingResources: [String] = []
+            for (resourceType, amount) in upgradeCost {
+                if !owner.hasResource(resourceType, amount: amount) {
+                    let current = owner.getResource(resourceType)
+                    missingResources.append("\(resourceType.icon) \(resourceType.displayName): need \(amount), have \(current)")
+                }
+            }
+            
+            if !missingResources.isEmpty {
+                let message = "Insufficient resources:\n" + missingResources.joined(separator: "\n")
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Afford", message: message)
+                return
+            }
+            
+            // Deduct resources
+            for (resourceType, amount) in upgradeCost {
+                owner.removeResource(resourceType, amount: amount)
+            }
+            
+            // Store reference to upgrader entity
+            building.upgraderEntity = villagerEntity
+            
+            // Start upgrade
+            building.startUpgrade()
+            
+            // Mark villager as busy
+            villagerEntity.isMoving = true
+            
+            // Assign task to villager group
+            if let villagerGroup = villagerEntity.entity as? VillagerGroup {
+                villagerGroup.assignTask(.upgrading(building), target: building.coordinate)
+                print("✅ Assigned upgrade task to \(villagerGroup.name)")
+            }
+            
+            print("⬆️ Started upgrade of \(building.buildingType.displayName) to level \(building.level + 1)")
+            
+            gameDelegate?.gameSceneDidUpdateResources(self)
+        }
+    
+    func cancelBuildingUpgrade(building: BuildingNode) {
+         guard let owner = building.owner else {
+             print("❌ Building has no owner")
+             return
+         }
+         
+         guard building.state == .upgrading else {
+             gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Cancel",
+                                     message: "This building is not currently upgrading.")
+             return
+         }
+         
+         // Cancel and get refund
+         if let refund = building.cancelUpgrade() {
+             // Return resources
+             for (resourceType, amount) in refund {
+                 owner.addResource(resourceType, amount: amount)
+             }
+             
+             print("💰 Refunded resources for cancelled upgrade")
+             gameDelegate?.gameSceneDidUpdateResources(self)
+         }
+     }
     
 }

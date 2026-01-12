@@ -1,9 +1,7 @@
-//
-//  AppDelegate.swift
-//  Grow2 iOS
-//
-//  Created by Robert Owens on 11/14/25.
-//
+// ============================================================================
+// FILE: AppDelegate.swift
+// LOCATION: Replace the entire file or update the methods
+// ============================================================================
 
 import UIKit
 
@@ -11,7 +9,6 @@ import UIKit
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
-
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         
@@ -26,15 +23,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
-        // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-        // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
+        // Sent when the application is about to move from active to inactive state.
+        // Save game when user switches away
+        saveCurrentGame()
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
         // Save exit time for background calculations
         BackgroundTimeManager.shared.saveExitTime()
         
-        print("📱 App entered background")
+        // Also save the game
+        saveCurrentGame()
+        
+        print("📱 App entered background - game saved")
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
@@ -45,12 +46,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Save exit time
         BackgroundTimeManager.shared.saveExitTime()
         
-        print("📱 App terminating")
+        // Final save before termination
+        saveCurrentGame()
+        
+        print("📱 App terminating - game saved")
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        // Restart any tasks that were paused
     }
-
+    
+    // MARK: - Helper to save game from AppDelegate
+    
+    private func saveCurrentGame() {
+        // Post notification that GameViewController can listen to
+        NotificationCenter.default.post(name: .appWillSaveGame, object: nil)
+    }
 }
 
+// MARK: - Notification Name Extension
+
+extension Notification.Name {
+    static let appWillSaveGame = Notification.Name("appWillSaveGame")
+}

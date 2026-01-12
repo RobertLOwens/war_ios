@@ -27,98 +27,98 @@ enum ResourcePointType: String, CaseIterable {
     // MARK: - UPDATE: icon computed property
     // LOCATION: Inside ResourcePointType enum, add cases to icon
 
-        var icon: String {
-            switch self {
-            case .trees: return "🌲"
-            case .forage: return "🍄"
-            case .oreMine: return "⛏️"
-            case .stoneQuarry: return "🪨"
-            case .deer: return "🦌"
-            case .wildBoar: return "🐗"
-            case .deerCarcass: return "🥩"
-            case .boarCarcass: return "🥩"
-            }
+    var icon: String {
+        switch self {
+        case .trees: return "🌲"
+        case .forage: return "🍄"
+        case .oreMine: return "⛏️"
+        case .stoneQuarry: return "🪨"
+        case .deer: return "🦌"
+        case .wildBoar: return "🐗"
+        case .deerCarcass: return "🥩"
+        case .boarCarcass: return "🥩"
         }
+    }
 
     // MARK: - UPDATE: resourceYield computed property
     // LOCATION: Inside ResourcePointType enum, add cases
 
-        var resourceYield: ResourceType {
-            switch self {
-            case .trees: return .wood
-            case .forage: return .food
-            case .oreMine: return .ore
-            case .stoneQuarry: return .stone
-            case .deer, .wildBoar, .deerCarcass, .boarCarcass: return .food
-            }
+    var resourceYield: ResourceType {
+        switch self {
+        case .trees: return .wood
+        case .forage: return .food
+        case .oreMine: return .ore
+        case .stoneQuarry: return .stone
+        case .deer, .wildBoar, .deerCarcass, .boarCarcass: return .food
         }
+    }
 
     // MARK: - UPDATE: initialAmount computed property
     // LOCATION: Inside ResourcePointType enum, add cases
 
-        var initialAmount: Int {
-            switch self {
-            case .trees: return 500
-            case .forage: return 300
-            case .oreMine: return 800
-            case .stoneQuarry: return 600
-            case .deer: return 200
-            case .wildBoar: return 150
-            case .deerCarcass: return 200  // Same as deer
-            case .boarCarcass: return 150  // Same as boar
-            }
+    var initialAmount: Int {
+        switch self {
+        case .trees: return 5000
+        case .forage: return 3000
+        case .oreMine: return 8000
+        case .stoneQuarry: return 6000
+        case .deer: return 2000
+        case .wildBoar: return 1500
+        case .deerCarcass: return 2000  // Same as deer
+        case .boarCarcass: return 1500 // Same as boar
         }
+    }
 
     // MARK: - UPDATE: gatherRate computed property (BASE rate - will be modified by villager count)
     // LOCATION: Inside ResourcePointType enum
 
-        var baseGatherRate: Double {
-            switch self {
-            case .trees: return 0.5          // Base rate, multiplied by villagers
-            case .forage: return 0.5
-            case .oreMine: return 0.5
-            case .stoneQuarry: return 0.5
-            case .deer: return 0.0           // Can't gather live animals
-            case .wildBoar: return 0.0
-            case .deerCarcass: return 0.5    // Gather rate for carcasses
-            case .boarCarcass: return 0.5
-            }
+    var baseGatherRate: Double {
+        switch self {
+        case .trees: return 0.5          // Base rate, multiplied by villagers
+        case .forage: return 0.5
+        case .oreMine: return 0.5
+        case .stoneQuarry: return 0.5
+        case .deer: return 0.0           // Can't gather live animals
+        case .wildBoar: return 0.0
+        case .deerCarcass: return 0.5    // Gather rate for carcasses
+        case .boarCarcass: return 0.5
         }
+    }
 
     // MARK: - ADD: New property to check if resource requires a camp
     // LOCATION: Inside ResourcePointType enum, after isHuntable
 
-        var requiresCamp: Bool {
-            switch self {
-            case .trees, .oreMine, .stoneQuarry: return true
-            case .forage, .deer, .wildBoar, .deerCarcass, .boarCarcass: return false
-            }
+    var requiresCamp: Bool {
+        switch self {
+        case .trees, .oreMine, .stoneQuarry: return true
+        case .forage, .deer, .wildBoar, .deerCarcass, .boarCarcass: return false
         }
+    }
         
-        var isCarcass: Bool {
-            switch self {
-            case .deerCarcass, .boarCarcass: return true
-            default: return false
-            }
+    var isCarcass: Bool {
+        switch self {
+        case .deerCarcass, .boarCarcass: return true
+        default: return false
         }
+    }
         
-        var isGatherable: Bool {
-            switch self {
-            case .deer, .wildBoar: return false  // Must hunt first
-            default: return true
-            }
+    var isGatherable: Bool {
+        switch self {
+        case .deer, .wildBoar: return false  // Must hunt first
+        default: return true
         }
+    }
 
     // MARK: - ADD: Required camp type for this resource
     // LOCATION: Inside ResourcePointType enum
 
-        var requiredCampType: BuildingType? {
-            switch self {
-            case .trees: return .lumberCamp
-            case .oreMine, .stoneQuarry: return .miningCamp
-            default: return nil
-            }
+    var requiredCampType: BuildingType? {
+        switch self {
+        case .trees: return .lumberCamp
+        case .oreMine, .stoneQuarry: return .miningCamp
+        default: return nil
         }
+    }
     
     var requiredTerrain: TerrainType? {
         switch self {

@@ -43,6 +43,14 @@ enum BuildingType: String, CaseIterable {
         return rawValue
     }
     
+    var populationCapacity: Int {
+        switch self {
+        case .cityCenter: return 10
+        case .neighborhood: return 5
+        default: return 0
+        }
+    }
+    
     var category: BuildingCategory {
         switch self {
         case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university:
@@ -169,6 +177,38 @@ enum BuildingType: String, CaseIterable {
         default: return nil
         }
     }
+    
+    var maxLevel: Int {
+        switch self {
+        case .cityCenter: return 10
+        default: return 5
+        }
+    }
+        
+    /// Returns the upgrade cost for a given level (upgrading FROM this level)
+    func upgradeCost(forLevel level: Int) -> [ResourceType: Int]? {
+        guard level < maxLevel else { return nil }
+        
+        // Base costs scale with level
+        let multiplier = Double(level + 1)
+        
+        // Get base build cost and scale it
+        var cost: [ResourceType: Int] = [:]
+        for (resourceType, baseAmount) in buildCost {
+            cost[resourceType] = Int(Double(baseAmount) * multiplier * 0.75)
+        }
+        
+        return cost
+    }
+        
+    /// Returns the upgrade time for a given level (upgrading FROM this level)
+    func upgradeTime(forLevel level: Int) -> TimeInterval? {
+        guard level < maxLevel else { return nil }
+        
+        // Upgrade time scales with level
+        let multiplier = Double(level + 1)
+        return buildTime * multiplier * 0.8
+    }
 }
 
 // MARK: - Building State
@@ -177,6 +217,7 @@ enum BuildingState {
     case planning      // Placement phase, not yet built
     case constructing  // Being built
     case completed     // Fully built and operational
+    case upgrading     // Being upgraded to next level
     case damaged       // Has taken damage
     case destroyed     // Destroyed
 }
@@ -262,6 +303,38 @@ class BuildingNode: SKSpriteNode {
     private static var trainingQueueKey: UInt8 = 1
     private static var villagerGarrisonKey: UInt8 = 2
     private static var villagerTrainingQueueKey: UInt8 = 3
+    
+    //Building Levels
+    var level: Int = 1
+    var maxLevel: Int {
+        return buildingType.maxLevel
+    }
+    
+    var canUpgrade: Bool {
+        return state == .completed && level < maxLevel
+    }
+    
+    // MARK: - Upgrade Properties
+    
+    var upgradeProgress: Double = 0.0 {
+        didSet {
+            if state == .upgrading && abs(oldValue - upgradeProgress) > 0.01 {
+                updateAppearance()
+            }
+        }
+    }
+    
+    var upgradeStartTime: TimeInterval?
+    weak var upgraderEntity: EntityNode?
+    
+    // UI Elements for upgrade
+    var levelLabel: SKLabelNode?
+    var upgradeProgressBar: SKShapeNode?
+    var upgradeTimerLabel: SKLabelNode?
+    
+    var isOperational: Bool {
+        return state == .completed || state == .upgrading
+    }
 
     init(coordinate: HexCoordinate, buildingType: BuildingType, owner: Player? = nil) {
         self.coordinate = coordinate
@@ -460,7 +533,7 @@ class BuildingNode: SKSpriteNode {
             switch state {
             case .planning:
                 bgColor = UIColor(white: 0.8, alpha: 0.5)
-            case .constructing:
+            case .constructing, .upgrading:
                 bgColor = UIColor(red: 0.9, green: 0.7, blue: 0.4, alpha: 1.0)
             case .completed:
                 switch type.category {
@@ -513,6 +586,17 @@ class BuildingNode: SKSpriteNode {
         buildingLabel?.zPosition = 1
         buildingLabel?.name = "buildingLabel"
         
+        // Level label (only shown when completed)
+        levelLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
+        levelLabel?.fontSize = 10
+        levelLabel?.fontColor = .yellow
+        levelLabel?.position = CGPoint(x: 18, y: 15)
+        levelLabel?.zPosition = 2
+        levelLabel?.name = "levelLabel"
+        levelLabel?.horizontalAlignmentMode = .right
+        updateLevelLabel()
+        addChild(levelLabel!)
+        
         // Add shadow effect to label
         let shadow = SKLabelNode(fontNamed: "Helvetica-Bold")
         shadow.fontSize = 9
@@ -540,7 +624,6 @@ class BuildingNode: SKSpriteNode {
     func updateAppearance() {
         self.texture = BuildingNode.createBuildingTexture(for: buildingType, state: state)
         
-        // Update alpha based on state
         switch state {
         case .planning:
             self.alpha = 0.6
@@ -548,6 +631,8 @@ class BuildingNode: SKSpriteNode {
             self.alpha = 0.5 + (constructionProgress * 0.5)
         case .completed:
             self.alpha = 1.0
+        case .upgrading:
+            self.alpha = 0.8  // Slightly dimmed during upgrade
         case .damaged:
             self.alpha = 0.8
         case .destroyed:
@@ -559,14 +644,23 @@ class BuildingNode: SKSpriteNode {
     
     func updateUIVisibility() {
         let showConstruction = state == .constructing
+        let showUpgrading = state == .upgrading
         let showCompleted = state == .completed
         
+        // Construction UI
         childNode(withName: "progressBarBg")?.isHidden = !showConstruction
         progressBar?.isHidden = !showConstruction
         timerLabel?.isHidden = !showConstruction
         
-        // ✅ FIX: Only show building label during construction or when completed
-        buildingLabel?.isHidden = !(showCompleted || showConstruction)
+        // Upgrade UI
+        upgradeProgressBar?.isHidden = !showUpgrading
+        upgradeTimerLabel?.isHidden = !showUpgrading
+        
+        // Building label - show during construction, upgrading, or completed
+        buildingLabel?.isHidden = !(showCompleted || showConstruction || showUpgrading)
+        
+        // Level label - show when completed or upgrading
+        updateLevelLabel()
     }
     
     func updateTimerLabel() {
@@ -810,5 +904,215 @@ class BuildingNode: SKSpriteNode {
         
         return summary
     }
+    
+    func getUpgradeCost() -> [ResourceType: Int]? {
+        return buildingType.upgradeCost(forLevel: level)
+    }
+    
+    func getUpgradeTime() -> TimeInterval? {
+        return buildingType.upgradeTime(forLevel: level)
+    }
+    
+    func startUpgrade() {
+         guard canUpgrade else {
+             print("❌ Cannot upgrade: canUpgrade = false")
+             return
+         }
+         
+         guard state == .completed else {
+             print("❌ Cannot upgrade: state is \(state), not .completed")
+             return
+         }
+         
+         let previousState = state
+         state = .upgrading
+         upgradeStartTime = Date().timeIntervalSince1970
+         upgradeProgress = 0.0
+         
+         print("⬆️ Started upgrading \(buildingType.displayName)")
+         print("   From Level \(level) to Level \(level + 1)")
+         print("   Start time: \(upgradeStartTime!)")
+         print("   Upgrade time: \(getUpgradeTime() ?? 0)s")
+         print("   Previous state: \(previousState)")
+         
+         // Force an immediate UI update
+         updateAppearance()
+         updateLevelLabel()
+     }
+    
+    func updateUpgrade() {
+        guard state == .upgrading,
+              let startTime = upgradeStartTime,
+              let upgradeTime = getUpgradeTime() else { return }
+        
+        let currentTime = Date().timeIntervalSince1970
+        let elapsed = currentTime - startTime
+        
+        upgradeProgress = min(1.0, elapsed / upgradeTime)
+        
+        if upgradeProgress >= 1.0 {
+            completeUpgrade()
+        }
+    }
+    
+    func completeUpgrade() {
+         guard state == .upgrading else {
+             print("⚠️ completeUpgrade called but state is \(state), not .upgrading")
+             return
+         }
+         
+         let previousLevel = level
+         level += 1
+         state = .completed
+         upgradeProgress = 0.0
+         upgradeStartTime = nil
+         
+         print("🎉 UPGRADE COMPLETE: \(buildingType.displayName) Lv.\(previousLevel) → Lv.\(level)")
+         
+         // Remove upgrade UI elements
+         upgradeTimerLabel?.removeFromParent()
+         upgradeTimerLabel = nil
+         upgradeProgressBar?.removeFromParent()
+         upgradeProgressBar = nil
+         
+         // Unlock the upgrader entity
+         if let upgrader = upgraderEntity {
+             upgrader.isMoving = false
+             
+             if let villagerGroup = upgrader.entity as? VillagerGroup {
+                 villagerGroup.clearTask()
+                 print("✅ Villagers unlocked after upgrade completion")
+             }
+         }
+         upgraderEntity = nil
+         
+         // Update visuals
+         updateAppearance()
+         updateLevelLabel()
+         
+         // Post notification for any listeners
+         NotificationCenter.default.post(name: .buildingDidComplete, object: self)
+     }
+    
+    func updateUpgradeTimerLabel() {
+        // ✅ FIX: Early exit if not upgrading
+        guard state == .upgrading else {
+            // Remove upgrade UI if not upgrading
+            upgradeTimerLabel?.removeFromParent()
+            upgradeTimerLabel = nil
+            upgradeProgressBar?.removeFromParent()
+            upgradeProgressBar = nil
+            return
+        }
+        
+        guard let startTime = upgradeStartTime else {
+            print("⚠️ Upgrading but no start time set!")
+            return
+        }
+        
+        guard let totalUpgradeTime = getUpgradeTime() else {
+            print("⚠️ Could not get upgrade time for level \(level)")
+            return
+        }
+        
+        let currentTime = Date().timeIntervalSince1970
+        let elapsed = currentTime - startTime
+        let remaining = max(0, totalUpgradeTime - elapsed)
+        
+        // ✅ FIX: Calculate and SET progress correctly
+        let newProgress = min(1.0, max(0.0, elapsed / totalUpgradeTime))
+        
+        // Debug logging
+        print("⬆️ Upgrade Update: \(buildingType.displayName)")
+        print("   Elapsed: \(String(format: "%.1f", elapsed))s / \(String(format: "%.1f", totalUpgradeTime))s")
+        print("   Progress: \(String(format: "%.1f", newProgress * 100))%")
+        print("   Remaining: \(String(format: "%.1f", remaining))s")
+        
+        // ✅ FIX: Check completion BEFORE updating progress to avoid race condition
+        if newProgress >= 1.0 || remaining <= 0 {
+            print("✅ Upgrade complete! Calling completeUpgrade()")
+            completeUpgrade()
+            return
+        }
+        
+        // Update stored progress
+        upgradeProgress = newProgress
+        
+        // Create/update timer label
+        if upgradeTimerLabel == nil {
+            upgradeTimerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+            upgradeTimerLabel?.fontSize = 11
+            upgradeTimerLabel?.fontColor = .cyan
+            upgradeTimerLabel?.position = CGPoint(x: 0, y: -30)
+            upgradeTimerLabel?.zPosition = 15
+            upgradeTimerLabel?.name = "upgradeTimerLabel"
+            addChild(upgradeTimerLabel!)
+        }
+        
+        let minutes = Int(remaining) / 60
+        let seconds = Int(remaining) % 60
+        upgradeTimerLabel?.text = "⬆️ \(minutes):\(String(format: "%02d", seconds))"
+        
+        // ✅ FIX: Recreate progress bar with correct width
+        upgradeProgressBar?.removeFromParent()
+        
+        let barWidth: CGFloat = 44
+        let barHeight: CGFloat = 6
+        let progressWidth = max(2.0, barWidth * CGFloat(newProgress))  // ✅ Use newProgress directly
+        
+        upgradeProgressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 3)
+        upgradeProgressBar?.fillColor = .cyan
+        upgradeProgressBar?.strokeColor = .white
+        upgradeProgressBar?.lineWidth = 1
+        upgradeProgressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -40)
+        upgradeProgressBar?.zPosition = 15
+        upgradeProgressBar?.name = "upgradeProgressBar"
+        addChild(upgradeProgressBar!)
+    }
+    
+    func updateLevelLabel() {
+        if state == .completed || state == .upgrading {
+            levelLabel?.text = "Lv.\(level)"
+            levelLabel?.isHidden = false
+        } else {
+            levelLabel?.isHidden = true
+        }
+    }
+    
+    func cancelUpgrade() -> [ResourceType: Int]? {
+          guard state == .upgrading else { return nil }
+          
+          // Calculate resources to return (full refund)
+          let refund = getUpgradeCost()
+          
+          // Reset state
+          state = .completed
+          upgradeProgress = 0.0
+          upgradeStartTime = nil
+          
+          // Remove upgrade UI elements
+          upgradeTimerLabel?.removeFromParent()
+          upgradeTimerLabel = nil
+          upgradeProgressBar?.removeFromParent()
+          upgradeProgressBar = nil
+          
+          // Unlock the upgrader entity
+          if let upgrader = upgraderEntity {
+              upgrader.isMoving = false
+              
+              if let villagerGroup = upgrader.entity as? VillagerGroup {
+                  villagerGroup.clearTask()
+                  print("✅ Villagers unlocked after upgrade cancellation")
+              }
+          }
+          upgraderEntity = nil
+          
+          updateAppearance()
+          updateLevelLabel()
+          
+          print("🚫 Upgrade cancelled for \(buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
+          
+          return refund
+      }
     
 }

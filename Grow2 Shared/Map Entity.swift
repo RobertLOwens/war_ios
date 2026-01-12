@@ -267,6 +267,8 @@ enum VillagerTask: Equatable {
     case hunting(ResourcePointNode)  // ✅ NEW: Hunting an animal
     case repairing(BuildingNode)
     case moving(HexCoordinate)
+    case upgrading(BuildingNode)
+
     
     var displayName: String {
         switch self {
@@ -284,6 +286,8 @@ enum VillagerTask: Equatable {
             return "Repairing \(building.buildingType.displayName)"
         case .moving(let coord):
             return "Moving to (\(coord.q), \(coord.r))"
+        case .upgrading(let building):
+            return "Upgrading \(building.buildingType.displayName)"
         }
     }
     
@@ -303,6 +307,8 @@ enum VillagerTask: Equatable {
             return lhsBuilding === rhsBuilding
         case (.moving(let lhsCoord), .moving(let rhsCoord)):
             return lhsCoord == rhsCoord
+        case (.upgrading(let lhsBuilding), .upgrading(let rhsBuilding)):
+            return lhsBuilding === rhsBuilding
         default:
             return false
         }

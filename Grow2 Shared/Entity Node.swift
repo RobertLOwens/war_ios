@@ -210,9 +210,17 @@ class EntityNode: SKSpriteNode {
                 } else if let villagers = self.entity as? VillagerGroup {
                     villagers.coordinate = lastCoord
                     print("✅ Updated VillagerGroup coordinate to (\(lastCoord.q), \(lastCoord.r))")
+                    
+                    // ✅ FIX: Check if villagers have a hunting task to execute
+                    if case .hunting(let target) = villagers.currentTask {
+                        print("🏹 Villagers arrived at hunting target!")
+                        // Notify the scene to execute the hunt
+                        if let gameScene = self.scene as? GameScene {
+                            gameScene.villagerArrivedForHunt(villagerGroup: villagers, target: target, entityNode: self)
+                        }
+                    }
                 }
             }
-            
             self.isMoving = false
             self.movementPath = []
             completion()
