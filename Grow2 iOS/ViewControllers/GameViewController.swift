@@ -22,6 +22,7 @@ class GameViewController: UIViewController {
     var resourceLabels: [ResourceType: UILabel] = [:]
     var commanderButton: UIButton!
     var combatHistoryButton: UIButton!
+    var researchButton: UIButton!
     
     private struct AssociatedKeys {
         static var unitLabels: UInt8 = 0
@@ -50,6 +51,7 @@ class GameViewController: UIViewController {
     
         menuCoordinator = MenuCoordinator(viewController: self, delegate: self)
         entityActionHandler = EntityActionHandler(viewController: self, delegate: self)
+        ResearchManager.shared.setup(player: player)
     
         setupAutoSave()
     
@@ -377,7 +379,7 @@ class GameViewController: UIViewController {
     
     func setupUI() {
         // Resource Panel
-        resourcePanel = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 120))
+        resourcePanel = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 140))
         resourcePanel.backgroundColor = UIColor(white: 0.1, alpha: 0.9)
         resourcePanel.autoresizingMask = [.flexibleWidth]
         
@@ -406,6 +408,16 @@ class GameViewController: UIViewController {
         combatHistoryButton.addTarget(self, action: #selector(showCombatHistoryScreen), for: .touchUpInside)
         combatHistoryButton.autoresizingMask = [.flexibleLeftMargin]
         resourcePanel.addSubview(combatHistoryButton)
+        
+        researchButton = UIButton(frame: CGRect(x: view.bounds.width - 160, y: 95, width: 140, height: 35))
+        researchButton.setTitle("🔬 Research", for: .normal)
+        researchButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        researchButton.backgroundColor = UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)
+        researchButton.layer.cornerRadius = 8
+        researchButton.addTarget(self, action: #selector(showResearchScreen), for: .touchUpInside)
+        researchButton.autoresizingMask = [.flexibleLeftMargin]
+        resourcePanel.addSubview(researchButton)
+
         
         // Resource labels (2x2 grid)
         let resourceTypes: [ResourceType] = [.wood, .food, .stone, .ore]
@@ -477,6 +489,14 @@ class GameViewController: UIViewController {
         buildingsButton.addTarget(self, action: #selector(showBuildingsOverview), for: .touchUpInside)
         buildingsButton.autoresizingMask = [.flexibleLeftMargin]
         resourcePanel.addSubview(buildingsButton)
+    }
+    
+    @objc func showResearchScreen() {
+        let researchVC = ResearchViewController()
+        researchVC.player = player
+        researchVC.modalPresentationStyle = .fullScreen
+        present(researchVC, animated: true)
+        print("🔬 Opening Research screen")
     }
     
     @objc func showBuildingsOverview() {
@@ -787,6 +807,7 @@ class GameViewController: UIViewController {
         // Update references
         player = loadedData.player
         gameScene.player = loadedData.player
+        ResearchManager.shared.setup(player: loadedData.player)
         gameScene.hexMap = loadedData.hexMap
         gameScene.allGamePlayers = loadedData.allPlayers
         

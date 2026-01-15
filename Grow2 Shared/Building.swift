@@ -81,6 +81,29 @@ enum BuildingType: String, CaseIterable {
         }
     }
     
+    var requiredCityCenterLevel: Int {
+        switch self {
+        case .cityCenter:
+            return 1  // Always available (you start with one)
+        case .neighborhood, .warehouse, .farm, .barracks:
+            return 1  // Tier 1
+        case .archeryRange, .stable:
+            return 2  // Tier 2
+        case .market, .blacksmith, .tower:
+            return 3  // Tier 3
+        case .woodenFort:
+            return 4  // Tier 4
+        case .siegeWorkshop:
+            return 5  // Tier 5
+        case .castle:
+            return 6  // Tier 6
+        case .miningCamp, .lumberCamp:
+            return 1  // Resource camps available early
+        case .university:
+            return 3  // Same as other advanced economic buildings
+        }
+    }
+    
     var buildCost: [ResourceType: Int] {
         switch self {
         case .cityCenter:
@@ -209,6 +232,13 @@ enum BuildingType: String, CaseIterable {
         let multiplier = Double(level + 1)
         return buildTime * multiplier * 0.8
     }
+    
+    static func maxCastleLevel(forCityCenterLevel ccLevel: Int) -> Int {
+        guard ccLevel >= 6 else { return 0 }  // Can't build castle below CC6
+        return min(ccLevel - 5, 5)  // CC6=1, CC7=2, CC8=3, CC9=4, CC10=5
+    }
+    
+
 }
 
 // MARK: - Building State
@@ -306,12 +336,22 @@ class BuildingNode: SKSpriteNode {
     
     //Building Levels
     var level: Int = 1
+    
     var maxLevel: Int {
         return buildingType.maxLevel
     }
     
     var canUpgrade: Bool {
-        return state == .completed && level < maxLevel
+        guard state == .completed && level < maxLevel else { return false }
+        
+        // Castle has special upgrade restrictions based on City Center level
+        if buildingType == .castle, let owner = owner {
+            let ccLevel = owner.getCityCenterLevel()
+            let allowedCastleLevel = BuildingType.maxCastleLevel(forCityCenterLevel: ccLevel)
+            return level < allowedCastleLevel
+        }
+        
+        return true
     }
     
     // MARK: - Upgrade Properties
@@ -756,6 +796,14 @@ class BuildingNode: SKSpriteNode {
         // Update visual appearance
         updateAppearance()
         
+        if buildingType == .farm {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("FarmCompletedNotification"),
+                object: self,
+                userInfo: ["coordinate": coordinate]
+            )
+        }
+        
         print("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
     }
     
@@ -1114,5 +1162,21 @@ class BuildingNode: SKSpriteNode {
           
           return refund
       }
+    
+    var upgradeBlockedReason: String? {
+        guard state == .completed else { return "Building must be completed first" }
+        guard level < maxLevel else { return "Already at max level" }
+        
+        if buildingType == .castle, let owner = owner {
+            let ccLevel = owner.getCityCenterLevel()
+            let allowedCastleLevel = BuildingType.maxCastleLevel(forCityCenterLevel: ccLevel)
+            if level >= allowedCastleLevel {
+                let requiredCC = level + 6  // To get castle Lv.2, need CC7, etc.
+                return "Requires City Center Level \(requiredCC)"
+            }
+        }
+        
+        return nil
+    }
     
 }

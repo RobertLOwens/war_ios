@@ -157,6 +157,20 @@ class BuildingDetailViewController: UIViewController {
         contentView.addSubview(levelLabel)
         yOffset += 35
         
+        if building.buildingType == .castle, let owner = building.owner {
+            let ccLevel = owner.getCityCenterLevel()
+            let maxAllowedCastle = BuildingType.maxCastleLevel(forCityCenterLevel: ccLevel)
+            
+            let castleCapLabel = createLabel(
+                text: "🏛️ Max Castle Level: \(maxAllowedCastle) (CC Lv.\(ccLevel))",
+                fontSize: 13,
+                color: UIColor(white: 0.7, alpha: 1.0)
+            )
+            castleCapLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 20)
+            contentView.addSubview(castleCapLabel)
+            yOffset += 25
+        }
+        
         // Upgrade Section (only if building can be upgraded)
         if building.state == .completed && building.canUpgrade {
             yOffset = setupUpgradeSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
@@ -555,6 +569,7 @@ class BuildingDetailViewController: UIViewController {
     }
     
     func updateQueueDisplay() {
+        let queueText = getQueueText()
         
         queueLabel?.text = queueText
         
@@ -957,6 +972,21 @@ class BuildingDetailViewController: UIViewController {
                                       fontSize: 18,
                                       weight: .bold,
                                       color: .cyan)
+        
+        // Check if upgrade is blocked by City Center level (for Castle)
+        if let blockedReason = building.upgradeBlockedReason {
+            // Show the blocked reason
+            let blockedLabel = createLabel(text: "🔒 \(blockedReason)",
+                                           fontSize: 14,
+                                           color: UIColor(red: 1.0, green: 0.6, blue: 0.3, alpha: 1.0))
+            blockedLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+            contentView.addSubview(blockedLabel)
+            currentY += 35
+            
+            // Don't show the rest of the upgrade UI if blocked by CC level
+            return currentY
+        }
+        
        upgradeHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
        contentView.addSubview(upgradeHeader)
        currentY += 30
@@ -1141,8 +1171,14 @@ class BuildingDetailViewController: UIViewController {
    }
    
    @objc func upgradeBuildingTapped() {
+       
        guard building.canUpgrade else {
            showSimpleAlert(title: "Cannot Upgrade", message: "This building cannot be upgraded.")
+           return
+       }
+       
+       if let blockedReason = building.upgradeBlockedReason {
+           showSimpleAlert(title: "🔒 Upgrade Locked", message: blockedReason)
            return
        }
        

@@ -268,7 +268,6 @@ enum VillagerTask: Equatable {
     case repairing(BuildingNode)
     case moving(HexCoordinate)
     case upgrading(BuildingNode)
-
     
     var displayName: String {
         switch self {

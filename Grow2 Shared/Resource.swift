@@ -19,6 +19,8 @@ enum ResourcePointType: String, CaseIterable {
     case wildBoar = "Wild Boar"
     case deerCarcass = "Deer Carcass"
     case boarCarcass = "Boar Carcass"
+    case farmland = "Farmland"  // ✅ NEW
+
     
     var displayName: String {
         return rawValue
@@ -37,6 +39,8 @@ enum ResourcePointType: String, CaseIterable {
         case .wildBoar: return "🐗"
         case .deerCarcass: return "🥩"
         case .boarCarcass: return "🥩"
+        case .farmland: return "🌾"
+
         }
     }
 
@@ -49,7 +53,7 @@ enum ResourcePointType: String, CaseIterable {
         case .forage: return .food
         case .oreMine: return .ore
         case .stoneQuarry: return .stone
-        case .deer, .wildBoar, .deerCarcass, .boarCarcass: return .food
+        case .deer, .wildBoar, .deerCarcass, .boarCarcass, .farmland: return .food
         }
     }
 
@@ -65,7 +69,8 @@ enum ResourcePointType: String, CaseIterable {
         case .deer: return 2000
         case .wildBoar: return 1500
         case .deerCarcass: return 2000  // Same as deer
-        case .boarCarcass: return 1500 // Same as boar
+        case .boarCarcass: return 1500
+        case .farmland: return 999999
         }
     }
 
@@ -82,6 +87,7 @@ enum ResourcePointType: String, CaseIterable {
         case .wildBoar: return 0.0
         case .deerCarcass: return 0.5    // Gather rate for carcasses
         case .boarCarcass: return 0.5
+        case .farmland: return 0.1
         }
     }
 
@@ -91,7 +97,7 @@ enum ResourcePointType: String, CaseIterable {
     var requiresCamp: Bool {
         switch self {
         case .trees, .oreMine, .stoneQuarry: return true
-        case .forage, .deer, .wildBoar, .deerCarcass, .boarCarcass: return false
+        case .forage, .deer, .wildBoar, .deerCarcass, .boarCarcass, .farmland: return false
         }
     }
         
@@ -124,7 +130,7 @@ enum ResourcePointType: String, CaseIterable {
         switch self {
         case .forage: return .forest
         case .oreMine, .stoneQuarry: return .mountain
-        case .trees, .deer, .wildBoar, .boarCarcass, .deerCarcass: return nil // Can appear on any walkable terrain
+        case .trees, .deer, .wildBoar, .boarCarcass, .deerCarcass, .farmland: return nil // Can appear on any walkable terrain
         }
     }
     
@@ -214,6 +220,8 @@ class ResourcePointNode: SKSpriteNode {
             case .deer, .deerCarcass:
                 bgColor = UIColor(red: 0.7, green: 0.5, blue: 0.3, alpha: 1.0)
             case .wildBoar, .boarCarcass:
+                bgColor = UIColor(red: 0.5, green: 0.3, blue: 0.2, alpha: 1.0)
+            case .farmland:
                 bgColor = UIColor(red: 0.5, green: 0.3, blue: 0.2, alpha: 1.0)
             }
             

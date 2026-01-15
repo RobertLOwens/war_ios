@@ -521,17 +521,22 @@ class GameScene: SKScene {
             }
         }
         
-        // Update building construction and timers
         for building in hexMap.buildings {
             if building.state == .constructing {
                 building.updateTimerLabel()
+            } else if building.state == .upgrading {
+                // ✅ FIX: Handle upgrading buildings - this was completely missing!
+                building.updateUpgradeTimerLabel()
             } else {
+                // Only remove construction UI for non-constructing, non-upgrading buildings
                 building.timerLabel?.removeFromParent()
                 building.timerLabel = nil
                 building.progressBar?.removeFromParent()
                 building.progressBar = nil
             }
         }
+        
+        ResearchManager.shared.update(currentTime: realWorldTime)
         
         for building in hexMap.buildings where building.state == .completed {
             building.updateTraining(currentTime: realWorldTime)
@@ -554,7 +559,45 @@ class GameScene: SKScene {
             }
             
             // Process all resource points that are being gathered
-            for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered {
+            for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered
+                    // ✅ NEW: Handle farmland wood cost
+                    if resourcePoint.resourceType == .farmland {
+                        let woodCostPerSecond = 0.1
+                        let woodCostThisFrame = woodCostPerSecond * gatherDeltaTime
+                        
+                        // Use a separate key for wood cost accumulator
+                        let farmWoodKey = HexCoordinate(q: resourcePoint.coordinate.q + 10000, r: resourcePoint.coordinate.r + 10000)
+                        let currentAcc = gatherAccumulators[farmWoodKey] ?? 0.0
+                        let newAcc = currentAcc + woodCostThisFrame
+                        let wholeAmount = Int(newAcc)
+                        
+                        if wholeAmount > 0 {
+                            let currentWood = player.getResource(.wood)
+                            if currentWood >= wholeAmount {
+                                player.removeResource(.wood, amount: wholeAmount)
+                                gatherAccumulators[farmWoodKey] = newAcc - Double(wholeAmount)
+                            } else {
+                                // No wood - stop all villagers on this farm
+                                print("⚠️ Farm stopped at (\(resourcePoint.coordinate.q), \(resourcePoint.coordinate.r)) - out of wood!")
+                                for villagerGroup in resourcePoint.assignedVillagerGroups {
+                                    let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
+                                    player.decreaseCollectionRate(.food, amount: rateContribution)
+                                    villagerGroup.clearTask()
+                                    if let entityNode = hexMap.entities.first(where: {
+                                        ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+                                    }) {
+                                        entityNode.isMoving = false
+                                    }
+                                }
+                                resourcePoint.stopGathering()
+                                gatherAccumulators.removeValue(forKey: farmWoodKey)
+                                continue  // Skip to next resource point
+                            }
+                        } else {
+                            gatherAccumulators[farmWoodKey] = newAcc
+                        }
+                    }
+                
                 // Check if depleted
                 if resourcePoint.isDepleted() {
                     // Clear all villagers gathering here
@@ -587,7 +630,21 @@ class GameScene: SKScene {
                     // Only gather if villagers have arrived at the resource
                     if villagerGroup.coordinate == resourcePoint.coordinate {
                         // Each villager gathers 0.2 per second (matches collection rate)
-                        gatherRatePerSecond += 0.2 * Double(villagerGroup.villagerCount)
+                        var baseRate = 0.2 * Double(villagerGroup.villagerCount)
+                        
+                        // Apply research bonus based on resource type
+                        if resourcePoint.resourceType.resourceYield == .wood {
+                            baseRate *= ResearchManager.shared.getWoodGatheringMultiplier()
+                        } else if resourcePoint.resourceType.resourceYield == .food {
+                            baseRate *= ResearchManager.shared.getFoodGatheringMultiplier()
+                        } else if resourcePoint.resourceType.resourceYield == .stone {
+                            baseRate *= ResearchManager.shared.getStoneGatheringMultiplier()
+                        } else if resourcePoint.resourceType.resourceYield == .ore {
+                            baseRate *= ResearchManager.shared.getOreGatheringMultiplier()
+                        }
+                        
+                        gatherRatePerSecond += baseRate
+                        
                     }
                 }
                 
@@ -620,7 +677,6 @@ class GameScene: SKScene {
             }
         }
     }
-
     // MARK: - Touch Handling
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -1541,5 +1597,21 @@ class GameScene: SKScene {
              gameDelegate?.gameSceneDidUpdateResources(self)
          }
      }
+    
+    @objc func handleFarmCompleted(_ notification: Notification) {
+        guard let building = notification.object as? BuildingNode,
+              let coordinate = notification.userInfo?["coordinate"] as? HexCoordinate else { return }
+        
+        // Create farmland resource at farm location
+        let farmland = ResourcePointNode(coordinate: coordinate, resourceType: .farmland)
+        let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+        farmland.position = position
+        farmland.zPosition = 4  // Above building
+        
+        hexMap.addResourcePoint(farmland)
+        resourcesNode.addChild(farmland)
+        
+        print("🌾 Created farmland at (\(coordinate.q), \(coordinate.r))")
+    }
     
 }

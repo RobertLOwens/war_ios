@@ -14,19 +14,22 @@ struct GameSaveData: Codable {
     let mapData: MapSaveData
     let playerData: PlayerSaveData
     let allPlayersData: [PlayerSaveData]
+    let researchData: ResearchManager.ResearchSaveData?
 
     
-    init(version: String = "1.0", 
+    init(version: String = "1.0",
          saveDate: Date = Date(),
          mapData: MapSaveData,
          playerData: PlayerSaveData,
-         allPlayersData: [PlayerSaveData]) {
+         allPlayersData: [PlayerSaveData],
+         researchData: ResearchManager.ResearchSaveData? = nil) {
         
         self.version = version
         self.saveDate = saveDate
         self.mapData = mapData
         self.playerData = playerData
         self.allPlayersData = allPlayersData
+        self.researchData = researchData
     }
 }
 
@@ -179,7 +182,8 @@ class GameSaveManager {
         let saveData = GameSaveData(
             mapData: mapData,
             playerData: playerData,
-            allPlayersData: allPlayersData
+            allPlayersData: allPlayersData,
+            researchData: ResearchManager.shared.getSaveData()  // ✅ ADD THIS
         )
         
         // Encode to JSON
@@ -252,6 +256,10 @@ class GameSaveManager {
                         restoredPlayer.initializeFogOfWar(hexMap: hexMap)
                     }
                 }
+            }
+            
+            if let researchData = saveData.researchData {
+                ResearchManager.shared.loadSaveData(researchData)
             }
             
             // Restore buildings to map and players
@@ -989,8 +997,20 @@ class GameSaveManager {
             print("      ✅ Found resource: \(resourcePoint.resourceType.displayName) at (\(targetCoord.q), \(targetCoord.r))")
             print("      📦 Resource before: \(resourcePoint.remainingAmount)")
             
-            // Calculate how much they would gather
-            let gatherRatePerSecond = 0.2 * Double(villagerGroup.villagerCount)
+            var gatherRatePerSecond = 0.2 * Double(villagerGroup.villagerCount)
+            
+            // Apply research bonus based on resource type
+            let resourceYield = resourcePoint.resourceType.resourceYield
+            switch resourceYield {
+            case .wood:
+                gatherRatePerSecond *= ResearchManager.shared.getWoodGatheringMultiplier()
+            case .food:
+                gatherRatePerSecond *= ResearchManager.shared.getFoodGatheringMultiplier()
+            case .stone:
+                gatherRatePerSecond *= ResearchManager.shared.getStoneGatheringMultiplier()
+            case .ore:
+                gatherRatePerSecond *= ResearchManager.shared.getOreGatheringMultiplier()
+            }
             let wouldGather = Int(gatherRatePerSecond * cappedElapsed)
             
             // Cap by what's actually available

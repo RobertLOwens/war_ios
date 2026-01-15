@@ -47,11 +47,30 @@ class BackgroundTimeManager {
         processUnitTraining(hexMap: hexMap, currentTime: currentTime)
         
         processBuildingUpgrades(hexMap: hexMap, currentTime: currentTime)
+        processResearch(currentTime: currentTime)
         
         // Clear the saved time
         UserDefaults.standard.removeObject(forKey: lastExitTimeKey)
         
         print("✅ Background time processing complete")
+    }
+    
+    private func processResearch(currentTime: TimeInterval) {
+        print("🔬 Processing research...")
+        
+        let manager = ResearchManager.shared
+        
+        if let active = manager.activeResearch {
+            if active.isComplete(currentTime: currentTime) {
+                manager.completeResearch(active.researchType)
+                print("  ✅ Research completed: \(active.researchType.displayName)")
+            } else {
+                let progress = Int(active.getProgress(currentTime: currentTime) * 100)
+                print("  🔬 \(active.researchType.displayName): \(progress)% complete")
+            }
+        } else {
+            print("  No active research")
+        }
     }
     
     private func processResourceGeneration(player: Player, elapsedTime: TimeInterval) {

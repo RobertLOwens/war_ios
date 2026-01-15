@@ -516,62 +516,73 @@ class MenuCoordinator {
     
     func showBuildingMenu(at coordinate: HexCoordinate, villagerGroup: EntityNode?) {
         guard let player = player,
-              let hexMap = hexMap,
-              let vc = viewController else { return }
-        
-        var actions: [AlertAction] = []
-        
-        for type in BuildingType.allCases {
-            // Check basic placement
-            let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: type)
-            
-            // Build cost string
-            var costString = ""
-            for (resourceType, amount) in type.buildCost {
-                costString += "\(resourceType.icon)\(amount) "
-            }
-            
-            let title = "\(type.icon) \(type.displayName) - \(costString)"
-            
-            if canPlace {
-                actions.append(AlertAction(title: title) { [weak self] in
-                    // Check if there's a resource that will be removed
-                    if let resource = hexMap.getResourcePoint(at: coordinate) {
-                        if type != .miningCamp && type != .lumberCamp {
-                            // Show warning for other building types
-                            self?.showBuildingConfirmationWithResourceWarning(
-                                buildingType: type,
-                                coordinate: coordinate,
-                                resource: resource,
-                                villagerGroup: villagerGroup
-                            )
-                            return
-                        }
-                    }
-                    
-                    // No resource or it's a camp - proceed normally
-                    self?.gameScene?.placeBuilding(type: type, at: coordinate, owner: player)
-                })
-            } else {
-                // Show why it can't be placed
-                var reason = ""
-                if type == .miningCamp {
-                    reason = " (Requires Ore/Stone)"
-                } else if type == .lumberCamp {
-                    reason = " (Requires Trees)"
-                }
-                actions.append(AlertAction(title: "❌ \(type.displayName)\(reason)", handler: nil))
-            }
-        }
-        
-        vc.showActionSheet(
-            title: "🏗️ Select Building",
-            message: "Choose a building to construct at (\(coordinate.q), \(coordinate.r))",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+               let hexMap = hexMap,
+               let vc = viewController else { return }
+         
+         let cityCenterLevel = player.getCityCenterLevel()
+         var actions: [AlertAction] = []
+         
+         for type in BuildingType.allCases {
+             // Skip City Center - players shouldn't build additional ones (or handle as you prefer)
+             if type == .cityCenter { continue }
+             
+             // Check City Center level requirement
+             let requiredCCLevel = type.requiredCityCenterLevel
+             let meetsRequirement = cityCenterLevel >= requiredCCLevel
+             
+             // Check basic placement
+             let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: type)
+             
+             // Build cost string
+             var costString = ""
+             for (resourceType, amount) in type.buildCost {
+                 costString += "\(resourceType.icon)\(amount) "
+             }
+             
+             if !meetsRequirement {
+                 // Show locked building with requirement
+                 let title = "🔒 \(type.displayName) (CC Lv.\(requiredCCLevel) req.)"
+                 actions.append(AlertAction(title: title, handler: nil))
+             } else if canPlace {
+                 let title = "\(type.icon) \(type.displayName) - \(costString)"
+                 actions.append(AlertAction(title: title) { [weak self] in
+                     // Check if there's a resource that will be removed
+                     if let resource = hexMap.getResourcePoint(at: coordinate) {
+                         if type != .miningCamp && type != .lumberCamp {
+                             // Show warning for other building types
+                             self?.showBuildingConfirmationWithResourceWarning(
+                                 buildingType: type,
+                                 coordinate: coordinate,
+                                 resource: resource,
+                                 villagerGroup: villagerGroup
+                             )
+                             return
+                         }
+                     }
+                     
+                     // No resource or it's a camp - proceed normally
+                     self?.gameScene?.placeBuilding(type: type, at: coordinate, owner: player)
+                 })
+             } else {
+                 // Show why it can't be placed (placement issue, not CC requirement)
+                 var reason = ""
+                 if type == .miningCamp {
+                     reason = " (Requires Ore/Stone)"
+                 } else if type == .lumberCamp {
+                     reason = " (Requires Trees)"
+                 }
+                 actions.append(AlertAction(title: "❌ \(type.displayName)\(reason)", handler: nil))
+             }
+         }
+         
+         vc.showActionSheet(
+             title: "🏗️ Select Building",
+             message: "Choose a building to construct at (\(coordinate.q), \(coordinate.r))\n⭐ City Center: Lv.\(cityCenterLevel)",
+             actions: actions,
+             onCancel: { [weak self] in
+                 self?.delegate?.deselectAll()
+             }
+         )
     }
     
     // MARK: - Reinforcement Menus
@@ -980,10 +991,23 @@ class MenuCoordinator {
          resourcePoint.startGathering(by: villagerGroup)
          
          // Apply collection rate bonus based on villager count
-         let resourceYield = resourcePoint.resourceType.resourceYield
-         let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
-         player.increaseCollectionRate(resourceYield, amount: rateContribution)
-         print("✅ Increased \(resourceYield.displayName) collection rate by \(rateContribution)/s")
+        let resourceYield = resourcePoint.resourceType.resourceYield
+        var rateContribution = 0.2 * Double(villagerGroup.villagerCount)
+        
+        // Apply research bonus
+        switch resourceYield {
+        case .wood:
+            rateContribution *= ResearchManager.shared.getWoodGatheringMultiplier()
+        case .food:
+            rateContribution *= ResearchManager.shared.getFoodGatheringMultiplier()
+        case .stone:
+            rateContribution *= ResearchManager.shared.getStoneGatheringMultiplier()
+        case .ore:
+            rateContribution *= ResearchManager.shared.getOreGatheringMultiplier()
+        }
+        
+        player.increaseCollectionRate(resourceYield, amount: rateContribution)
+        print("✅ Increased \(resourceYield.displayName) collection rate by \(String(format: "%.2f", rateContribution))/s (includes research bonus)")
          
          // Find entity node and move to resource
          if let entityNode = hexMap.entities.first(where: {

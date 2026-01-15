@@ -435,4 +435,11 @@ class Player {
     func getFoodConsumptionRate() -> Double {
         return Double(getCurrentPopulation()) * Player.foodConsumptionPerPop
     }
+    
+    func getCityCenterLevel() -> Int {
+        let cityCenters = buildings.filter {
+            $0.buildingType == .cityCenter && $0.state == .completed
+        }
+        return cityCenters.map { $0.level }.max() ?? 0
+    }
 }
