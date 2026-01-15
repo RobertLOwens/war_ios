@@ -2,7 +2,7 @@
 // FILE: MenuCoordinator.swift
 // LOCATION: Grow2 iOS/Coordinators/MenuCoordinator.swift
 // PURPOSE: Handles all menu and alert presentation logic
-//          Extracted from GameViewController to improve separation of concerns
+//          Uses Command pattern for all game actions
 // ============================================================================
 
 import UIKit
@@ -21,7 +21,7 @@ protocol MenuCoordinatorDelegate: AnyObject {
     func showMergeMenu(group1: EntityNode, group2: EntityNode)
     func splitVillagerGroup(villagerGroup: VillagerGroup, entity: EntityNode, splitCount: Int)
 }
- 
+
 // MARK: - Menu Coordinator
 
 class MenuCoordinator {
@@ -47,7 +47,6 @@ class MenuCoordinator {
     func showTileActionMenu(for coordinate: HexCoordinate) {
         guard let player = player,
               let hexMap = hexMap,
-              let gameScene = gameScene,
               let vc = viewController else { return }
         
         let visibility = player.getVisibilityLevel(at: coordinate)
@@ -64,8 +63,6 @@ class MenuCoordinator {
                 message = building.buildingType.description
                 message += "\nOwner: \(building.owner?.name ?? "Unknown")"
                 message += "\nHealth: \(Int(building.health))/\(Int(building.maxHealth))"
-                
-                // ✅ ADD: Level info
                 message += "\n⭐ Level: \(building.level)/\(building.maxLevel)"
                 
                 if building.state == .constructing {
@@ -77,7 +74,6 @@ class MenuCoordinator {
                     }
                 }
                 
-                // ✅ ADD: Upgrade progress info
                 if building.state == .upgrading {
                     let progress = Int(building.upgradeProgress * 100)
                     message += "\n⬆️ Upgrading to Lv.\(building.level + 1): \(progress)%"
@@ -88,7 +84,7 @@ class MenuCoordinator {
                     }
                 }
                 
-                // ✅ Open Building action (only for completed OR upgrading, player-owned buildings)
+                // Open Building action (only for completed OR upgrading, player-owned buildings)
                 if (building.state == .completed || building.state == .upgrading) && building.owner?.id == player.id {
                     let buildingName = building.buildingType.displayName
                     actions.append(AlertAction(title: "🏗️ Open \(buildingName)", style: .default) { [weak self] in
@@ -99,61 +95,64 @@ class MenuCoordinator {
                 message = "Explored - Last seen: Building here"
             }
         }
-
+        
+        // -------------------------
+        // MARK: - Resource Info
+        // -------------------------
         if let resourcePoint = hexMap.getResourcePoint(at: coordinate), visibility == .visible {
-            // Check if there's also a building here (for camps)
             if let building = hexMap.getBuilding(at: coordinate) {
-                // Show combined building + resource info
+                // Show combined building + resource info for camps
                 title = "\(building.buildingType.icon) \(building.buildingType.displayName)"
                 message = building.buildingType.description
                 message += "\nOwner: \(building.owner?.name ?? "Unknown")"
-                message += "\nHealth: \(Int(building.health))/\(Int(building.maxHealth))"
+                message += "\n\n\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
+                message += "\nRemaining: \(resourcePoint.remainingAmount)"
                 
-                // Add resource info
-                message += "\n\n📦 Resource: \(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
-                message += "\n   Remaining: \(resourcePoint.remainingAmount)"
-                
-                let villagerCount = resourcePoint.getTotalVillagersGathering()
-                if villagerCount > 0 {
-                    message += "\n   Gather Rate: \(String(format: "%.1f", resourcePoint.currentGatherRate))/s"
-                    message += "\n   👷 Villagers: \(villagerCount)/\(ResourcePointNode.maxVillagersPerTile)"
-                }
-                
-                // Gather action if camp allows it
-                if building.state == .completed &&
-                    resourcePoint.resourceType.isGatherable &&
-                    resourcePoint.getRemainingCapacity() > 0 {
-                    actions.append(AlertAction(title: "👷 Assign Villagers to Gather") { [weak self] in
-                        self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
-                    })
+                if resourcePoint.resourceType.isGatherable {
+                    let gatherers = resourcePoint.getTotalVillagersGathering()
+                    if gatherers > 0 {
+                        message += "\n👷 \(gatherers) villager(s) gathering"
+                    }
+                    
+                    if resourcePoint.getRemainingCapacity() > 0 {
+                        actions.append(AlertAction(title: "👷 Assign Villagers to Gather") { [weak self] in
+                            self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
+                        })
+                    } else {
+                        message += "\n\n⚠️ Max villagers reached"
+                    }
                 }
             } else {
-                // Just resource, no building
+                // Standalone resource
                 title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
-                message = resourcePoint.getDescription()
+                message = "Remaining: \(resourcePoint.remainingAmount)"
                 
-                // Check if huntable (use villagers now, not armies)
                 if resourcePoint.resourceType.isHuntable {
-                    actions.append(AlertAction(title: "🏹 Hunt with Villagers") { [weak self] in
-                        self?.showVillagerSelectionForHunting(resourcePoint: resourcePoint)
+                    message += "\nHealth: \(Int(resourcePoint.currentHealth))/\(Int(resourcePoint.resourceType.health))"
+                    actions.append(AlertAction(title: "🏹 Hunt") { [weak self] in
+                        self?.showVillagerSelectionForHunt(resourcePoint: resourcePoint)
                     })
                 } else if resourcePoint.resourceType.isGatherable {
-                    // Check camp requirement
+                    let gatherers = resourcePoint.getTotalVillagersGathering()
+                    if gatherers > 0 {
+                        message += "\n👷 \(gatherers) villager(s) gathering"
+                    }
+                    
+                    // Check if camp is required
                     if resourcePoint.resourceType.requiresCamp {
-                        if hexMap.hasCampCoverage(at: coordinate, forResourceType: resourcePoint.resourceType) {
+                        if let camp = hexMap.getBuilding(at: coordinate),
+                           (camp.buildingType == .miningCamp || camp.buildingType == .lumberCamp) {
                             if resourcePoint.getRemainingCapacity() > 0 {
                                 actions.append(AlertAction(title: "👷 Assign Villagers to Gather") { [weak self] in
                                     self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
                                 })
-                            } else {
-                                message += "\n\n⚠️ Max villagers reached"
                             }
                         } else {
-                            let campName = resourcePoint.resourceType.requiredCampType?.displayName ?? "Camp"
+                            let campName = resourcePoint.resourceType == .trees ? "Lumber Camp" : "Mining Camp"
                             message += "\n\n⚠️ Requires \(campName) nearby to gather"
                         }
                     } else {
-                        // No camp required (forage, carcasses)
+                        // No camp required (forage, carcasses, farmland)
                         if resourcePoint.getRemainingCapacity() > 0 {
                             actions.append(AlertAction(title: "👷 Assign Villagers to Gather") { [weak self] in
                                 self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
@@ -171,7 +170,6 @@ class MenuCoordinator {
         // -------------------------
         let entitiesAtTile = hexMap.entities.filter { $0.coordinate == coordinate }
         
-        // Filter to only visible entities
         let visibleEntities: [EntityNode]
         if visibility == .visible {
             visibleEntities = entitiesAtTile.filter { entity in
@@ -184,24 +182,19 @@ class MenuCoordinator {
             visibleEntities = []
         }
         
-        // Add entity count to message if there are entities
         if !visibleEntities.isEmpty {
             if !message.isEmpty { message += "\n" }
             message += "\n📍 \(visibleEntities.count) unit(s) on this tile"
         }
         
-        print(visibleEntities)
-        // ✅ Add action for each visible entity
+        // Add action for each visible entity
         for entity in visibleEntities {
-            print("Run 1")
             var buttonTitle = ""
             
             if entity.entityType == .villagerGroup {
                 if let villagers = entity.entity as? VillagerGroup {
-                    print(villagers)
                     buttonTitle = "👷 \(villagers.name) (\(villagers.villagerCount) villagers)"
-                                    
-                    // Add task indicator
+                    
                     switch villagers.currentTask {
                     case .gatheringResource:
                         buttonTitle += " ⛏️"
@@ -217,7 +210,7 @@ class MenuCoordinator {
                 } else {
                     buttonTitle = "👷 Villager Group"
                 }
-                                
+                
             } else if entity.entityType == .army {
                 if let army = entity.entity as? Army {
                     let totalUnits = army.getTotalMilitaryUnits()
@@ -229,7 +222,6 @@ class MenuCoordinator {
             
             actions.append(AlertAction(title: buttonTitle) { [weak self] in
                 if let villagers = entity.entity as? VillagerGroup {
-                    // Show options menu if gathering/hunting, otherwise show regular villager menu
                     switch villagers.currentTask {
                     case .gatheringResource, .hunting:
                         self?.showVillagerOptionsMenu(villagerGroup: villagers, entityNode: entity)
@@ -237,35 +229,25 @@ class MenuCoordinator {
                         self?.showVillagerMenu(at: coordinate, villagerGroup: entity)
                     }
                 } else {
-                    actions.append(AlertAction(title: buttonTitle, style: .default) { [weak self] in
-                        self?.showEntityActionMenu(for: entity, at: coordinate)
-                    })
+                    self?.showEntityActionMenu(for: entity, at: coordinate)
                 }
             })
-
         }
         
         // -------------------------
         // MARK: - Movement Action
         // -------------------------
-        // Only show "Move Unit Here" if:
-        // 1. Tile is visible or explored
-        // 2. No hostile (neutral or enemy) entities on the tile
-        
         if visibility == .visible || visibility == .explored {
             let hasHostileEntities = entitiesAtTile.contains { entity in
                 let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
                 return diplomacyStatus == .neutral || diplomacyStatus == .enemy
             }
             
-            // Can only move if no hostile entities present
-            // (Friendly entities or empty tile is fine)
             if !hasHostileEntities {
                 actions.append(AlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] in
                     self?.gameScene?.initiateMove(to: coordinate)
                 })
             } else {
-                // Optional: Show why movement is blocked
                 if !message.isEmpty { message += "\n" }
                 message += "\n⚠️ Cannot move here - hostile units present"
             }
@@ -286,12 +268,10 @@ class MenuCoordinator {
     
     // MARK: - Entity Selection Menus
     
-    /// Shows available actions for a specific entity
     func showEntityActionMenu(for entity: EntityNode, at coordinate: HexCoordinate) {
         guard let player = player,
               let vc = viewController else { return }
         
-        // Villagers have their own specialized menu
         if entity.entityType == .villagerGroup {
             showVillagerMenu(at: coordinate, villagerGroup: entity)
             return
@@ -305,12 +285,11 @@ class MenuCoordinator {
             vc.showAlert(title: "Select Destination", message: "Tap a tile to move this entity.")
         })
         
-        // Army-specific actions (only for owned entities)
+        // Army-specific actions
         if entity.entityType == .army,
            let army = entity.entity as? Army,
            army.owner?.id == player.id {
             
-            // Reinforce action
             let buildingsWithGarrison = player.buildings.filter { $0.getTotalGarrisonedUnits() > 0 }
             if !buildingsWithGarrison.isEmpty {
                 actions.append(AlertAction(title: "🔄 Reinforce Army") { [weak self] in
@@ -334,18 +313,13 @@ class MenuCoordinator {
     
     // MARK: - Move Selection
     
-    /// Shows a menu to select which entity to move to a destination
     func showMoveSelectionMenu(to coordinate: HexCoordinate, from entities: [EntityNode]) {
-        
         guard let player = player,
               let vc = viewController else { return }
         
-        // Filter to only player-owned entities
         let playerEntities = entities.filter { entity in
-            // Must be owned by player
             guard entity.entity.owner?.id == player.id else { return false }
             
-            // If it's a villager group, must be idle to move
             if let villagers = entity.entity as? VillagerGroup {
                 return villagers.currentTask == .idle
             }
@@ -372,8 +346,7 @@ class MenuCoordinator {
             }
             
             actions.append(AlertAction(title: title) { [weak self] in
-                self?.gameScene?.moveEntity(entity, to: coordinate)
-                self?.delegate?.deselectAll()
+                self?.executeMoveCommand(entity: entity, to: coordinate)
             })
         }
         
@@ -389,8 +362,6 @@ class MenuCoordinator {
     
     // MARK: - Villager Menu
     
-  
-    /// Shows actions available for a villager group
     func showVillagerMenu(at coordinate: HexCoordinate, villagerGroup: EntityNode) {
         guard let villagers = villagerGroup.entity as? VillagerGroup,
               let hexMap = hexMap,
@@ -407,7 +378,6 @@ class MenuCoordinator {
         // -------------------------
         // NON-IDLE: Cancel Task Only
         // -------------------------
-        
         if !isIdle {
             switch villagers.currentTask {
             case .gatheringResource(let resourcePoint):
@@ -415,7 +385,7 @@ class MenuCoordinator {
                 message += "\n📦 Remaining: \(resourcePoint.remainingAmount)"
                 
                 actions.append(AlertAction(title: "🛑 Cancel Gathering", style: .destructive) { [weak self] in
-                    self?.cancelGathering(villagerGroup: villagers)
+                    self?.executeStopGatheringCommand(villagerGroup: villagers)
                 })
                 
             case .hunting(let target):
@@ -430,6 +400,13 @@ class MenuCoordinator {
                 
                 actions.append(AlertAction(title: "🛑 Cancel Building", style: .destructive) { [weak self] in
                     self?.cancelBuilding(villagerGroup: villagers, building: building)
+                })
+                
+            case .upgrading(let building):
+                message += "\n\n⬆️ Upgrading: \(building.buildingType.displayName)"
+                
+                actions.append(AlertAction(title: "🛑 Cancel Upgrade", style: .destructive) { [weak self] in
+                    self?.executeCancelUpgradeCommand(building: building)
                 })
                 
             default:
@@ -450,7 +427,6 @@ class MenuCoordinator {
         // -------------------------
         // IDLE: Full Options
         // -------------------------
-        
         if isIdle {
             // Move
             actions.append(AlertAction(title: "🚶 Move") { [weak self] in
@@ -462,6 +438,15 @@ class MenuCoordinator {
             if !buildingExists {
                 actions.append(AlertAction(title: "🏗️ Build") { [weak self] in
                     self?.showBuildingMenu(at: coordinate, villagerGroup: villagerGroup)
+                })
+            }
+            
+            // Upgrade (if on a player-owned building)
+            if let building = hexMap.getBuilding(at: coordinate),
+               building.owner?.id == player.id,
+               building.canUpgrade {
+                actions.append(AlertAction(title: "⬆️ Upgrade \(building.buildingType.displayName)") { [weak self] in
+                    self?.showUpgradeConfirmation(for: building, villagerEntity: villagerGroup)
                 })
             }
             
@@ -492,18 +477,48 @@ class MenuCoordinator {
             if let resourcePoint = hexMap.getResourcePoint(at: coordinate) {
                 if resourcePoint.resourceType.isGatherable && !resourcePoint.isDepleted() {
                     actions.append(AlertAction(title: "⛏️ Gather \(resourcePoint.resourceType.displayName)") { [weak self] in
-                        self?.assignVillagersToGather(villagerGroup: villagers, resourcePoint: resourcePoint)
+                        self?.executeGatherCommand(villagerGroup: villagers, resourcePoint: resourcePoint)
                     })
                 }
             }
         }
         
-        // -------------------------
-        // SHOW MENU
-        // -------------------------
-        
         vc.showActionSheet(
             title: "👷 \(villagers.name)",
+            message: message,
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+    
+    func showVillagerOptionsMenu(villagerGroup: VillagerGroup, entityNode: EntityNode) {
+        guard let vc = viewController else { return }
+        
+        var actions: [AlertAction] = []
+        var message = "Villagers: \(villagerGroup.villagerCount)\n"
+        message += "Status: \(villagerGroup.currentTask.displayName)"
+        
+        if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
+            message += "\n\nGathering: \(resourcePoint.resourceType.displayName)"
+            message += "\nRemaining: \(resourcePoint.remainingAmount)"
+            
+            actions.append(AlertAction(title: "🛑 Cancel Gathering", style: .destructive) { [weak self] in
+                self?.executeStopGatheringCommand(villagerGroup: villagerGroup)
+            })
+        }
+        
+        if case .hunting(let target) = villagerGroup.currentTask {
+            message += "\n\nHunting: \(target.resourceType.displayName)"
+            
+            actions.append(AlertAction(title: "🛑 Cancel Hunt", style: .destructive) { [weak self] in
+                self?.cancelHunting(villagerGroup: villagerGroup)
+            })
+        }
+        
+        vc.showActionSheet(
+            title: "👷 \(villagerGroup.name)",
             message: message,
             actions: actions,
             onCancel: { [weak self] in
@@ -516,78 +531,145 @@ class MenuCoordinator {
     
     func showBuildingMenu(at coordinate: HexCoordinate, villagerGroup: EntityNode?) {
         guard let player = player,
-               let hexMap = hexMap,
-               let vc = viewController else { return }
-         
-         let cityCenterLevel = player.getCityCenterLevel()
-         var actions: [AlertAction] = []
-         
-         for type in BuildingType.allCases {
-             // Skip City Center - players shouldn't build additional ones (or handle as you prefer)
-             if type == .cityCenter { continue }
-             
-             // Check City Center level requirement
-             let requiredCCLevel = type.requiredCityCenterLevel
-             let meetsRequirement = cityCenterLevel >= requiredCCLevel
-             
-             // Check basic placement
-             let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: type)
-             
-             // Build cost string
-             var costString = ""
-             for (resourceType, amount) in type.buildCost {
-                 costString += "\(resourceType.icon)\(amount) "
-             }
-             
-             if !meetsRequirement {
-                 // Show locked building with requirement
-                 let title = "🔒 \(type.displayName) (CC Lv.\(requiredCCLevel) req.)"
-                 actions.append(AlertAction(title: title, handler: nil))
-             } else if canPlace {
-                 let title = "\(type.icon) \(type.displayName) - \(costString)"
-                 actions.append(AlertAction(title: title) { [weak self] in
-                     // Check if there's a resource that will be removed
-                     if let resource = hexMap.getResourcePoint(at: coordinate) {
-                         if type != .miningCamp && type != .lumberCamp {
-                             // Show warning for other building types
-                             self?.showBuildingConfirmationWithResourceWarning(
-                                 buildingType: type,
-                                 coordinate: coordinate,
-                                 resource: resource,
-                                 villagerGroup: villagerGroup
-                             )
-                             return
-                         }
-                     }
-                     
-                     // No resource or it's a camp - proceed normally
-                     self?.gameScene?.placeBuilding(type: type, at: coordinate, owner: player)
-                 })
-             } else {
-                 // Show why it can't be placed (placement issue, not CC requirement)
-                 var reason = ""
-                 if type == .miningCamp {
-                     reason = " (Requires Ore/Stone)"
-                 } else if type == .lumberCamp {
-                     reason = " (Requires Trees)"
-                 }
-                 actions.append(AlertAction(title: "❌ \(type.displayName)\(reason)", handler: nil))
-             }
-         }
-         
-         vc.showActionSheet(
-             title: "🏗️ Select Building",
-             message: "Choose a building to construct at (\(coordinate.q), \(coordinate.r))\n⭐ City Center: Lv.\(cityCenterLevel)",
-             actions: actions,
-             onCancel: { [weak self] in
-                 self?.delegate?.deselectAll()
-             }
-         )
+              let hexMap = hexMap,
+              let vc = viewController else { return }
+        
+        let cityCenterLevel = player.getCityCenterLevel()
+        var actions: [AlertAction] = []
+        
+        for type in BuildingType.allCases {
+            if type == .cityCenter { continue }
+            
+            let requiredCCLevel = type.requiredCityCenterLevel
+            let meetsRequirement = cityCenterLevel >= requiredCCLevel
+            let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: type)
+            
+            var costString = ""
+            for (resourceType, amount) in type.buildCost {
+                costString += "\(resourceType.icon)\(amount) "
+            }
+            
+            if !meetsRequirement {
+                let title = "🔒 \(type.displayName) (CC Lv.\(requiredCCLevel) req.)"
+                actions.append(AlertAction(title: title, handler: nil))
+            } else if canPlace {
+                let title = "\(type.icon) \(type.displayName) - \(costString)"
+                actions.append(AlertAction(title: title) { [weak self] in
+                    // Check if there's a resource that will be removed
+                    if let resource = hexMap.getResourcePoint(at: coordinate) {
+                        if type != .miningCamp && type != .lumberCamp {
+                            self?.showBuildingConfirmationWithResourceWarning(
+                                buildingType: type,
+                                coordinate: coordinate,
+                                resource: resource,
+                                villagerGroup: villagerGroup
+                            )
+                            return
+                        }
+                    }
+                    
+                    // No resource warning needed - proceed with build command
+                    self?.executeBuildCommand(buildingType: type, at: coordinate, builder: villagerGroup)
+                })
+            } else {
+                var reason = ""
+                if type == .miningCamp {
+                    reason = " (Requires Ore/Stone)"
+                } else if type == .lumberCamp {
+                    reason = " (Requires Trees)"
+                }
+                actions.append(AlertAction(title: "❌ \(type.displayName)\(reason)", handler: nil))
+            }
+        }
+        
+        vc.showActionSheet(
+            title: "🏗️ Select Building",
+            message: "Choose a building to construct at (\(coordinate.q), \(coordinate.r))\n⭐ City Center: Lv.\(cityCenterLevel)",
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+    
+    func showBuildingConfirmationWithResourceWarning(
+        buildingType: BuildingType,
+        coordinate: HexCoordinate,
+        resource: ResourcePointNode,
+        villagerGroup: EntityNode?
+    ) {
+        guard let vc = viewController else { return }
+        
+        let alert = UIAlertController(
+            title: "⚠️ Resource Will Be Removed",
+            message: "Building \(buildingType.displayName) here will permanently remove the \(resource.resourceType.displayName) (\(resource.remainingAmount) remaining).\n\nAre you sure you want to continue?",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Build Anyway", style: .destructive) { [weak self] _ in
+            self?.executeBuildCommand(buildingType: buildingType, at: coordinate, builder: villagerGroup)
+        })
+        
+        vc.present(alert, animated: true)
+    }
+    
+    // MARK: - Upgrade Menu
+    
+    func showUpgradeConfirmation(for building: BuildingNode, villagerEntity: EntityNode) {
+        guard let vc = viewController,
+              let player = player else { return }
+        
+        guard building.canUpgrade else {
+            vc.showAlert(title: "Max Level", message: "\(building.buildingType.displayName) is already at maximum level (\(building.level)).")
+            return
+        }
+        
+        guard let upgradeCost = building.getUpgradeCost(),
+              let upgradeTime = building.getUpgradeTime() else {
+            return
+        }
+        
+        var costString = ""
+        var canAfford = true
+        for (resourceType, amount) in upgradeCost {
+            let hasEnough = player.hasResource(resourceType, amount: amount)
+            let icon = hasEnough ? "✅" : "❌"
+            costString += "\(icon) \(resourceType.icon)\(amount) "
+            if !hasEnough { canAfford = false }
+        }
+        
+        let timeString = formatTime(upgradeTime)
+        
+        let message = """
+        Upgrade \(building.buildingType.displayName) to Level \(building.level + 1)
+        
+        Cost: \(costString)
+        Time: \(timeString)
+        """
+        
+        var actions: [AlertAction] = []
+        
+        if canAfford {
+            actions.append(AlertAction(title: "⬆️ Start Upgrade") { [weak self] in
+                self?.executeUpgradeCommand(building: building, villagerEntity: villagerEntity)
+            })
+        } else {
+            actions.append(AlertAction(title: "❌ Cannot Afford", handler: nil))
+        }
+        
+        vc.showActionSheet(
+            title: "⬆️ Upgrade Building",
+            message: message,
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
     }
     
     // MARK: - Reinforcement Menus
     
-    /// Shows available garrison sources for reinforcing an army
     func showReinforcementSourceSelection(for army: Army) {
         guard let player = player,
               let vc = viewController else { return }
@@ -612,7 +694,6 @@ class MenuCoordinator {
         )
     }
     
-    /// Shows available armies to reinforce from a building
     func showReinforcementTargetSelection(from building: BuildingNode) {
         guard let player = player,
               let vc = viewController else { return }
@@ -629,8 +710,7 @@ class MenuCoordinator {
         for army in armies {
             let unitCount = army.getTotalMilitaryUnits()
             let commanderName = army.commander?.name ?? "No Commander"
-            let distance = army.coordinate.distance(to: building.coordinate)
-            let title = "🛡️ \(army.name) - \(commanderName) (\(unitCount) units) - Distance: \(distance)"
+            let title = "🛡️ \(army.name) - \(commanderName) (\(unitCount) units)"
             
             actions.append(AlertAction(title: title) { [weak self] in
                 self?.showReinforcementUnitSelection(from: building, to: army)
@@ -639,105 +719,166 @@ class MenuCoordinator {
         
         vc.showActionSheet(
             title: "⚔️ Select Army to Reinforce",
-            message: "Choose which army to reinforce from \(building.buildingType.displayName):\n\nGarrison: \(building.getTotalGarrisonedUnits()) units available",
+            message: "Choose which army to reinforce from \(building.buildingType.displayName):",
             actions: actions
         )
     }
     
-    /// Shows unit selection UI for transferring units from building to army
     func showReinforcementUnitSelection(from building: BuildingNode, to army: Army) {
         guard let vc = viewController else { return }
         
-        // Create custom container for sliders
-        let containerVC = UIViewController()
-        containerVC.preferredContentSize = CGSize(width: 270, height: 350)
+        let militaryGarrison = building.garrison
         
-        let scrollView = UIScrollView(frame: CGRect(x: 0, y: 0, width: 270, height: 350))
-        scrollView.backgroundColor = .clear
+        guard !militaryGarrison.isEmpty else {
+            vc.showAlert(title: "No Military Units", message: "This building has no military units to reinforce with.")
+            return
+        }
         
-        let contentView = UIView()
-        var yOffset: CGFloat = 10
+        // Create slider-based selection UI
+        let alert = UIAlertController(
+            title: "🔄 Reinforce \(army.name)",
+            message: "Select units to transfer from \(building.buildingType.displayName):\n\n\n\n\n",
+            preferredStyle: .alert
+        )
+        
         var sliders: [MilitaryUnitType: UISlider] = [:]
+        var yOffset: CGFloat = 60
         
-        // Create slider for each unit type in garrison
-        for (unitType, count) in building.garrison where count > 0 {
+        for (unitType, count) in militaryGarrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
             let label = UILabel(frame: CGRect(x: 10, y: yOffset, width: 250, height: 20))
             label.text = "\(unitType.icon) \(unitType.displayName): 0/\(count)"
             label.font = UIFont.systemFont(ofSize: 14)
-            label.textColor = .label
             label.tag = unitType.hashValue
-            contentView.addSubview(label)
+            alert.view.addSubview(label)
             
             let slider = UISlider(frame: CGRect(x: 10, y: yOffset + 25, width: 250, height: 30))
             slider.minimumValue = 0
             slider.maximumValue = Float(count)
             slider.value = 0
             slider.tag = unitType.hashValue
-            slider.addTarget(self, action: #selector(reinforcementSliderChanged(_:)), for: .valueChanged)
-            contentView.addSubview(slider)
-            sliders[unitType] = slider
+            slider.addTarget(self, action: #selector(reinforceSliderChanged(_:)), for: .valueChanged)
+            alert.view.addSubview(slider)
             
-            yOffset += 65
+            sliders[unitType] = slider
+            yOffset += 60
         }
         
-        contentView.frame = CGRect(x: 0, y: 0, width: 270, height: yOffset)
-        scrollView.addSubview(contentView)
-        scrollView.contentSize = contentView.frame.size
-        containerVC.view.addSubview(scrollView)
+        // Adjust alert height
+        let height = NSLayoutConstraint(item: alert.view!, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .notAnAttribute, multiplier: 1, constant: yOffset + 100)
+        alert.view.addConstraint(height)
         
-        // Store sliders reference for action
-        let actions: [AlertAction] = [
-            AlertAction(title: "Reinforce") { [weak self] in
-                self?.executeReinforcement(from: building, to: army, sliders: sliders)
-            },
-            .cancel()
-        ]
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Reinforce", style: .default) { [weak self] _ in
+            self?.executeReinforcementCommand(from: building, to: army, sliders: sliders)
+        })
         
-        vc.showAlertWithCustomContent(
-            title: "🔄 Reinforce \(army.name)",
-            message: "Select units from \(building.buildingType.displayName) garrison",
-            contentViewController: containerVC,
-            actions: actions
+        vc.present(alert, animated: true)
+    }
+    
+    @objc private func reinforceSliderChanged(_ sender: UISlider) {
+        guard let alert = viewController?.presentedViewController as? UIAlertController else { return }
+        
+        for subview in alert.view.subviews {
+            if let label = subview as? UILabel, label.tag == sender.tag {
+                let unitType = MilitaryUnitType.allCases.first { $0.hashValue == sender.tag }
+                if let type = unitType {
+                    label.text = "\(type.icon) \(type.displayName): \(Int(sender.value))/\(Int(sender.maximumValue))"
+                }
+                break
+            }
+        }
+    }
+    
+    // MARK: - Villager Selection for Gathering
+    
+    func showVillagerSelectionForGathering(resourcePoint: ResourcePointNode) {
+        guard let player = player,
+              let vc = viewController else { return }
+        
+        let availableVillagers = player.getVillagerGroups().filter {
+            $0.currentTask == .idle && $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
+        }
+        
+        guard !availableVillagers.isEmpty else {
+            vc.showAlert(title: "No Villagers", message: "No idle villagers available nearby to gather resources.")
+            return
+        }
+        
+        var actions: [AlertAction] = []
+        
+        for villagerGroup in availableVillagers {
+            let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
+            let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
+            
+            actions.append(AlertAction(title: title) { [weak self] in
+                self?.executeGatherCommand(villagerGroup: villagerGroup, resourcePoint: resourcePoint)
+            })
+        }
+        
+        vc.showActionSheet(
+            title: "👷 Select Villagers",
+            message: "Choose which villager group to gather \(resourcePoint.resourceType.displayName)\n\nRemaining: \(resourcePoint.remainingAmount)\nCapacity: \(resourcePoint.getTotalVillagersGathering())/\(ResourcePointNode.maxVillagersPerTile)",
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
         )
     }
     
-    @objc private func reinforcementSliderChanged(_ slider: UISlider) {
-        // Find label with matching tag and update
-        if let label = slider.superview?.viewWithTag(slider.tag) as? UILabel {
-            let current = Int(slider.value)
-            let max = Int(slider.maximumValue)
-            
-            // Extract unit name from existing label
-            if let text = label.text, let colonIndex = text.firstIndex(of: ":") {
-                let unitName = String(text[..<colonIndex])
-                label.text = "\(unitName): \(current)/\(max)"
-            }
+    // MARK: - Villager Selection for Hunt
+    
+    func showVillagerSelectionForHunt(resourcePoint: ResourcePointNode) {
+        guard let player = player,
+              let vc = viewController else { return }
+        
+        let availableVillagers = player.getVillagerGroups().filter {
+            $0.currentTask == .idle && $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
         }
+        
+        guard !availableVillagers.isEmpty else {
+            vc.showAlert(title: "No Villagers", message: "No idle villagers available nearby to hunt.")
+            return
+        }
+        
+        var actions: [AlertAction] = []
+        
+        for villagerGroup in availableVillagers {
+            let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
+            let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
+            
+            actions.append(AlertAction(title: title) { [weak self] in
+                self?.startHunt(villagerGroup: villagerGroup, target: resourcePoint)
+            })
+        }
+        
+        vc.showActionSheet(
+            title: "🏹 Select Villagers to Hunt",
+            message: "Choose which villager group to hunt \(resourcePoint.resourceType.displayName)\n\nHealth: \(Int(resourcePoint.currentHealth))/\(Int(resourcePoint.resourceType.health))",
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
     }
     
-    // MARK: - Garrison Menu
+    // MARK: - Garrison Info
     
-    /// Shows garrison contents and actions for a building
-    func showGarrisonMenu(for building: BuildingNode) {
+    func showGarrisonInfo(for building: BuildingNode) {
         guard let vc = viewController else { return }
         
-        let militaryCount = building.getTotalGarrisonedUnits()
-        let villagerCount = building.villagerGarrison
-        let totalCount = militaryCount + villagerCount
-        let capacity = building.getGarrisonCapacity()
+        var message = ""
+        var totalCount = 0
         
-        var message = "Garrisoned Units: \(totalCount)/\(capacity)\n\n"
-        
-        if villagerCount > 0 {
-            message += "👷 Villagers: \(villagerCount)\n"
+        // Military units
+        for (unitType, count) in building.garrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
+            message += "\(unitType.icon) \(unitType.displayName): \(count)\n"
+            totalCount += count
         }
         
-        if militaryCount > 0 {
-            message += "\n⚔️ Military Units:\n"
-            for (unitType, count) in building.garrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
-                message += "\(unitType.icon) \(unitType.displayName): \(count)\n"
-            }
-            message += "\n💡 Use 'Reinforce Army' to add these units to an existing army."
+        // Villagers
+        if building.villagerGarrison > 0 {
+            message += "👷 Villagers: \(building.villagerGarrison)\n"
+            totalCount += building.villagerGarrison
         }
         
         if totalCount == 0 {
@@ -749,7 +890,6 @@ class MenuCoordinator {
     
     // MARK: - Army Details
     
-    /// Shows detailed info about an army
     func showArmyDetails(_ army: Army, at coordinate: HexCoordinate) {
         guard let vc = viewController else { return }
         
@@ -757,7 +897,6 @@ class MenuCoordinator {
         
         var actions: [AlertAction] = []
         
-        // Select for movement
         actions.append(AlertAction(title: "🚶 Select to Move") { [weak self] in
             if let entityNode = self?.hexMap?.entities.first(where: {
                 ($0.entity as? Army)?.id == army.id
@@ -778,7 +917,6 @@ class MenuCoordinator {
     
     // MARK: - Game Menu
     
-    /// Shows the main game menu (save/load/quit)
     func showGameMenu() {
         guard let vc = viewController,
               let gameVC = vc as? GameViewController else { return }
@@ -802,76 +940,7 @@ class MenuCoordinator {
         )
     }
     
-    // MARK: - Private Helpers
-    
-    private func formatEntityTitle(_ entity: EntityNode) -> String {
-        var title = "\(entity.entityType.icon) "
-        
-        if entity.entityType == .army, let army = entity.entity as? Army {
-            let totalUnits = army.getTotalMilitaryUnits()
-            title += "\(army.name) (\(totalUnits) units)"
-        } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
-            title += "\(villagers.name) (\(villagers.villagerCount) villagers)"
-        }
-        
-        return title
-    }
-    
-    private func formatCost(_ cost: [ResourceType: Int]) -> String {
-        cost.map { "\($0.key.icon)\($0.value)" }.joined(separator: " ")
-    }
-    
-    private func formatArmyComposition(_ army: Army) -> String {
-        var message = ""
-        let totalUnits = army.getTotalMilitaryUnits()
-        message += "Total Units: \(totalUnits)\n\n"
-        return message
-    }
-    
-    private func startConstruction(_ buildingType: BuildingType, at coordinate: HexCoordinate, builder: EntityNode?) {
-        guard let player = player,
-              let gameScene = gameScene else { return }
-        
-        // Deduct resources
-        for (resourceType, amount) in buildingType.buildCost {
-            player.removeResource(resourceType, amount: amount)
-        }
-        
-        // Place building
-        gameScene.placeBuilding(type: buildingType, at: coordinate, owner: player)
-        
-        // Assign builder if available
-        if let villagerEntity = builder,
-           let villagers = villagerEntity.entity as? VillagerGroup,
-           let building = hexMap?.getBuilding(at: coordinate) {
-            villagers.assignTask(.building(building))
-            villagerEntity.isMoving = true
-            building.builderEntity = villagerEntity
-        }
-        
-        delegate?.updateResourceDisplay()
-        delegate?.deselectAll()
-    }
-    
-    private func executeReinforcement(from building: BuildingNode, to army: Army, sliders: [MilitaryUnitType: UISlider]) {
-        var totalTransferred = 0
-        
-        for (unitType, slider) in sliders {
-            let count = Int(slider.value)
-            if count > 0 {
-                building.removeFromGarrison(unitType: unitType, quantity: count)
-                army.addMilitaryUnits(unitType, count: count)
-                totalTransferred += count
-            }
-        }
-        
-        if totalTransferred > 0 {
-            viewController?.showAlert(
-                title: "✅ Reinforcement Complete",
-                message: "Transferred \(totalTransferred) units to \(army.name)"
-            )
-        }
-    }
+    // MARK: - Building Detail
     
     func presentBuildingDetail(for building: BuildingNode) {
         guard let vc = viewController as? GameViewController,
@@ -896,468 +965,369 @@ class MenuCoordinator {
         vc.present(detailVC, animated: true)
     }
     
-    func showBuildingConfirmationWithResourceWarning(
-            buildingType: BuildingType,
-            coordinate: HexCoordinate,
-            resource: ResourcePointNode,
-            villagerGroup: EntityNode?
-    ) {
-        guard let vc = viewController else { return }
+    // =========================================================================
+    // MARK: - Command Execution Methods
+    // =========================================================================
+    
+    /// Executes a MoveCommand
+    private func executeMoveCommand(entity: EntityNode, to destination: HexCoordinate) {
+        guard let player = player else { return }
         
-        let alert = UIAlertController(
-            title: "⚠️ Resource Will Be Removed",
-            message: "Building \(buildingType.displayName) here will permanently remove the \(resource.resourceType.displayName) (\(resource.remainingAmount) remaining).\n\nAre you sure you want to continue?",
-            preferredStyle: .alert
+        let command = MoveCommand(
+            playerID: player.id,
+            entityID: entity.entity.id,
+            destination: destination
         )
         
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Build Anyway", style: .destructive) { [weak self] _ in
-            self?.gameScene?.placeBuilding(type: buildingType, at: coordinate, owner: self?.player ?? Player(name: "Unknown", color: .gray))
-        })
+        let result = CommandExecutor.shared.execute(command)
         
-        vc.present(alert, animated: true)
-    }
-    
-    func showVillagerSelectionForGathering(resourcePoint: ResourcePointNode) {
-        guard let player = player,
-              let vc = viewController else { return }
-        
-        let availableVillagers = player.getVillagerGroups().filter {
-            $0.currentTask == .idle && $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
+        if !result.succeeded, let reason = result.failureReason {
+            viewController?.showAlert(title: "Cannot Move", message: reason)
         }
         
-        guard !availableVillagers.isEmpty else {
-            vc.showAlert(title: "No Villagers", message: "No idle villagers available nearby to gather resources.")
+        delegate?.deselectAll()
+    }
+    
+    /// Executes a BuildCommand
+    private func executeBuildCommand(buildingType: BuildingType, at coordinate: HexCoordinate, builder: EntityNode?) {
+        guard let player = player else { return }
+        
+        let command = BuildCommand(
+            playerID: player.id,
+            buildingType: buildingType,
+            coordinate: coordinate,
+            builderEntityID: builder?.entity.id
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if !result.succeeded, let reason = result.failureReason {
+            viewController?.showAlert(title: "Cannot Build", message: reason)
+        }
+        
+        delegate?.updateResourceDisplay()
+        delegate?.deselectAll()
+    }
+    
+    /// Executes a GatherCommand
+    private func executeGatherCommand(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
+        guard let player = player else { return }
+        
+        let command = GatherCommand(
+            playerID: player.id,
+            villagerGroupID: villagerGroup.id,
+            resourceCoordinate: resourcePoint.coordinate
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if !result.succeeded, let reason = result.failureReason {
+            viewController?.showAlert(title: "Cannot Gather", message: reason)
+        }
+        
+        delegate?.updateResourceDisplay()
+        delegate?.deselectAll()
+    }
+    
+    /// Executes a StopGatheringCommand
+    private func executeStopGatheringCommand(villagerGroup: VillagerGroup) {
+        guard let player = player else { return }
+        
+        let command = StopGatheringCommand(
+            playerID: player.id,
+            villagerGroupID: villagerGroup.id
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if result.succeeded {
+            viewController?.showAlert(
+                title: "✅ Gathering Cancelled",
+                message: "\(villagerGroup.name) is now idle and available for new tasks."
+            )
+        } else if let reason = result.failureReason {
+            viewController?.showAlert(title: "Cannot Stop Gathering", message: reason)
+        }
+        
+        delegate?.updateResourceDisplay()
+        delegate?.deselectAll()
+    }
+    
+    /// Executes an UpgradeCommand
+    private func executeUpgradeCommand(building: BuildingNode, villagerEntity: EntityNode) {
+        guard let player = player else { return }
+        
+        let command = UpgradeCommand(
+            playerID: player.id,
+            buildingID: building.data.id,
+            upgraderEntityID: villagerEntity.entity.id
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if !result.succeeded, let reason = result.failureReason {
+            viewController?.showAlert(title: "Cannot Upgrade", message: reason)
+        }
+        
+        delegate?.updateResourceDisplay()
+        delegate?.deselectAll()
+    }
+    
+    /// Executes a CancelUpgradeCommand
+    private func executeCancelUpgradeCommand(building: BuildingNode) {
+        guard let player = player else { return }
+        
+        let command = CancelUpgradeCommand(
+            playerID: player.id,
+            buildingID: building.data.id
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if result.succeeded {
+            viewController?.showAlert(title: "✅ Upgrade Cancelled", message: "Resources have been refunded.")
+        } else if let reason = result.failureReason {
+            viewController?.showAlert(title: "Cannot Cancel", message: reason)
+        }
+        
+        delegate?.updateResourceDisplay()
+        delegate?.deselectAll()
+    }
+    
+    /// Executes a ReinforceArmyCommand
+    private func executeReinforcementCommand(from building: BuildingNode, to army: Army, sliders: [MilitaryUnitType: UISlider]) {
+        guard let player = player else { return }
+        
+        var units: [MilitaryUnitType: Int] = [:]
+        for (unitType, slider) in sliders {
+            let count = Int(slider.value)
+            if count > 0 {
+                units[unitType] = count
+            }
+        }
+        
+        guard !units.isEmpty else {
+            viewController?.showAlert(title: "No Units Selected", message: "Select at least one unit to transfer.")
             return
         }
         
-        var actions: [AlertAction] = []
-        
-        for villagerGroup in availableVillagers {
-            let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
-            let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.assignVillagersToGather(villagerGroup: villagerGroup, resourcePoint: resourcePoint)
-            })
-        }
-        
-        vc.showActionSheet(
-            title: "👷 Select Villagers",
-            message: "Choose which villager group to gather \(resourcePoint.resourceType.displayName)\n\nRemaining: \(resourcePoint.remainingAmount)\nCapacity: \(resourcePoint.getTotalVillagersGathering())/\(ResourcePointNode.maxVillagersPerTile)",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
+        let command = ReinforceArmyCommand(
+            playerID: player.id,
+            buildingID: building.data.id,
+            armyID: army.id,
+            units: units
         )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if !result.succeeded, let reason = result.failureReason {
+            viewController?.showAlert(title: "Reinforcement Failed", message: reason)
+        }
     }
     
-    func assignVillagersToGather(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
-         guard let player = player,
-               let hexMap = hexMap,
-               let gameScene = gameScene,
-               let vc = viewController else { return }
-         
-         // Check if resource is gatherable
-         guard resourcePoint.resourceType.isGatherable else {
-             vc.showAlert(title: "Cannot Gather", message: "This \(resourcePoint.resourceType.displayName) must be hunted first!")
-             return
-         }
-         
-         // Check camp requirement
-         if resourcePoint.resourceType.requiresCamp {
-             guard hexMap.hasCampCoverage(at: resourcePoint.coordinate, forResourceType: resourcePoint.resourceType) else {
-                 let campName = resourcePoint.resourceType.requiredCampType?.displayName ?? "Camp"
-                 vc.showAlert(
-                     title: "⚠️ No \(campName) Nearby",
-                     message: "You need a \(campName) built on or adjacent to this \(resourcePoint.resourceType.displayName) before villagers can gather here."
-                 )
-                 return
-             }
-         }
-         
-         // Check villager capacity
-         guard resourcePoint.canAddVillagers(villagerGroup.villagerCount) else {
-             let remaining = resourcePoint.getRemainingCapacity()
-             vc.showAlert(
-                 title: "⚠️ Too Many Villagers",
-                 message: "This resource can only support \(ResourcePointNode.maxVillagersPerTile) villagers.\n\nCurrently: \(resourcePoint.getTotalVillagersGathering())\nRemaining capacity: \(remaining)"
-             )
-             return
-         }
-         
-         // Assign task
-         villagerGroup.assignTask(.gatheringResource(resourcePoint), target: resourcePoint.coordinate)
-         resourcePoint.startGathering(by: villagerGroup)
-         
-         // Apply collection rate bonus based on villager count
-        let resourceYield = resourcePoint.resourceType.resourceYield
-        var rateContribution = 0.2 * Double(villagerGroup.villagerCount)
-        
-        // Apply research bonus
-        switch resourceYield {
-        case .wood:
-            rateContribution *= ResearchManager.shared.getWoodGatheringMultiplier()
-        case .food:
-            rateContribution *= ResearchManager.shared.getFoodGatheringMultiplier()
-        case .stone:
-            rateContribution *= ResearchManager.shared.getStoneGatheringMultiplier()
-        case .ore:
-            rateContribution *= ResearchManager.shared.getOreGatheringMultiplier()
-        }
-        
-        player.increaseCollectionRate(resourceYield, amount: rateContribution)
-        print("✅ Increased \(resourceYield.displayName) collection rate by \(String(format: "%.2f", rateContribution))/s (includes research bonus)")
-         
-         // Find entity node and move to resource
-         if let entityNode = hexMap.entities.first(where: {
-             ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-         }) {
-             gameScene.moveEntity(entityNode, to: resourcePoint.coordinate)
-         }
-         
-         print("✅ Assigned \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourcePoint.resourceType.displayName)")
-         
-         delegate?.deselectAll()
-     }
+    // =========================================================================
+    // MARK: - Non-Command Methods (Hunting, Cancel Tasks)
+    // =========================================================================
     
-    func showVillagerSelectionForHunting(resourcePoint: ResourcePointNode) {
-        guard let player = player,
-              let vc = viewController else { return }
+    /// Starts a hunt (not yet converted to command - complex combat logic)
+    private func startHunt(villagerGroup: VillagerGroup, target: ResourcePointNode) {
+        guard let hexMap = hexMap,
+              let gameScene = gameScene else { return }
         
-        let availableVillagers = player.getVillagerGroups().filter {
-            $0.currentTask == .idle &&
-            $0.villagerCount > 0 &&
-            $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
-        }
-        
-        guard !availableVillagers.isEmpty else {
-            vc.showAlert(title: "No Villagers", message: "No idle villagers available nearby to hunt.")
+        guard let entityNode = hexMap.entities.first(where: {
+            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+        }) else {
+            viewController?.showAlert(title: "Error", message: "Could not find villager group.")
             return
         }
         
-        var actions: [AlertAction] = []
+        villagerGroup.assignTask(.hunting(target), target: target.coordinate)
+        entityNode.isMoving = true
         
-        for villagerGroup in availableVillagers {
-            let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
-            // Show hunting power (villager count acts as attack strength)
-            let huntPower = villagerGroup.villagerCount * 100
-            let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) ⚔️\(huntPower) - Distance: \(distance)"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.huntWithVillagers(villagerGroup: villagerGroup, target: resourcePoint)
-            })
+        // Move to target
+        if let path = hexMap.findPath(from: entityNode.coordinate, to: target.coordinate) {
+            entityNode.moveTo(path: path) { [weak self] in
+                self?.gameScene?.villagerArrivedForHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
+            }
         }
         
-        vc.showActionSheet(
-            title: "🏹 Select Hunters",
-            message: "Choose villagers to hunt the \(resourcePoint.resourceType.displayName)\n\n❤️ Health: \(Int(resourcePoint.currentHealth))/\(Int(resourcePoint.resourceType.health))\n🛡️ Defense: \(Int(resourcePoint.resourceType.defensePower))\n⚔️ Attack: \(Int(resourcePoint.resourceType.attackPower))\n\n⚠️ Villagers may be injured!",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+        print("🏹 \(villagerGroup.name) heading to hunt \(target.resourceType.displayName)")
+        delegate?.deselectAll()
     }
     
-    func huntWithVillagers(villagerGroup: VillagerGroup, target: ResourcePointNode) {
-            guard let player = player,
-                  let hexMap = hexMap,
-                  let gameScene = gameScene,
-                  let vc = viewController else { return }
-            
-            // Find the entity node for this villager group
-            guard let entityNode = hexMap.entities.first(where: {
-                ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-            }) else {
-                vc.showAlert(title: "Error", message: "Could not find villager group on map.")
-                return
-            }
-            
-            // Check if already at the target location
-            if villagerGroup.coordinate == target.coordinate {
-                // Already there - execute hunt immediately
-                executeHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
-            } else {
-                // Need to move first - assign hunting task and move
-                villagerGroup.assignTask(.hunting(target), target: target.coordinate)
-                entityNode.isMoving = true
-                
-                // Move to the target
-                gameScene.moveEntity(entityNode, to: target.coordinate)
-                
-                print("🏹 Villagers moving to hunt \(target.resourceType.displayName) at (\(target.coordinate.q), \(target.coordinate.r))")
-            }
-            
-            delegate?.deselectAll()
+    func executeHunt(villagerGroup: VillagerGroup, target: ResourcePointNode, entityNode: EntityNode) {
+        guard let player = player,
+              let hexMap = hexMap,
+              let gameScene = gameScene,
+              let vc = viewController else { return }
+        
+        // Verify target still valid
+        guard target.parent != nil,
+              target.resourceType.isHuntable,
+              target.currentHealth > 0 else {
+            villagerGroup.clearTask()
+            entityNode.isMoving = false
+            vc.showAlert(title: "Hunt Failed", message: "The target is no longer available.")
+            return
         }
         
-    // MARK: - ADD: Execute hunt when villagers arrive
-    // LOCATION: Add after huntWithVillagers method
-
-        func executeHunt(villagerGroup: VillagerGroup, target: ResourcePointNode, entityNode: EntityNode) {
-            guard let player = player,
-                  let hexMap = hexMap,
-                  let gameScene = gameScene,
-                  let vc = viewController else { return }
+        // Calculate combat - villager count is attack power
+        let villagerAttack = Double(villagerGroup.villagerCount) * 25
+        let animalDefense = target.resourceType.defensePower
+        let animalAttack = target.resourceType.attackPower
+        
+        // Damage to animal
+        let damageToAnimal = max(1.0, villagerAttack - animalDefense)
+        let isDead = target.takeDamage(damageToAnimal)
+        
+        print("⚔️ Villagers dealt \(damageToAnimal) damage to \(target.resourceType.displayName)")
+        
+        // Damage to villagers (animal fights back)
+        let damageToVillagers = max(0.0, animalAttack - Double(villagerGroup.villagerCount) * 0.5)
+        let villagersLost = Int(damageToVillagers / 5.0)  // Every 5 damage kills a villager
+        
+        if villagersLost > 0 {
+            let actualLost = villagerGroup.removeVillagers(count: villagersLost)
+            print("⚠️ \(actualLost) villagers were injured/killed by \(target.resourceType.displayName)")
+        }
+        
+        if isDead {
+            // Animal killed - create carcass
+            villagerGroup.clearTask()
+            entityNode.isMoving = false
             
-            // Calculate combat - villager count is attack power
-            let villagerAttack = Double(villagerGroup.villagerCount) * 25
-            let animalDefense = target.resourceType.defensePower
-            let animalAttack = target.resourceType.attackPower
+            if let resourcesNode = gameScene.childNode(withName: "resourcesNode") {
+                if let carcass = hexMap.createCarcass(from: target, scene: resourcesNode) {
+                    // Remove the original animal
+                    hexMap.removeResourcePoint(target)
+                    target.removeFromParent()
+                    
+                    var message = "\(villagerGroup.name) killed the \(target.resourceType.displayName)!\n\n🥩 \(carcass.resourceType.displayName) left behind with \(carcass.remainingAmount) food.\n\nAssign villagers to gather the food."
+                    
+                    if villagersLost > 0 {
+                        message += "\n\n⚠️ \(villagersLost) villager(s) were lost in the hunt."
+                    }
+                    
+                    vc.showAlert(title: "🎯 Hunt Successful!", message: message)
+                    
+                    print("✅ Villagers hunted \(target.resourceType.displayName) - carcass created")
+                }
+            }
+        } else {
+            // Animal wounded but not dead - clear task so they can try again
+            villagerGroup.clearTask()
+            entityNode.isMoving = false
             
-            // Damage to animal
-            let damageToAnimal = max(1.0, villagerAttack - animalDefense)
-            let isDead = target.takeDamage(damageToAnimal)
-            
-            // Damage to villagers (animal fights back)
-            let damageToVillagers = max(0.0, animalAttack - Double(villagerGroup.villagerCount) * 0.5)
-            let villagersLost = Int(damageToVillagers / 5.0)  // Every 5 damage kills a villager
+            let healthRemaining = Int(target.currentHealth)
+            var message = "\(villagerGroup.name) wounded the \(target.resourceType.displayName)!\n\n❤️ Animal Health: \(healthRemaining)/\(Int(target.resourceType.health))"
             
             if villagersLost > 0 {
-                let actualLost = villagerGroup.removeVillagers(count: villagersLost)
-                print("⚠️ \(actualLost) villagers were injured/killed by \(target.resourceType.displayName)")
+                message += "\n\n⚠️ \(villagersLost) villager(s) were injured."
             }
             
-            if isDead {
-                // Animal killed - create carcass
-                villagerGroup.clearTask()
-                entityNode.isMoving = false
-                
-                if let resourcesNode = gameScene.childNode(withName: "resourcesNode") {
-                    if let carcass = hexMap.createCarcass(from: target, scene: resourcesNode) {
-                        // Remove the original animal
-                        hexMap.removeResourcePoint(target)
-                        target.removeFromParent()
-                        
-                        var message = "\(villagerGroup.name) killed the \(target.resourceType.displayName)!\n\n🥩 \(carcass.resourceType.displayName) left behind with \(carcass.remainingAmount) food.\n\nAssign villagers to gather the food."
-                        
-                        if villagersLost > 0 {
-                            message += "\n\n⚠️ \(villagersLost) villager(s) were lost in the hunt."
-                        }
-                        
-                        vc.showAlert(title: "🎯 Hunt Successful!", message: message)
-                        
-                        print("✅ Villagers hunted \(target.resourceType.displayName) - carcass created")
-                    }
-                }
-            } else {
-                // Animal wounded but not dead - clear task so they can try again
-                villagerGroup.clearTask()
-                entityNode.isMoving = false
-                
-                let healthRemaining = Int(target.currentHealth)
-                var message = "\(villagerGroup.name) wounded the \(target.resourceType.displayName)!\n\n❤️ Animal Health: \(healthRemaining)/\(Int(target.resourceType.health))"
-                
-                if villagersLost > 0 {
-                    message += "\n\n⚠️ \(villagersLost) villager(s) were injured."
-                }
-                
-                message += "\n\nSend more villagers to finish the hunt!"
-                
-                vc.showAlert(title: "⚔️ Combat Continues", message: message)
-            }
+            message += "\n\nSend more villagers to finish the hunt!"
             
-            // Check if villager group is now empty
-            if villagerGroup.villagerCount <= 0 {
-                // Remove the empty group
-                hexMap.removeEntity(entityNode)
-                entityNode.removeFromParent()
-                player.removeEntity(villagerGroup)
-                print("💀 Villager group wiped out during hunt")
-            }
-            
-            delegate?.updateResourceDisplay()
+            vc.showAlert(title: "⚔️ Combat Continues", message: message)
         }
-    
-    func cancelGathering(villagerGroup: VillagerGroup) {
-            guard let player = player,
-                  let hexMap = hexMap,
-                  let vc = viewController else { return }
-            
-            // Check if villagers are gathering
-            guard case .gatheringResource(let resourcePoint) = villagerGroup.currentTask else {
-                vc.showAlert(title: "Not Gathering", message: "\(villagerGroup.name) is not currently gathering resources.")
-                return
-            }
-            
-            // Revert collection rate
-            let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
-            player.decreaseCollectionRate(resourcePoint.resourceType.resourceYield, amount: rateContribution)
-            
-            // Remove from resource point
-            resourcePoint.stopGathering(by: villagerGroup)
-            
-            // Clear task
-            villagerGroup.clearTask()
-            
-            // Unlock entity
-            if let entityNode = hexMap.entities.first(where: {
-                ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-            }) {
-                entityNode.isMoving = false
-            }
-            
-            print("✅ Cancelled gathering for \(villagerGroup.name)")
-            
-            vc.showAlert(
-                title: "✅ Gathering Cancelled",
-                message: "\(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) is now idle and available for new tasks."
-            )
-            
-            delegate?.deselectAll()
+        
+        // Remove empty villager groups
+        if villagerGroup.villagerCount <= 0 {
+            hexMap.removeEntity(entityNode)
+            entityNode.removeFromParent()
+            player.removeEntity(villagerGroup)
+            print("💀 Villager group wiped out during hunt")
         }
+        
+        delegate?.updateResourceDisplay()
+    }
+  
     
-    func showVillagerOptionsMenu(villagerGroup: VillagerGroup, entityNode: EntityNode) {
-         guard let vc = viewController else { return }
-         
-         var actions: [AlertAction] = []
-         var message = "Villagers: \(villagerGroup.villagerCount)\n"
-         message += "Status: \(villagerGroup.currentTask.displayName)"
-         
-         // Show cancel option if gathering
-         if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
-             message += "\n\nGathering: \(resourcePoint.resourceType.displayName)"
-             message += "\nRemaining: \(resourcePoint.remainingAmount)"
-             
-             actions.append(AlertAction(title: "🛑 Cancel Gathering", style: .destructive) { [weak self] in
-                 self?.cancelGathering(villagerGroup: villagerGroup)
-             })
-         }
-         
-         // Show cancel option if hunting
-         if case .hunting(let target) = villagerGroup.currentTask {
-             message += "\n\nHunting: \(target.resourceType.displayName)"
-             
-             actions.append(AlertAction(title: "🛑 Cancel Hunt", style: .destructive) { [weak self] in
-                 self?.cancelHunting(villagerGroup: villagerGroup)
-             })
-         }
-         
-         vc.showActionSheet(
-             title: "👷 \(villagerGroup.name)",
-             message: message,
-             actions: actions,
-             onCancel: { [weak self] in
-                 self?.delegate?.deselectAll()
-             }
-         )
-     }
-     
- // MARK: - ADD: Cancel hunting method
- // LOCATION: Add after cancelGathering method
-
-     func cancelHunting(villagerGroup: VillagerGroup) {
-         guard let hexMap = hexMap,
-               let vc = viewController else { return }
-         
-         // Check if villagers are hunting
-         guard case .hunting = villagerGroup.currentTask else {
-             vc.showAlert(title: "Not Hunting", message: "\(villagerGroup.name) is not currently hunting.")
-             return
-         }
-         
-         // Clear task
-         villagerGroup.clearTask()
-         
-         // Unlock entity
-         if let entityNode = hexMap.entities.first(where: {
-             ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-         }) {
-             entityNode.isMoving = false
-         }
-         
-         print("✅ Cancelled hunting for \(villagerGroup.name)")
-         
-         vc.showAlert(
-             title: "✅ Hunt Cancelled",
-             message: "\(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) has stopped hunting and is now idle."
-         )
-         
-         delegate?.deselectAll()
-     }
-    
-    func cancelBuilding(villagerGroup: VillagerGroup, building: BuildingNode) {
-            guard let hexMap = hexMap,
-                  let vc = viewController else { return }
-            
-            // Reduce builders assigned
-            building.buildersAssigned = max(0, building.buildersAssigned - villagerGroup.villagerCount)
-            
-            // Clear task
-            villagerGroup.clearTask()
-            
-            // Unlock entity
-            if let entityNode = hexMap.entities.first(where: {
-                ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-            }) {
-                entityNode.isMoving = false
-            }
-            
-            print("✅ Cancelled building for \(villagerGroup.name)")
-            
-            vc.showAlert(
-                title: "✅ Building Cancelled",
-                message: "\(villagerGroup.name) stopped building \(building.buildingType.displayName)"
-            )
-            
-            delegate?.deselectAll()
+    /// Cancels a hunting task (not yet a command)
+    private func cancelHunting(villagerGroup: VillagerGroup) {
+        guard let hexMap = hexMap,
+              let vc = viewController else { return }
+        
+        guard case .hunting = villagerGroup.currentTask else {
+            vc.showAlert(title: "Not Hunting", message: "\(villagerGroup.name) is not currently hunting.")
+            return
         }
-    
-    func showUpgradeOption(for building: BuildingNode, villagerEntity: EntityNode) {
-            guard let vc = viewController,
-                  let player = player else { return }
-            
-            guard building.canUpgrade else {
-                vc.showAlert(title: "Max Level", message: "\(building.buildingType.displayName) is already at maximum level (\(building.level)).")
-                return
-            }
-            
-            guard let upgradeCost = building.getUpgradeCost(),
-                  let upgradeTime = building.getUpgradeTime() else {
-                return
-            }
-            
-            // Format cost string
-            var costString = ""
-            for (resourceType, amount) in upgradeCost {
-                let hasEnough = player.hasResource(resourceType, amount: amount)
-                let icon = hasEnough ? "✅" : "❌"
-                costString += "\(icon) \(resourceType.icon)\(amount) "
-            }
-            
-            // Format time
-            let minutes = Int(upgradeTime) / 60
-            let seconds = Int(upgradeTime) % 60
-            let timeString = "\(minutes)m \(seconds)s"
-            
-            let message = """
-            Upgrade \(building.buildingType.displayName) to Level \(building.level + 1)
-            
-            Cost: \(costString)
-            Time: \(timeString)
-            """
-            
-            let canAfford = upgradeCost.allSatisfy { player.hasResource($0.key, amount: $0.value) }
-            
-            var actions: [AlertAction] = []
-            
-            if canAfford {
-                actions.append(AlertAction(title: "⬆️ Upgrade to Level \(building.level + 1)") { [weak self] in
-                    self?.gameScene?.startBuildingUpgrade(building: building, villagerEntity: villagerEntity)
-                })
-            } else {
-                actions.append(AlertAction(title: "❌ Cannot Afford Upgrade", handler: nil))
-            }
-            
-            vc.showActionSheet(
-                title: "⬆️ Upgrade Building",
-                message: message,
-                actions: actions,
-                onCancel: { [weak self] in
-                    self?.delegate?.deselectAll()
-                }
-            )
+        
+        villagerGroup.clearTask()
+        
+        if let entityNode = hexMap.entities.first(where: {
+            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+        }) {
+            entityNode.isMoving = false
         }
+        
+        print("✅ Cancelled hunting for \(villagerGroup.name)")
+        
+        vc.showAlert(
+            title: "✅ Hunt Cancelled",
+            message: "\(villagerGroup.name) has stopped hunting and is now idle."
+        )
+        
+        delegate?.deselectAll()
+    }
+    
+    /// Cancels a building task (not yet a command)
+    private func cancelBuilding(villagerGroup: VillagerGroup, building: BuildingNode) {
+        guard let hexMap = hexMap,
+              let vc = viewController else { return }
+        
+        building.buildersAssigned = max(0, building.buildersAssigned - villagerGroup.villagerCount)
+        
+        villagerGroup.clearTask()
+        
+        if let entityNode = hexMap.entities.first(where: {
+            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+        }) {
+            entityNode.isMoving = false
+        }
+        
+        print("✅ Cancelled building for \(villagerGroup.name)")
+        
+        vc.showAlert(
+            title: "✅ Building Cancelled",
+            message: "\(villagerGroup.name) stopped building \(building.buildingType.displayName)"
+        )
+        
+        delegate?.deselectAll()
+    }
+    
+    // =========================================================================
+    // MARK: - Private Helpers
+    // =========================================================================
+    
+    private func formatEntityTitle(_ entity: EntityNode) -> String {
+        var title = "\(entity.entityType.icon) "
+        
+        if entity.entityType == .army, let army = entity.entity as? Army {
+            let totalUnits = army.getTotalMilitaryUnits()
+            title += "\(army.name) (\(totalUnits) units)"
+        } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
+            title += "\(villagers.name) (\(villagers.villagerCount) villagers)"
+        }
+        
+        return title
+    }
+    
+    private func formatCost(_ cost: [ResourceType: Int]) -> String {
+        cost.map { "\($0.key.icon)\($0.value)" }.joined(separator: " ")
+    }
+    
+    private func formatArmyComposition(_ army: Army) -> String {
+        var message = ""
+        let totalUnits = army.getTotalMilitaryUnits()
+        message += "Total Units: \(totalUnits)\n\n"
+        
+        if let commander = army.commander {
+            message += "Commander: \(commander.name)\n"
+            message += "Rank: \(commander.rank.displayName)\n"
+        }
+        
+        return message
+    }
     
     private func getRemainingTime(startTime: TimeInterval, totalTime: TimeInterval) -> TimeInterval {
         let currentTime = Date().timeIntervalSince1970
@@ -1366,11 +1336,8 @@ class MenuCoordinator {
     }
     
     private func formatTime(_ seconds: TimeInterval) -> String {
-        let mins = Int(seconds) / 60
+        let minutes = Int(seconds) / 60
         let secs = Int(seconds) % 60
-        return "\(mins)m \(secs)s"
+        return String(format: "%d:%02d", minutes, secs)
     }
-    
-    
-    
 }

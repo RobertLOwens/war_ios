@@ -37,9 +37,9 @@ struct MapSaveData: Codable {
     let width: Int
     let height: Int
     let tiles: [TileSaveData]
-    let buildings: [BuildingSaveData]
+    let buildings: [BuildingData]  // ← Changed to BuildingData
     let resourcePoints: [ResourcePointSaveData]
-    let exploredTiles: [TileSaveData]  // ✅ NEW: Save explored tiles
+    let exploredTiles: [TileSaveData]
 }
 
 struct TileSaveData: Codable {
@@ -106,31 +106,6 @@ struct CommanderSaveData: Codable {
     let colorAlpha: CGFloat
 }
 
-struct BuildingSaveData: Codable {
-    let id: String
-    let q: Int
-    let r: Int
-    let buildingType: String
-    let ownerID: String
-    let state: String
-    let health: Double
-    let maxHealth: Double
-    let constructionProgress: Double
-    let constructionStartTime: TimeInterval?
-    let buildersAssigned: Int
-    let level: Int
-    let upgradeProgress: Double
-    let upgradeStartTime: TimeInterval?
-    
-    // Garrison data
-    let garrison: [String: Int]  // MilitaryUnitType: count
-    let villagerGarrison: Int
-    
-    // Training queue data
-    let trainingQueue: [TrainingQueueSaveData]
-    let villagerTrainingQueue: [VillagerTrainingSaveData]
-}
-
 struct TrainingQueueSaveData: Codable {
     let id: String
     let unitType: String
@@ -178,12 +153,12 @@ class GameSaveManager {
         let mapData = createMapSaveData(from: hexMap, player: player)
         let playerData = createPlayerSaveData(from: player)
         let allPlayersData = allPlayers.map { createPlayerSaveData(from: $0) }
-            
+        
         let saveData = GameSaveData(
             mapData: mapData,
             playerData: playerData,
             allPlayersData: allPlayersData,
-            researchData: ResearchManager.shared.getSaveData()  // ✅ ADD THIS
+            researchData: ResearchManager.shared.getSaveData()
         )
         
         // Encode to JSON
@@ -205,9 +180,7 @@ class GameSaveManager {
             return false
         }
     }
-    
-    // MARK: - Load Game
-    
+
     func loadGame() -> (hexMap: HexMap, player: Player, allPlayers: [Player])? {
         print("📂 Loading game...")
         
@@ -224,7 +197,7 @@ class GameSaveManager {
             
             print("✅ Save file loaded - Version: \(saveData.version), Date: \(saveData.saveDate)")
             
-            // Reconstruct all players
+            // Reconstruct all players first (without buildings - we'll add those after)
             let allPlayers = saveData.allPlayersData.map { reconstructPlayer(from: $0) }
             
             guard let player = allPlayers.first(where: { $0.id.uuidString == saveData.playerData.id }) else {
@@ -232,58 +205,65 @@ class GameSaveManager {
                 return nil
             }
             
-            let hexMap = reconstructHexMap(from: saveData.mapData, player: player)
-
+            // Reconstruct hex map (tiles only, buildings added separately)
+            let hexMap = reconstructHexMap(from: saveData.mapData, player: player, allPlayers: allPlayers)
+            
             // ✅ DEBUG: Verify explored tiles were loaded
             print("\n🔍 FOG DEBUG after reconstructHexMap:")
             print("   exploredTiles in save data: \(saveData.mapData.exploredTiles.count)")
             if let fogOfWar = player.fogOfWar {
                 fogOfWar.printFogStats()
-                
-                // Check first few explored tiles
-                for (index, tile) in saveData.mapData.exploredTiles.prefix(5).enumerated() {
-                    let coord = HexCoordinate(q: tile.q, r: tile.r)
-                    let actualLevel = fogOfWar.getVisibilityLevel(at: coord)
-                    print("   Sample tile \(index): (\(tile.q), \(tile.r)) -> \(actualLevel)")
-                }
             }
             
+            // Initialize fog for other players
             for playerData in saveData.allPlayersData {
                 if let restoredPlayer = allPlayers.first(where: { $0.id.uuidString == playerData.id }) {
-                    // ✅ FIX: Only initialize fog for players OTHER than the main player
-                    // Main player's fog was already initialized and restored in reconstructHexMap
                     if restoredPlayer.id != player.id {
                         restoredPlayer.initializeFogOfWar(hexMap: hexMap)
                     }
                 }
             }
             
+            // Load research data
             if let researchData = saveData.researchData {
                 ResearchManager.shared.loadSaveData(researchData)
             }
             
-            // Restore buildings to map and players
+            // ✅ SIMPLIFIED: Reconstruct buildings from BuildingData
             for buildingData in saveData.mapData.buildings {
-                if let building = reconstructBuilding(from: buildingData, allPlayers: allPlayers) {
-                    hexMap.addBuilding(building)
-                    if let owner = building.owner {
-                        owner.addBuilding(building)
-                    }
-                }
+                // Find the owner player
+                let owner = buildingData.ownerID.flatMap { ownerID in allPlayers.first { $0.id == ownerID } }
+
+                // Create BuildingNode from saved data
+                let building = BuildingNode(data: buildingData, owner: owner)
+                
+                // Set position based on coordinate
+                let position = HexMap.hexToPixel(q: buildingData.coordinate.q, r: buildingData.coordinate.r)
+                building.position = position
+                
+                // Add to hex map
+                hexMap.addBuilding(building)
+                
+                // Add to owner's building list
+                owner?.addBuilding(building)
+                
+                print("   ✅ Restored \(buildingData.buildingType.description) Lv.\(buildingData.level) at (\(buildingData.coordinate.q), \(buildingData.coordinate.r))")
             }
             
+            // Reconstruct resource points
             for resourceData in saveData.mapData.resourcePoints {
                 if let resource = reconstructResourcePoint(from: resourceData) {
                     hexMap.resourcePoints.append(resource)
                 }
             }
-
+            
+            // Apply offline progress
             applyOfflineProgress(hexMap: hexMap, player: player, saveDate: saveData.saveDate)
-
+            
             print("✅ Game loaded successfully")
             print("   Map: \(hexMap.width)x\(hexMap.height)")
             print("   Player: \(player.name)")
-            print("   Player Buildings: \(player.buildings.count)")  // ✅ Now shows correct count
+            print("   Player Buildings: \(player.buildings.count)")
             print("   HexMap Buildings: \(hexMap.buildings.count)")
             print("   Entities: \(player.entities.count)")
             
@@ -294,7 +274,6 @@ class GameSaveManager {
             return nil
         }
     }
-
     
     // MARK: - Check Save Exists
     
@@ -335,12 +314,15 @@ class GameSaveManager {
     
     private func createMapSaveData(from hexMap: HexMap, player: Player) -> MapSaveData {
         
+        // Tiles
         let tiles = hexMap.tiles.map { coord, tile in
-               TileSaveData(q: coord.q, r: coord.r, terrain: terrainTypeToString(tile.terrain))
-           }
+            TileSaveData(q: coord.q, r: coord.r, terrain: terrainTypeToString(tile.terrain))
+        }
         
-        let buildings = hexMap.buildings.map { createBuildingSaveData(from: $0) }
+        // ✅ SIMPLIFIED: Buildings are now just their data objects
+        let buildings = hexMap.buildings.map { $0.data }
         
+        // Resource points
         let resourcePoints = hexMap.resourcePoints.map { resource in
             ResourcePointSaveData(
                 q: resource.coordinate.q,
@@ -352,7 +334,8 @@ class GameSaveManager {
                 assignedVillagerGroupIDs: resource.assignedVillagerGroups.map { $0.id.uuidString }
             )
         }
-
+        
+        // Explored tiles
         var exploredTiles: [TileSaveData] = []
         if let fogOfWar = player.fogOfWar {
             for (coord, tile) in hexMap.tiles {
@@ -366,17 +349,17 @@ class GameSaveManager {
                 }
             }
         }
-         
+        
         return MapSaveData(
-               width: hexMap.width,
-               height: hexMap.height,
-               tiles: tiles,
-               buildings: buildings,
-               resourcePoints: resourcePoints,
-               exploredTiles: exploredTiles
-           )
-
+            width: hexMap.width,
+            height: hexMap.height,
+            tiles: tiles,
+            buildings: buildings,
+            resourcePoints: resourcePoints,
+            exploredTiles: exploredTiles
+        )
     }
+
     
     private func createPlayerSaveData(from player: Player) -> PlayerSaveData {
         var resources: [String: Int] = [:]
@@ -544,86 +527,39 @@ class GameSaveManager {
             colorAlpha: alpha
         )
     }
-
-    
-    private func createBuildingSaveData(from building: BuildingNode) -> BuildingSaveData {
-        var garrison: [String: Int] = [:]
-        for (unitType, count) in building.garrison {
-            garrison[unitType.rawValue] = count
-        }
-        
-        let trainingQueue = building.trainingQueue.map { entry in
-            TrainingQueueSaveData(
-                id: entry.id.uuidString,
-                unitType: entry.unitType.rawValue,
-                quantity: entry.quantity,
-                startTime: entry.startTime,
-                progress: entry.progress
-            )
-        }
-        
-        let villagerQueue = building.villagerTrainingQueue.map { entry in
-            VillagerTrainingSaveData(
-                id: entry.id.uuidString,
-                quantity: entry.quantity,
-                startTime: entry.startTime,
-                progress: entry.progress
-            )
-        }
-        
-        return BuildingSaveData(
-            id: UUID().uuidString,
-            q: building.coordinate.q,
-            r: building.coordinate.r,
-            buildingType: building.buildingType.rawValue,
-            ownerID: building.owner?.id.uuidString ?? "",
-            state: buildingStateToString(building.state),
-            health: building.health,
-            maxHealth: building.maxHealth,
-            constructionProgress: building.constructionProgress,
-            constructionStartTime: building.constructionStartTime,
-            buildersAssigned: building.buildersAssigned,
-            level: building.level,
-            upgradeProgress: building.upgradeProgress,
-            upgradeStartTime: building.upgradeStartTime,
-            garrison: garrison,
-            villagerGarrison: building.villagerGarrison,
-            trainingQueue: trainingQueue,
-            villagerTrainingQueue: villagerQueue
-        )
-    }
     
     // MARK: - Reconstruct Objects
     
-    private func reconstructHexMap(from data: MapSaveData, player: Player) -> HexMap {
+    private func reconstructHexMap(from data: MapSaveData, player: Player, allPlayers: [Player]) -> HexMap {
         let hexMap = HexMap(width: data.width, height: data.height)
-        hexMap.tiles.removeAll()
         
+        // Reconstruct tiles
         for tileData in data.tiles {
             let coord = HexCoordinate(q: tileData.q, r: tileData.r)
             let terrain = stringToTerrainType(tileData.terrain)
-            let tile = HexTileNode(coordinate: coord, terrain: terrain)
-            hexMap.tiles[coord] = tile
+            
+            if let existingTile = hexMap.tiles[coord] {
+                existingTile.terrain = terrain
+                existingTile.updateAppearance()
+            } else {
+                let tile = HexTileNode(coordinate: coord, terrain: terrain)
+                hexMap.tiles[coord] = tile
+            }
         }
         
-        print("📂 Loading \(data.exploredTiles.count) explored tiles...")
-        
-        // Initialize fog of war
+        // Initialize fog of war for player
         player.initializeFogOfWar(hexMap: hexMap)
         
         // Restore explored tiles
         if let fogOfWar = player.fogOfWar {
-            var restoredCount = 0
             for exploredTile in data.exploredTiles {
                 let coord = HexCoordinate(q: exploredTile.q, r: exploredTile.r)
                 fogOfWar.markAsExplored(coord)
-                restoredCount += 1
             }
-            print("✅ Restored \(restoredCount) explored tiles")
-            
-            // ✅ DEBUG: Print fog stats after restoration
-            fogOfWar.printFogStats()
+            print("   ✅ Restored \(data.exploredTiles.count) explored tiles")
         }
+        
+        // NOTE: Buildings and resources are reconstructed in loadGame() after this returns
         
         return hexMap
     }
@@ -818,58 +754,6 @@ class GameSaveManager {
         }
         
         return villagers
-    }
-    
-    private func reconstructBuilding(from data: BuildingSaveData, allPlayers: [Player]) -> BuildingNode? {
-        guard let buildingType = BuildingType(rawValue: data.buildingType) else {
-            return nil
-        }
-        
-        let owner = allPlayers.first { $0.id.uuidString == data.ownerID }
-        let coord = HexCoordinate(q: data.q, r: data.r)
-        
-        let building = BuildingNode(coordinate: coord, buildingType: buildingType, owner: owner)
-        building.state = stringToBuildingState(data.state)
-        building.health = data.health
-        building.constructionProgress = data.constructionProgress
-        building.constructionStartTime = data.constructionStartTime
-        building.buildersAssigned = data.buildersAssigned
-        building.level = data.level
-        building.upgradeProgress = data.upgradeProgress
-        building.upgradeStartTime = data.upgradeStartTime
-        
-        // Restore garrison
-        for (unitKey, count) in data.garrison {
-            if let unitType = MilitaryUnitType(rawValue: unitKey) {
-                building.addToGarrison(unitType: unitType, quantity: count)
-            }
-        }
-        
-        building.villagerGarrison = data.villagerGarrison
-        
-        // Restore training queues
-        for queueData in data.trainingQueue {
-            if let unitType = MilitaryUnitType(rawValue: queueData.unitType) {
-                var entry = TrainingQueueEntry(
-                    unitType: unitType,
-                    quantity: queueData.quantity,
-                    startTime: queueData.startTime
-                )
-                entry.progress = queueData.progress
-                building.trainingQueue.append(entry)
-            }
-        }
-        
-        for queueData in data.villagerTrainingQueue {
-            var entry = VillagerTrainingEntry(
-                quantity: queueData.quantity,
-                startTime: queueData.startTime
-            )
-            entry.progress = queueData.progress
-            building.villagerTrainingQueue.append(entry)
-        }
-        
-        return building
     }
     
     private func reconstructResourcePoint(from data: ResourcePointSaveData) -> ResourcePointNode? {

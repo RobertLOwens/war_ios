@@ -74,6 +74,21 @@ class GameViewController: UIViewController {
             updateResourceDisplay()
         }
         
+        CommandExecutor.shared.setup(
+            hexMap: gameScene.hexMap,
+            player: player,
+            allPlayers: gameScene.allGamePlayers
+        )
+
+        CommandExecutor.shared.setCallbacks(
+            onResourcesChanged: { [weak self] in
+                self?.updateResourceDisplay()
+            },
+            onAlert: { [weak self] title, message in
+                self?.showSimpleAlert(title: title, message: message)
+            }
+        )
+        
         // Listen for app returning from background
         NotificationCenter.default.addObserver(
             self,
@@ -309,51 +324,6 @@ class GameViewController: UIViewController {
         
         return message
     }
-
-    func deployVillagersFromCityCenter(building: BuildingNode, count: Int) {
-        // Find a spawn location near the city center
-        guard let spawnCoord = gameScene.hexMap.findNearestWalkable(to: building.coordinate, maxDistance: 2) else {
-            showSimpleAlert(title: "Cannot Deploy", message: "No available space near City Center.")
-            return
-        }
-        
-        // ✅ Remove villagers from garrison using the correct method
-        building.removeVillagersFromGarrison(quantity: count)
-        
-        // Create new villager group
-        let villagerGroup = VillagerGroup(
-            name: "Villagers",
-            coordinate: spawnCoord,
-            villagerCount: count,
-            owner: player
-        )
-        
-        // Create entity node
-        let villagerNode = EntityNode(
-            coordinate: spawnCoord,
-            entityType: .villagerGroup,
-            entity: villagerGroup,
-            currentPlayer: player
-        )
-        
-        let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
-        villagerNode.position = position
-        
-        // Add to game
-        gameScene.hexMap.addEntity(villagerNode)
-        gameScene.entitiesNode.addChild(villagerNode)
-        player.addEntity(villagerGroup)
-        
-        print("✅ Deployed \(count) villagers from City Center to (\(spawnCoord.q), \(spawnCoord.r))")
-        
-        showSimpleAlert(title: "✅ Deployed", message: "\(count) villagers deployed from City Center!")
-    }
-    
-    func startConstruction(buildingType: BuildingType, at coordinate: HexCoordinate) {
-        gameScene.placeBuilding(type: buildingType, at: coordinate, owner: player)
-        gameScene.deselectAll()
-        updateResourceDisplay()
-      }
     
     func formatBuildingCost(_ buildingType: BuildingType) -> String {
         let costs = buildingType.buildCost.sorted(by: { $0.key.rawValue < $1.key.rawValue })
@@ -641,57 +611,6 @@ class GameViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    
-    func showEntitySelectionForMove(to coordinate: HexCoordinate, availableEntities: [EntityNode]) {
-        // ✅ FIX: Filter to only show entities owned by the player
-        let playerEntities = availableEntities.filter { entity in
-            entity.entity.owner?.id == player.id
-        }
-        
-        guard !playerEntities.isEmpty else {
-            showSimpleAlert(title: "No Units Available", message: "You don't have any units that can move.")
-            return
-        }
-        
-        let alert = UIAlertController(
-            title: "Select Entity to Move",
-            message: "Choose which entity to move to (\(coordinate.q), \(coordinate.r))",
-            preferredStyle: .actionSheet
-        )
-        
-        for entity in playerEntities {
-            let distance = entity.coordinate.distance(to: coordinate)
-            var title = "\(entity.entityType.icon) "
-            
-            if entity.entityType == .army, let army = entity.entity as? Army {
-                let totalUnits = army.getTotalMilitaryUnits()
-                title += "\(army.name) (\(totalUnits) units) - Distance: \(distance)"
-            } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
-                title += "\(villagers.name) (\(villagers.villagerCount) villagers) - Distance: \(distance)"
-            }
-            
-            alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
-                // ✅ FIX: Directly move the entity instead of opening action menu
-                self?.gameScene.moveEntity(entity, to: coordinate)
-                self?.gameScene.deselectAll()
-            })
-        }
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.gameScene.deselectAll()
-        })
-        
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = view
-            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        present(alert, animated: true)
-    }
-    
-
-    
     @objc func sliderValueChanged(_ slider: UISlider) {
         // Get the stored labels dictionary
         guard let labelsDict = objc_getAssociatedObject(self, &AssociatedKeys.unitLabels) as? [MilitaryUnitType: UILabel],
@@ -878,10 +797,9 @@ class GameViewController: UIViewController {
             building.position = position
             gameScene.buildingsNode.addChild(building)
             
-            // Re-apply texture and UI
-            building.setupUI()
+            // Update appearance to match current state
             building.updateAppearance()
-            building.updateUIVisibility()
+            building.updateLevelLabel()
         }
         
         // Clear existing entities from hexMap to avoid duplicates

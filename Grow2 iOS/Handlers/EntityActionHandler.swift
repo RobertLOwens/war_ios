@@ -2,7 +2,7 @@
 // FILE: EntityActionHandler.swift
 // LOCATION: Grow2 iOS/Handlers/EntityActionHandler.swift
 // PURPOSE: Handles entity-specific actions and logic
-//          Extracted from GameViewController to improve separation of concerns
+//          Uses Command pattern for all game actions
 // ============================================================================
 
 import UIKit
@@ -38,51 +38,30 @@ class EntityActionHandler {
         self.delegate = delegate
     }
     
-    // MARK: - Villager Actions
+    // =========================================================================
+    // MARK: - Villager Actions (Using Commands)
+    // =========================================================================
     
     /// Deploys villagers from a building's garrison to the map
     func deployVillagers(from building: BuildingNode, count: Int, at coordinate: HexCoordinate) {
-        guard let player = player,
-              let gameScene = gameScene,
-              let hexMap = hexMap else { return }
+        guard let player = player else { return }
         
-        // Remove villagers from garrison
-        let removed = building.removeVillagersFromGarrison(quantity: count)
+        let command = DeployVillagersCommand(
+            playerID: player.id,
+            buildingID: building.data.id,
+            count: count
+        )
         
-        guard removed > 0 else {
-            delegate?.showSimpleAlert(title: "Deploy Failed", message: "Could not remove villagers from garrison.")
-            return
+        let result = CommandExecutor.shared.execute(command)
+        
+        if result.succeeded {
+            delegate?.showSimpleAlert(
+                title: "✅ Villagers Deployed",
+                message: "Deployed \(count) villagers at (\(coordinate.q), \(coordinate.r))"
+            )
+        } else if let reason = result.failureReason {
+            delegate?.showSimpleAlert(title: "Deploy Failed", message: reason)
         }
-        
-        // Create villager group
-        let villagerGroup = VillagerGroup(
-            name: "Villagers",
-            coordinate: coordinate,
-            villagerCount: removed,
-            owner: player
-        )
-        
-        // Create entity node
-        let entityNode = EntityNode(
-            coordinate: coordinate,
-            entityType: .villagerGroup,
-            entity: villagerGroup,
-            currentPlayer: player
-        )
-        let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
-        entityNode.position = position
-        
-        // Add to game
-        hexMap.addEntity(entityNode)
-        gameScene.entitiesNode.addChild(entityNode)
-        player.addEntity(villagerGroup)
-        
-        print("✅ Deployed \(removed) villagers from \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
-        
-        delegate?.showSimpleAlert(
-            title: "✅ Villagers Deployed",
-            message: "Deployed \(removed) villagers at (\(coordinate.q), \(coordinate.r))"
-        )
     }
     
     /// Shows villager selection for gathering resources
@@ -91,7 +70,7 @@ class EntityActionHandler {
               let vc = viewController else { return }
         
         let availableVillagers = player.getVillagerGroups().filter {
-            $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
+            $0.currentTask == .idle && $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
         }
         
         guard !availableVillagers.isEmpty else {
@@ -109,7 +88,7 @@ class EntityActionHandler {
             let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
             
             actions.append(AlertAction(title: title) { [weak self] in
-                self?.assignVillagersToGather(villagerGroup, resource: resourcePoint)
+                self?.executeGatherCommand(villagerGroup: villagerGroup, resourcePoint: resourcePoint)
             })
         }
         
@@ -120,52 +99,50 @@ class EntityActionHandler {
         )
     }
     
-    /// Assigns villagers to gather from a resource point
-    func assignVillagersToGather(_ villagerGroup: VillagerGroup, resource: ResourcePointNode) {
-        guard let hexMap = hexMap else { return }
+    /// Executes a GatherCommand
+    private func executeGatherCommand(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
+        guard let player = player else { return }
         
-        // Find the entity node for this villager group
-        guard let entityNode = hexMap.entities.first(where: {
-            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-        }) else {
-            delegate?.showSimpleAlert(title: "Error", message: "Could not find villager group on map.")
-            return
+        let command = GatherCommand(
+            playerID: player.id,
+            villagerGroupID: villagerGroup.id,
+            resourceCoordinate: resourcePoint.coordinate
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if !result.succeeded, let reason = result.failureReason {
+            delegate?.showSimpleAlert(title: "Cannot Gather", message: reason)
         }
         
-        // Set task and move to resource
-        villagerGroup.assignTask(.gathering(resource.resourceType.resourceYield))
-        resource.startGathering(by: villagerGroup)
-        resource.assignedVillagerGroup = villagerGroup
-        
-        // Move villagers to resource location
-        gameScene?.moveEntity(entityNode, to: resource.coordinate)
-        
-        print("✅ Assigned \(villagerGroup.name) to gather \(resource.resourceType.displayName)")
+        delegate?.updateResourceDisplay()
     }
     
-    // MARK: - Army Actions
+    // =========================================================================
+    // MARK: - Army Actions (Using Commands)
+    // =========================================================================
     
     /// Reinforces an army with units from a building's garrison
     func reinforceArmy(_ army: Army, from building: BuildingNode, units: [MilitaryUnitType: Int]) {
-        var totalTransferred = 0
+        guard let player = player else { return }
         
-        for (unitType, count) in units where count > 0 {
-            let actualRemoved = building.removeFromGarrison(unitType: unitType, quantity: count)
-            army.addMilitaryUnits(unitType, count: actualRemoved)
-            totalTransferred += actualRemoved
-        }
+        let command = ReinforceArmyCommand(
+            playerID: player.id,
+            buildingID: building.data.id,
+            armyID: army.id,
+            units: units
+        )
         
-        if totalTransferred > 0 {
-            delegate?.showSimpleAlert(
-                title: "✅ Reinforcement Complete",
-                message: "Transferred \(totalTransferred) units to \(army.name)"
-            )
-            print("✅ Reinforced \(army.name) with \(totalTransferred) units from \(building.buildingType.displayName)")
+        let result = CommandExecutor.shared.execute(command)
+        
+        if !result.succeeded, let reason = result.failureReason {
+            delegate?.showSimpleAlert(title: "Reinforcement Failed", message: reason)
         }
     }
     
-  
+    // =========================================================================
     // MARK: - Commander Actions
+    // =========================================================================
     
     /// Deploys a commander at the player's city center
     func deployCommanderAtCityCenter(commander: Commander) {
@@ -239,7 +216,9 @@ class EntityActionHandler {
         print("✅ Deployed commander \(commander.name) with army at (\(spawnCoord.q), \(spawnCoord.r))")
     }
     
+    // =========================================================================
     // MARK: - Combat Actions
+    // =========================================================================
     
     /// Shows attacker selection for initiating combat
     func showAttackerSelection(target: EntityNode, at coordinate: HexCoordinate) {
@@ -273,7 +252,7 @@ class EntityActionHandler {
             let title = "🛡️ \(army.name) (\(unitCount) units) - Distance: \(distance)"
             
             actions.append(AlertAction(title: title) { [weak self] in
-                self?.initiateAttack(attacker: army, target: target, at: coordinate)
+                self?.executeAttackCommand(attacker: army, targetCoordinate: coordinate)
             })
         }
         
@@ -284,85 +263,70 @@ class EntityActionHandler {
         )
     }
     
-    /// Initiates an attack from an army to a target
-    func initiateAttack(attacker: Army, target: EntityNode, at coordinate: HexCoordinate) {
-        guard let gameScene = gameScene else { return }
+    /// Executes an AttackCommand
+    private func executeAttackCommand(attacker: Army, targetCoordinate: HexCoordinate) {
+        guard let player = player else { return }
         
-        // Find attacker entity node
-        guard let attackerNode = hexMap?.entities.first(where: {
-            ($0.entity as? Army)?.id == attacker.id
-        }) else {
-            print("❌ Attacker node not found")
-            return
-        }
+        let command = AttackCommand(
+            playerID: player.id,
+            attackerEntityID: attacker.id,
+            targetCoordinate: targetCoordinate
+        )
         
-        // Find adjacent tile to move to
-        guard let adjacentTile = hexMap?.findNearestWalkable(to: coordinate, maxDistance: 1) else {
-            delegate?.showSimpleAlert(title: "Cannot Attack", message: "Cannot reach target location.")
-            return
-        }
+        let result = CommandExecutor.shared.execute(command)
         
-        print("⚔️ \(attacker.name) moving to attack at (\(coordinate.q), \(coordinate.r))")
-        
-        // Move to attack position
-        gameScene.moveEntity(attackerNode, to: adjacentTile)
-        
-        // Start combat after movement
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.gameScene?.startCombat(attacker: attacker, target: target.entity, location: coordinate)
+        if !result.succeeded, let reason = result.failureReason {
+            delegate?.showSimpleAlert(title: "Cannot Attack", message: reason)
         }
     }
     
-    // MARK: - Training Actions
+    // =========================================================================
+    // MARK: - Training Actions (Using Commands)
+    // =========================================================================
     
     /// Starts training units at a building
     func startTraining(at building: BuildingNode, unitType: TrainableUnitType, quantity: Int) {
         guard let player = player else { return }
         
-        // Verify resources
-        var canAfford = true
-        var missingResources: [String] = []
-        
-        for (resourceType, unitCost) in unitType.trainingCost {
-            let totalCost = unitCost * quantity
-            if !player.hasResource(resourceType, amount: totalCost) {
-                canAfford = false
-                let available = player.getResource(resourceType)
-                missingResources.append("\(resourceType.icon) \(resourceType.displayName): need \(totalCost), have \(available)")
+        switch unitType {
+        case .villager:
+            let command = TrainVillagerCommand(
+                playerID: player.id,
+                buildingID: building.data.id,
+                quantity: quantity
+            )
+            
+            let result = CommandExecutor.shared.execute(command)
+            
+            if result.succeeded {
+                delegate?.showSimpleAlert(
+                    title: "✅ Training Started",
+                    message: "Training \(quantity) Villager\(quantity > 1 ? "s" : "")"
+                )
+            } else if let reason = result.failureReason {
+                delegate?.showSimpleAlert(title: "Cannot Train", message: reason)
+            }
+            
+        case .military(let militaryType):
+            let command = TrainMilitaryCommand(
+                playerID: player.id,
+                buildingID: building.data.id,
+                unitType: militaryType,
+                quantity: quantity
+            )
+            
+            let result = CommandExecutor.shared.execute(command)
+            
+            if result.succeeded {
+                delegate?.showSimpleAlert(
+                    title: "✅ Training Started",
+                    message: "Training \(quantity) \(militaryType.displayName)\(quantity > 1 ? "s" : "")"
+                )
+            } else if let reason = result.failureReason {
+                delegate?.showSimpleAlert(title: "Cannot Train", message: reason)
             }
         }
         
-        guard canAfford else {
-            let message = "Insufficient resources:\n" + missingResources.joined(separator: "\n")
-            delegate?.showSimpleAlert(title: "Cannot Afford", message: message)
-            return
-        }
-        
-        // Deduct resources
-        for (resourceType, unitCost) in unitType.trainingCost {
-            let totalCost = unitCost * quantity
-            player.removeResource(resourceType, amount: totalCost)
-        }
-        
-        // Start training
-        let currentTime = Date().timeIntervalSince1970
-        
-        switch unitType {
-        case .villager:
-            building.startVillagerTraining(quantity: quantity, at: currentTime)
-            print("✅ Started training \(quantity) villagers")
-            
-        case .military(let militaryType):
-            building.startTraining(unitType: militaryType, quantity: quantity, at: currentTime)
-            print("✅ Started training \(quantity) \(militaryType.displayName)")
-        }
-        
         delegate?.updateResourceDisplay()
-        
-        delegate?.showSimpleAlert(
-            title: "✅ Training Started",
-            message: "Training \(quantity) \(unitType.displayName)\(quantity > 1 ? "s" : "")"
-        )
     }
 }
-

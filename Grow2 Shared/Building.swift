@@ -18,7 +18,7 @@ enum BuildingCategory {
 
 // MARK: - Building Type
 
-enum BuildingType: String, CaseIterable {
+enum BuildingType: String, CaseIterable, Codable {
     // Economic Buildings
     case cityCenter = "City Center"
     case farm = "Farm"
@@ -241,154 +241,113 @@ enum BuildingType: String, CaseIterable {
 
 }
 
-// MARK: - Building State
-
-enum BuildingState {
-    case planning      // Placement phase, not yet built
-    case constructing  // Being built
-    case completed     // Fully built and operational
-    case upgrading     // Being upgraded to next level
-    case damaged       // Has taken damage
-    case destroyed     // Destroyed
+enum BuildingState: String, Codable {
+    case planning
+    case constructing
+    case completed
+    case upgrading
+    case damaged
+    case destroyed
 }
 
 // MARK: - Building Node
 
 class BuildingNode: SKSpriteNode {
     
-    let buildingType: BuildingType
-    var coordinate: HexCoordinate
-    var owner: Player?
+    // MARK: - Data Reference
+    
+    /// The data model for this building - source of truth for all state
+    let data: BuildingData
+    
+    // MARK: - Entity References (not part of data - runtime only)
     weak var builderEntity: EntityNode?
-
+    weak var upgraderEntity: EntityNode?
+    weak var owner: Player?  // Keep for convenience, derived from data.ownerID
     
-    var state: BuildingState = .planning {
-        didSet {
-            // ✅ Only update appearance if state actually changed
-            if oldValue != state {
-                updateAppearance()
-            }
-        }
-    }
-    
-    var health: Double
-    var maxHealth: Double
-    
-    var constructionProgress: Double = 0.0 {
-        didSet {
-            // ✅ Only update if there's a meaningful change
-            if state == .constructing && abs(oldValue - constructionProgress) > 0.01 {
-                updateAppearance()
-            }
-        }
-    }
-    
-    var constructionStartTime: TimeInterval?
-    var buildersAssigned: Int = 0  // Number of villagers working on this building
-    
-    // Completion callback
-    var onConstructionComplete: (() -> Void)?
-    
-    var garrison: [MilitaryUnitType: Int] {
-        get {
-            return objc_getAssociatedObject(self, &BuildingNode.garrisonKey) as? [MilitaryUnitType: Int] ?? [:]
-        }
-        set {
-            objc_setAssociatedObject(self, &BuildingNode.garrisonKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        }
-    }
-    
-    var villagerGarrison: Int {
-        get {
-            return objc_getAssociatedObject(self, &BuildingNode.villagerGarrisonKey) as? Int ?? 0
-        }
-        set {
-            objc_setAssociatedObject(self, &BuildingNode.villagerGarrisonKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        }
-    }
-    
-    var trainingQueue: [TrainingQueueEntry] {
-        get {
-            return objc_getAssociatedObject(self, &BuildingNode.trainingQueueKey) as? [TrainingQueueEntry] ?? []
-        }
-        set {
-            objc_setAssociatedObject(self, &BuildingNode.trainingQueueKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        }
-    }
-    
-    var villagerTrainingQueue: [VillagerTrainingEntry] {
-        get {
-            return objc_getAssociatedObject(self, &BuildingNode.villagerTrainingQueueKey) as? [VillagerTrainingEntry] ?? []
-        }
-        set {
-            objc_setAssociatedObject(self, &BuildingNode.villagerTrainingQueueKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        }
-    }
-    
-    // UI Elements for construction
+    // MARK: - UI Elements
     var progressBar: SKShapeNode?
     var timerLabel: SKLabelNode?
     var buildingLabel: SKLabelNode?
-    private static var garrisonKey: UInt8 = 0
-    private static var trainingQueueKey: UInt8 = 1
-    private static var villagerGarrisonKey: UInt8 = 2
-    private static var villagerTrainingQueueKey: UInt8 = 3
-    
-    //Building Levels
-    var level: Int = 1
-    
-    var maxLevel: Int {
-        return buildingType.maxLevel
-    }
-    
-    var canUpgrade: Bool {
-        guard state == .completed && level < maxLevel else { return false }
-        
-        // Castle has special upgrade restrictions based on City Center level
-        if buildingType == .castle, let owner = owner {
-            let ccLevel = owner.getCityCenterLevel()
-            let allowedCastleLevel = BuildingType.maxCastleLevel(forCityCenterLevel: ccLevel)
-            return level < allowedCastleLevel
-        }
-        
-        return true
-    }
-    
-    // MARK: - Upgrade Properties
-    
-    var upgradeProgress: Double = 0.0 {
-        didSet {
-            if state == .upgrading && abs(oldValue - upgradeProgress) > 0.01 {
-                updateAppearance()
-            }
-        }
-    }
-    
-    var upgradeStartTime: TimeInterval?
-    weak var upgraderEntity: EntityNode?
-    
-    // UI Elements for upgrade
     var levelLabel: SKLabelNode?
     var upgradeProgressBar: SKShapeNode?
     var upgradeTimerLabel: SKLabelNode?
     
-    var isOperational: Bool {
-        return state == .completed || state == .upgrading
+    // MARK: - Convenience Accessors (delegate to data)
+    
+    var buildingType: BuildingType { data.buildingType }
+    var coordinate: HexCoordinate {
+        get { data.coordinate }
+        set { data.coordinate = newValue }
     }
-
-    init(coordinate: HexCoordinate, buildingType: BuildingType, owner: Player? = nil) {
-        self.coordinate = coordinate
-        self.buildingType = buildingType
-        self.owner = owner
-        
-        // Set health based on building type
-        switch buildingType.category {
-        case .military:
-            self.maxHealth = 500.0
-        case .economic:
-            self.maxHealth = 200.0
+    var state: BuildingState {
+        get { data.state }
+        set {
+            let oldValue = data.state
+            data.state = newValue
+            if oldValue != newValue {
+                updateAppearance()
+            }
         }
-        self.health = maxHealth
+    }
+    var level: Int {
+        get { data.level }
+        set { data.level = newValue }
+    }
+    var health: Double {
+        get { data.health }
+        set { data.health = newValue }
+    }
+    var maxHealth: Double { data.maxHealth }
+    var constructionProgress: Double {
+        get { data.constructionProgress }
+        set { data.constructionProgress = newValue }
+    }
+    var constructionStartTime: TimeInterval? {
+        get { data.constructionStartTime }
+        set { data.constructionStartTime = newValue }
+    }
+    var buildersAssigned: Int {
+        get { data.buildersAssigned }
+        set { data.buildersAssigned = newValue }
+    }
+    var upgradeProgress: Double {
+        get { data.upgradeProgress }
+        set { data.upgradeProgress = newValue }
+    }
+    var upgradeStartTime: TimeInterval? {
+        get { data.upgradeStartTime }
+        set { data.upgradeStartTime = newValue }
+    }
+    var garrison: [MilitaryUnitType: Int] {
+        get { data.garrison }
+        set { data.garrison = newValue }
+    }
+    var villagerGarrison: Int {
+        get { data.villagerGarrison }
+        set { data.villagerGarrison = newValue }
+    }
+    var trainingQueue: [TrainingQueueEntry] {
+        get { data.trainingQueue }
+        set { data.trainingQueue = newValue }
+    }
+    var villagerTrainingQueue: [VillagerTrainingEntry] {
+        get { data.villagerTrainingQueue }
+        set { data.villagerTrainingQueue = newValue }
+    }
+    var isOperational: Bool { data.isOperational }
+    var canUpgrade: Bool { data.canUpgrade }
+    var maxLevel: Int { data.maxLevel }
+    
+    // MARK: - Initialization
+    
+    init(coordinate: HexCoordinate, buildingType: BuildingType, owner: Player? = nil) {
+        // Create data model
+        self.data = BuildingData(
+            buildingType: buildingType,
+            coordinate: coordinate,
+            ownerID: owner?.id
+        )
+        self.owner = owner
         
         let texture = BuildingNode.createBuildingTexture(for: buildingType, state: .planning)
         super.init(texture: texture, color: .clear, size: CGSize(width: 40, height: 40))
@@ -399,34 +358,44 @@ class BuildingNode: SKSpriteNode {
         setupUI()
     }
     
+    /// Initialize from existing data (used when loading saves)
+    init(data: BuildingData, owner: Player? = nil) {
+        self.data = data
+        self.owner = owner
+        
+        let texture = BuildingNode.createBuildingTexture(for: data.buildingType, state: data.state)
+        super.init(texture: texture, color: .clear, size: CGSize(width: 40, height: 40))
+        
+        self.zPosition = 5
+        self.name = "building"
+        
+        setupUI()
+        updateAppearance()
+    }
+    
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-     
-     // MARK: - Training Methods
-     
+    
+    // MARK: - Data Logic Methods (delegate to BuildingData)
+    
     func canTrain(_ unitType: MilitaryUnitType) -> Bool {
-        guard state == .completed else { return false }
-        return unitType.trainingBuilding == buildingType
+        return data.canTrain(unitType)
     }
-
-    // âœ… ADD THIS NEW METHOD:
+    
     func canTrainVillagers() -> Bool {
-        guard state == .completed else { return false }
-        return buildingType == .cityCenter || buildingType == .neighborhood
+        return data.canTrainVillagers()
     }
     
     func getTrainableUnits() -> [TrainableUnitType] {
-        guard state == .completed else { return [] }
+        guard data.state == .completed else { return [] }
         
         var trainable: [TrainableUnitType] = []
         
-        // Check if can train villagers
         if canTrainVillagers() {
             trainable.append(.villager)
         }
         
-        // Check military units
         for unitType in MilitaryUnitType.allCases {
             if unitType.trainingBuilding == buildingType {
                 trainable.append(.military(unitType))
@@ -435,131 +404,145 @@ class BuildingNode: SKSpriteNode {
         
         return trainable
     }
-
+    
     func startTraining(unitType: MilitaryUnitType, quantity: Int, at time: TimeInterval) {
-        guard canTrain(unitType) else { return }
-        
-        let entry = TrainingQueueEntry(unitType: unitType, quantity: quantity, startTime: time)
-        trainingQueue.append(entry)
-        
-        print("âœ… Started training \(quantity)x \(unitType.displayName) in \(buildingType.displayName)")
+        data.startTraining(unitType: unitType, quantity: quantity, at: time)
+        print("✅ Started training \(quantity)x \(unitType.displayName) in \(buildingType.displayName)")
     }
     
     func updateTraining(currentTime: TimeInterval) {
-        guard !trainingQueue.isEmpty else { return }
-        
-        var completedIndices: [Int] = []
-        
-        for (index, entry) in trainingQueue.enumerated() {
-            let progress = entry.getProgress(currentTime: currentTime)
-            trainingQueue[index].progress = progress
-            
-            if progress >= 1.0 {
-                // Training complete - add units to garrison
-                addToGarrison(unitType: entry.unitType, quantity: entry.quantity)
-                completedIndices.append(index)
-            }
-        }
-        
-        // Remove completed entries (in reverse order to maintain indices)
-        for index in completedIndices.reversed() {
-            let entry = trainingQueue[index]
+        let completed = data.updateTraining(currentTime: currentTime)
+        for entry in completed {
             print("✅ Training complete: \(entry.quantity)x \(entry.unitType.displayName)")
-            trainingQueue.remove(at: index)
         }
+    }
+    
+    func startVillagerTraining(quantity: Int, at time: TimeInterval) {
+        data.startVillagerTraining(quantity: quantity, at: time)
+        print("✅ Started training \(quantity)x Villagers in \(buildingType.displayName)")
+    }
+    
+    func updateVillagerTraining(currentTime: TimeInterval) {
+        let completed = data.updateVillagerTraining(currentTime: currentTime)
+        for entry in completed {
+            print("✅ Villager training complete: \(entry.quantity) villagers")
+        }
+    }
+    
+    func addToGarrison(unitType: MilitaryUnitType, quantity: Int) {
+        data.addToGarrison(unitType: unitType, quantity: quantity)
+        print("✅ \(buildingType.displayName) garrison: +\(quantity)x \(unitType.displayName)")
+    }
+    
+    func removeFromGarrison(unitType: MilitaryUnitType, quantity: Int) -> Int {
+        let removed = data.removeFromGarrison(unitType: unitType, quantity: quantity)
+        if removed > 0 {
+            print("✅ Removed \(removed)x \(unitType.displayName) from \(buildingType.displayName) garrison")
+        }
+        return removed
     }
     
     func addVillagersToGarrison(quantity: Int) {
-        villagerGarrison += quantity
-        print("✅ \(buildingType.displayName) garrison: +\(quantity) villagers (Total: \(villagerGarrison))")
-    }
-
-    func removeVillagersFromGarrison(quantity: Int) -> Int {
-        let toRemove = min(villagerGarrison, quantity)
-        villagerGarrison -= toRemove
-        if toRemove > 0 {
-            print("✅ Removed \(toRemove) villagers from \(buildingType.displayName) garrison")
-        }
-        return toRemove
-    }
-
-    func getTotalGarrisonCount() -> Int {
-        return getTotalGarrisonedUnits() + villagerGarrison
+        data.addVillagersToGarrison(quantity: quantity)
+        print("✅ \(buildingType.displayName) garrison: +\(quantity) villagers")
     }
     
-    func cancelTraining(at index: Int) -> Bool {
-        guard index >= 0 && index < trainingQueue.count else { return false }
-        trainingQueue.remove(at: index)
-        return true
+    func removeVillagersFromGarrison(quantity: Int) -> Int {
+        let removed = data.removeVillagersFromGarrison(quantity: quantity)
+        if removed > 0 {
+            print("✅ Removed \(removed) villagers from \(buildingType.displayName) garrison")
+        }
+        return removed
     }
-
-     // MARK: - Garrison Methods
-     
-    func addToGarrison(unitType: MilitaryUnitType, quantity: Int) {
-        garrison[unitType, default: 0] += quantity
-        print("âœ… \(buildingType.displayName) garrison: +\(quantity)x \(unitType.displayName) (Total: \(garrison[unitType] ?? 0))")
+    
+    func getTotalGarrisonedUnits() -> Int { data.getTotalGarrisonedUnits() }
+    func getTotalGarrisonCount() -> Int { data.getTotalGarrisonCount() }
+    func getGarrisonCapacity() -> Int { data.getGarrisonCapacity() }
+    func hasGarrisonSpace(for count: Int) -> Bool { data.hasGarrisonSpace(for: count) }
+    func getGarrisonCount(of unitType: MilitaryUnitType) -> Int { data.garrison[unitType] ?? 0 }
+    func hasGarrisonedUnits() -> Bool { data.getTotalGarrisonedUnits() > 0 }
+    
+    func getUpgradeCost() -> [ResourceType: Int]? { data.getUpgradeCost() }
+    func getUpgradeTime() -> TimeInterval? { data.getUpgradeTime() }
+    
+    func startConstruction(builders: Int = 1) {
+        data.startConstruction(builders: builders)
+        print("🏗️ Started construction of \(buildingType.displayName)")
     }
-     
-    func removeFromGarrison(unitType: MilitaryUnitType, quantity: Int) -> Int {
-        let current = garrison[unitType] ?? 0
-        let toRemove = min(current, quantity)
+    
+    func startUpgrade() {
+        data.startUpgrade()
+        print("⬆️ Started upgrading \(buildingType.displayName) to level \(level + 1)")
+        updateAppearance()
+        updateLevelLabel()
+    }
+    
+    func completeUpgrade() {
+        data.completeUpgrade()
         
-        if toRemove > 0 {
-            let remaining = current - toRemove
-            if remaining > 0 {
-                garrison[unitType] = remaining
-            } else {
-                garrison.removeValue(forKey: unitType)
+        // Remove upgrade UI elements
+        upgradeTimerLabel?.removeFromParent()
+        upgradeTimerLabel = nil
+        upgradeProgressBar?.removeFromParent()
+        upgradeProgressBar = nil
+        
+        // Unlock the upgrader entity
+        if let upgrader = upgraderEntity {
+            upgrader.isMoving = false
+            if let villagerGroup = upgrader.entity as? VillagerGroup {
+                villagerGroup.clearTask()
             }
-            print("âœ… Removed \(toRemove)x \(unitType.displayName) from \(buildingType.displayName) garrison")
         }
+        upgraderEntity = nil
         
-        return toRemove
-    }
-     
-    func getTotalGarrisonedUnits() -> Int {
-        return garrison.values.reduce(0, +)
-    }
-
-    func getGarrisonCount(of unitType: MilitaryUnitType) -> Int {
-        return garrison[unitType] ?? 0
-    }
-
-    func hasGarrisonedUnits() -> Bool {
-        return getTotalGarrisonedUnits() > 0
-    }
-
-     
-    func getGarrisonDescription() -> String {
-        let militaryCount = getTotalGarrisonedUnits()
-        let hasUnits = militaryCount > 0 || villagerGarrison > 0
+        print("🎉 UPGRADE COMPLETE: \(buildingType.displayName) → Lv.\(level)")
         
-        guard hasUnits else { return "No units garrisoned" }
+        updateAppearance()
+        updateLevelLabel()
+        NotificationCenter.default.post(name: .buildingDidComplete, object: self)
+    }
+    
+    func cancelUpgrade() -> [ResourceType: Int]? {
+        let refund = data.cancelUpgrade()
         
-        var desc = "Garrisoned Units (\(getTotalGarrisonCount())/\(getGarrisonCapacity())):"
+        // Remove upgrade UI elements
+        upgradeTimerLabel?.removeFromParent()
+        upgradeTimerLabel = nil
+        upgradeProgressBar?.removeFromParent()
+        upgradeProgressBar = nil
         
-        // Show villagers first
-        if villagerGarrison > 0 {
-            desc += "\n  • \(villagerGarrison)x 👷 Villager"
+        // Unlock the upgrader entity
+        if let upgrader = upgraderEntity {
+            upgrader.isMoving = false
+            if let villagerGroup = upgrader.entity as? VillagerGroup {
+                villagerGroup.clearTask()
+            }
         }
+        upgraderEntity = nil
         
-        // Then military units
-        for (unitType, count) in garrison.sorted(by: { $0.key.displayName < $1.key.displayName }) {
-            desc += "\n  • \(count)x \(unitType.icon) \(unitType.displayName)"
-        }
-        return desc
-    }
-
-    func getTrainingDescription() -> String {
-        guard !trainingQueue.isEmpty else { return "No units training" }
+        updateAppearance()
+        updateLevelLabel()
+        print("🚫 Upgrade cancelled for \(buildingType.displayName)")
         
-        var desc = "Training Queue:"
-        for (index, entry) in trainingQueue.enumerated() {
-            let progress = Int(entry.progress * 100)
-            desc += "\n  \(index + 1). \(entry.quantity)x \(entry.unitType.displayName) (\(progress)%)"
-        }
-        return desc
+        return refund
     }
+    
+    func takeDamage(_ amount: Double) {
+        data.takeDamage(amount)
+        updateAppearance()
+    }
+    
+    func repair(_ amount: Double) {
+        data.repair(amount)
+        updateAppearance()
+    }
+    
+    // ... Keep all the visual/UI methods unchanged:
+    // setupUI(), updateAppearance(), updateUIVisibility(), updateTimerLabel(),
+    // updateUpgradeTimerLabel(), updateLevelLabel(), completeConstruction(),
+    // createBuildingTexture(), updateVisibility(), etc.
+    
+    // NOTE: The visual methods stay the same - they just read from data now
     
     static func createBuildingTexture(for type: BuildingType, state: BuildingState) -> SKTexture {
         let size = CGSize(width: 40, height: 40)
@@ -806,16 +789,6 @@ class BuildingNode: SKSpriteNode {
         
         print("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
     }
-    
-    func startConstruction(builders: Int = 1) {
-        // ✅ Set state first without triggering appearance updates yet
-        state = .constructing
-        constructionStartTime = Date().timeIntervalSince1970
-        buildersAssigned = max(1, builders)
-        // Don't set constructionProgress here - let updateConstruction handle it
-        
-        print("🏗️ Started construction of \(buildingType.displayName)")
-    }
 
     func updateConstruction() {
         guard state == .constructing, let startTime = constructionStartTime else { return }
@@ -841,79 +814,7 @@ class BuildingNode: SKSpriteNode {
         }
     }
     
-    func addBuilder() {
-        buildersAssigned += 1
-    }
-    
-    func removeBuilder() {
-        buildersAssigned = max(1, buildersAssigned - 1)
-    }
-    
-    func takeDamage(_ amount: Double) {
-        guard state == .completed || state == .damaged else { return }
-        
-        health = max(0, health - amount)
-        
-        if health <= 0 {
-            state = .destroyed
-        } else if health < maxHealth / 2 {
-            state = .damaged
-        }
-    }
-    
-    func repair(_ amount: Double) {
-        guard state == .damaged else { return }
-        
-        health = min(maxHealth, health + amount)
-        
-        if health >= maxHealth / 2 {
-            state = .completed
-        }
-    }
-        
-    func getGarrisonCapacity() -> Int {
-        switch buildingType.category {
-        case .military:
-            return 500  // Increased capacity for military buildings
-        case .economic:
-            return 100
-        }
-    }
-        
-    func hasGarrisonSpace(for count: Int) -> Bool {
-        return getTotalGarrisonedUnits() + count <= getGarrisonCapacity()
-    }
-    
-    func startVillagerTraining(quantity: Int, at time: TimeInterval) {
-        let entry = VillagerTrainingEntry(quantity: quantity, startTime: time)
-        villagerTrainingQueue.append(entry)
-        print("✅ Started training \(quantity)x Villagers in \(buildingType.displayName)")
-    }
-
-    // âœ… ADD THIS NEW METHOD:
-    func updateVillagerTraining(currentTime: TimeInterval) {
-        guard !villagerTrainingQueue.isEmpty else { return }
-        
-        var completedIndices: [Int] = []
-        
-        for (index, entry) in villagerTrainingQueue.enumerated() {
-            let progress = entry.getProgress(currentTime: currentTime)
-            villagerTrainingQueue[index].progress = progress
-            
-            if progress >= 1.0 {
-                // Training complete - add villagers to garrison
-                addVillagersToGarrison(quantity: entry.quantity)
-                completedIndices.append(index)
-            }
-        }
-        
-        // Remove completed entries
-        for index in completedIndices.reversed() {
-            let entry = villagerTrainingQueue[index]
-            print("✅ Villager training complete: \(entry.quantity) villagers")
-            villagerTrainingQueue.remove(at: index)
-        }
-    }
+ 
     
     func updateVisibility(displayMode: BuildingDisplayMode) {
         switch displayMode {
@@ -953,41 +854,6 @@ class BuildingNode: SKSpriteNode {
         return summary
     }
     
-    func getUpgradeCost() -> [ResourceType: Int]? {
-        return buildingType.upgradeCost(forLevel: level)
-    }
-    
-    func getUpgradeTime() -> TimeInterval? {
-        return buildingType.upgradeTime(forLevel: level)
-    }
-    
-    func startUpgrade() {
-         guard canUpgrade else {
-             print("❌ Cannot upgrade: canUpgrade = false")
-             return
-         }
-         
-         guard state == .completed else {
-             print("❌ Cannot upgrade: state is \(state), not .completed")
-             return
-         }
-         
-         let previousState = state
-         state = .upgrading
-         upgradeStartTime = Date().timeIntervalSince1970
-         upgradeProgress = 0.0
-         
-         print("⬆️ Started upgrading \(buildingType.displayName)")
-         print("   From Level \(level) to Level \(level + 1)")
-         print("   Start time: \(upgradeStartTime!)")
-         print("   Upgrade time: \(getUpgradeTime() ?? 0)s")
-         print("   Previous state: \(previousState)")
-         
-         // Force an immediate UI update
-         updateAppearance()
-         updateLevelLabel()
-     }
-    
     func updateUpgrade() {
         guard state == .upgrading,
               let startTime = upgradeStartTime,
@@ -1002,46 +868,7 @@ class BuildingNode: SKSpriteNode {
             completeUpgrade()
         }
     }
-    
-    func completeUpgrade() {
-         guard state == .upgrading else {
-             print("⚠️ completeUpgrade called but state is \(state), not .upgrading")
-             return
-         }
-         
-         let previousLevel = level
-         level += 1
-         state = .completed
-         upgradeProgress = 0.0
-         upgradeStartTime = nil
-         
-         print("🎉 UPGRADE COMPLETE: \(buildingType.displayName) Lv.\(previousLevel) → Lv.\(level)")
-         
-         // Remove upgrade UI elements
-         upgradeTimerLabel?.removeFromParent()
-         upgradeTimerLabel = nil
-         upgradeProgressBar?.removeFromParent()
-         upgradeProgressBar = nil
-         
-         // Unlock the upgrader entity
-         if let upgrader = upgraderEntity {
-             upgrader.isMoving = false
-             
-             if let villagerGroup = upgrader.entity as? VillagerGroup {
-                 villagerGroup.clearTask()
-                 print("✅ Villagers unlocked after upgrade completion")
-             }
-         }
-         upgraderEntity = nil
-         
-         // Update visuals
-         updateAppearance()
-         updateLevelLabel()
-         
-         // Post notification for any listeners
-         NotificationCenter.default.post(name: .buildingDidComplete, object: self)
-     }
-    
+
     func updateUpgradeTimerLabel() {
         // ✅ FIX: Early exit if not upgrading
         guard state == .upgrading else {
@@ -1126,43 +953,7 @@ class BuildingNode: SKSpriteNode {
             levelLabel?.isHidden = true
         }
     }
-    
-    func cancelUpgrade() -> [ResourceType: Int]? {
-          guard state == .upgrading else { return nil }
-          
-          // Calculate resources to return (full refund)
-          let refund = getUpgradeCost()
-          
-          // Reset state
-          state = .completed
-          upgradeProgress = 0.0
-          upgradeStartTime = nil
-          
-          // Remove upgrade UI elements
-          upgradeTimerLabel?.removeFromParent()
-          upgradeTimerLabel = nil
-          upgradeProgressBar?.removeFromParent()
-          upgradeProgressBar = nil
-          
-          // Unlock the upgrader entity
-          if let upgrader = upgraderEntity {
-              upgrader.isMoving = false
-              
-              if let villagerGroup = upgrader.entity as? VillagerGroup {
-                  villagerGroup.clearTask()
-                  print("✅ Villagers unlocked after upgrade cancellation")
-              }
-          }
-          upgraderEntity = nil
-          
-          updateAppearance()
-          updateLevelLabel()
-          
-          print("🚫 Upgrade cancelled for \(buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
-          
-          return refund
-      }
-    
+
     var upgradeBlockedReason: String? {
         guard state == .completed else { return "Building must be completed first" }
         guard level < maxLevel else { return "Already at max level" }

@@ -1,42 +1,30 @@
 import Foundation
 
-struct VillagerTrainingEntry {
+struct VillagerTrainingEntry: Codable {
     let id: UUID
     let quantity: Int
     let startTime: TimeInterval
     var progress: Double = 0.0
-    let trainingTime: TimeInterval = 15.0 // Same as villager training time
+    
+    static let trainingTimePerVillager: TimeInterval = 10.0
     
     init(quantity: Int, startTime: TimeInterval) {
         self.id = UUID()
         self.quantity = quantity
         self.startTime = startTime
-        self.progress = 0.0
-    }
-    
-    func getTimeRemaining(currentTime: TimeInterval) -> TimeInterval {
-        let elapsed = currentTime - startTime
-        let totalTime = trainingTime * Double(quantity)
-        return max(0, totalTime - elapsed)
     }
     
     func getProgress(currentTime: TimeInterval) -> Double {
         let elapsed = currentTime - startTime
-        let totalTime = trainingTime * Double(quantity)
+        let totalTime = VillagerTrainingEntry.trainingTimePerVillager * Double(quantity)
         return min(1.0, elapsed / totalTime)
-    }
-    
-    func getVillagersCompleted(currentTime: TimeInterval) -> Int {
-        let elapsed = currentTime - startTime
-        let villagersCompleted = Int(elapsed / trainingTime)
-        return min(quantity, villagersCompleted)
     }
 }
 
 
 // MARK: - Military Unit Type
 
-enum TrainableUnitType {
+enum TrainableUnitType: Codable {
     case military(MilitaryUnitType)
     case villager
     
@@ -86,7 +74,7 @@ enum TrainableUnitType {
     }
 }
 
-enum MilitaryUnitType: String, CaseIterable {
+enum MilitaryUnitType: String, CaseIterable, Codable {
     case swordsman = "Swordsman"
     case pikeman = "Pikeman"
     case archer = "Archer"
@@ -181,7 +169,7 @@ enum MilitaryUnitType: String, CaseIterable {
 
 // MARK: - Training Queue Entry
 
-struct TrainingQueueEntry {
+struct TrainingQueueEntry: Codable {
     let id: UUID
     let unitType: MilitaryUnitType
     let quantity: Int
@@ -193,24 +181,11 @@ struct TrainingQueueEntry {
         self.unitType = unitType
         self.quantity = quantity
         self.startTime = startTime
-        self.progress = 0.0
-    }
-    
-    func getTimeRemaining(currentTime: TimeInterval) -> TimeInterval {
-        let elapsed = currentTime - startTime
-        let totalTime = unitType.trainingTime * Double(quantity)
-        return max(0, totalTime - elapsed)
     }
     
     func getProgress(currentTime: TimeInterval) -> Double {
         let elapsed = currentTime - startTime
         let totalTime = unitType.trainingTime * Double(quantity)
         return min(1.0, elapsed / totalTime)
-    }
-    
-    func getUnitsCompleted(currentTime: TimeInterval) -> Int {
-        let elapsed = currentTime - startTime
-        let unitsCompleted = Int(elapsed / unitType.trainingTime)
-        return min(quantity, unitsCompleted)
     }
 }

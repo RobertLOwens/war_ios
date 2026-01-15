@@ -31,12 +31,22 @@ class GameScene: SKScene {
     var isLoading: Bool = false
     private var gatherAccumulators: [HexCoordinate: Double] = [:]
     private var lastGatherUpdateTime: TimeInterval?
-
+    
+    private var lastVisionUpdateTime: TimeInterval = 0
+    private var lastBuildingTimerUpdateTime: TimeInterval = 0
+    private var lastTrainingUpdateTime: TimeInterval = 0
+    
+    // Update intervals (in seconds) - tune these based on gameplay feel
+    private let visionUpdateInterval: TimeInterval = 0.25       // Fog/vision: 4x per second
+    private let buildingTimerUpdateInterval: TimeInterval = 0.5 // Building UI: 2x per second
+    private let trainingUpdateInterval: TimeInterval = 1.0      // Training queues: 1x per second
+    private let gatheringUpdateInterval: TimeInterval = 0.5
+    
     
     override func didMove(to view: SKView) {
         setupScene()
         setupCamera()
-    
+        
         // ✅ FIX: Only generate map and entities for NEW games
         if !skipInitialSetup {
             setupMap()
@@ -52,27 +62,27 @@ class GameScene: SKScene {
         unitsNode?.removeFromParent()
         buildingsNode?.removeFromParent()
         entitiesNode?.removeFromParent()
-    
+        
         mapNode = SKNode()
         mapNode.name = "mapNode"
         addChild(mapNode)
-    
+        
         let resourcesNode = SKNode()
         resourcesNode.name = "resourcesNode"
         addChild(resourcesNode)
-    
+        
         buildingsNode = SKNode()
         buildingsNode.name = "buildingsNode"
         addChild(buildingsNode)
-    
+        
         entitiesNode = SKNode()
         entitiesNode.name = "entitiesNode"
         addChild(entitiesNode)
-    
+        
         unitsNode = SKNode()
         unitsNode.name = "unitsNode"
         addChild(unitsNode)
-    
+        
         print("📦 Empty node structure created for saved game loading")
     }
     
@@ -91,7 +101,7 @@ class GameScene: SKScene {
         addChild(cameraNode)
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
     }
-
+    
     func setupMap() {
         mapNode?.removeFromParent()
         unitsNode?.removeFromParent()
@@ -253,206 +263,206 @@ class GameScene: SKScene {
         print("  🗺️ Map Size: \(mapSize)x\(mapSize)")
         print("  💎 Resource Density: \(resourceDensity)x")
     }
-
-
     
-//    func spawnTestEntities() {
-//        guard let player = player else { return }
-//        
-//        // Create villager group - OWNED BY PLAYER
-//        let villagerGroup = VillagerGroup(
-//            name: "Villager Group 1",
-//            coordinate: HexCoordinate(q: 10, r: 10),
-//            villagerCount: 5,
-//            owner: player
-//        )
-//        
-//        // ✅ Pass the VillagerGroup directly as the entity
-//        let villagerNode = EntityNode(
-//            coordinate: HexCoordinate(q: 10, r: 10),
-//            entityType: .villagerGroup,
-//            entity: villagerGroup,  // ✅ Direct reference
-//            currentPlayer: player
-//        )
-//        let position = HexMap.hexToPixel(q: 10, r: 10)
-//        villagerNode.position = position
-//        
-//        hexMap.addEntity(villagerNode)
-//        entitiesNode.addChild(villagerNode)
-//        player.addEntity(villagerGroup)
-//        
-//        // Create starter army - OWNED BY PLAYER
-//        let starterArmy = Army(
-//            name: "1st Army",
-//            coordinate: HexCoordinate(q: 8, r: 8),
-//            commander: Commander(name: "Rob", specialty: .infantry),
-//            owner: player
-//        )
-//        
-//        starterArmy.addMilitaryUnits(.swordsman, count: 10)
-//        starterArmy.addMilitaryUnits(.archer, count: 5)
-//        
-//        // ✅ Pass the Army directly as the entity
-//        let armyNode = EntityNode(
-//            coordinate: HexCoordinate(q: 8, r: 8),
-//            entityType: .army,
-//            entity: starterArmy,  // ✅ Direct reference
-//            currentPlayer: player
-//        )
-//        let armyPosition = HexMap.hexToPixel(q: 8, r: 8)
-//        armyNode.position = armyPosition
-//        
-//        hexMap.addEntity(armyNode)
-//        entitiesNode.addChild(armyNode)
-//        player.addEntity(starterArmy)
-//        player.addArmy(starterArmy)
-//        
-//        // 🔴 CREATE ENEMY PLAYER AND ARMY
-//        let enemyPlayer = Player(name: "Enemy AI", color: .red)
-//        player.setDiplomacyStatus(with: enemyPlayer, status: .enemy)
-//        
-//        let enemyArmy = Army(
-//            name: "Enemy Raiders",
-//            coordinate: HexCoordinate(q: 15, r: 15),
-//            commander: Commander(name: "Blackfang", specialty: .cavalry),
-//            owner: enemyPlayer
-//        )
-//        
-//        enemyArmy.addMilitaryUnits(.swordsman, count: 8)
-//        enemyArmy.addMilitaryUnits(.knight, count: 3)
-//        
-//        let enemyArmyNode = EntityNode(
-//            coordinate: HexCoordinate(q: 15, r: 15),
-//            entityType: .army,
-//            entity: enemyArmy,  // ✅ Direct reference
-//            currentPlayer: player
-//        )
-//        let enemyPosition = HexMap.hexToPixel(q: 15, r: 15)
-//        enemyArmyNode.position = enemyPosition
-//        
-//        hexMap.addEntity(enemyArmyNode)
-//        entitiesNode.addChild(enemyArmyNode)
-//        enemyPlayer.addEntity(enemyArmy)
-//        enemyPlayer.addArmy(enemyArmy)
-//        
-//        // 🟣 CREATE GUILD PLAYER AND ARMY
-//        let guildPlayer = Player(name: "Guild Ally", color: .purple)
-//        player.setDiplomacyStatus(with: guildPlayer, status: .guild)
-//        
-//        let guildArmy = Army(
-//            name: "Guild Defenders",
-//            coordinate: HexCoordinate(q: 5, r: 15),
-//            commander: Commander(name: "Guildmaster Thorne", specialty: .defensive),
-//            owner: guildPlayer
-//        )
-//        guildArmy.addMilitaryUnits(.swordsman, count: 12)
-//        guildArmy.addMilitaryUnits(.pikeman, count: 6)
-//        
-//        let guildArmyNode = EntityNode(
-//            coordinate: HexCoordinate(q: 5, r: 15),
-//            entityType: .army,
-//            entity: guildArmy,  // ✅ Direct reference
-//            currentPlayer: player
-//        )
-//        guildArmyNode.position = HexMap.hexToPixel(q: 5, r: 15)
-//        
-//        hexMap.addEntity(guildArmyNode)
-//        entitiesNode.addChild(guildArmyNode)
-//        guildPlayer.addEntity(guildArmy)
-//        guildPlayer.addArmy(guildArmy)
-//        
-//        // 🟢 CREATE ALLY PLAYER AND ARMY
-//        let allyPlayer = Player(name: "Allied Forces", color: .green)
-//        player.setDiplomacyStatus(with: allyPlayer, status: .ally)
-//        
-//        let allyArmy = Army(
-//            name: "Allied Knights",
-//            coordinate: HexCoordinate(q: 15, r: 5),
-//            commander: Commander(name: "Sir Galahad", specialty: .cavalry),
-//            owner: allyPlayer
-//        )
-//        allyArmy.addMilitaryUnits(.knight, count: 8)
-//        allyArmy.addMilitaryUnits(.archer, count: 4)
-//        
-//        let allyArmyNode = EntityNode(
-//            coordinate: HexCoordinate(q: 15, r: 5),
-//            entityType: .army,
-//            entity: allyArmy,  // ✅ Direct reference
-//            currentPlayer: player
-//        )
-//        allyArmyNode.position = HexMap.hexToPixel(q: 15, r: 5)
-//        
-//        hexMap.addEntity(allyArmyNode)
-//        entitiesNode.addChild(allyArmyNode)
-//        allyPlayer.addEntity(allyArmy)
-//        allyPlayer.addArmy(allyArmy)
-//        
-//        // 🟠 CREATE NEUTRAL PLAYER AND ARMY
-//        let neutralPlayer = Player(name: "Neutral Traders", color: .orange)
-//        player.setDiplomacyStatus(with: neutralPlayer, status: .neutral)
-//        
-//        let neutralArmy = Army(
-//            name: "Merchant Caravan",
-//            coordinate: HexCoordinate(q: 5, r: 5),
-//            commander: Commander(name: "Merchant Prince", specialty: .logistics),
-//            owner: neutralPlayer
-//        )
-//        neutralArmy.addMilitaryUnits(.swordsman, count: 5)
-//        
-//        let neutralArmyNode = EntityNode(
-//            coordinate: HexCoordinate(q: 5, r: 5),
-//            entityType: .army,
-//            entity: neutralArmy,  // ✅ Direct reference
-//            currentPlayer: player
-//        )
-//        
-//        neutralArmyNode.position = HexMap.hexToPixel(q: 5, r: 5)
-//        
-//        hexMap.addEntity(neutralArmyNode)
-//        entitiesNode.addChild(neutralArmyNode)
-//        neutralPlayer.addEntity(neutralArmy)
-//        neutralPlayer.addArmy(neutralArmy)
-//        
-//        print("✅ Spawned all test entities with diplomacy:")
-//          print("  🔵 Player Army at (8, 8)")
-//          print("  🔵 Player Villagers at (10, 10)")
-//          print("  🔴 Enemy Army at (15, 15)")
-//          print("  🟣 Guild Army at (5, 15)")
-//          print("  🟢 Ally Army at (15, 5)")
-//          print("  🟠 Neutral Army at (5, 5)")
-//              
-//          self.enemyPlayer = enemyPlayer
-//          self.allGamePlayers = [player, enemyPlayer, guildPlayer, allyPlayer, neutralPlayer]
-//          
-//          // ✅ NOW initialize fog of war AFTER entities exist
-//          let fogNode = SKNode()
-//          fogNode.name = "fogNode"
-//          fogNode.zPosition = 100
-//          addChild(fogNode)
-//          
-//          hexMap.setupFogOverlays(in: fogNode)
-//          player.initializeFogOfWar(hexMap: hexMap)
-//          
-//          // ✅ Update vision with all players (this reveals tiles around entities)
-//          player.updateVision(allPlayers: allGamePlayers)
-//          
-//          // ✅ Apply the fog overlays based on vision
-//          hexMap.updateFogOverlays(for: player)
-//          
-//          // Update visibility for all entities
-//          for entity in hexMap.entities {
-//              entity.updateVisibility(for: player)
-//          }
-//          
-//          // Update building visibility
-//          for building in hexMap.buildings {
-//              let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
-//              building.updateVisibility(displayMode: displayMode)
-//          }
-//          
-//          print("👁️ Fog of War initialized and updated")
-//        
-//    }
+    
+    
+    //    func spawnTestEntities() {
+    //        guard let player = player else { return }
+    //
+    //        // Create villager group - OWNED BY PLAYER
+    //        let villagerGroup = VillagerGroup(
+    //            name: "Villager Group 1",
+    //            coordinate: HexCoordinate(q: 10, r: 10),
+    //            villagerCount: 5,
+    //            owner: player
+    //        )
+    //
+    //        // ✅ Pass the VillagerGroup directly as the entity
+    //        let villagerNode = EntityNode(
+    //            coordinate: HexCoordinate(q: 10, r: 10),
+    //            entityType: .villagerGroup,
+    //            entity: villagerGroup,  // ✅ Direct reference
+    //            currentPlayer: player
+    //        )
+    //        let position = HexMap.hexToPixel(q: 10, r: 10)
+    //        villagerNode.position = position
+    //
+    //        hexMap.addEntity(villagerNode)
+    //        entitiesNode.addChild(villagerNode)
+    //        player.addEntity(villagerGroup)
+    //
+    //        // Create starter army - OWNED BY PLAYER
+    //        let starterArmy = Army(
+    //            name: "1st Army",
+    //            coordinate: HexCoordinate(q: 8, r: 8),
+    //            commander: Commander(name: "Rob", specialty: .infantry),
+    //            owner: player
+    //        )
+    //
+    //        starterArmy.addMilitaryUnits(.swordsman, count: 10)
+    //        starterArmy.addMilitaryUnits(.archer, count: 5)
+    //
+    //        // ✅ Pass the Army directly as the entity
+    //        let armyNode = EntityNode(
+    //            coordinate: HexCoordinate(q: 8, r: 8),
+    //            entityType: .army,
+    //            entity: starterArmy,  // ✅ Direct reference
+    //            currentPlayer: player
+    //        )
+    //        let armyPosition = HexMap.hexToPixel(q: 8, r: 8)
+    //        armyNode.position = armyPosition
+    //
+    //        hexMap.addEntity(armyNode)
+    //        entitiesNode.addChild(armyNode)
+    //        player.addEntity(starterArmy)
+    //        player.addArmy(starterArmy)
+    //
+    //        // 🔴 CREATE ENEMY PLAYER AND ARMY
+    //        let enemyPlayer = Player(name: "Enemy AI", color: .red)
+    //        player.setDiplomacyStatus(with: enemyPlayer, status: .enemy)
+    //
+    //        let enemyArmy = Army(
+    //            name: "Enemy Raiders",
+    //            coordinate: HexCoordinate(q: 15, r: 15),
+    //            commander: Commander(name: "Blackfang", specialty: .cavalry),
+    //            owner: enemyPlayer
+    //        )
+    //
+    //        enemyArmy.addMilitaryUnits(.swordsman, count: 8)
+    //        enemyArmy.addMilitaryUnits(.knight, count: 3)
+    //
+    //        let enemyArmyNode = EntityNode(
+    //            coordinate: HexCoordinate(q: 15, r: 15),
+    //            entityType: .army,
+    //            entity: enemyArmy,  // ✅ Direct reference
+    //            currentPlayer: player
+    //        )
+    //        let enemyPosition = HexMap.hexToPixel(q: 15, r: 15)
+    //        enemyArmyNode.position = enemyPosition
+    //
+    //        hexMap.addEntity(enemyArmyNode)
+    //        entitiesNode.addChild(enemyArmyNode)
+    //        enemyPlayer.addEntity(enemyArmy)
+    //        enemyPlayer.addArmy(enemyArmy)
+    //
+    //        // 🟣 CREATE GUILD PLAYER AND ARMY
+    //        let guildPlayer = Player(name: "Guild Ally", color: .purple)
+    //        player.setDiplomacyStatus(with: guildPlayer, status: .guild)
+    //
+    //        let guildArmy = Army(
+    //            name: "Guild Defenders",
+    //            coordinate: HexCoordinate(q: 5, r: 15),
+    //            commander: Commander(name: "Guildmaster Thorne", specialty: .defensive),
+    //            owner: guildPlayer
+    //        )
+    //        guildArmy.addMilitaryUnits(.swordsman, count: 12)
+    //        guildArmy.addMilitaryUnits(.pikeman, count: 6)
+    //
+    //        let guildArmyNode = EntityNode(
+    //            coordinate: HexCoordinate(q: 5, r: 15),
+    //            entityType: .army,
+    //            entity: guildArmy,  // ✅ Direct reference
+    //            currentPlayer: player
+    //        )
+    //        guildArmyNode.position = HexMap.hexToPixel(q: 5, r: 15)
+    //
+    //        hexMap.addEntity(guildArmyNode)
+    //        entitiesNode.addChild(guildArmyNode)
+    //        guildPlayer.addEntity(guildArmy)
+    //        guildPlayer.addArmy(guildArmy)
+    //
+    //        // 🟢 CREATE ALLY PLAYER AND ARMY
+    //        let allyPlayer = Player(name: "Allied Forces", color: .green)
+    //        player.setDiplomacyStatus(with: allyPlayer, status: .ally)
+    //
+    //        let allyArmy = Army(
+    //            name: "Allied Knights",
+    //            coordinate: HexCoordinate(q: 15, r: 5),
+    //            commander: Commander(name: "Sir Galahad", specialty: .cavalry),
+    //            owner: allyPlayer
+    //        )
+    //        allyArmy.addMilitaryUnits(.knight, count: 8)
+    //        allyArmy.addMilitaryUnits(.archer, count: 4)
+    //
+    //        let allyArmyNode = EntityNode(
+    //            coordinate: HexCoordinate(q: 15, r: 5),
+    //            entityType: .army,
+    //            entity: allyArmy,  // ✅ Direct reference
+    //            currentPlayer: player
+    //        )
+    //        allyArmyNode.position = HexMap.hexToPixel(q: 15, r: 5)
+    //
+    //        hexMap.addEntity(allyArmyNode)
+    //        entitiesNode.addChild(allyArmyNode)
+    //        allyPlayer.addEntity(allyArmy)
+    //        allyPlayer.addArmy(allyArmy)
+    //
+    //        // 🟠 CREATE NEUTRAL PLAYER AND ARMY
+    //        let neutralPlayer = Player(name: "Neutral Traders", color: .orange)
+    //        player.setDiplomacyStatus(with: neutralPlayer, status: .neutral)
+    //
+    //        let neutralArmy = Army(
+    //            name: "Merchant Caravan",
+    //            coordinate: HexCoordinate(q: 5, r: 5),
+    //            commander: Commander(name: "Merchant Prince", specialty: .logistics),
+    //            owner: neutralPlayer
+    //        )
+    //        neutralArmy.addMilitaryUnits(.swordsman, count: 5)
+    //
+    //        let neutralArmyNode = EntityNode(
+    //            coordinate: HexCoordinate(q: 5, r: 5),
+    //            entityType: .army,
+    //            entity: neutralArmy,  // ✅ Direct reference
+    //            currentPlayer: player
+    //        )
+    //
+    //        neutralArmyNode.position = HexMap.hexToPixel(q: 5, r: 5)
+    //
+    //        hexMap.addEntity(neutralArmyNode)
+    //        entitiesNode.addChild(neutralArmyNode)
+    //        neutralPlayer.addEntity(neutralArmy)
+    //        neutralPlayer.addArmy(neutralArmy)
+    //
+    //        print("✅ Spawned all test entities with diplomacy:")
+    //          print("  🔵 Player Army at (8, 8)")
+    //          print("  🔵 Player Villagers at (10, 10)")
+    //          print("  🔴 Enemy Army at (15, 15)")
+    //          print("  🟣 Guild Army at (5, 15)")
+    //          print("  🟢 Ally Army at (15, 5)")
+    //          print("  🟠 Neutral Army at (5, 5)")
+    //
+    //          self.enemyPlayer = enemyPlayer
+    //          self.allGamePlayers = [player, enemyPlayer, guildPlayer, allyPlayer, neutralPlayer]
+    //
+    //          // ✅ NOW initialize fog of war AFTER entities exist
+    //          let fogNode = SKNode()
+    //          fogNode.name = "fogNode"
+    //          fogNode.zPosition = 100
+    //          addChild(fogNode)
+    //
+    //          hexMap.setupFogOverlays(in: fogNode)
+    //          player.initializeFogOfWar(hexMap: hexMap)
+    //
+    //          // ✅ Update vision with all players (this reveals tiles around entities)
+    //          player.updateVision(allPlayers: allGamePlayers)
+    //
+    //          // ✅ Apply the fog overlays based on vision
+    //          hexMap.updateFogOverlays(for: player)
+    //
+    //          // Update visibility for all entities
+    //          for entity in hexMap.entities {
+    //              entity.updateVisibility(for: player)
+    //          }
+    //
+    //          // Update building visibility
+    //          for building in hexMap.buildings {
+    //              let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
+    //              building.updateVisibility(displayMode: displayMode)
+    //          }
+    //
+    //          print("👁️ Fog of War initialized and updated")
+    //
+    //    }
     
     func selectEntity(_ entity: EntityNode) {
         // ✅ FIX: Check if entity is actually visible
@@ -491,191 +501,271 @@ class GameScene: SKScene {
     }
     
     override func update(_ currentTime: TimeInterval) {
-        
-        let realWorldTime = Date().timeIntervalSince1970
+        // Skip updates while loading or if map isn't ready
         guard !isLoading, hexMap != nil else { return }
         
-        if let player = player {
-            // ✅ FIX 1: Call the resource ticker to add resources based on collection rates
-            player.updateResources(currentTime: realWorldTime)
-            
-            // Update vision every frame so it follows moving entities
-            player.updateVision(allPlayers: allGamePlayers)
-            hexMap.updateFogOverlays(for: player)
-            
-            // Update entity visibility
-            for entity in hexMap.entities {
-                entity.updateVisibility(for: player)
-            }
-            
-            // Update building visibility
-            for building in hexMap.buildings {
-                let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
-                building.updateVisibility(displayMode: displayMode)
-            }
-            
-            // Only update resource display periodically to avoid UI lag
-            if lastUpdateTime == nil || currentTime - lastUpdateTime! >= 0.5 {
-                gameDelegate?.gameSceneDidUpdateResources(self)
-                lastUpdateTime = currentTime
-            }
+        let realWorldTime = Date().timeIntervalSince1970
+        
+        // =========================================================================
+        // EVERY FRAME: Critical updates only
+        // =========================================================================
+        // Currently nothing needs per-frame updates (movement is action-based)
+        // This section reserved for future smooth animations if needed
+        
+        // =========================================================================
+        // FAST UPDATES (4x per second): Vision & Fog - needs to feel responsive
+        // =========================================================================
+        if currentTime - lastVisionUpdateTime >= visionUpdateInterval {
+            updateVisionAndFog()
+            lastVisionUpdateTime = currentTime
         }
         
+        // =========================================================================
+        // MEDIUM UPDATES (2x per second): UI elements & display
+        // =========================================================================
+        if currentTime - lastBuildingTimerUpdateTime >= buildingTimerUpdateInterval {
+            updateBuildingTimers()
+            lastBuildingTimerUpdateTime = currentTime
+        }
+        
+        // Resource display update (reuse existing lastUpdateTime)
+        if lastUpdateTime == nil || currentTime - lastUpdateTime! >= 0.5 {
+            player?.updateResources(currentTime: realWorldTime)
+            gameDelegate?.gameSceneDidUpdateResources(self)
+            lastUpdateTime = currentTime
+        }
+        
+        // =========================================================================
+        // SLOW UPDATES (1x per second): Background processing
+        // =========================================================================
+        if currentTime - lastTrainingUpdateTime >= trainingUpdateInterval {
+            updateTrainingQueues(currentTime: realWorldTime)
+            ResearchManager.shared.update(currentTime: realWorldTime)
+            lastTrainingUpdateTime = currentTime
+        }
+        
+        // =========================================================================
+        // GATHERING UPDATES (2x per second): Resource gathering with accumulators
+        // =========================================================================
+        updateResourceGathering(realWorldTime: realWorldTime)
+    }
+    
+    // MARK: - Time-Sliced Update Helpers
+    
+    /// Updates vision and fog of war - runs 4x per second
+    private func updateVisionAndFog() {
+        guard let player = player else { return }
+        
+        // Update player's vision based on unit positions
+        player.updateVision(allPlayers: allGamePlayers)
+        
+        // Update fog overlay visuals
+        hexMap.updateFogOverlays(for: player)
+        
+        // Update entity visibility
+        for entity in hexMap.entities {
+            entity.updateVisibility(for: player)
+        }
+        
+        // Update building visibility
         for building in hexMap.buildings {
-            if building.state == .constructing {
+            let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
+            building.updateVisibility(displayMode: displayMode)
+        }
+    }
+    
+    /// Updates building construction/upgrade timer UI - runs 2x per second
+    private func updateBuildingTimers() {
+        for building in hexMap.buildings {
+            switch building.state {
+            case .constructing:
                 building.updateTimerLabel()
-            } else if building.state == .upgrading {
-                // ✅ FIX: Handle upgrading buildings - this was completely missing!
+            case .upgrading:
                 building.updateUpgradeTimerLabel()
-            } else {
-                // Only remove construction UI for non-constructing, non-upgrading buildings
-                building.timerLabel?.removeFromParent()
-                building.timerLabel = nil
-                building.progressBar?.removeFromParent()
-                building.progressBar = nil
+            default:
+                // Clean up any stale UI elements
+                if building.timerLabel != nil {
+                    building.timerLabel?.removeFromParent()
+                    building.timerLabel = nil
+                }
+                if building.progressBar != nil {
+                    building.progressBar?.removeFromParent()
+                    building.progressBar = nil
+                }
             }
         }
-        
-        ResearchManager.shared.update(currentTime: realWorldTime)
-        
+    }
+    
+    /// Updates training queues for all buildings - runs 1x per second
+    private func updateTrainingQueues(currentTime: TimeInterval) {
         for building in hexMap.buildings where building.state == .completed {
-            building.updateTraining(currentTime: realWorldTime)
-            building.updateVillagerTraining(currentTime: realWorldTime)
+            building.updateTraining(currentTime: currentTime)
+            building.updateVillagerTraining(currentTime: currentTime)
+        }
+    }
+    
+    /// Updates resource gathering with time-based accumulators - runs 2x per second
+    private func updateResourceGathering(realWorldTime: TimeInterval) {
+        guard let player = player else { return }
+        
+        // Calculate time delta for accurate timing
+        let gatherDeltaTime: TimeInterval
+        if let lastGather = lastGatherUpdateTime {
+            gatherDeltaTime = realWorldTime - lastGather
+        } else {
+            gatherDeltaTime = 0
+            lastGatherUpdateTime = realWorldTime
+            return  // Skip first frame to establish baseline
         }
         
-        if let player = player {
-            // Calculate time delta for accurate timing
-            let gatherDeltaTime: TimeInterval
-            if let lastGather = lastGatherUpdateTime {
-                gatherDeltaTime = realWorldTime - lastGather
-            } else {
-                gatherDeltaTime = 0
-            }
-            lastGatherUpdateTime = realWorldTime
-            
-            // Skip if delta is too large (app was backgrounded) or zero
-            guard gatherDeltaTime > 0 && gatherDeltaTime < 1.0 else {
-                return
-            }
-            
-            // Process all resource points that are being gathered
-            for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered
-                    // ✅ NEW: Handle farmland wood cost
-                    if resourcePoint.resourceType == .farmland {
-                        let woodCostPerSecond = 0.1
-                        let woodCostThisFrame = woodCostPerSecond * gatherDeltaTime
-                        
-                        // Use a separate key for wood cost accumulator
-                        let farmWoodKey = HexCoordinate(q: resourcePoint.coordinate.q + 10000, r: resourcePoint.coordinate.r + 10000)
-                        let currentAcc = gatherAccumulators[farmWoodKey] ?? 0.0
-                        let newAcc = currentAcc + woodCostThisFrame
-                        let wholeAmount = Int(newAcc)
-                        
-                        if wholeAmount > 0 {
-                            let currentWood = player.getResource(.wood)
-                            if currentWood >= wholeAmount {
-                                player.removeResource(.wood, amount: wholeAmount)
-                                gatherAccumulators[farmWoodKey] = newAcc - Double(wholeAmount)
-                            } else {
-                                // No wood - stop all villagers on this farm
-                                print("⚠️ Farm stopped at (\(resourcePoint.coordinate.q), \(resourcePoint.coordinate.r)) - out of wood!")
-                                for villagerGroup in resourcePoint.assignedVillagerGroups {
-                                    let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
-                                    player.decreaseCollectionRate(.food, amount: rateContribution)
-                                    villagerGroup.clearTask()
-                                    if let entityNode = hexMap.entities.first(where: {
-                                        ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-                                    }) {
-                                        entityNode.isMoving = false
-                                    }
-                                }
-                                resourcePoint.stopGathering()
-                                gatherAccumulators.removeValue(forKey: farmWoodKey)
-                                continue  // Skip to next resource point
-                            }
-                        } else {
-                            gatherAccumulators[farmWoodKey] = newAcc
-                        }
-                    }
-                
-                // Check if depleted
-                if resourcePoint.isDepleted() {
-                    // Clear all villagers gathering here
-                    for villagerGroup in resourcePoint.assignedVillagerGroups {
-                        // Revert collection rate
-                        let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
-                        player.decreaseCollectionRate(resourcePoint.resourceType.resourceYield, amount: rateContribution)
-                        
-                        villagerGroup.clearTask()
-                        
-                        // Unlock the entity
-                        if let entityNode = hexMap.entities.first(where: {
-                            ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-                        }) {
-                            entityNode.isMoving = false
-                        }
-                    }
-                    resourcePoint.stopGathering()
-                    
-                    // Clean up accumulator
-                    gatherAccumulators.removeValue(forKey: resourcePoint.coordinate)
-                    
-                    print("✅ Resource depleted, all villagers now idle")
-                    continue
-                }
-                
-                // Calculate gather rate from all villagers ON the tile
-                var gatherRatePerSecond = 0.0
-                for villagerGroup in resourcePoint.assignedVillagerGroups {
-                    // Only gather if villagers have arrived at the resource
-                    if villagerGroup.coordinate == resourcePoint.coordinate {
-                        // Each villager gathers 0.2 per second (matches collection rate)
-                        var baseRate = 0.2 * Double(villagerGroup.villagerCount)
-                        
-                        // Apply research bonus based on resource type
-                        if resourcePoint.resourceType.resourceYield == .wood {
-                            baseRate *= ResearchManager.shared.getWoodGatheringMultiplier()
-                        } else if resourcePoint.resourceType.resourceYield == .food {
-                            baseRate *= ResearchManager.shared.getFoodGatheringMultiplier()
-                        } else if resourcePoint.resourceType.resourceYield == .stone {
-                            baseRate *= ResearchManager.shared.getStoneGatheringMultiplier()
-                        } else if resourcePoint.resourceType.resourceYield == .ore {
-                            baseRate *= ResearchManager.shared.getOreGatheringMultiplier()
-                        }
-                        
-                        gatherRatePerSecond += baseRate
-                        
-                    }
-                }
-                
-                // Apply time-based gathering using accumulator
-                if gatherRatePerSecond > 0 {
-                    // Add fractional amount based on actual time elapsed
-                    let gatherThisFrame = gatherRatePerSecond * gatherDeltaTime
-                    let currentAccumulator = gatherAccumulators[resourcePoint.coordinate] ?? 0
-                    let newAccumulator = currentAccumulator + gatherThisFrame
-                    
-                    // Only deplete whole numbers
-                    let wholeAmount = Int(newAccumulator)
-                    if wholeAmount > 0 {
-                        let gathered = resourcePoint.gather(amount: wholeAmount)
-                        
-                        // Keep the fractional remainder
-                        gatherAccumulators[resourcePoint.coordinate] = newAccumulator - Double(wholeAmount)
-                        
-                        if gathered > 0 {
-                            // Only log occasionally to reduce spam
-                            if Int.random(in: 0...60) == 0 {
-                                print("⛏️ Depleted \(gathered) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
-                            }
-                        }
-                    } else {
-                        // Store fractional amount for next frame
-                        gatherAccumulators[resourcePoint.coordinate] = newAccumulator
-                    }
-                }
+        // Update last gather time
+        lastGatherUpdateTime = realWorldTime
+        
+        // Skip if delta is too large (app was backgrounded) or too small
+        guard gatherDeltaTime > 0.1 && gatherDeltaTime < 2.0 else { return }
+        
+        // Process all resource points that are being gathered
+        for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered {
+            processResourceGathering(
+                resourcePoint: resourcePoint,
+                player: player,
+                deltaTime: gatherDeltaTime
+            )
+        }
+    }
+    
+    /// Processes gathering for a single resource point
+    private func processResourceGathering(resourcePoint: ResourcePointNode, player: Player, deltaTime: TimeInterval) {
+        
+        // Handle farmland wood cost
+        if resourcePoint.resourceType == .farmland {
+            if !processFarmlandWoodCost(resourcePoint: resourcePoint, player: player, deltaTime: deltaTime) {
+                return  // Farm stopped due to no wood
             }
         }
+        
+        // Check if depleted
+        if resourcePoint.isDepleted() {
+            handleDepletedResource(resourcePoint: resourcePoint, player: player)
+            return
+        }
+        
+        // Calculate gather rate from all villagers ON the tile
+        var gatherRatePerSecond = 0.0
+        for villagerGroup in resourcePoint.assignedVillagerGroups {
+            // Only gather if villagers have arrived at the resource
+            if villagerGroup.coordinate == resourcePoint.coordinate {
+                gatherRatePerSecond += calculateGatherRate(
+                    villagerGroup: villagerGroup,
+                    resourceType: resourcePoint.resourceType
+                )
+            }
+        }
+        
+        // Apply time-based gathering using accumulator
+        if gatherRatePerSecond > 0 {
+            applyGathering(resourcePoint: resourcePoint, rate: gatherRatePerSecond, deltaTime: deltaTime)
+        }
+    }
+    
+    /// Calculates gather rate for a villager group with research bonuses
+    private func calculateGatherRate(villagerGroup: VillagerGroup, resourceType: ResourcePointType) -> Double {
+        var baseRate = 0.2 * Double(villagerGroup.villagerCount)
+        
+        // Apply research bonus based on resource type
+        switch resourceType.resourceYield {
+        case .wood:
+            baseRate *= ResearchManager.shared.getWoodGatheringMultiplier()
+        case .food:
+            baseRate *= ResearchManager.shared.getFoodGatheringMultiplier()
+        case .stone:
+            baseRate *= ResearchManager.shared.getStoneGatheringMultiplier()
+        case .ore:
+            baseRate *= ResearchManager.shared.getOreGatheringMultiplier()
+        default:
+            break
+        }
+        
+        return baseRate
+    }
+    
+    /// Applies gathering to a resource point using accumulator for fractional amounts
+    private func applyGathering(resourcePoint: ResourcePointNode, rate: Double, deltaTime: TimeInterval) {
+        let gatherThisFrame = rate * deltaTime
+        let currentAccumulator = gatherAccumulators[resourcePoint.coordinate] ?? 0
+        let newAccumulator = currentAccumulator + gatherThisFrame
+        
+        // Only deplete whole numbers
+        let wholeAmount = Int(newAccumulator)
+        if wholeAmount > 0 {
+            let gathered = resourcePoint.gather(amount: wholeAmount)
+            
+            // Keep the fractional remainder
+            gatherAccumulators[resourcePoint.coordinate] = newAccumulator - Double(wholeAmount)
+            
+            // Occasional logging to reduce spam
+            if gathered > 0 && Int.random(in: 0...60) == 0 {
+                print("⛏️ Depleted \(gathered) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
+            }
+        } else {
+            gatherAccumulators[resourcePoint.coordinate] = newAccumulator
+        }
+    }
+    
+    /// Processes wood cost for farmland, returns false if farm should stop
+    private func processFarmlandWoodCost(resourcePoint: ResourcePointNode, player: Player, deltaTime: TimeInterval) -> Bool {
+        let woodCostPerSecond = 0.1
+        let woodCostThisFrame = woodCostPerSecond * deltaTime
+        
+        // Use a separate key for wood cost accumulator
+        let farmWoodKey = HexCoordinate(q: resourcePoint.coordinate.q + 10000, r: resourcePoint.coordinate.r + 10000)
+        let currentAcc = gatherAccumulators[farmWoodKey] ?? 0.0
+        let newAcc = currentAcc + woodCostThisFrame
+        let wholeAmount = Int(newAcc)
+        
+        if wholeAmount > 0 {
+            let currentWood = player.getResource(.wood)
+            if currentWood >= wholeAmount {
+                player.removeResource(.wood, amount: wholeAmount)
+                gatherAccumulators[farmWoodKey] = newAcc - Double(wholeAmount)
+            } else {
+                // No wood - stop all villagers on this farm
+                print("⚠️ Farm stopped at (\(resourcePoint.coordinate.q), \(resourcePoint.coordinate.r)) - out of wood!")
+                stopVillagersAtResource(resourcePoint: resourcePoint, player: player, resourceYield: .food)
+                gatherAccumulators.removeValue(forKey: farmWoodKey)
+                return false
+            }
+        } else {
+            gatherAccumulators[farmWoodKey] = newAcc
+        }
+        
+        return true
+    }
+    
+    /// Handles a depleted resource - clears villagers and cleans up
+    private func handleDepletedResource(resourcePoint: ResourcePointNode, player: Player) {
+        stopVillagersAtResource(resourcePoint: resourcePoint, player: player, resourceYield: resourcePoint.resourceType.resourceYield)
+        gatherAccumulators.removeValue(forKey: resourcePoint.coordinate)
+        print("✅ Resource depleted, all villagers now idle")
+    }
+    
+    /// Stops all villagers gathering at a resource point
+    private func stopVillagersAtResource(resourcePoint: ResourcePointNode, player: Player, resourceYield: ResourceType) {
+        for villagerGroup in resourcePoint.assignedVillagerGroups {
+            // Revert collection rate
+            let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
+            player.decreaseCollectionRate(resourceYield, amount: rateContribution)
+            
+            villagerGroup.clearTask()
+            
+            // Unlock the entity
+            if let entityNode = hexMap.entities.first(where: {
+                ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+            }) {
+                entityNode.isMoving = false
+            }
+        }
+        resourcePoint.stopGathering()
     }
     // MARK: - Touch Handling
     
@@ -777,16 +867,21 @@ class GameScene: SKScene {
     
     func selectTile(_ tile: HexTileNode) {
         // Check if we're in attack mode
-        if let attacker = attackingArmy {
-            executeAttack(attacker: attacker, targetCoordinate: tile.coordinate)
+        if let attacker = attackingArmy,
+           let player = player {
+            let command = AttackCommand(
+                playerID: player.id,
+                attackerEntityID: attacker.id,
+                targetCoordinate: tile.coordinate
+            )
+            
+            let result = CommandExecutor.shared.execute(command)
+            
+            if !result.succeeded, let reason = result.failureReason {
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Attack", message: reason)
+            }
+            
             attackingArmy = nil
-            deselectAll()
-            return
-        }
-        
-        // If we have a selected entity, this is a move command
-        if let entity = selectedEntity {
-            moveEntity(entity, to: tile.coordinate)
             deselectAll()
             return
         }
@@ -838,168 +933,6 @@ class GameScene: SKScene {
         print("✅ Calling showMoveSelectionMenu...")
         gameDelegate?.gameScene(self, didRequestMoveSelection: destination, availableEntities: availableEntities)
     }
-
-    func moveEntity(_ entity: EntityNode, to destination: HexCoordinate) {
-        // ✅ CHECK 1: Only allow moving your own entities
-        let diplomacyStatus = player?.getDiplomacyStatus(with: entity.entity.owner) ?? .neutral
-        if diplomacyStatus != .me {
-            print("❌ Cannot move entities you don't own")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "You can only move your own units!")
-            return
-        }
-        
-        // ✅ CHECK 2: Cannot move onto enemy tiles
-        if let entityAtDestination = hexMap.getEntity(at: destination) {
-            let destDiplomacy = player?.getDiplomacyStatus(with: entityAtDestination.entity.owner) ?? .neutral
-            if destDiplomacy == .enemy {
-                print("❌ Cannot move onto enemy-occupied tile")
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "Cannot move onto an enemy-occupied tile! Use the Attack command instead.")
-                return
-            }
-        }
-        
-        // Check if entity is currently building or gathering
-        if entity.isMoving {
-            if let villagerGroup = entity.entity as? VillagerGroup {
-                // ✅ ADD: Check for gathering task
-                if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
-                    if !resourcePoint.isDepleted() && resourcePoint.parent != nil {
-                        print("❌ Villagers are busy gathering")
-                        gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
-                                            message: "These villagers are gathering \(resourcePoint.resourceType.displayName) and cannot move. Cancel the gathering task first.")
-                        return
-                    } else {
-                        // Resource depleted, unlock them
-                        entity.isMoving = false
-                        villagerGroup.clearTask()
-                    }
-                }
-                
-                if case .building(let building) = villagerGroup.currentTask {
-                    if building.state == .completed {
-                        entity.isMoving = false
-                        villagerGroup.clearTask()
-                        print("✅ Fixed: Unlocked villagers from completed building")
-                    } else {
-                        let progress = Int(building.constructionProgress * 100)
-                        print("❌ Villagers are busy building (\(progress)%)")
-                        gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move",
-                                            message:  "These villagers are busy constructing \(building.buildingType.displayName) (\(progress)% complete) and cannot move until construction is complete.")
-                        return
-                    }
-                }
-            } else {
-                print("❌ Entity is already moving")
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "This entity is already on the move.")
-                return
-            }
-        }
-        
-        guard let path = hexMap.findPath(from: entity.coordinate, to: destination) else {
-            print("❌ No valid path to destination")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: "No valid path to the destination.")
-            return
-        }
-        
-        print("✅ Moving \(entity.entityType.displayName) from (\(entity.coordinate.q), \(entity.coordinate.r)) to (\(destination.q), \(destination.r))")
-        print("Path: \(path)")
-        
-        // ✅ Draw static path in world coordinates
-        drawStaticMovementPath(from: entity.coordinate, path: path)
-        
-        entity.moveTo(path: path) { [weak self] in
-            print("✅ \(entity.entityType.displayName) arrived at destination")
-            // Clear the path when movement completes
-            self?.clearMovementPath()
-        }
-    }
-    
-    func placeBuilding(type: BuildingType, at coordinate: HexCoordinate, owner: Player) {
-        guard let villagerEntity = hexMap.getEntity(at: coordinate),
-              villagerEntity.entityType == .villagerGroup else {
-            print("❌ No villager group at this location")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
-                                    message: "You need a villager group at this location to build.")
-            return
-        }
-        
-        // Check if tile is valid for this building type
-        guard hexMap.canPlaceBuilding(at: coordinate, buildingType: type) else {
-            // Special messages for camps
-            if type == .miningCamp {
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
-                                        message: "Mining Camps must be built on Ore or Stone resources.")
-            } else if type == .lumberCamp {
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
-                                        message: "Lumber Camps must be built on Trees.")
-            } else {
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build",
-                                        message: "This location is blocked or not suitable for building.")
-            }
-            return
-        }
-        
-        // Check if there's a resource here (not for camps - they require it)
-        if let resource = hexMap.getResourcePoint(at: coordinate) {
-            if type != .miningCamp && type != .lumberCamp {
-                // Will be handled by the warning confirmation in MenuCoordinator
-                // Remove the resource when building is placed
-                hexMap.removeResourcePoint(resource)
-                resource.removeFromParent()
-                print("✅ Removed \(resource.resourceType.displayName) to place \(type.displayName)")
-            }
-            // For camps, keep the resource - it will be gatherable via the camp
-        }
-        
-        // Check if player has enough resources
-        var missingResources: [String] = []
-        for (resourceType, amount) in type.buildCost {
-            if !owner.hasResource(resourceType, amount: amount) {
-                let current = owner.getResource(resourceType)
-                missingResources.append("\(resourceType.icon) \(resourceType.displayName): need \(amount), have \(current)")
-            }
-        }
-        
-        if !missingResources.isEmpty {
-            let message = "Insufficient resources:\n" + missingResources.joined(separator: "\n")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Afford", message: message)
-            return
-        }
-        
-        // Deduct resources
-        for (resourceType, amount) in type.buildCost {
-            owner.removeResource(resourceType, amount: amount)
-        }
-        
-        // Create building
-        let building = BuildingNode(coordinate: coordinate, buildingType: type, owner: owner)
-        let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
-        building.position = position
-        
-        // Store reference to the builder entity
-        building.builderEntity = villagerEntity
-        
-        // Start construction
-        building.startConstruction()
-        
-        // Add to map and scene
-        hexMap.addBuilding(building)
-        buildingsNode.addChild(building)
-        owner.addBuilding(building)
-        
-        // Mark villager entity as busy building
-        villagerEntity.isMoving = true
-        
-        // Assign task to villager group
-        if let villagerGroup = villagerEntity.entity as? VillagerGroup {
-            villagerGroup.assignTask(.building(building), target: coordinate)
-            print("✅ Assigned building task to \(villagerGroup.name)")
-        }
-        
-        print("✅ Placed \(type.displayName) at (\(coordinate.q), \(coordinate.r))")
-        
-        gameDelegate?.gameSceneDidUpdateResources(self)
-    }
     
     // This method is in GameScene.swift class
     func showBuildingInfo(_ building: BuildingNode) {
@@ -1045,75 +978,6 @@ class GameScene: SKScene {
         gameDelegate?.gameScene(self, didRequestMenuForTile: building.coordinate)
     }
     
-    func updateBuildingTimers() {
-        for building in hexMap.buildings {
-            if building.state == .constructing {
-                building.updateTimerLabel()
-            }
-            // ✅ FIX: Explicitly call upgrade timer update for upgrading buildings
-            if building.state == .upgrading {
-                building.updateUpgradeTimerLabel()
-            }
-        }
-    }
-    
-    func initiateAttack(attacker: Army) {
-        attackingArmy = attacker
-        print("🎯 Attack mode activated for \(attacker.name)")
-        print("   Select an enemy target to attack")
-    }
-
-    func executeAttack(attacker: Army, targetCoordinate: HexCoordinate) {
-        // Find target at coordinate
-        var target: Any? = nil
-        
-        // Check for enemy entity
-        if let targetEntity = hexMap.getEntity(at: targetCoordinate) {
-            if targetEntity.entity.owner?.id != attacker.owner?.id {
-                if let targetArmy = targetEntity.entity as? Army {
-                    target = targetArmy
-                } else if let targetVillagers = targetEntity.entity as? VillagerGroup {
-                    target = targetVillagers
-                }
-            }
-        }
-        
-        // Check for enemy building
-        if target == nil, let building = hexMap.getBuilding(at: targetCoordinate) {
-            if building.owner?.id != attacker.owner?.id {
-                target = building
-            }
-        }
-        
-        guard let finalTarget = target else {
-            print("❌ No valid target at location")
-            return
-        }
-        
-        // Move army to adjacent tile
-        guard let adjacentTile = hexMap.findNearestWalkable(to: targetCoordinate, maxDistance: 1) else {
-            print("❌ Cannot reach target")
-            return
-        }
-        
-        // Find attacker entity node
-        guard let attackerNode = hexMap.entities.first(where: {
-            ($0.entity as? Army)?.id == attacker.id
-        }) else {
-            print("❌ Attacker node not found")
-            return
-        }
-        
-        // Move to attack
-        print("⚔️ \(attacker.name) moving to attack at (\(targetCoordinate.q), \(targetCoordinate.r))")
-        moveEntity(attackerNode, to: adjacentTile)
-        
-        // Wait for movement to complete, then start combat
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.startCombat(attacker: attacker, target: finalTarget, location: targetCoordinate)
-        }
-    }
-
     func startCombat(attacker: Army, target: Any, location: HexCoordinate) {
         print("⚔️ COMBAT STARTED!")
         
@@ -1139,7 +1003,7 @@ class GameScene: SKScene {
             print("✅ Combat completed: \(record.winner.displayName)")
         }
     }
-
+    
     func cleanupAfterCombat(attacker: Army, defender: Any) {
         // Remove attacker if destroyed
         if attacker.getTotalUnits() <= 0 {
@@ -1242,7 +1106,7 @@ class GameScene: SKScene {
         print("   🏢 Buildings: \(hexMap.buildings.count)")
         print("   🎭 Entities: \(hexMap.entities.count)")
     }
-
+    
     func debugDrawVisionRange(center: HexCoordinate, radius: Int) {
         // Remove old debug shapes
         enumerateChildNodes(withName: "debugVision") { node, _ in
@@ -1265,7 +1129,7 @@ class GameScene: SKScene {
         
         print("🎯 Debug: \(tiles.count) tiles at radius \(radius) from (\(center.q), \(center.r))")
     }
-
+    
     func getVisionTilesForDebug(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
         var tiles: Set<HexCoordinate> = [center]
         
@@ -1366,7 +1230,7 @@ class GameScene: SKScene {
         
         addChild(movementPathLine!)
     }
-
+    
     func clearMovementPath() {
         movementPathLine?.removeFromParent()
         movementPathLine = nil
@@ -1439,7 +1303,7 @@ class GameScene: SKScene {
             showMergeOption?(villagerGroups[0], villagerGroups[1])
         }
     }
-
+    
     func performMerge(group1: EntityNode, group2: EntityNode, newCount1: Int, newCount2: Int) {
         guard let villagers1 = group1.entity as? VillagerGroup,
               let villagers2 = group2.entity as? VillagerGroup else {
@@ -1516,88 +1380,6 @@ class GameScene: SKScene {
         gameDelegate?.gameScene(self, villagerArrivedForHunt: villagerGroup, target: target, entityNode: entityNode)
     }
     
-    func startBuildingUpgrade(building: BuildingNode, villagerEntity: EntityNode) {
-            guard let owner = building.owner else {
-                print("❌ Building has no owner")
-                return
-            }
-            
-            guard building.canUpgrade else {
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Upgrade",
-                                        message: "This building is already at max level or not ready for upgrade.")
-                return
-            }
-            
-            guard let upgradeCost = building.getUpgradeCost() else {
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Upgrade",
-                                        message: "No upgrade available for this building.")
-                return
-            }
-            
-            // Check resources
-            var missingResources: [String] = []
-            for (resourceType, amount) in upgradeCost {
-                if !owner.hasResource(resourceType, amount: amount) {
-                    let current = owner.getResource(resourceType)
-                    missingResources.append("\(resourceType.icon) \(resourceType.displayName): need \(amount), have \(current)")
-                }
-            }
-            
-            if !missingResources.isEmpty {
-                let message = "Insufficient resources:\n" + missingResources.joined(separator: "\n")
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Afford", message: message)
-                return
-            }
-            
-            // Deduct resources
-            for (resourceType, amount) in upgradeCost {
-                owner.removeResource(resourceType, amount: amount)
-            }
-            
-            // Store reference to upgrader entity
-            building.upgraderEntity = villagerEntity
-            
-            // Start upgrade
-            building.startUpgrade()
-            
-            // Mark villager as busy
-            villagerEntity.isMoving = true
-            
-            // Assign task to villager group
-            if let villagerGroup = villagerEntity.entity as? VillagerGroup {
-                villagerGroup.assignTask(.upgrading(building), target: building.coordinate)
-                print("✅ Assigned upgrade task to \(villagerGroup.name)")
-            }
-            
-            print("⬆️ Started upgrade of \(building.buildingType.displayName) to level \(building.level + 1)")
-            
-            gameDelegate?.gameSceneDidUpdateResources(self)
-        }
-    
-    func cancelBuildingUpgrade(building: BuildingNode) {
-         guard let owner = building.owner else {
-             print("❌ Building has no owner")
-             return
-         }
-         
-         guard building.state == .upgrading else {
-             gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Cancel",
-                                     message: "This building is not currently upgrading.")
-             return
-         }
-         
-         // Cancel and get refund
-         if let refund = building.cancelUpgrade() {
-             // Return resources
-             for (resourceType, amount) in refund {
-                 owner.addResource(resourceType, amount: amount)
-             }
-             
-             print("💰 Refunded resources for cancelled upgrade")
-             gameDelegate?.gameSceneDidUpdateResources(self)
-         }
-     }
-    
     @objc func handleFarmCompleted(_ notification: Notification) {
         guard let building = notification.object as? BuildingNode,
               let coordinate = notification.userInfo?["coordinate"] as? HexCoordinate else { return }
@@ -1609,9 +1391,6 @@ class GameScene: SKScene {
         farmland.zPosition = 4  // Above building
         
         hexMap.addResourcePoint(farmland)
-        resourcesNode.addChild(farmland)
-        
         print("🌾 Created farmland at (\(coordinate.q), \(coordinate.r))")
     }
-    
 }

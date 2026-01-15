@@ -1,6 +1,6 @@
 import Foundation
 
-struct HexCoordinate: Hashable {
+struct HexCoordinate: Hashable, Codable {
     let q: Int  // column
     let r: Int  // row
     

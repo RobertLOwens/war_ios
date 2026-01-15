@@ -66,7 +66,7 @@ class HexTileNode: SKShapeNode {
         fatalError("init(coder:) has not been implemented")
     }
     
-    private func updateAppearance() {
+    func updateAppearance() {
         self.fillColor = terrain.color
         self.strokeColor = isSelected ? .yellow : UIColor(white: 0.3, alpha: 1.0)
         self.lineWidth = isSelected ? 4 : 2
@@ -579,5 +579,15 @@ class HexMap {
         }
         
         print("✅ Spawned \(resourcePoints.count) resource points (density: \(densityMultiplier)x)")
+    }
+    
+    func addResourcePoint(_ resource: ResourcePointNode) {
+        // Check for duplicates at same coordinate
+        guard !resourcePoints.contains(where: { $0.coordinate == resource.coordinate }) else {
+            print("⚠️ Resource point already exists at (\(resource.coordinate.q), \(resource.coordinate.r))")
+            return
+        }
+        resourcePoints.append(resource)
+        print("✅ Added resource point: \(resource.resourceType.displayName) at (\(resource.coordinate.q), \(resource.coordinate.r))")
     }
 }

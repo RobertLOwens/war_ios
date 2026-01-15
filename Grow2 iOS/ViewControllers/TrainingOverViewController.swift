@@ -174,7 +174,7 @@ class TrainingBuildingCell: UITableViewCell {
             var queueText = ""
             
             for (index, entry) in militaryQueue.enumerated() {
-                let remaining = entry.getTimeRemaining(currentTime: currentTime)
+                let remaining = entry.getProgress(currentTime: currentTime)
                 totalRemaining += remaining
                 let minutes = Int(remaining) / 60
                 let seconds = Int(remaining) % 60
@@ -183,7 +183,7 @@ class TrainingBuildingCell: UITableViewCell {
             }
             
             for (index, entry) in villagerQueue.enumerated() {
-                let remaining = entry.getTimeRemaining(currentTime: currentTime)
+                let remaining = entry.getProgress(currentTime: currentTime)
                 totalRemaining += remaining
                 let minutes = Int(remaining) / 60
                 let seconds = Int(remaining) % 60
