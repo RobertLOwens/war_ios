@@ -1,13 +1,14 @@
 // ============================================================================
-// FILE: Grow2 Shared/Commands/UpgradeCommand.swift
-// PURPOSE: Commands for building upgrades
+// FILE: UpgradeCommand.swift
+// LOCATION: Grow2 Shared/Commands/UpgradeCommand.swift
+// PURPOSE: Commands for building upgrades (upgrade and cancel)
 // ============================================================================
 
 import Foundation
 
-// MARK: - Upgrade Building
+// MARK: - Upgrade Building Command
 
-struct UpgradeCommand: GameCommand {
+struct UpgradeCommand: GameCommand, Codable {
     let id: UUID
     let timestamp: TimeInterval
     let playerID: UUID
@@ -16,6 +17,10 @@ struct UpgradeCommand: GameCommand {
     let upgraderEntityID: UUID?
     
     static var commandType: CommandType { .upgrade }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, timestamp, playerID, buildingID, upgraderEntityID
+    }
     
     init(playerID: UUID, buildingID: UUID, upgraderEntityID: UUID? = nil) {
         self.id = UUID()
@@ -91,9 +96,9 @@ struct UpgradeCommand: GameCommand {
     }
 }
 
-// MARK: - Cancel Upgrade
+// MARK: - Cancel Upgrade Command
 
-struct CancelUpgradeCommand: GameCommand {
+struct CancelUpgradeCommand: GameCommand, Codable {
     let id: UUID
     let timestamp: TimeInterval
     let playerID: UUID
@@ -101,6 +106,10 @@ struct CancelUpgradeCommand: GameCommand {
     let buildingID: UUID
     
     static var commandType: CommandType { .cancelUpgrade }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, timestamp, playerID, buildingID
+    }
     
     init(playerID: UUID, buildingID: UUID) {
         self.id = UUID()

@@ -3,7 +3,6 @@ import SpriteKit
 import UIKit
 
 // MARK: - Building Category
-
 enum BuildingCategory {
     case economic
     case military
@@ -238,7 +237,47 @@ enum BuildingType: String, CaseIterable, Codable {
         return min(ccLevel - 5, 5)  // CC6=1, CC7=2, CC8=3, CC9=4, CC10=5
     }
     
-
+    var baseStorageCapacity: Int {
+        switch self {
+        case .cityCenter: return 500   // City center provides base storage
+        case .warehouse: return 300    // Each warehouse adds storage
+        default: return 0
+        }
+    }
+    
+    /// Storage capacity bonus per level (added to base)
+    var storageCapacityPerLevel: Int {
+        switch self {
+        case .cityCenter: return 250   // +250 per city center level
+        case .warehouse: return 150    // +150 per warehouse level
+        default: return 0
+        }
+    }
+    
+    /// Returns the storage capacity for this building at a given level
+    func storageCapacity(forLevel level: Int) -> Int {
+        return baseStorageCapacity + (storageCapacityPerLevel * (level - 1))
+    }
+    
+    /// Returns the maximum number of warehouses allowed for a given city center level
+    static func maxWarehousesAllowed(forCityCenterLevel ccLevel: Int) -> Int {
+        switch ccLevel {
+        case 0..<2: return 0   // No warehouses until CC level 2
+        case 2..<5: return 1   // 1 warehouse at CC level 2-4
+        case 5..<8: return 2   // 2 warehouses at CC level 5-7
+        default: return 3      // 3 warehouses at CC level 8+
+        }
+    }
+    
+    /// Returns the city center level required to build the Nth warehouse
+    static func cityCenterLevelRequired(forWarehouseNumber warehouseNumber: Int) -> Int {
+        switch warehouseNumber {
+        case 1: return 2   // 1st warehouse requires CC level 2
+        case 2: return 5   // 2nd warehouse requires CC level 5
+        case 3: return 8   // 3rd warehouse requires CC level 8
+        default: return 99 // No more than 3 allowed
+        }
+    }
 }
 
 enum BuildingState: String, Codable {
@@ -254,15 +293,15 @@ enum BuildingState: String, Codable {
 
 class BuildingNode: SKSpriteNode {
     
-    // MARK: - Data Reference
-    
     /// The data model for this building - source of truth for all state
     let data: BuildingData
-    
+    let id: UUID = UUID()  // ← ADD THIS LINE
+
     // MARK: - Entity References (not part of data - runtime only)
     weak var builderEntity: EntityNode?
     weak var upgraderEntity: EntityNode?
     weak var owner: Player?  // Keep for convenience, derived from data.ownerID
+
     
     // MARK: - UI Elements
     var progressBar: SKShapeNode?

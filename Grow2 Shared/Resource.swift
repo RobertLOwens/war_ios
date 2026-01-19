@@ -296,8 +296,19 @@ class ResourcePointNode: SKSpriteNode {
     
     // Add method to set remaining amount (for loading saves)
     func setRemainingAmount(_ amount: Int) {
-        remainingAmount = max(0, min(amount, resourceType.initialAmount))
+        let oldAmount = remainingAmount
+        remainingAmount = max(0, amount)
+        
+        print("📦 Resource \(resourceType.displayName): \(oldAmount) → \(remainingAmount)")
+        
+        // ✅ FIX: Always update the visual label
         updateLabel()
+        
+        // Check for depletion
+        if remainingAmount <= 0 && oldAmount > 0 {
+            print("⚠️ Resource depleted!")
+            // Visual fade handled elsewhere
+        }
     }
 
     // Add method to set current health (for loading saves)
@@ -322,11 +333,10 @@ class ResourcePointNode: SKSpriteNode {
     func gather(amount: Int) -> Int {
         let gathered = min(amount, remainingAmount)
         remainingAmount = max(0, remainingAmount - gathered)
-        updateLabel()
+        updateLabel()  // ✅ This should already exist - verify it's being called
         
         if remainingAmount == 0 {
             // Resource depleted - cleanup will be handled by GameScene update loop
-            // Just fade out the visual
             let fadeOut = SKAction.fadeOut(withDuration: 1.0)
             run(fadeOut) { [weak self] in
                 self?.removeFromParent()

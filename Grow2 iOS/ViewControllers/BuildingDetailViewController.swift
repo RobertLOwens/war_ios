@@ -193,6 +193,24 @@ class BuildingDetailViewController: UIViewController {
             contentView.addSubview(garrisonDetailLabel)
             yOffset += garrisonDetailLabel.frame.height + 20
             
+            if building.state == .upgrading {
+                print("   → Showing upgrade PROGRESS section")
+                yOffset = setupUpgradingProgressSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+            } else if building.state == .completed && building.canUpgrade {
+                print("   → Showing upgrade OPTION section")
+                yOffset = setupUpgradeSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+            } else if building.state == .completed && building.level >= building.maxLevel {
+                print("   → Showing MAX LEVEL label")
+                let maxLevelLabel = createLabel(text: "✨ Maximum Level Reached",
+                                               fontSize: 14,
+                                               color: UIColor(red: 1.0, green: 0.85, blue: 0.4, alpha: 1.0))
+                maxLevelLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
+                contentView.addSubview(maxLevelLabel)
+                yOffset += 35
+            } else {
+                print("   → No upgrade section (state: \(building.state), canUpgrade: \(building.canUpgrade))")
+            }
+            
             // Deploy button for City Center
             if building.buildingType == .cityCenter && building.villagerGarrison > 0 {
                 let deployButton = createActionButton(
@@ -238,17 +256,20 @@ class BuildingDetailViewController: UIViewController {
         contentView.addSubview(queueTitleLabel)
         yOffset += 35
         
-        queueLabel = createLabel(
-            text: getQueueDisplayText(),
-            fontSize: 14,
-            color: UIColor(white: 0.8, alpha: 1.0)
-        )
-        queueLabel?.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 0)
-        queueLabel?.numberOfLines = 0
-        queueLabel?.sizeToFit()
-        contentView.addSubview(queueLabel!)
-        yOffset += (queueLabel?.frame.height ?? 20) + 30
         
+        if canTrainUnits() && building.state == .completed {
+            queueLabel = createLabel(
+                text: getQueueDisplayText(),
+                fontSize: 14,
+                color: UIColor(white: 0.8, alpha: 1.0)
+            )
+            queueLabel?.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 0)
+            queueLabel?.numberOfLines = 0
+            queueLabel?.sizeToFit()
+            contentView.addSubview(queueLabel!)
+            yOffset += (queueLabel?.frame.height ?? 20) + 30
+        }
+
         // Close button
         let closeButton = createActionButton(
             title: "Close",
@@ -361,12 +382,15 @@ class BuildingDetailViewController: UIViewController {
     // =========================================================================
     
     @objc func trainButtonTapped(_ sender: UIButton) {
+        print("🔘 Train button tapped")
+        
         guard let context = trainingContexts?[sender.tag],
               let container = context.container else {
             print("❌ No context found for button tag \(sender.tag)")
             return
         }
         
+        // Find the slider in the same container
         guard let slider = container.subviews.first(where: { $0 is UISlider }) as? UISlider else {
             print("❌ No slider found in container")
             return
@@ -377,14 +401,13 @@ class BuildingDetailViewController: UIViewController {
         
         print("📊 Training \(quantity)x \(unitType.displayName)")
         
-        executeTrainCommand(unitType: unitType, quantity: quantity)
+        startTraining(unitType: unitType, quantity: quantity)
         
-        // Reset slider to 1
+        // ✅ UPDATED: Reset slider and recalculate limits
         slider.value = 1
-        trainingSliderChanged(slider)
+        updateSliderLimits(slider: slider, unitType: unitType, container: container)
     }
     
-    /// Executes training using Command pattern
     func executeTrainCommand(unitType: TrainableUnitType, quantity: Int) {
         print("🎯 executeTrainCommand called: \(quantity)x \(unitType.displayName)")
         
@@ -392,7 +415,7 @@ class BuildingDetailViewController: UIViewController {
         case .villager:
             let command = TrainVillagerCommand(
                 playerID: player.id,
-                buildingID: building.data.id,
+                buildingID: building.id,
                 quantity: quantity
             )
             
@@ -401,6 +424,7 @@ class BuildingDetailViewController: UIViewController {
             if result.succeeded {
                 showAlert(title: "✅ Training Started", message: "Training \(quantity) Villager\(quantity > 1 ? "s" : "")")
                 updateQueueDisplay()
+                updateAllTrainingSliderLimits()  // ← ADD THIS
             } else if let reason = result.failureReason {
                 showAlert(title: "Cannot Train", message: reason)
             }
@@ -408,7 +432,7 @@ class BuildingDetailViewController: UIViewController {
         case .military(let militaryType):
             let command = TrainMilitaryCommand(
                 playerID: player.id,
-                buildingID: building.data.id,
+                buildingID: building.id,
                 unitType: militaryType,
                 quantity: quantity
             )
@@ -418,6 +442,7 @@ class BuildingDetailViewController: UIViewController {
             if result.succeeded {
                 showAlert(title: "✅ Training Started", message: "Training \(quantity) \(militaryType.displayName)\(quantity > 1 ? "s" : "")")
                 updateQueueDisplay()
+                updateAllTrainingSliderLimits()  // ← ADD THIS
             } else if let reason = result.failureReason {
                 showAlert(title: "Cannot Train", message: reason)
             }
@@ -722,6 +747,59 @@ class BuildingDetailViewController: UIViewController {
         // Override in subclass if needed
     }
     
+    func performUpgrade(villagerEntity: EntityNode) {
+        guard let player = player else {
+            showAlert(title: "Error", message: "Player not available.")
+            return
+        }
+        
+        // Create and execute the upgrade command
+        let command = UpgradeCommand(
+            playerID: player.id,
+            buildingID: building.id,
+            upgraderEntityID: villagerEntity.entity.id
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if result.succeeded {
+            // Refresh the content to show upgrade progress
+            refreshContent()
+            
+            // Update resource display in game view
+            gameViewController?.updateResourceDisplay()
+        } else if let reason = result.failureReason {
+            showAlert(title: "Upgrade Failed", message: reason)
+        }
+    }
+    
+    func performCancelUpgrade() {
+        guard let player = player else {
+            showAlert(title: "Error", message: "Player not available.")
+            return
+        }
+        
+        // Create and execute the cancel upgrade command
+        let command = CancelUpgradeCommand(
+            playerID: player.id,
+            buildingID: building.id
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if result.succeeded {
+            // Refresh the content to show completed state
+            refreshContent()
+            
+            // Update resource display
+            gameViewController?.updateResourceDisplay()
+            
+            showAlert(title: "✅ Upgrade Cancelled", message: "Resources have been refunded.")
+        } else if let reason = result.failureReason {
+            showAlert(title: "Cancel Failed", message: reason)
+        }
+    }
+    
     func getQueueDisplayText() -> String {
         var text = ""
         let currentTime = Date().timeIntervalSince1970
@@ -815,4 +893,209 @@ class BuildingDetailViewController: UIViewController {
         
         present(alert, animated: true)
     }
+    
+    func refreshContent() {
+        // Remove all content and rebuild
+        for subview in contentView.subviews {
+            subview.removeFromSuperview()
+        }
+        setupContent()
+    }
+    
+    func getStorageInfoString(for building: BuildingNode, player: Player) -> String? {
+        guard building.buildingType == .warehouse || building.buildingType == .cityCenter else {
+            return nil
+        }
+        
+        let currentCapacity = building.buildingType.storageCapacity(forLevel: building.level)
+        let totalCapacity = player.getStorageCapacity()
+        let totalStored = ResourceType.allCases.reduce(0) { $0 + player.getResource($1) }
+        
+        var info = "📦 Storage Contribution: +\(currentCapacity)"
+        
+        if building.level < building.buildingType.maxLevel {
+            let nextLevelCapacity = building.buildingType.storageCapacity(forLevel: building.level + 1)
+            let increase = nextLevelCapacity - currentCapacity
+            info += "\n📈 Next Level: +\(increase) more"
+        }
+        
+        info += "\n\n🏪 Total Storage: \(totalStored)/\(totalCapacity)"
+        
+        if building.buildingType == .cityCenter {
+            let ccLevel = player.getCityCenterLevel()
+            let maxWarehouses = BuildingType.maxWarehousesAllowed(forCityCenterLevel: ccLevel)
+            let currentWarehouses = player.getWarehouseCount()
+            info += "\n📦 Warehouses: \(currentWarehouses)/\(maxWarehouses) allowed"
+            
+            if ccLevel < 8 {
+                let nextUnlock: Int
+                if ccLevel < 2 {
+                    nextUnlock = 2
+                } else if ccLevel < 5 {
+                    nextUnlock = 5
+                } else {
+                    nextUnlock = 8
+                }
+                info += "\n🔓 CC Lv.\(nextUnlock): +1 warehouse slot"
+            }
+        }
+        
+        return info
+    }
+    
+    func updateAllTrainingSliderLimits() {
+        guard let contexts = trainingContexts else { return }
+        
+        for (_, context) in contexts {
+            guard let container = context.container,
+                  let slider = container.subviews.first(where: { $0 is UISlider }) as? UISlider else {
+                continue
+            }
+            
+            updateSliderLimits(slider: slider, unitType: context.unitType, container: container)
+        }
+    }
+    
+    func updateSliderLimits(slider: UISlider, unitType: TrainableUnitType, container: UIView) {
+        // Calculate max affordable based on resources
+        var maxAffordable = 100
+        for (resourceType, unitCost) in unitType.trainingCost {
+            let available = player.getResource(resourceType)
+            let canAfford = unitCost > 0 ? available / unitCost : 100
+            maxAffordable = min(maxAffordable, canAfford)
+        }
+        
+        // Also cap by available population space
+        let availablePop = player.getAvailablePopulation()
+        maxAffordable = min(maxAffordable, availablePop)
+        
+        // Ensure at least 1 for slider to work, but button will be disabled if 0
+        let sliderMax = max(1, min(maxAffordable, 20))  // Cap at 20
+        let canTrain = maxAffordable >= 1
+        
+        // Update slider
+        slider.maximumValue = Float(sliderMax)
+        slider.isEnabled = canTrain
+        slider.alpha = canTrain ? 1.0 : 0.5
+        
+        // Clamp current value to new max
+        if slider.value > Float(sliderMax) {
+            slider.value = Float(sliderMax)
+        }
+        
+        // Ensure value is at least 1 if slider is enabled
+        if canTrain && slider.value < 1 {
+            slider.value = 1
+        }
+        
+        // Update the train button state
+        if let trainButton = container.subviews.first(where: {
+            ($0 as? UIButton)?.title(for: .normal)?.contains("Training") == true ||
+            ($0 as? UIButton)?.title(for: .normal)?.contains("Pop Limit") == true
+        }) as? UIButton {
+            trainButton.isEnabled = canTrain
+            trainButton.alpha = canTrain ? 1.0 : 0.5
+            
+            if canTrain {
+                trainButton.setTitle("✅ Start Training", for: .normal)
+                trainButton.backgroundColor = UIColor(red: 0.3, green: 0.7, blue: 0.4, alpha: 1.0)
+            } else {
+                trainButton.setTitle("⚠️ Pop Limit Reached", for: .normal)
+                trainButton.backgroundColor = UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
+            }
+        }
+        
+        // Update population label
+        let currentPop = player.getCurrentPopulation()
+        let maxPop = player.getPopulationCapacity()
+        let popColor: UIColor = availablePop == 0 ? .systemRed : UIColor(white: 0.8, alpha: 1.0)
+        
+        for subview in container.subviews {
+            if let label = subview as? UILabel,
+               label.text?.contains("Population:") == true {
+                label.text = "👥 Population: \(currentPop)/\(maxPop) (\(availablePop) available)"
+                label.textColor = popColor
+                break
+            }
+        }
+        
+        // Trigger slider changed to update cost/time labels
+        trainingSliderChanged(slider)
+    }
+    
+    func setupUpgradeSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        var currentY = yOffset
+        
+        // Section header
+        let upgradeHeader = createLabel(text: "⬆️ Upgrade to Level \(building.level + 1)",
+                                       fontSize: 18,
+                                       weight: .bold,
+                                       color: .cyan)
+        
+        // Check if upgrade is blocked by City Center level (for Castle)
+        if let blockedReason = building.upgradeBlockedReason {
+            // Show the blocked reason
+            let blockedLabel = createLabel(text: "🔒 \(blockedReason)",
+                                           fontSize: 14,
+                                           color: UIColor(red: 1.0, green: 0.6, blue: 0.3, alpha: 1.0))
+            blockedLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+            contentView.addSubview(blockedLabel)
+            currentY += 35
+            
+            return currentY
+        }
+        
+        upgradeHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(upgradeHeader)
+        currentY += 30
+        
+        // Cost display
+        if let upgradeCost = building.getUpgradeCost() {
+            var costText = "Cost: "
+            var canAfford = true
+            
+            for (resourceType, amount) in upgradeCost {
+                let hasEnough = player.hasResource(resourceType, amount: amount)
+                let currentAmount = player.getResource(resourceType)
+                if !hasEnough { canAfford = false }
+                let checkmark = hasEnough ? "✅" : "❌"
+                costText += "\(checkmark) \(resourceType.icon)\(amount) (\(currentAmount)) "
+            }
+            
+            let costLabel = createLabel(text: costText,
+                                       fontSize: 14,
+                                       color: canAfford ? UIColor(white: 0.8, alpha: 1.0) : UIColor.systemRed)
+            costLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+            contentView.addSubview(costLabel)
+            currentY += 25
+            
+            // Time display
+            if let upgradeTime = building.getUpgradeTime() {
+                let minutes = Int(upgradeTime) / 60
+                let seconds = Int(upgradeTime) % 60
+                let timeLabel = createLabel(text: "⏱️ Time: \(minutes)m \(seconds)s",
+                                           fontSize: 14,
+                                           color: UIColor(white: 0.7, alpha: 1.0))
+                timeLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+                contentView.addSubview(timeLabel)
+                currentY += 30
+            }
+            
+            // Upgrade button
+            let upgradeButton = UIButton(type: .system)
+            upgradeButton.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 50)
+            upgradeButton.setTitle("⬆️ Start Upgrade", for: .normal)
+            upgradeButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 18)
+            upgradeButton.setTitleColor(.white, for: .normal)
+            upgradeButton.backgroundColor = canAfford ? UIColor(red: 0.2, green: 0.6, blue: 0.9, alpha: 1.0) : UIColor.gray
+            upgradeButton.layer.cornerRadius = 10
+            upgradeButton.isEnabled = canAfford
+            upgradeButton.addTarget(self, action: #selector(upgradeTapped), for: .touchUpInside)
+            contentView.addSubview(upgradeButton)
+            currentY += 60
+        }
+        
+        return currentY
+    }
+    
 }

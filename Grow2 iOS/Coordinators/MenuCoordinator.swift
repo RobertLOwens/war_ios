@@ -538,26 +538,32 @@ class MenuCoordinator {
         var actions: [AlertAction] = []
         
         for type in BuildingType.allCases {
+            // Skip City Center - players shouldn't build additional ones
             if type == .cityCenter { continue }
             
+            // Check City Center level requirement
             let requiredCCLevel = type.requiredCityCenterLevel
             let meetsRequirement = cityCenterLevel >= requiredCCLevel
+            
+            // ✅ FIX: Skip locked buildings entirely instead of showing them
+            guard meetsRequirement else { continue }
+            
+            // Check basic placement
             let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: type)
             
+            // Build cost string
             var costString = ""
             for (resourceType, amount) in type.buildCost {
                 costString += "\(resourceType.icon)\(amount) "
             }
             
-            if !meetsRequirement {
-                let title = "🔒 \(type.displayName) (CC Lv.\(requiredCCLevel) req.)"
-                actions.append(AlertAction(title: title, handler: nil))
-            } else if canPlace {
+            if canPlace {
                 let title = "\(type.icon) \(type.displayName) - \(costString)"
                 actions.append(AlertAction(title: title) { [weak self] in
                     // Check if there's a resource that will be removed
                     if let resource = hexMap.getResourcePoint(at: coordinate) {
                         if type != .miningCamp && type != .lumberCamp {
+                            // Show warning for other building types
                             self?.showBuildingConfirmationWithResourceWarning(
                                 buildingType: type,
                                 coordinate: coordinate,
@@ -568,10 +574,11 @@ class MenuCoordinator {
                         }
                     }
                     
-                    // No resource warning needed - proceed with build command
-                    self?.executeBuildCommand(buildingType: type, at: coordinate, builder: villagerGroup)
+                    // No resource or it's a camp - proceed normally
+                    self?.gameScene?.placeBuilding(type: type, at: coordinate, owner: player)
                 })
             } else {
+                // Show why it can't be placed (placement issue, not CC requirement)
                 var reason = ""
                 if type == .miningCamp {
                     reason = " (Requires Ore/Stone)"
@@ -582,9 +589,17 @@ class MenuCoordinator {
             }
         }
         
+        // ✅ Show message if no buildings are available
+        let message: String
+        if actions.isEmpty {
+            message = "No buildings available at City Center Level \(cityCenterLevel).\nUpgrade your City Center to unlock more buildings."
+        } else {
+            message = "Choose a building to construct at (\(coordinate.q), \(coordinate.r))\n⭐ City Center: Lv.\(cityCenterLevel)"
+        }
+        
         vc.showActionSheet(
             title: "🏗️ Select Building",
-            message: "Choose a building to construct at (\(coordinate.q), \(coordinate.r))\n⭐ City Center: Lv.\(cityCenterLevel)",
+            message: message,
             actions: actions,
             onCancel: { [weak self] in
                 self?.delegate?.deselectAll()

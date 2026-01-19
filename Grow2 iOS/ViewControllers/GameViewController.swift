@@ -12,8 +12,8 @@ class GameViewController: UIViewController {
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
     var populationLabel: UILabel!
+    var storageLabel: UILabel?
 
-    
     private var menuCoordinator: MenuCoordinator!
     private var entityActionHandler: EntityActionHandler!
     
@@ -77,7 +77,8 @@ class GameViewController: UIViewController {
         CommandExecutor.shared.setup(
             hexMap: gameScene.hexMap,
             player: player,
-            allPlayers: gameScene.allGamePlayers
+            allPlayers: gameScene.allGamePlayers,
+            gameScene: gameScene 
         )
 
         CommandExecutor.shared.setCallbacks(
@@ -331,10 +332,23 @@ class GameViewController: UIViewController {
     }
     
     func updateResourceDisplay() {
+        let capacity = player.getStorageCapacity()
+        let totalStored = ResourceType.allCases.reduce(0) { $0 + player.getResource($1) }
+        let storagePercent = capacity > 0 ? (Double(totalStored) / Double(capacity)) * 100 : 0
         
         for (resourceType, label) in resourceLabels {
             let amount = player.getResource(resourceType)
             let rate = player.getCollectionRate(resourceType)
+            
+            // Show warning color if storage is nearly full
+            if storagePercent >= 90 {
+                label.textColor = .systemOrange
+            } else if storagePercent >= 100 {
+                label.textColor = .systemRed
+            } else {
+                label.textColor = .white
+            }
+            
             label.text = "\(resourceType.icon) \(amount) (+\(String(format: "%.1f", rate))/s)"
         }
         
@@ -342,9 +356,35 @@ class GameViewController: UIViewController {
         let maxPop = player.getPopulationCapacity()
         let consumptionRate = player.getFoodConsumptionRate()
         
-        let popColor: UIColor = currentPop >= maxPop ? .systemRed : .white
+        let popColor: UIColor = currentPop >= maxPop ? .systemOrange : .white
         populationLabel.textColor = popColor
-        populationLabel.text = "👥 \(currentPop)/\(maxPop) (-\(String(format: "%.1f", consumptionRate)) 🌾/s)"
+        populationLabel.text = "👥 \(currentPop)/\(maxPop) (-\(String(format: "%.1f", consumptionRate))/s)"
+        
+        // Update storage label if it exists (see below for adding it)
+        if let storageLabel = storageLabel {
+            let storageColor: UIColor
+            if storagePercent >= 100 {
+                storageColor = .systemRed
+            } else if storagePercent >= 90 {
+                storageColor = .systemOrange
+            } else {
+                storageColor = .white
+            }
+            storageLabel.textColor = storageColor
+            storageLabel.text = "📦 \(totalStored)/\(capacity)"
+        }
+    }
+    
+    func setupStorageLabel() {
+        let label = UILabel()
+        label.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        label.textColor = .white
+        label.text = "📦 0/500"
+        // Position this label where appropriate in your UI
+        // For example, below the population label
+        storageLabel = label
+        // Add to your resource display stack or container
+        // resourceStackView.addArrangedSubview(label)  // Uncomment and adjust as needed
     }
     
     func setupUI() {
@@ -474,6 +514,7 @@ class GameViewController: UIViewController {
         buildingsVC.player = player
         buildingsVC.hexMap = gameScene.hexMap
         buildingsVC.gameScene = gameScene
+        buildingsVC.gameViewController = self  // ✅ ADD THIS LINE
         buildingsVC.modalPresentationStyle = .fullScreen
         present(buildingsVC, animated: true)
         print("🏛️ Opening Buildings Overview screen")

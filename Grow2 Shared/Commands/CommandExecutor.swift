@@ -17,14 +17,21 @@ class CommandExecutor {
     private var context: CommandContext?
     private var commandHistory: [AnyCommand] = []
     private let maxHistorySize = 1000
+    weak var gameScene: GameScene?
+
     
     /// Enable/disable command logging
     var loggingEnabled: Bool = true
     
     // MARK: - Setup
     
-    func setup(hexMap: HexMap, player: Player, allPlayers: [Player]) {
-        self.context = CommandContext(hexMap: hexMap, player: player, allPlayers: allPlayers)
+    func setup(hexMap: HexMap, player: Player, allPlayers: [Player], gameScene: GameScene? = nil) {
+        self.context = CommandContext(
+            hexMap: hexMap,
+            player: player,
+            allPlayers: allPlayers,
+            gameScene: gameScene
+        )
     }
     
     func setCallbacks(onResourcesChanged: @escaping () -> Void, onAlert: @escaping (String, String) -> Void) {

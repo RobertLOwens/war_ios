@@ -29,7 +29,7 @@
 		3F6AE44D2F1818C200C885D6 /* ResearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */; };
 		3F6AE44E2F1818C200C885D6 /* ResearchType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44C2F1818C200C885D6 /* ResearchType.swift */; };
 		3F6AE4512F18228000C885D6 /* ResearchType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44F2F18228000C885D6 /* ResearchType.swift */; };
-		3F8B8CB82EC7D65B000A4BFF /* Unit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8B8CB72EC7D65B000A4BFF /* Unit.swift */; };
+		3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */; };
 		3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */; };
 		3FC0F1022EC7965F007C0782 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F1012EC7965F007C0782 /* GameViewController.swift */; };
 		3FC0F1052EC7965F007C0782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3FC0F1032EC7965F007C0782 /* Main.storyboard */; };
@@ -86,7 +86,7 @@
 		3F6AE44C2F1818C200C885D6 /* ResearchType.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ResearchType.swift; path = "Grow2 Shared/ResearchType.swift"; sourceTree = SOURCE_ROOT; };
 		3F6AE44F2F18228000C885D6 /* ResearchType.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResearchType.swift; sourceTree = "<group>"; };
 		3F6AE4502F18228000C885D6 /* ResearchManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResearchManager.swift; sourceTree = "<group>"; };
-		3F8B8CB72EC7D65B000A4BFF /* Unit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Unit.swift; sourceTree = "<group>"; };
+		3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecruitCommanderCommand.swift; path = "Grow2 iOS/ViewControllers/RecruitCommanderCommand.swift"; sourceTree = SOURCE_ROOT; };
 		3FC0F0F42EC7965C007C0782 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		3FC0F0F62EC7965C007C0782 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
 		3FC0F0F72EC7965F007C0782 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -142,6 +142,7 @@
 				3F286A112F19614C004636ED /* GatherCommand.swift */,
 				3F286A0A2F1960D9004636ED /* MoveCommand.swift */,
 				3F286A192F199C93004636ED /* ReinforceArmyCommand.swift */,
+				3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */,
 				3F286A132F19615D004636ED /* UpgradeCommand.swift */,
 				3F286A0F2F19613C004636ED /* TrainCommand.swift */,
 			);
@@ -182,7 +183,6 @@
 				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
 				3F6AE4502F18228000C885D6 /* ResearchManager.swift */,
 				3F6AE44F2F18228000C885D6 /* ResearchType.swift */,
-				3F8B8CB72EC7D65B000A4BFF /* Unit.swift */,
 				3FC0F0F42EC7965C007C0782 /* Actions.sks */,
 				3FC0F0F72EC7965F007C0782 /* Assets.xcassets */,
 			);
@@ -336,7 +336,6 @@
 				3FC0F10B2EC7965F007C0782 /* GameScene.swift in Sources */,
 				3F6AE44E2F1818C200C885D6 /* ResearchType.swift in Sources */,
 				3F286A092F1960C0004636ED /* CommandExecutor.swift in Sources */,
-				3F8B8CB82EC7D65B000A4BFF /* Unit.swift in Sources */,
 				3F286A142F19615D004636ED /* UpgradeCommand.swift in Sources */,
 				3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */,
 				3FF8CF512F083158002FA5D7 /* AboutViewController.swift in Sources */,
@@ -353,6 +352,7 @@
 				3F34D5AD2ECA584A00AE6DF0 /* Player.swift in Sources */,
 				3FF8CF592F0B810D002FA5D7 /* BuildingDetailViewController.swift in Sources */,
 				3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */,
+				3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */,
 				3F286A0D2F1960FF004636ED /* BuildCommand.swift in Sources */,
 				3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */,
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,

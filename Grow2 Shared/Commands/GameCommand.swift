@@ -61,6 +61,7 @@ enum CommandType: String, Codable, CaseIterable {
     case deployArmy
     case deployVillagers
     case reinforceArmy  // ← ADD THIS
+    case recruitCommander  // ← ADD THIS LINE
 }
 
 // MARK: - Command Context
@@ -70,35 +71,33 @@ class CommandContext {
     let hexMap: HexMap
     let player: Player
     let allPlayers: [Player]
+    weak var gameScene: GameScene?  // ← MUST EXIST
     
-    /// Callback to notify UI of changes
     var onResourcesChanged: (() -> Void)?
     var onAlert: ((String, String) -> Void)?
     
-    init(hexMap: HexMap, player: Player, allPlayers: [Player]) {
-        self.hexMap = hexMap
-        self.player = player
-        self.allPlayers = allPlayers
-    }
-    
-    /// Find a player by ID
+    // Helper methods...
     func getPlayer(by id: UUID) -> Player? {
         return allPlayers.first { $0.id == id }
     }
     
-    /// Find an entity by ID
     func getEntity(by id: UUID) -> EntityNode? {
         return hexMap.entities.first { $0.entity.id == id }
     }
     
-    /// Find a building by coordinate
     func getBuilding(at coordinate: HexCoordinate) -> BuildingNode? {
         return hexMap.getBuilding(at: coordinate)
     }
-    
-    /// Find a building by ID
+
     func getBuilding(by id: UUID) -> BuildingNode? {
         return hexMap.buildings.first { $0.data.id == id }
+    }
+    
+    init(hexMap: HexMap, player: Player, allPlayers: [Player], gameScene: GameScene?) {
+        self.hexMap = hexMap
+        self.player = player
+        self.allPlayers = allPlayers
+        self.gameScene = gameScene
     }
 }
 
@@ -142,6 +141,8 @@ struct AnyCommand: Codable {
             return try decoder.decode(DeployVillagersCommand.self, from: data)
         case .reinforceArmy:  // ← ADD THIS
             return try decoder.decode(ReinforceArmyCommand.self, from: data)
+        case .recruitCommander:
+            return try decoder.decode(RecruitCommanderCommand.self, from: data)
         }
     }
 }

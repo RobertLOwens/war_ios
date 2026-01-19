@@ -153,6 +153,20 @@ struct DeployVillagersCommand: GameCommand {
             entity: villagers,
             currentPlayer: player
         )
+        
+        let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
+        villagerNode.position = position
+        villagerNode.zPosition = 10
+
+        // Add to hexMap tracking
+        context.hexMap.addEntity(villagerNode)
+
+        // ADD VISUAL SPRITE TO SCENE
+        context.gameScene?.entitiesNode.addChild(villagerNode)
+
+        // Add to player's entity list
+        player.addEntity(villagers)
+        
         villagerNode.position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
         
         // Add to game

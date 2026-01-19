@@ -51,7 +51,7 @@ enum CommanderRank: String, CaseIterable {
 
 // MARK: - Commander Specialty
 
-enum CommanderSpecialty: String, CaseIterable {
+enum CommanderSpecialty: String, CaseIterable, Codable {
     case infantry = "Infantry"
     case cavalry = "Cavalry"
     case ranged = "Ranged"

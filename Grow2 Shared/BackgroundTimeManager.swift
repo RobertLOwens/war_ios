@@ -45,7 +45,7 @@ class BackgroundTimeManager {
         
         // Process unit training
         processUnitTraining(hexMap: hexMap, currentTime: currentTime)
-        
+         
         processBuildingUpgrades(hexMap: hexMap, currentTime: currentTime)
         processResearch(currentTime: currentTime)
         

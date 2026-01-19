@@ -367,47 +367,34 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
                     self?.showError(message: "Please enter a valid name.")
                     return
                 }
-                self?.recruitCommander(name: name, specialty: specialty, recruitmentCost: recruitmentCost)
+                self?.recruitCommander(name: name, specialty: specialty)
             }
         )
     }
-
-    func recruitCommander(name: String, specialty: CommanderSpecialty, recruitmentCost: [ResourceType: Int]) {
-        guard let player = player else { return }
-        
-        // Deduct resources
-        for (resourceType, amount) in recruitmentCost {
-            player.removeResource(resourceType, amount: amount)
+    
+    func recruitCommander(name: String, specialty: CommanderSpecialty) {
+        guard let player = player else {
+            showError(message: "No player reference")
+            return
         }
         
-        // Create new commander
-        let colors: [UIColor] = [.blue, .red, .green, .purple, .orange, .brown, .cyan, .magenta]
-        let randomColor = colors.randomElement()!
-        
-        let newCommander = Commander(
-            name: name,
-            rank: .recruit,
-            specialty: specialty,
-            baseLeadership: Int.random(in: 8...12),
-            baseTactics: Int.random(in: 8...12),
-            portraitColor: randomColor
+        let command = RecruitCommanderCommand(
+            playerID: player.id,
+            commanderName: name,
+            specialty: specialty
         )
         
-        // Add to player
-        player.addCommander(newCommander)
+        let result = CommandExecutor.shared.execute(command)
         
-        // Deploy at city center
-        deployCommanderAtCityCenter(commander: newCommander)
-        
-        // Update UI
-        selectedCommander = newCommander
-        tableView.reloadData()
-        updateDetailView()
-        
-        // Show success message
-        showSuccess(message: "✅ Commander \(name) recruited!\n\nDeployed at your City Center.")
-        
-        print("✅ Recruited new commander: \(name) (\(specialty.displayName))")
+        if result.succeeded {
+            // Refresh the selected commander reference
+            selectedCommander = player.commanders.last
+            tableView.reloadData()
+            updateDetailView()
+            showSuccess(message: "✅ Commander \(name) recruited!\n\nDeployed at your City Center.")
+        } else if let reason = result.failureReason {
+            showError(message: reason)
+        }
     }
 
     func deployCommanderAtCityCenter(commander: Commander) {

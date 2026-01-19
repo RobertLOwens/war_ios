@@ -60,6 +60,16 @@ struct GatherCommand: GameCommand {
         villagers.assignTask(.gatheringResource(resource), target: resourceCoordinate)
         entity.isMoving = true
         
+        if villagers.coordinate != resourceCoordinate {
+            let moveCommand = MoveCommand(
+                playerID: playerID,
+                entityID: villagerGroupID,
+                destination: resourceCoordinate
+            )
+            let _ = moveCommand.execute(in: context)
+            print("🚶 Moving \(villagers.name) to resource at (\(resourceCoordinate.q), \(resourceCoordinate.r))")
+        }
+        
         // Add villagers to resource's assigned list
         resource.startGathering(by: villagers)
         

@@ -103,6 +103,11 @@ struct BuildCommand: GameCommand {
         // Start construction
         building.startConstruction()
         
+        let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+        building.position = position
+        building.zPosition = 5
+        context.gameScene?.buildingsNode.addChild(building)
+        
         // Add to map and player
         context.hexMap.addBuilding(building)
         player.addBuilding(building)

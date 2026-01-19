@@ -113,7 +113,25 @@ class Player {
     
     func addResource(_ type: ResourceType, amount: Int) {
         let current = resources[type] ?? 0
-        resources[type] = max(0, current + amount)
+        let capacity = getStorageCapacity()
+        
+        // Calculate total resources currently stored
+        let currentTotal = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
+        
+        // Calculate how much space is available
+        let availableSpace = max(0, capacity - currentTotal)
+        
+        // Only add up to the available space
+        let actualAmount = min(amount, availableSpace)
+        
+        if actualAmount > 0 {
+            resources[type] = current + actualAmount
+        }
+        
+        // Optionally log when resources are capped
+        if actualAmount < amount {
+            print("⚠️ Storage full! Only added \(actualAmount)/\(amount) \(type.displayName). Capacity: \(capacity)")
+        }
     }
     
     @discardableResult
@@ -442,4 +460,99 @@ class Player {
         }
         return cityCenters.map { $0.level }.max() ?? 0
     }
+    
+    func getStorageCapacity() -> Int {
+        var totalCapacity = 0
+        
+        for building in buildings where building.isOperational {
+            let capacity = building.buildingType.storageCapacity(forLevel: building.level)
+            if capacity > 0 {
+                totalCapacity += capacity
+                // Debug: print("📦 \(building.buildingType.displayName) Lv.\(building.level): +\(capacity) storage")
+            }
+        }
+        
+        // Minimum storage of 500 even without buildings (starting storage)
+        return max(500, totalCapacity)
+    }
+    
+    /// Returns the number of completed warehouses the player owns
+    func getWarehouseCount() -> Int {
+        return buildings.filter {
+            $0.buildingType == .warehouse && $0.state == .completed
+        }.count
+    }
+    
+    /// Returns the number of warehouses currently being built
+    func getWarehousesUnderConstruction() -> Int {
+        return buildings.filter {
+            $0.buildingType == .warehouse && $0.state == .constructing
+        }.count
+    }
+    
+    /// Returns true if the player can build another warehouse
+    func canBuildWarehouse() -> Bool {
+        let ccLevel = getCityCenterLevel()
+        let maxAllowed = BuildingType.maxWarehousesAllowed(forCityCenterLevel: ccLevel)
+        let currentCount = getWarehouseCount() + getWarehousesUnderConstruction()
+        return currentCount < maxAllowed
+    }
+    
+    /// Returns the reason why player can't build a warehouse, or nil if they can
+    func getWarehouseBuildError() -> String? {
+        let ccLevel = getCityCenterLevel()
+        let maxAllowed = BuildingType.maxWarehousesAllowed(forCityCenterLevel: ccLevel)
+        let currentCount = getWarehouseCount() + getWarehousesUnderConstruction()
+        
+        if currentCount >= maxAllowed {
+            if maxAllowed == 0 {
+                return "Requires City Center Level 2"
+            } else {
+                let nextRequired = BuildingType.cityCenterLevelRequired(forWarehouseNumber: maxAllowed + 1)
+                if nextRequired <= 10 {
+                    return "Max \(maxAllowed) warehouse(s) at CC Lv.\(ccLevel). Need CC Lv.\(nextRequired) for more."
+                } else {
+                    return "Maximum warehouses reached (\(maxAllowed)/\(maxAllowed))"
+                }
+            }
+        }
+        return nil
+    }
+    
+    /// Returns remaining storage space
+    func getRemainingStorage() -> Int {
+        let capacity = getStorageCapacity()
+        let totalStored = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
+        return max(0, capacity - totalStored)
+    }
+    
+    /// Returns true if adding this amount would exceed storage
+    func wouldExceedStorage(_ type: ResourceType, amount: Int) -> Bool {
+        let capacity = getStorageCapacity()
+        let currentTotal = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
+        return (currentTotal + amount) > capacity
+    }
+    
+    @discardableResult
+    func addResourceWithOverflow(_ type: ResourceType, amount: Int) -> (added: Int, overflow: Int) {
+        let current = resources[type] ?? 0
+        let capacity = getStorageCapacity()
+        
+        // Calculate total resources currently stored
+        let currentTotal = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
+        
+        // Calculate how much space is available
+        let availableSpace = max(0, capacity - currentTotal)
+        
+        // Only add up to the available space
+        let actualAmount = min(amount, availableSpace)
+        let overflow = amount - actualAmount
+        
+        if actualAmount > 0 {
+            resources[type] = current + actualAmount
+        }
+        
+        return (added: actualAmount, overflow: overflow)
+    }
+
 }

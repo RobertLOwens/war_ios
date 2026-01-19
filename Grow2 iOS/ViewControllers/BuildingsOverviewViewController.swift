@@ -14,6 +14,8 @@ class BuildingsOverviewViewController: UIViewController, UITableViewDelegate, UI
     var closeButton: UIButton!
     var updateTimer: Timer?
     var playerBuildings: [BuildingNode] = []
+    var gameViewController: GameViewController?
+
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -110,9 +112,19 @@ class BuildingsOverviewViewController: UIViewController, UITableViewDelegate, UI
         
         guard !playerBuildings.isEmpty else { return }
         
-        // Could navigate to building detail or center map on building
         let building = playerBuildings[indexPath.row]
         print("Selected building: \(building.buildingType.displayName) at (\(building.coordinate.q), \(building.coordinate.r))")
+        
+        // Open BuildingDetailViewController
+        let detailVC = BuildingDetailViewController()
+        detailVC.building = building
+        detailVC.player = player
+        detailVC.hexMap = hexMap
+        detailVC.gameScene = gameScene
+        detailVC.gameViewController = gameViewController  // ✅ Pass through
+        detailVC.modalPresentationStyle = .fullScreen
+        
+        present(detailVC, animated: true)
     }
     
     @objc func closeScreen() {
