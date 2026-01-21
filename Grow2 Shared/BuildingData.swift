@@ -13,9 +13,10 @@ class BuildingData: Codable {
     // MARK: - Identity
     let id: UUID
     var buildingType: BuildingType
-    var coordinate: HexCoordinate
+    var coordinate: HexCoordinate  // Anchor coordinate for multi-tile buildings
     var ownerID: UUID?
-    
+    var rotation: Int = 0  // 0-5 for hex rotations (only used for multi-tile buildings)
+
     // MARK: - State
     var state: BuildingState = .planning
     var level: Int = 1
@@ -53,15 +54,26 @@ class BuildingData: Codable {
         guard state == .completed && level < maxLevel else { return false }
         return true
     }
-    
+
+    /// Returns all coordinates this building occupies
+    var occupiedCoordinates: [HexCoordinate] {
+        return buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+    }
+
+    /// Check if this building occupies a specific coordinate
+    func occupies(_ coord: HexCoordinate) -> Bool {
+        return occupiedCoordinates.contains(coord)
+    }
+
     // MARK: - Initialization
-    
-    init(buildingType: BuildingType, coordinate: HexCoordinate, ownerID: UUID? = nil) {
+
+    init(buildingType: BuildingType, coordinate: HexCoordinate, ownerID: UUID? = nil, rotation: Int = 0) {
         self.id = UUID()
         self.buildingType = buildingType
         self.coordinate = coordinate
         self.ownerID = ownerID
-        
+        self.rotation = rotation
+
         // Set health based on building type
         switch buildingType.category {
         case .military:
@@ -75,7 +87,7 @@ class BuildingData: Codable {
     // MARK: - Codable
     
     enum CodingKeys: String, CodingKey {
-        case id, buildingType, coordinate, ownerID
+        case id, buildingType, coordinate, ownerID, rotation
         case state, level, health, maxHealth
         case constructionProgress, constructionStartTime, buildersAssigned
         case upgradeProgress, upgradeStartTime
@@ -90,7 +102,8 @@ class BuildingData: Codable {
         buildingType = try container.decode(BuildingType.self, forKey: .buildingType)
         coordinate = try container.decode(HexCoordinate.self, forKey: .coordinate)
         ownerID = try container.decodeIfPresent(UUID.self, forKey: .ownerID)
-        
+        rotation = try container.decodeIfPresent(Int.self, forKey: .rotation) ?? 0
+
         state = try container.decode(BuildingState.self, forKey: .state)
         level = try container.decode(Int.self, forKey: .level)
         health = try container.decode(Double.self, forKey: .health)
@@ -117,7 +130,8 @@ class BuildingData: Codable {
         try container.encode(buildingType, forKey: .buildingType)
         try container.encode(coordinate, forKey: .coordinate)
         try container.encodeIfPresent(ownerID, forKey: .ownerID)
-        
+        try container.encode(rotation, forKey: .rotation)
+
         try container.encode(state, forKey: .state)
         try container.encode(level, forKey: .level)
         try container.encode(health, forKey: .health)

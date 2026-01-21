@@ -250,7 +250,12 @@ class HexMap {
     }
     
     func getBuilding(at coordinate: HexCoordinate) -> BuildingNode? {
-        return buildings.first { $0.coordinate == coordinate }
+        // First check anchor coordinates (fast path)
+        if let building = buildings.first(where: { $0.coordinate == coordinate }) {
+            return building
+        }
+        // Then check if any multi-tile building occupies this coordinate
+        return buildings.first { $0.data.occupies(coordinate) }
     }
     
     func getEntity(at coordinate: HexCoordinate) -> EntityNode? {
@@ -266,29 +271,58 @@ class HexMap {
     func removeResourcePoint(_ resource: ResourcePointNode) {
         resourcePoints.removeAll { $0 === resource }
     }
-    
-    func canPlaceBuilding(at coordinate: HexCoordinate, buildingType: BuildingType? = nil) -> Bool {
-        guard isValidCoordinate(coordinate) && isWalkable(coordinate) else { return false }
-        guard getBuilding(at: coordinate) == nil else { return false }
-        
-        // Mining camps and lumber camps CAN be placed on their required resource
-        if let type = buildingType {
-            if type == .miningCamp {
-                // Mining camp requires ore or stone resource
-                if let resource = getResourcePoint(at: coordinate) {
-                    return resource.resourceType == .oreMine || resource.resourceType == .stoneQuarry
-                }
-                return false  // No valid resource here
-            }
-            if type == .lumberCamp {
-                // Lumber camp requires trees
-                if let resource = getResourcePoint(at: coordinate) {
-                    return resource.resourceType == .trees
-                }
-                return false  // No trees here
-            }
+
+    /// Check if a coordinate has a road or building (buildings act as roads)
+    func hasRoad(at coordinate: HexCoordinate) -> Bool {
+        if let building = getBuilding(at: coordinate) {
+            // All completed buildings provide road benefits
+            return building.state == .completed
         }
-        
+        return false
+    }
+
+    /// Get the movement cost for a tile (lower = preferred in pathfinding)
+    /// Roads have cost 1, non-roads have cost 3
+    func getMovementCost(at coordinate: HexCoordinate) -> Int {
+        if hasRoad(at: coordinate) {
+            return 1  // Road tiles are fast
+        }
+        return 3  // Non-road tiles are slower
+    }
+
+    func canPlaceBuilding(at coordinate: HexCoordinate, buildingType: BuildingType? = nil, rotation: Int = 0) -> Bool {
+        guard let type = buildingType else {
+            // Simple check without building type
+            guard isValidCoordinate(coordinate) && isWalkable(coordinate) else { return false }
+            guard getBuilding(at: coordinate) == nil else { return false }
+            return true
+        }
+
+        // Get all coordinates this building would occupy
+        let occupiedCoords = type.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+
+        // Check all tiles are valid for placement
+        for coord in occupiedCoords {
+            guard isValidCoordinate(coord) && isWalkable(coord) else { return false }
+            guard getBuilding(at: coord) == nil else { return false }
+        }
+
+        // Mining camps and lumber camps CAN be placed on their required resource
+        if type == .miningCamp {
+            // Mining camp requires ore or stone resource at anchor
+            if let resource = getResourcePoint(at: coordinate) {
+                return resource.resourceType == .oreMine || resource.resourceType == .stoneQuarry
+            }
+            return false  // No valid resource here
+        }
+        if type == .lumberCamp {
+            // Lumber camp requires trees at anchor
+            if let resource = getResourcePoint(at: coordinate) {
+                return resource.resourceType == .trees
+            }
+            return false  // No trees here
+        }
+
         // Other buildings: allow on resources (will warn user and remove resource)
         return true
     }
@@ -387,48 +421,53 @@ class HexMap {
         guard isValidCoordinate(start) && isValidCoordinate(goal) else { return nil }
         guard isWalkable(goal) else { return nil }
         guard start != goal else { return [] }
-        
-        // A* pathfinding with proper hex distance heuristic
+
+        // A* pathfinding with road preference
+        // Roads have lower movement cost, so paths will prefer roads when available
         var openSet: Set<HexCoordinate> = [start]
         var cameFrom: [HexCoordinate: HexCoordinate] = [:]
-        
+
         var gScore: [HexCoordinate: Int] = [start: 0]
+        // Heuristic uses minimum possible cost (1) to ensure admissibility
         var fScore: [HexCoordinate: Int] = [start: start.distance(to: goal)]
-        
+
         while !openSet.isEmpty {
             // Find node in openSet with lowest fScore
             let current = openSet.min(by: { fScore[$0] ?? Int.max < fScore[$1] ?? Int.max })!
-            
+
             if current == goal {
                 // Reconstruct path
                 var path: [HexCoordinate] = []
                 var currentNode = goal
-                
+
                 while currentNode != start {
                     path.append(currentNode)
                     guard let next = cameFrom[currentNode] else { break }
                     currentNode = next
                 }
-                
+
                 return path.reversed()
             }
-            
+
             openSet.remove(current)
-            
+
             for neighbor in current.neighbors() {
                 guard isValidCoordinate(neighbor) && isWalkable(neighbor) else { continue }
-                
-                let tentativeGScore = (gScore[current] ?? Int.max) + 1
-                
+
+                // Use movement cost based on whether tile has road
+                let movementCost = getMovementCost(at: neighbor)
+                let tentativeGScore = (gScore[current] ?? Int.max) + movementCost
+
                 if tentativeGScore < (gScore[neighbor] ?? Int.max) {
                     cameFrom[neighbor] = current
                     gScore[neighbor] = tentativeGScore
+                    // Heuristic: minimum cost per tile (1) * distance
                     fScore[neighbor] = tentativeGScore + neighbor.distance(to: goal)
                     openSet.insert(neighbor)
                 }
             }
         }
-        
+
         return nil // No path found
     }
         

@@ -2,6 +2,7 @@
 // FILE: UpgradeCommand.swift
 // LOCATION: Grow2 Shared/Commands/UpgradeCommand.swift
 // PURPOSE: Commands for building upgrades (upgrade and cancel)
+//          Now requires villagers to move to building before upgrading
 // ============================================================================
 
 import Foundation
@@ -61,6 +62,19 @@ struct UpgradeCommand: GameCommand, Codable {
             }
         }
         
+        // ✅ NEW: Check if upgrader entity is provided
+        if let upgraderID = upgraderEntityID {
+            guard let upgraderEntity = context.getEntity(by: upgraderID),
+                  let villagers = upgraderEntity.entity as? VillagerGroup else {
+                return .failure(reason: "Villager group not found")
+            }
+            
+            // Check villagers aren't busy with another task
+            if villagers.currentTask != .idle {
+                return .failure(reason: "Villagers are busy with another task")
+            }
+        }
+        
         return .success
     }
     
@@ -71,7 +85,7 @@ struct UpgradeCommand: GameCommand, Codable {
             return .failure(reason: "Required objects not found")
         }
         
-        // Deduct resources
+        // Deduct resources immediately
         for (resourceType, amount) in upgradeCost {
             player.removeResource(resourceType, amount: amount)
         }
@@ -80,17 +94,43 @@ struct UpgradeCommand: GameCommand, Codable {
         if let upgraderID = upgraderEntityID,
            let upgraderEntity = context.getEntity(by: upgraderID),
            let villagers = upgraderEntity.entity as? VillagerGroup {
+            
             building.upgraderEntity = upgraderEntity
-            villagers.assignTask(.upgrading(building), target: building.coordinate)
-            upgraderEntity.isMoving = true
+            
+            // ✅ FIX: Check if villagers need to move to the building first
+            if villagers.coordinate != building.coordinate {
+                // Assign upgrading task (will complete when they arrive)
+                villagers.assignTask(.upgrading(building), target: building.coordinate)
+                upgraderEntity.isMoving = true
+                
+                // Execute move command to get them there
+                let moveCommand = MoveCommand(
+                    playerID: playerID,
+                    entityID: upgraderID,
+                    destination: building.coordinate
+                )
+                let _ = moveCommand.execute(in: context)
+                
+                // ✅ Mark building as "pending upgrade" - upgrade will start when villagers arrive
+                building.pendingUpgrade = true
+                
+                print("🚶 Villagers moving to \(building.buildingType.displayName) for upgrade")
+                print("   From: (\(villagers.coordinate.q), \(villagers.coordinate.r))")
+                print("   To: (\(building.coordinate.q), \(building.coordinate.r))")
+            } else {
+                // Villagers already at building - start immediately
+                villagers.assignTask(.upgrading(building), target: building.coordinate)
+                upgraderEntity.isMoving = true
+                building.startUpgrade()
+                print("⬆️ Started upgrading \(building.buildingType.displayName) to Lv.\(building.level + 1)")
+            }
+        } else {
+            // No upgrader assigned - start upgrade immediately (for buildings that don't need workers)
+            building.startUpgrade()
+            print("⬆️ Started upgrading \(building.buildingType.displayName) to Lv.\(building.level + 1)")
         }
         
-        // Start upgrade
-        building.startUpgrade()
-        
         context.onResourcesChanged?()
-        
-        print("⬆️ Started upgrading \(building.buildingType.displayName) to Lv.\(building.level + 1)")
         
         return .success
     }
@@ -127,7 +167,8 @@ struct CancelUpgradeCommand: GameCommand, Codable {
             return .failure(reason: "You don't own this building")
         }
         
-        guard building.state == .upgrading else {
+        // ✅ Allow canceling pending upgrades too
+        guard building.state == .upgrading || building.pendingUpgrade else {
             return .failure(reason: "Building is not upgrading")
         }
         
@@ -146,6 +187,9 @@ struct CancelUpgradeCommand: GameCommand, Codable {
                 player.addResource(resourceType, amount: amount)
             }
         }
+        
+        // ✅ Clear pending upgrade flag
+        building.pendingUpgrade = false
         
         context.onResourcesChanged?()
         

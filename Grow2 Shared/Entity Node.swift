@@ -124,44 +124,62 @@ class EntityNode: SKSpriteNode {
             completion()
             return
         }
-        
+
         isMoving = true
         movementPath = path
-        
-        // ✅ Calculate total path distance for smooth continuous movement
-        var totalDistance: CGFloat = 0
+
+        // Get HexMap from GameScene for road checking
+        let hexMap = (self.scene as? GameScene)?.hexMap
+
+        // Calculate segment distances
         var segmentDistances: [CGFloat] = []
-        
         let startPos = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
         var previousPos = startPos
-        
+
         for coord in path {
             let nextPos = HexMap.hexToPixel(q: coord.q, r: coord.r)
             let dx = nextPos.x - previousPos.x
             let dy = nextPos.y - previousPos.y
             let distance = sqrt(dx * dx + dy * dy)
             segmentDistances.append(distance)
-            totalDistance += distance
             previousPos = nextPos
         }
-        
-        // ✅ Calculate timing based on total distance for constant speed
-        let totalDuration = TimeInterval(totalDistance / 100.0) * entityType.moveSpeed
-        
-        // ✅ Create one smooth continuous movement action
+
+        // Base move speed with research bonus
+        var baseMoveSpeed = entityType.moveSpeed
+
+        // Apply villager speed research bonus (lower moveSpeed = faster movement)
+        if entityType == .villagerGroup {
+            let speedMultiplier = ResearchManager.shared.getVillagerMarchSpeedMultiplier()
+            baseMoveSpeed = baseMoveSpeed / speedMultiplier
+        }
+
+        // Get road speed research bonus
+        let roadSpeedBonus = ResearchManager.shared.getRoadSpeedMultiplier()
+
+        // Create movement actions with per-segment road speed bonus
         var actions: [SKAction] = []
-        var currentPathIndex = 0
         var remainingPath = path
-        
+
         for (index, coord) in path.enumerated() {
             let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
-            
-            // Calculate duration for this segment proportional to its distance
-            let segmentRatio = segmentDistances[index] / totalDistance
-            let segmentDuration = totalDuration * segmentRatio
-            
+            let segmentDistance = segmentDistances[index]
+
+            // Check if destination tile has a road
+            let hasRoad = hexMap?.hasRoad(at: coord) ?? false
+
+            // Calculate segment duration
+            // Roads are faster: base speed * road bonus (1.5x faster on roads, plus research)
+            var segmentSpeed = baseMoveSpeed
+            if hasRoad {
+                // Roads make movement 50% faster, plus any research bonus
+                segmentSpeed = baseMoveSpeed / (1.5 * roadSpeedBonus)
+            }
+
+            let segmentDuration = TimeInterval(segmentDistance / 100.0) * segmentSpeed
+
             let moveAction = SKAction.move(to: position, duration: segmentDuration)
-            moveAction.timingMode = .linear // ✅ Linear for smooth constant speed
+            moveAction.timingMode = .linear
             actions.append(moveAction)
             
             // ✅ Update coordinate and path visualization after reaching each waypoint

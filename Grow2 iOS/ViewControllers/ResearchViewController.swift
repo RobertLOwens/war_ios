@@ -51,7 +51,7 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
     
     private func organizeResearch() {
         researchByCategory.removeAll()
-        
+
         for research in ResearchType.allCases {
             let category = research.category
             if researchByCategory[category] == nil {
@@ -59,9 +59,23 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
             }
             researchByCategory[category]?.append(research)
         }
-        
-        // Sort categories
-        sortedCategories = researchByCategory.keys.sorted { $0.rawValue < $1.rawValue }
+
+        // Sort research within each category by tier, then by name
+        for category in researchByCategory.keys {
+            researchByCategory[category]?.sort { r1, r2 in
+                if r1.tier != r2.tier {
+                    return r1.tier < r2.tier
+                }
+                return r1.displayName < r2.displayName
+            }
+        }
+
+        // Sort categories (Economic first, then Military)
+        sortedCategories = researchByCategory.keys.sorted { c1, c2 in
+            if c1 == .economic { return true }
+            if c2 == .economic { return false }
+            return c1.rawValue < c2.rawValue
+        }
     }
     
     private func setupUI() {
@@ -212,23 +226,23 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
     
     private func startResearch(_ researchType: ResearchType) {
         let manager = ResearchManager.shared
-        
+
         // Check if already researching
         if manager.activeResearch != nil {
             showAlert(title: "Already Researching", message: "Complete or cancel current research first.")
             return
         }
-        
-        // Check prerequisites
+
+        // Check if available (prerequisites and City Center level)
         if !manager.isAvailable(researchType) {
-            var message = "Prerequisites not met:\n"
-            for prereq in researchType.prerequisites where !manager.isResearched(prereq) {
-                message += "• \(prereq.displayName)\n"
+            if let reason = manager.getLockedReason(researchType) {
+                showAlert(title: "Locked", message: reason)
+            } else {
+                showAlert(title: "Locked", message: "This research is not available yet.")
             }
-            showAlert(title: "Locked", message: message)
             return
         }
-        
+
         // Check resources
         if !manager.canAfford(researchType) {
             let missing = manager.getMissingResources(for: researchType)
@@ -239,23 +253,33 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
             showAlert(title: "Insufficient Resources", message: message)
             return
         }
-        
-        // Confirm and start
+
+        // Build confirmation message
+        var confirmMessage = "\(researchType.icon) \(researchType.displayName)\n\n"
+        confirmMessage += "Cost: \(researchType.costString)\n"
+        confirmMessage += "Time: \(researchType.timeString)\n\n"
+        confirmMessage += "Benefits:\n\(researchType.bonusString)"
+
+        // Show prerequisites if any
+        if !researchType.prerequisites.isEmpty {
+            confirmMessage += "\n\nPrereqs: \(researchType.prerequisitesString)"
+        }
+
         let alert = UIAlertController(
             title: "Start Research?",
-            message: "\(researchType.icon) \(researchType.displayName)\n\nCost: \(researchType.costString)\nTime: \(researchType.timeString)\n\n\(researchType.bonusString)",
+            message: confirmMessage,
             preferredStyle: .alert
         )
-        
+
         alert.addAction(UIAlertAction(title: "Research", style: .default) { [weak self] _ in
             if ResearchManager.shared.startResearch(researchType) {
                 self?.updateActiveResearchDisplay()
                 self?.tableView.reloadData()
             }
         })
-        
+
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
+
         present(alert, animated: true)
     }
     
@@ -401,13 +425,13 @@ class ResearchCell: UITableViewCell {
     
     func configure(with research: ResearchType, player: Player?) {
         let manager = ResearchManager.shared
-        
+
         iconLabel.text = research.icon
-        nameLabel.text = research.displayName
+        nameLabel.text = "\(research.displayName) (Tier \(research.tier))"
         bonusLabel.text = research.bonuses.map { $0.displayString }.joined(separator: ", ")
         costLabel.text = research.costString
         timeLabel.text = "⏱️ \(research.timeString)"
-        
+
         // Determine status
         if manager.isResearched(research) {
             statusLabel.text = "✅ Done"
@@ -421,7 +445,16 @@ class ResearchCell: UITableViewCell {
             containerView.backgroundColor = UIColor(red: 0.2, green: 0.3, blue: 0.4, alpha: 1.0)
             containerView.alpha = 1.0
         } else if !manager.isAvailable(research) {
-            statusLabel.text = "🔒 Locked"
+            // Show specific lock reason
+            if let reason = manager.getLockedReason(research) {
+                if reason.contains("City Center") {
+                    statusLabel.text = "🏛️ CC Lv\(research.cityCenterLevelRequirement)"
+                } else {
+                    statusLabel.text = "🔒 Locked"
+                }
+            } else {
+                statusLabel.text = "🔒 Locked"
+            }
             statusLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
             containerView.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
             containerView.alpha = 0.5

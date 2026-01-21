@@ -270,6 +270,7 @@ class ResourcePointNode: SKSpriteNode {
         shadow.text = "\(remainingAmount)"
         shadow.position = CGPoint(x: 1, y: -1)
         shadow.zPosition = -1
+        shadow.name = "shadow"  // Name required for updateLabel() to find and update it
         amountLabel.addChild(shadow)
         
         addChild(amountLabel)
@@ -278,7 +279,27 @@ class ResourcePointNode: SKSpriteNode {
     var currentGatherRate: Double {
         let villagerCount = getTotalVillagersGathering()
         let perVillagerRate = 0.2  // Each villager adds 0.2 per second
-        return resourceType.baseGatherRate + (Double(villagerCount) * perVillagerRate)
+        let baseRate = resourceType.baseGatherRate + (Double(villagerCount) * perVillagerRate)
+
+        // Apply research bonuses based on resource type
+        let researchManager = ResearchManager.shared
+        var multiplier = 1.0
+
+        switch resourceType {
+        case .farmland:
+            // Farm Efficiency research
+            multiplier = researchManager.getFarmGatheringMultiplier()
+        case .trees:
+            // Lumber Camp Efficiency research
+            multiplier = researchManager.getLumberCampGatheringMultiplier()
+        case .oreMine, .stoneQuarry:
+            // Mining Camp Efficiency research
+            multiplier = researchManager.getMiningCampGatheringMultiplier()
+        default:
+            break
+        }
+
+        return baseRate * multiplier
     }
     
     func canAddVillagers(_ count: Int) -> Bool {
@@ -298,16 +319,18 @@ class ResourcePointNode: SKSpriteNode {
     func setRemainingAmount(_ amount: Int) {
         let oldAmount = remainingAmount
         remainingAmount = max(0, amount)
-        
-        print("📦 Resource \(resourceType.displayName): \(oldAmount) → \(remainingAmount)")
-        
-        // ✅ FIX: Always update the visual label
+
+        // Update label immediately (game loop already runs on main thread)
         updateLabel()
-        
+
+        // Debug logging for significant changes
+        if abs(oldAmount - remainingAmount) > 10 {
+            print("📦 Resource \(resourceType.displayName): \(oldAmount) → \(remainingAmount)")
+        }
+
         // Check for depletion
         if remainingAmount <= 0 && oldAmount > 0 {
             print("⚠️ Resource depleted!")
-            // Visual fade handled elsewhere
         }
     }
 
@@ -324,7 +347,8 @@ class ResourcePointNode: SKSpriteNode {
             } else {
                 label.text = "\(remainingAmount)"
             }
-            if let shadow = label.childNode(withName: "//shadow") as? SKLabelNode {
+            // Update shadow label (direct child of the main label)
+            if let shadow = label.childNode(withName: "shadow") as? SKLabelNode {
                 shadow.text = label.text
             }
         }

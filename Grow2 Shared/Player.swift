@@ -113,13 +113,10 @@ class Player {
     
     func addResource(_ type: ResourceType, amount: Int) {
         let current = resources[type] ?? 0
-        let capacity = getStorageCapacity()
+        let capacity = getStorageCapacity(for: type)
         
-        // Calculate total resources currently stored
-        let currentTotal = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
-        
-        // Calculate how much space is available
-        let availableSpace = max(0, capacity - currentTotal)
+        // Calculate how much space is available for this resource
+        let availableSpace = max(0, capacity - current)
         
         // Only add up to the available space
         let actualAmount = min(amount, availableSpace)
@@ -128,9 +125,9 @@ class Player {
             resources[type] = current + actualAmount
         }
         
-        // Optionally log when resources are capped
+        // Log when resources are capped
         if actualAmount < amount {
-            print("⚠️ Storage full! Only added \(actualAmount)/\(amount) \(type.displayName). Capacity: \(capacity)")
+            print("⚠️ \(type.displayName) storage full! Only added \(actualAmount)/\(amount). Cap: \(capacity)")
         }
     }
     
@@ -403,9 +400,14 @@ class Player {
     }
     
     func getPopulationCapacity() -> Int {
-        return buildings
+        let buildingCapacity = buildings
             .filter { $0.isOperational }
             .reduce(0) { $0 + $1.buildingType.populationCapacity }
+
+        // Add research bonus for population capacity
+        let researchBonus = ResearchManager.shared.getPopulationCapacityBonus()
+
+        return buildingCapacity + researchBonus
     }
         
     func getCurrentPopulation() -> Int {
@@ -451,7 +453,12 @@ class Player {
     
     /// Returns the food consumption rate per second based on current population
     func getFoodConsumptionRate() -> Double {
-        return Double(getCurrentPopulation()) * Player.foodConsumptionPerPop
+        let baseRate = Double(getCurrentPopulation()) * Player.foodConsumptionPerPop
+
+        // Apply Efficient Rations research bonus (reduces food consumption)
+        let consumptionMultiplier = ResearchManager.shared.getFoodConsumptionMultiplier()
+
+        return baseRate * consumptionMultiplier
     }
     
     func getCityCenterLevel() -> Int {
@@ -461,22 +468,20 @@ class Player {
         return cityCenters.map { $0.level }.max() ?? 0
     }
     
-    func getStorageCapacity() -> Int {
-        var totalCapacity = 0
+    func getStorageCapacity(for type: ResourceType) -> Int {
+        var capacity = 0
         
         for building in buildings where building.isOperational {
-            let capacity = building.buildingType.storageCapacity(forLevel: building.level)
-            if capacity > 0 {
-                totalCapacity += capacity
-                // Debug: print("📦 \(building.buildingType.displayName) Lv.\(building.level): +\(capacity) storage")
+            let buildingCapacity = building.buildingType.storageCapacityPerResource(forLevel: building.level)
+            if buildingCapacity > 0 {
+                capacity += buildingCapacity
             }
         }
         
-        // Minimum storage of 500 even without buildings (starting storage)
-        return max(500, totalCapacity)
+        // Minimum storage of 200 per resource even without buildings (starting storage)
+        return max(200, capacity)
     }
     
-    /// Returns the number of completed warehouses the player owns
     func getWarehouseCount() -> Int {
         return buildings.filter {
             $0.buildingType == .warehouse && $0.state == .completed
@@ -518,31 +523,30 @@ class Player {
         }
         return nil
     }
-    
-    /// Returns remaining storage space
-    func getRemainingStorage() -> Int {
-        let capacity = getStorageCapacity()
-        let totalStored = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
-        return max(0, capacity - totalStored)
+
+    func getTotalStorageCapacity() -> Int {
+        return ResourceType.allCases.reduce(0) { $0 + getStorageCapacity(for: $1) }
+    }
+
+    /// Returns total resources currently stored across all types
+    func getTotalResourcesStored() -> Int {
+        return ResourceType.allCases.reduce(0) { $0 + getResource($1) }
     }
     
-    /// Returns true if adding this amount would exceed storage
-    func wouldExceedStorage(_ type: ResourceType, amount: Int) -> Bool {
-        let capacity = getStorageCapacity()
-        let currentTotal = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
-        return (currentTotal + amount) > capacity
+    /// Returns storage percentage for a specific resource (0.0 to 1.0+)
+    func getStoragePercent(for type: ResourceType) -> Double {
+        let capacity = getStorageCapacity(for: type)
+        guard capacity > 0 else { return 0 }
+        return Double(getResource(type)) / Double(capacity)
     }
     
     @discardableResult
     func addResourceWithOverflow(_ type: ResourceType, amount: Int) -> (added: Int, overflow: Int) {
         let current = resources[type] ?? 0
-        let capacity = getStorageCapacity()
+        let capacity = getStorageCapacity(for: type)
         
-        // Calculate total resources currently stored
-        let currentTotal = ResourceType.allCases.reduce(0) { $0 + getResource($1) }
-        
-        // Calculate how much space is available
-        let availableSpace = max(0, capacity - currentTotal)
+        // Calculate how much space is available for this resource
+        let availableSpace = max(0, capacity - current)
         
         // Only add up to the available space
         let actualAmount = min(amount, availableSpace)

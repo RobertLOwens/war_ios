@@ -9,48 +9,62 @@ struct BuildCommand: GameCommand {
     let id: UUID
     let timestamp: TimeInterval
     let playerID: UUID
-    
+
     let buildingType: BuildingType
     let coordinate: HexCoordinate
     let builderEntityID: UUID?
-    
+    let rotation: Int
+
     static var commandType: CommandType { .build }
-    
-    init(playerID: UUID, buildingType: BuildingType, coordinate: HexCoordinate, builderEntityID: UUID? = nil) {
+
+    init(playerID: UUID, buildingType: BuildingType, coordinate: HexCoordinate, builderEntityID: UUID? = nil, rotation: Int = 0) {
         self.id = UUID()
         self.timestamp = Date().timeIntervalSince1970
         self.playerID = playerID
         self.buildingType = buildingType
         self.coordinate = coordinate
         self.builderEntityID = builderEntityID
+        self.rotation = rotation
     }
     
     func validate(in context: CommandContext) -> CommandResult {
         guard let player = context.getPlayer(by: playerID) else {
             return .failure(reason: "Player not found")
         }
-        
-        // Check tile is valid for building
-        guard let tile = context.hexMap.getTile(at: coordinate) else {
-            return .failure(reason: "Invalid location")
+
+        // Get all tiles this building would occupy
+        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+
+        // Check all tiles are valid
+        for coord in occupiedCoords {
+            guard let tile = context.hexMap.getTile(at: coord) else {
+                return .failure(reason: "Invalid location")
+            }
+
+            // Check terrain allows building
+            guard tile.terrain != .water && tile.terrain != .mountain else {
+                return .failure(reason: "Cannot build on \(tile.terrain)")
+            }
+
+            // Check no building already exists (roads can be built where there's already a road)
+            if let existingBuilding = context.getBuilding(at: coord) {
+                // Allow replacing roads with other buildings, or building roads where there's a road
+                if existingBuilding.buildingType.isRoad && !buildingType.isRoad {
+                    // OK - building over a road with a real building
+                } else if buildingType.isRoad && existingBuilding.buildingType.isRoad {
+                    return .failure(reason: "A road already exists here")
+                } else {
+                    return .failure(reason: "A building already exists here")
+                }
+            }
         }
-        
-        // Check terrain allows building
-        guard tile.terrain != .water && tile.terrain != .mountain else {
-            return .failure(reason: "Cannot build on \(tile.terrain)")
-        }
-        
-        // Check no building already exists
-        if context.getBuilding(at: coordinate) != nil {
-            return .failure(reason: "A building already exists here")
-        }
-        
+
         // Check City Center level requirement
         let ccLevel = player.getCityCenterLevel()
         if buildingType.requiredCityCenterLevel > ccLevel {
             return .failure(reason: "Requires City Center Level \(buildingType.requiredCityCenterLevel)")
         }
-        
+
         // Check resources
         for (resourceType, amount) in buildingType.buildCost {
             if !player.hasResource(resourceType, amount: amount) {
@@ -58,7 +72,7 @@ struct BuildCommand: GameCommand {
                 return .failure(reason: "Need \(amount) \(resourceType.displayName), have \(current)")
             }
         }
-        
+
         // Special checks for camps
         if buildingType == .miningCamp {
             guard let resource = context.hexMap.getResourcePoint(at: coordinate),
@@ -66,14 +80,14 @@ struct BuildCommand: GameCommand {
                 return .failure(reason: "Mining Camps must be built on Stone or Ore deposits")
             }
         }
-        
+
         if buildingType == .lumberCamp {
             guard let resource = context.hexMap.getResourcePoint(at: coordinate),
                   resource.resourceType == .trees else {
                 return .failure(reason: "Lumber Camps must be built on Trees")
             }
         }
-        
+
         return .success
     }
     
@@ -81,49 +95,98 @@ struct BuildCommand: GameCommand {
         guard let player = context.getPlayer(by: playerID) else {
             return .failure(reason: "Player not found")
         }
-        
+
+        // Remove existing roads if building over them (check all occupied tiles)
+        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+        for coord in occupiedCoords {
+            if let existingBuilding = context.getBuilding(at: coord), existingBuilding.buildingType.isRoad {
+                context.hexMap.removeBuilding(existingBuilding)
+                player.removeBuilding(existingBuilding)
+                existingBuilding.removeFromParent()
+            }
+        }
+
         // Deduct resources
         for (resourceType, amount) in buildingType.buildCost {
             player.removeResource(resourceType, amount: amount)
         }
-        
+
         // Create building
-        let building = BuildingNode(coordinate: coordinate, buildingType: buildingType, owner: player)
+        let building = BuildingNode(coordinate: coordinate, buildingType: buildingType, owner: player, rotation: rotation)
         building.position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
-        
+
+        // Check if builder is already at the location
+        var builderAtLocation = false
+
         // Assign builder if provided
         if let builderID = builderEntityID,
            let builderEntity = context.getEntity(by: builderID),
            let villagers = builderEntity.entity as? VillagerGroup {
             building.builderEntity = builderEntity
             villagers.assignTask(.building(building), target: coordinate)
-            builderEntity.isMoving = true
+
+            // Check if villager is already at or adjacent to the build site
+            let distance = builderEntity.coordinate.distance(to: coordinate)
+            if distance <= 1 {
+                builderAtLocation = true
+                builderEntity.isMoving = false
+            } else {
+                // Need to move to the location - construction starts when they arrive
+                builderEntity.isMoving = true
+
+                // Move the entity to the build site
+                if let path = context.hexMap.findPath(from: builderEntity.coordinate, to: coordinate) {
+                    builderEntity.moveTo(path: path) {
+                        // When movement completes, start construction
+                        if building.state == .planning {
+                            building.startConstruction()
+                            print("🏗️ Builder arrived, starting construction of \(building.buildingType.displayName)")
+                        }
+                    }
+                } else {
+                    // Can't find path, start construction anyway (villager might be blocked)
+                    builderAtLocation = true
+                }
+            }
+        } else {
+            // No builder assigned, start construction immediately
+            builderAtLocation = true
         }
-        
-        // Start construction
-        building.startConstruction()
-        
+
+        // Only start construction if builder is at location or no builder needed
+        if builderAtLocation {
+            building.startConstruction()
+        } else {
+            // Set to planning state - construction will start when builder arrives
+            building.data.state = .planning
+            print("🏗️ Waiting for builder to arrive at \(buildingType.displayName)")
+        }
+
         let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
         building.position = position
-        building.zPosition = 5
+        // Roads should be below other buildings and entities
+        building.zPosition = buildingType.isRoad ? 2 : 5
         context.gameScene?.buildingsNode.addChild(building)
-        
+
         // Add to map and player
         context.hexMap.addBuilding(building)
         player.addBuilding(building)
-        
-        // Remove resource if building on top of one (except for camps)
-        if buildingType != .miningCamp && buildingType != .lumberCamp {
-            if let resource = context.hexMap.getResourcePoint(at: coordinate) {
-                context.hexMap.removeResourcePoint(resource)
-                resource.removeFromParent()
+
+        // Remove resources on all occupied tiles (except for camps and roads)
+        if buildingType != .miningCamp && buildingType != .lumberCamp && !buildingType.isRoad {
+            let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+            for coord in occupiedCoords {
+                if let resource = context.hexMap.getResourcePoint(at: coord) {
+                    context.hexMap.removeResourcePoint(resource)
+                    resource.removeFromParent()
+                }
             }
         }
-        
+
         context.onResourcesChanged?()
-        
+
         print("🏗️ Started building \(buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
-        
+
         return .success
     }
 }

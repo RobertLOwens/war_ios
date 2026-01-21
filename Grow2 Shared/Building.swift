@@ -28,7 +28,10 @@ enum BuildingType: String, CaseIterable, Codable {
     case lumberCamp = "Lumber Camp"
     case warehouse = "Warehouse"
     case university = "University"
-    
+
+    // Infrastructure
+    case road = "Road"
+
     // Military Buildings
     case castle = "Castle"
     case barracks = "Barracks"
@@ -52,7 +55,7 @@ enum BuildingType: String, CaseIterable, Codable {
     
     var category: BuildingCategory {
         switch self {
-        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university:
+        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .road:
             return .economic
         case .castle, .barracks, .archeryRange, .stable, .siegeWorkshop, .tower, .woodenFort:
             return .military
@@ -70,6 +73,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return "🪓"
         case .warehouse: return "📦"
         case .university: return "🎓"
+        case .road: return "🛤️"
         case .castle: return "🏰"
         case .barracks: return "🛡️"
         case .archeryRange: return "🏹"
@@ -84,7 +88,7 @@ enum BuildingType: String, CaseIterable, Codable {
         switch self {
         case .cityCenter:
             return 1  // Always available (you start with one)
-        case .neighborhood, .warehouse, .farm, .barracks:
+        case .neighborhood, .warehouse, .farm, .barracks, .road:
             return 1  // Tier 1
         case .archeryRange, .stable:
             return 2  // Tier 2
@@ -123,6 +127,8 @@ enum BuildingType: String, CaseIterable, Codable {
             return [.wood: 120, .stone: 80]
         case .university:
             return [.wood: 150, .stone: 120, .ore: 60]
+        case .road:
+            return [.stone: 10]
         case .castle:
             return [.wood: 300, .stone: 400, .ore: 150]
         case .barracks:
@@ -151,6 +157,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return 25.0
         case .warehouse: return 30.0
         case .university: return 50.0
+        case .road: return 5.0  // Quick to build
         case .castle: return 90.0
         case .barracks: return 4.0
         case .archeryRange: return 35.0
@@ -163,10 +170,70 @@ enum BuildingType: String, CaseIterable, Codable {
     
     var hexSize: Int {
         switch self {
-        case .cityCenter, .castle: return 2  // Takes up 2x2 hexes
-        case .university, .warehouse, .market: return 1  // Takes up single hex
+        case .cityCenter: return 1  // City center is single tile
+        case .castle, .woodenFort: return 3  // 3-tile wedge shape
         default: return 1
         }
+    }
+
+    /// Whether this building type requires rotation selection during placement
+    var requiresRotation: Bool {
+        return hexSize > 1
+    }
+
+    /// Returns the relative hex offsets for this building type at a given rotation
+    /// Rotation is 0-5 representing the 6 hex directions
+    func getOccupiedOffsets(rotation: Int) -> [HexCoordinate] {
+        guard hexSize > 1 else {
+            return [HexCoordinate(q: 0, r: 0)]  // Single tile
+        }
+
+        // 3-tile wedge shape: anchor tile + 2 adjacent tiles
+        // The shape looks like a triangle/wedge
+        // Rotation determines which direction the wedge points
+
+        // Hex neighbor directions (q, r offsets):
+        // 0: (+1, 0)  - East
+        // 1: (+1, -1) - Northeast
+        // 2: (0, -1)  - Northwest
+        // 3: (-1, 0)  - West
+        // 4: (-1, +1) - Southwest
+        // 5: (0, +1)  - Southeast
+
+        let directions: [(Int, Int)] = [
+            (1, 0),   // 0: East
+            (1, -1),  // 1: Northeast
+            (0, -1),  // 2: Northwest
+            (-1, 0),  // 3: West
+            (-1, 1),  // 4: Southwest
+            (0, 1)    // 5: Southeast
+        ]
+
+        let normalizedRotation = ((rotation % 6) + 6) % 6
+
+        // Get two adjacent directions for the wedge
+        let dir1 = directions[normalizedRotation]
+        let dir2 = directions[(normalizedRotation + 1) % 6]
+
+        return [
+            HexCoordinate(q: 0, r: 0),  // Anchor tile
+            HexCoordinate(q: dir1.0, r: dir1.1),  // First adjacent
+            HexCoordinate(q: dir2.0, r: dir2.1)   // Second adjacent
+        ]
+    }
+
+    /// Returns all coordinates this building would occupy at a given anchor position and rotation
+    func getOccupiedCoordinates(anchor: HexCoordinate, rotation: Int) -> [HexCoordinate] {
+        return getOccupiedOffsets(rotation: rotation).map { offset in
+            HexCoordinate(q: anchor.q + offset.q, r: anchor.r + offset.r)
+        }
+    }
+
+    /// Returns a description of the current rotation for UI display
+    static func rotationDescription(_ rotation: Int) -> String {
+        let directions = ["East", "Northeast", "Northwest", "West", "Southwest", "Southeast"]
+        let normalizedRotation = ((rotation % 6) + 6) % 6
+        return "Pointing \(directions[normalizedRotation])"
     }
     
     var description: String {
@@ -180,6 +247,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return "Increases wood collection"
         case .warehouse: return "Stores extra resources"
         case .university: return "Research technologies"
+        case .road: return "Increases movement speed for units"
         case .castle: return "Defensive stronghold and military hub"
         case .barracks: return "Trains infantry units"
         case .archeryRange: return "Trains ranged units"
@@ -203,8 +271,20 @@ enum BuildingType: String, CaseIterable, Codable {
     var maxLevel: Int {
         switch self {
         case .cityCenter: return 10
+        case .road: return 1  // Roads don't upgrade
         default: return 5
         }
+    }
+
+    /// Whether this building type is a road (special handling for placement and pathfinding)
+    var isRoad: Bool {
+        return self == .road
+    }
+
+    /// Whether this building provides road benefits (roads + all other buildings)
+    var providesRoadBonus: Bool {
+        // All buildings act as roads, plus actual roads
+        return true
     }
         
     /// Returns the upgrade cost for a given level (upgrading FROM this level)
@@ -237,26 +317,26 @@ enum BuildingType: String, CaseIterable, Codable {
         return min(ccLevel - 5, 5)  // CC6=1, CC7=2, CC8=3, CC9=4, CC10=5
     }
     
-    var baseStorageCapacity: Int {
+    var baseStorageCapacityPerResource: Int {
         switch self {
-        case .cityCenter: return 500   // City center provides base storage
-        case .warehouse: return 300    // Each warehouse adds storage
+        case .cityCenter: return 1200  // City center provides 1200 per resource type (accommodates starting resources of 1000)
+        case .warehouse: return 150    // Each warehouse adds 150 per resource type
         default: return 0
         }
     }
     
     /// Storage capacity bonus per level (added to base)
-    var storageCapacityPerLevel: Int {
+    var storageCapacityPerLevelPerResource: Int {
         switch self {
-        case .cityCenter: return 250   // +250 per city center level
-        case .warehouse: return 150    // +150 per warehouse level
+        case .cityCenter: return 100   // +100 per resource per city center level
+        case .warehouse: return 75     // +75 per resource per warehouse level
         default: return 0
         }
     }
     
     /// Returns the storage capacity for this building at a given level
-    func storageCapacity(forLevel level: Int) -> Int {
-        return baseStorageCapacity + (storageCapacityPerLevel * (level - 1))
+    func storageCapacityPerResource(forLevel level: Int) -> Int {
+        return baseStorageCapacityPerResource + (storageCapacityPerLevelPerResource * (level - 1))
     }
     
     /// Returns the maximum number of warehouses allowed for a given city center level
@@ -310,6 +390,8 @@ class BuildingNode: SKSpriteNode {
     var levelLabel: SKLabelNode?
     var upgradeProgressBar: SKShapeNode?
     var upgradeTimerLabel: SKLabelNode?
+    var pendingUpgrade: Bool = false
+
     
     // MARK: - Convenience Accessors (delegate to data)
     
@@ -379,12 +461,13 @@ class BuildingNode: SKSpriteNode {
     
     // MARK: - Initialization
     
-    init(coordinate: HexCoordinate, buildingType: BuildingType, owner: Player? = nil) {
+    init(coordinate: HexCoordinate, buildingType: BuildingType, owner: Player? = nil, rotation: Int = 0) {
         // Create data model
         self.data = BuildingData(
             buildingType: buildingType,
             coordinate: coordinate,
-            ownerID: owner?.id
+            ownerID: owner?.id,
+            rotation: rotation
         )
         self.owner = owner
         
@@ -737,12 +820,15 @@ class BuildingNode: SKSpriteNode {
         }
         
         guard let startTime = constructionStartTime else { return }
-        
+
         let currentTime = Date().timeIntervalSince1970
         let elapsed = currentTime - startTime
-        
-        let buildSpeedMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
-        let effectiveBuildTime = buildingType.buildTime / buildSpeedMultiplier
+
+        // Builder bonus + Research bonus
+        let builderMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
+        let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
+        let totalSpeedMultiplier = builderMultiplier * researchMultiplier
+        let effectiveBuildTime = buildingType.buildTime / totalSpeedMultiplier
         let remaining = max(0, effectiveBuildTime - elapsed)
         
         // Update progress (without triggering didSet)
@@ -831,15 +917,18 @@ class BuildingNode: SKSpriteNode {
 
     func updateConstruction() {
         guard state == .constructing, let startTime = constructionStartTime else { return }
-        
+
         let currentTime = Date().timeIntervalSince1970
         let elapsed = currentTime - startTime
-        
-        let buildSpeedMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
-        let effectiveBuildTime = buildingType.buildTime / buildSpeedMultiplier
-        
+
+        // Builder bonus + Research bonus
+        let builderMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
+        let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
+        let totalSpeedMultiplier = builderMultiplier * researchMultiplier
+        let effectiveBuildTime = buildingType.buildTime / totalSpeedMultiplier
+
         constructionProgress = min(1.0, elapsed / effectiveBuildTime)
-        
+
         // Add debug logging
         print("Building: \(buildingType.displayName)")
         print("  Start time: \(startTime)")
@@ -847,7 +936,7 @@ class BuildingNode: SKSpriteNode {
         print("  Elapsed: \(elapsed)s")
         print("  Effective build time: \(effectiveBuildTime)s")
         print("  Progress: \(constructionProgress * 100)%")
-        
+
         if constructionProgress >= 1.0 {
             completeConstruction()
         }
@@ -896,13 +985,17 @@ class BuildingNode: SKSpriteNode {
     func updateUpgrade() {
         guard state == .upgrading,
               let startTime = upgradeStartTime,
-              let upgradeTime = getUpgradeTime() else { return }
-        
+              let baseUpgradeTime = getUpgradeTime() else { return }
+
         let currentTime = Date().timeIntervalSince1970
         let elapsed = currentTime - startTime
-        
-        upgradeProgress = min(1.0, elapsed / upgradeTime)
-        
+
+        // Apply research bonus to upgrade time
+        let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
+        let effectiveUpgradeTime = baseUpgradeTime / researchMultiplier
+
+        upgradeProgress = min(1.0, elapsed / effectiveUpgradeTime)
+
         if upgradeProgress >= 1.0 {
             completeUpgrade()
         }
@@ -924,11 +1017,15 @@ class BuildingNode: SKSpriteNode {
             return
         }
         
-        guard let totalUpgradeTime = getUpgradeTime() else {
+        guard let baseUpgradeTime = getUpgradeTime() else {
             print("⚠️ Could not get upgrade time for level \(level)")
             return
         }
-        
+
+        // Apply research bonus to upgrade time
+        let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
+        let totalUpgradeTime = baseUpgradeTime / researchMultiplier
+
         let currentTime = Date().timeIntervalSince1970
         let elapsed = currentTime - startTime
         let remaining = max(0, totalUpgradeTime - elapsed)

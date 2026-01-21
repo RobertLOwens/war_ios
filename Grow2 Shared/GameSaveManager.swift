@@ -937,14 +937,25 @@ class GameSaveManager {
         }
         
         // Step 3: Calculate resource accumulation using (potentially adjusted) rates
-        print("   💰 Resource accumulation:")
         for type in ResourceType.allCases {
             let rate = player.getCollectionRate(type)
             let accumulated = Int(rate * cappedElapsed)
             
             if accumulated > 0 {
-                player.addResource(type, amount: accumulated)
-                print("      \(type.displayName): +\(accumulated) (rate \(rate)/s × \(Int(cappedElapsed))s)")
+                // ✅ FIX: Use per-resource cap
+                let currentAmount = player.getResource(type)
+                let cap = player.getStorageCapacity(for: type)
+                let availableSpace = max(0, cap - currentAmount)
+                let actualAdded = min(accumulated, availableSpace)
+                
+                if actualAdded > 0 {
+                    player.addResource(type, amount: actualAdded)
+                    print("      \(type.displayName): +\(actualAdded) (rate \(rate)/s × \(Int(cappedElapsed))s)")
+                }
+                
+                if actualAdded < accumulated {
+                    print("      ⚠️ \(type.displayName) capped! Would have added \(accumulated) but only \(actualAdded) space available")
+                }
             }
         }
         

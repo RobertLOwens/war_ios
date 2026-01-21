@@ -138,8 +138,18 @@ class MenuCoordinator {
                         message += "\n👷 \(gatherers) villager(s) gathering"
                     }
                     
-                    // Check if camp is required
-                    if resourcePoint.resourceType.requiresCamp {
+                    // ✅ FIX: Special handling for farmland
+                    if resourcePoint.resourceType == .farmland {
+                        if resourcePoint.getRemainingCapacity() > 0 {
+                            actions.append(AlertAction(title: "🌾 Assign Villagers to Work") { [weak self] in
+                                self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
+                            })
+                        } else {
+                            message += "\n\n⚠️ Max villagers reached"
+                        }
+                    }
+                    // Check if camp is required for non-farm resources
+                    else if resourcePoint.resourceType.requiresCamp {
                         if let camp = hexMap.getBuilding(at: coordinate),
                            (camp.buildingType == .miningCamp || camp.buildingType == .lumberCamp) {
                             if resourcePoint.getRemainingCapacity() > 0 {
@@ -149,10 +159,10 @@ class MenuCoordinator {
                             }
                         } else {
                             let campName = resourcePoint.resourceType == .trees ? "Lumber Camp" : "Mining Camp"
-                            message += "\n\n⚠️ Requires \(campName) nearby to gather"
+                            message += "\n\n⚠️ Requires \(campName) on this tile"
                         }
                     } else {
-                        // No camp required (forage, carcasses, farmland)
+                        // Regular gatherable resource
                         if resourcePoint.getRemainingCapacity() > 0 {
                             actions.append(AlertAction(title: "👷 Assign Villagers to Gather") { [weak self] in
                                 self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
@@ -235,6 +245,21 @@ class MenuCoordinator {
         }
         
         // -------------------------
+        // MARK: - Build Here Option
+        // -------------------------
+        // Show build option if tile is empty and buildable (no building, walkable terrain)
+        if visibility == .visible {
+            let existingBuilding = hexMap.getBuilding(at: coordinate)
+            let canBuildHere = hexMap.isWalkable(coordinate) && (existingBuilding == nil || existingBuilding?.buildingType.isRoad == true)
+
+            if canBuildHere {
+                actions.append(AlertAction(title: "🏗️ Build Here", style: .default) { [weak self] in
+                    self?.showBuildingMenuWithVillagerSelection(at: coordinate)
+                })
+            }
+        }
+
+        // -------------------------
         // MARK: - Movement Action
         // -------------------------
         if visibility == .visible || visibility == .explored {
@@ -242,7 +267,7 @@ class MenuCoordinator {
                 let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
                 return diplomacyStatus == .neutral || diplomacyStatus == .enemy
             }
-            
+
             if !hasHostileEntities {
                 actions.append(AlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] in
                     self?.gameScene?.initiateMove(to: coordinate)
@@ -476,7 +501,10 @@ class MenuCoordinator {
             // Gather (only if on a gatherable resource tile)
             if let resourcePoint = hexMap.getResourcePoint(at: coordinate) {
                 if resourcePoint.resourceType.isGatherable && !resourcePoint.isDepleted() {
-                    actions.append(AlertAction(title: "⛏️ Gather \(resourcePoint.resourceType.displayName)") { [weak self] in
+                    // ✅ FIX: Use "Work" for farms, "Gather" for other resources
+                    let actionVerb = resourcePoint.resourceType == .farmland ? "Work" : "Gather"
+                    
+                    actions.append(AlertAction(title: "\(actionVerb) \(resourcePoint.resourceType.displayName)") { [weak self] in
                         self?.executeGatherCommand(villagerGroup: villagers, resourcePoint: resourcePoint)
                     })
                 }
@@ -574,8 +602,8 @@ class MenuCoordinator {
                         }
                     }
                     
-                    // No resource or it's a camp - proceed normally
-                    self?.gameScene?.placeBuilding(type: type, at: coordinate, owner: player)
+                    // ✅ FIX: Use executeBuildPlacement which uses BuildCommand
+                    self?.executeBuildCommand(buildingType: type, at: coordinate, builder: villagerGroup)
                 })
             } else {
                 // Show why it can't be placed (placement issue, not CC requirement)
@@ -614,21 +642,336 @@ class MenuCoordinator {
         villagerGroup: EntityNode?
     ) {
         guard let vc = viewController else { return }
-        
+
         let alert = UIAlertController(
             title: "⚠️ Resource Will Be Removed",
             message: "Building \(buildingType.displayName) here will permanently remove the \(resource.resourceType.displayName) (\(resource.remainingAmount) remaining).\n\nAre you sure you want to continue?",
             preferredStyle: .alert
         )
-        
+
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Build Anyway", style: .destructive) { [weak self] _ in
             self?.executeBuildCommand(buildingType: buildingType, at: coordinate, builder: villagerGroup)
         })
-        
+
         vc.present(alert, animated: true)
     }
-    
+
+    // MARK: - Building Menu with Villager Selection
+
+    /// Shows building options first, then lets user select an idle villager group
+    func showBuildingMenuWithVillagerSelection(at coordinate: HexCoordinate) {
+        guard let player = player,
+              let hexMap = hexMap,
+              let vc = viewController else { return }
+
+        let cityCenterLevel = player.getCityCenterLevel()
+        var actions: [AlertAction] = []
+
+        for type in BuildingType.allCases {
+            // Skip City Center
+            if type == .cityCenter { continue }
+
+            // Check City Center level requirement
+            let requiredCCLevel = type.requiredCityCenterLevel
+            guard cityCenterLevel >= requiredCCLevel else { continue }
+
+            // Check basic placement
+            let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: type)
+
+            // Build cost string
+            var costString = ""
+            for (resourceType, amount) in type.buildCost {
+                costString += "\(resourceType.icon)\(amount) "
+            }
+
+            if canPlace {
+                let title = "\(type.icon) \(type.displayName) - \(costString)"
+                actions.append(AlertAction(title: title) { [weak self] in
+                    // Check if there's a resource that will be removed
+                    if let resource = hexMap.getResourcePoint(at: coordinate) {
+                        if type != .miningCamp && type != .lumberCamp && !type.isRoad {
+                            // Show warning then proceed to villager selection
+                            self?.showBuildingConfirmationWithResourceWarningThenSelectVillager(
+                                buildingType: type,
+                                coordinate: coordinate,
+                                resource: resource
+                            )
+                            return
+                        }
+                    }
+
+                    // Show idle villager selection
+                    self?.showIdleVillagerSelectionForBuilding(buildingType: type, at: coordinate)
+                })
+            } else {
+                // Show why it can't be placed
+                var reason = ""
+                if type == .miningCamp {
+                    reason = " (Requires Ore/Stone)"
+                } else if type == .lumberCamp {
+                    reason = " (Requires Trees)"
+                }
+                actions.append(AlertAction(title: "❌ \(type.displayName)\(reason)", handler: nil))
+            }
+        }
+
+        let message: String
+        if actions.isEmpty {
+            message = "No buildings available at City Center Level \(cityCenterLevel).\nUpgrade your City Center to unlock more buildings."
+        } else {
+            message = "Choose a building to construct at (\(coordinate.q), \(coordinate.r))\n⭐ City Center: Lv.\(cityCenterLevel)"
+        }
+
+        vc.showActionSheet(
+            title: "🏗️ Select Building",
+            message: message,
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+
+    /// Shows resource warning, then proceeds to villager selection
+    func showBuildingConfirmationWithResourceWarningThenSelectVillager(
+        buildingType: BuildingType,
+        coordinate: HexCoordinate,
+        resource: ResourcePointNode
+    ) {
+        guard let vc = viewController else { return }
+
+        let alert = UIAlertController(
+            title: "⚠️ Resource Will Be Removed",
+            message: "Building \(buildingType.displayName) here will permanently remove the \(resource.resourceType.displayName) (\(resource.remainingAmount) remaining).\n\nAre you sure you want to continue?",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Build Anyway", style: .destructive) { [weak self] _ in
+            self?.showIdleVillagerSelectionForBuilding(buildingType: buildingType, at: coordinate)
+        })
+
+        vc.present(alert, animated: true)
+    }
+
+    /// Shows a list of idle villager groups to select for building
+    func showIdleVillagerSelectionForBuilding(buildingType: BuildingType, at coordinate: HexCoordinate, rotation: Int = 0) {
+        guard let player = player,
+              let hexMap = hexMap,
+              let vc = viewController else { return }
+
+        // If this building requires rotation selection and we haven't selected yet
+        if buildingType.requiresRotation {
+            showRotationSelectionForBuilding(buildingType: buildingType, at: coordinate)
+            return
+        }
+
+        // Find all idle villager groups owned by player
+        let idleVillagerGroups = hexMap.entities.filter { entity in
+            guard entity.entity.owner?.id == player.id,
+                  entity.entityType == .villagerGroup,
+                  let villagers = entity.entity as? VillagerGroup else {
+                return false
+            }
+            return villagers.currentTask == .idle
+        }
+
+        if idleVillagerGroups.isEmpty {
+            vc.showAlert(
+                title: "No Idle Villagers",
+                message: "You need idle villagers to construct buildings. All your villager groups are currently busy."
+            )
+            return
+        }
+
+        var actions: [AlertAction] = []
+
+        // Sort by distance to build site
+        let sortedVillagers = idleVillagerGroups.sorted { e1, e2 in
+            e1.coordinate.distance(to: coordinate) < e2.coordinate.distance(to: coordinate)
+        }
+
+        for entityNode in sortedVillagers {
+            guard let villagers = entityNode.entity as? VillagerGroup else { continue }
+
+            let distance = entityNode.coordinate.distance(to: coordinate)
+            let title = "👷 \(villagers.name) (\(villagers.villagerCount)) - \(distance) tiles away"
+
+            actions.append(AlertAction(title: title) { [weak self] in
+                self?.assignVillagerToBuild(
+                    villagerEntity: entityNode,
+                    buildingType: buildingType,
+                    at: coordinate,
+                    rotation: rotation
+                )
+            })
+        }
+
+        // Build cost string for the message
+        var costString = ""
+        for (resourceType, amount) in buildingType.buildCost {
+            costString += "\(resourceType.icon)\(amount) "
+        }
+
+        vc.showActionSheet(
+            title: "👷 Select Builder",
+            message: "Select a villager group to build \(buildingType.icon) \(buildingType.displayName)\n\nCost: \(costString)",
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+
+    /// Shows rotation options for multi-tile buildings
+    func showRotationSelectionForBuilding(buildingType: BuildingType, at coordinate: HexCoordinate) {
+        guard let hexMap = hexMap,
+              let vc = viewController else { return }
+
+        var actions: [AlertAction] = []
+        let directions = ["East ➡️", "Northeast ↗️", "Northwest ↖️", "West ⬅️", "Southwest ↙️", "Southeast ↘️"]
+
+        for rotation in 0..<6 {
+            // Check if this rotation is valid (all tiles can be placed)
+            let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: buildingType, rotation: rotation)
+
+            if canPlace {
+                let title = "🔄 \(directions[rotation])"
+                actions.append(AlertAction(title: title) { [weak self] in
+                    self?.showIdleVillagerSelectionForBuildingWithRotation(
+                        buildingType: buildingType,
+                        at: coordinate,
+                        rotation: rotation
+                    )
+                })
+            } else {
+                // Show as disabled with reason
+                actions.append(AlertAction(title: "❌ \(directions[rotation]) (blocked)", handler: nil))
+            }
+        }
+
+        // Get the tiles that would be occupied for visual reference
+        let message = """
+        \(buildingType.displayName) is a 3-tile building.
+        Choose which direction it should face.
+
+        The building will occupy:
+        • Anchor tile at (\(coordinate.q), \(coordinate.r))
+        • Two adjacent tiles based on rotation
+        """
+
+        vc.showActionSheet(
+            title: "🔄 Select Rotation",
+            message: message,
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+
+    /// Shows villager selection after rotation has been chosen
+    func showIdleVillagerSelectionForBuildingWithRotation(buildingType: BuildingType, at coordinate: HexCoordinate, rotation: Int) {
+        guard let player = player,
+              let hexMap = hexMap,
+              let vc = viewController else { return }
+
+        // Find all idle villager groups owned by player
+        let idleVillagerGroups = hexMap.entities.filter { entity in
+            guard entity.entity.owner?.id == player.id,
+                  entity.entityType == .villagerGroup,
+                  let villagers = entity.entity as? VillagerGroup else {
+                return false
+            }
+            return villagers.currentTask == .idle
+        }
+
+        if idleVillagerGroups.isEmpty {
+            vc.showAlert(
+                title: "No Idle Villagers",
+                message: "You need idle villagers to construct buildings. All your villager groups are currently busy."
+            )
+            return
+        }
+
+        var actions: [AlertAction] = []
+
+        // Sort by distance to build site
+        let sortedVillagers = idleVillagerGroups.sorted { e1, e2 in
+            e1.coordinate.distance(to: coordinate) < e2.coordinate.distance(to: coordinate)
+        }
+
+        for entityNode in sortedVillagers {
+            guard let villagers = entityNode.entity as? VillagerGroup else { continue }
+
+            let distance = entityNode.coordinate.distance(to: coordinate)
+            let title = "👷 \(villagers.name) (\(villagers.villagerCount)) - \(distance) tiles away"
+
+            actions.append(AlertAction(title: title) { [weak self] in
+                self?.assignVillagerToBuild(
+                    villagerEntity: entityNode,
+                    buildingType: buildingType,
+                    at: coordinate,
+                    rotation: rotation
+                )
+            })
+        }
+
+        // Build cost string for the message
+        var costString = ""
+        for (resourceType, amount) in buildingType.buildCost {
+            costString += "\(resourceType.icon)\(amount) "
+        }
+
+        // Show which tiles will be occupied
+        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+        var tilesMessage = "Tiles: "
+        for coord in occupiedCoords {
+            tilesMessage += "(\(coord.q),\(coord.r)) "
+        }
+
+        vc.showActionSheet(
+            title: "👷 Select Builder",
+            message: "Select a villager group to build \(buildingType.icon) \(buildingType.displayName)\n\nCost: \(costString)\n\(tilesMessage)",
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+
+    /// Assigns a villager to build at the target location
+    /// Villager will move to the tile first, then start building
+    func assignVillagerToBuild(villagerEntity: EntityNode, buildingType: BuildingType, at coordinate: HexCoordinate, rotation: Int = 0) {
+        guard let player = player,
+              let hexMap = hexMap else { return }
+
+        // Check if villager is already at the location
+        if villagerEntity.coordinate == coordinate {
+            // Already there, just execute the build command
+            executeBuildCommand(buildingType: buildingType, at: coordinate, builder: villagerEntity, rotation: rotation)
+        } else {
+            // Need to move to the location first
+            // Find a path to the target or adjacent tile
+            var targetCoord = coordinate
+
+            // If the coordinate has a building being placed, find adjacent walkable tile
+            if hexMap.getBuilding(at: coordinate) != nil && !hexMap.getBuilding(at: coordinate)!.buildingType.isRoad {
+                if let adjacent = hexMap.findNearestWalkable(to: coordinate, maxDistance: 2) {
+                    targetCoord = adjacent
+                }
+            }
+
+            // Execute build command first (creates the building in constructing state)
+            executeBuildCommand(buildingType: buildingType, at: coordinate, builder: villagerEntity, rotation: rotation)
+
+            // The BuildCommand will assign the villager to the building task and move them
+        }
+
+        delegate?.deselectAll()
+    }
+
     // MARK: - Upgrade Menu
     
     func showUpgradeConfirmation(for building: BuildingNode, villagerEntity: EntityNode) {
@@ -1004,22 +1347,23 @@ class MenuCoordinator {
     }
     
     /// Executes a BuildCommand
-    private func executeBuildCommand(buildingType: BuildingType, at coordinate: HexCoordinate, builder: EntityNode?) {
+    private func executeBuildCommand(buildingType: BuildingType, at coordinate: HexCoordinate, builder: EntityNode?, rotation: Int = 0) {
         guard let player = player else { return }
-        
+
         let command = BuildCommand(
             playerID: player.id,
             buildingType: buildingType,
             coordinate: coordinate,
-            builderEntityID: builder?.entity.id
+            builderEntityID: builder?.entity.id,
+            rotation: rotation
         )
-        
+
         let result = CommandExecutor.shared.execute(command)
-        
+
         if !result.succeeded, let reason = result.failureReason {
             viewController?.showAlert(title: "Cannot Build", message: reason)
         }
-        
+
         delegate?.updateResourceDisplay()
         delegate?.deselectAll()
     }

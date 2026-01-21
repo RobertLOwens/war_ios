@@ -59,10 +59,15 @@ class GameViewController: UIViewController {
         if shouldLoadGame {
             // Create an empty scene shell - loadGame() will populate it
             setupEmptyScene()
-    
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?.loadGame()
-    
+
+                // Setup CommandExecutor AFTER game is loaded (hexMap is now available)
+                if let self = self {
+                    self.setupCommandExecutor()
+                }
+
                 // Process background time AFTER loading
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                     self?.processBackgroundTime()
@@ -72,23 +77,10 @@ class GameViewController: UIViewController {
             // New game - setup scene normally (this generates the map)
             setupScene()
             updateResourceDisplay()
-        }
-        
-        CommandExecutor.shared.setup(
-            hexMap: gameScene.hexMap,
-            player: player,
-            allPlayers: gameScene.allGamePlayers,
-            gameScene: gameScene 
-        )
 
-        CommandExecutor.shared.setCallbacks(
-            onResourcesChanged: { [weak self] in
-                self?.updateResourceDisplay()
-            },
-            onAlert: { [weak self] title, message in
-                self?.showSimpleAlert(title: title, message: message)
-            }
-        )
+            // Setup CommandExecutor for new game (hexMap is ready)
+            setupCommandExecutor()
+        }
         
         // Listen for app returning from background
         NotificationCenter.default.addObserver(
@@ -149,10 +141,33 @@ class GameViewController: UIViewController {
         skView = SKView(frame: view.bounds)
         skView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(skView)
-        
+
         skView.showsFPS = true
         skView.showsNodeCount = true
         skView.ignoresSiblingOrder = true
+    }
+
+    func setupCommandExecutor() {
+        guard gameScene.hexMap != nil else {
+            print("⚠️ Cannot setup CommandExecutor - hexMap is nil")
+            return
+        }
+
+        CommandExecutor.shared.setup(
+            hexMap: gameScene.hexMap,
+            player: player,
+            allPlayers: gameScene.allGamePlayers,
+            gameScene: gameScene
+        )
+
+        CommandExecutor.shared.setCallbacks(
+            onResourcesChanged: { [weak self] in
+                self?.updateResourceDisplay()
+            },
+            onAlert: { [weak self] title, message in
+                self?.showSimpleAlert(title: title, message: message)
+            }
+        )
     }
     
     func setupScene() {
@@ -332,46 +347,64 @@ class GameViewController: UIViewController {
     }
     
     func updateResourceDisplay() {
-        let capacity = player.getStorageCapacity()
-        let totalStored = ResourceType.allCases.reduce(0) { $0 + player.getResource($1) }
-        let storagePercent = capacity > 0 ? (Double(totalStored) / Double(capacity)) * 100 : 0
+        guard let player = player else { return }
         
         for (resourceType, label) in resourceLabels {
             let amount = player.getResource(resourceType)
+            let cap = player.getStorageCapacity(for: resourceType)
             let rate = player.getCollectionRate(resourceType)
+            let storagePercent = player.getStoragePercent(for: resourceType)
             
-            // Show warning color if storage is nearly full
-            if storagePercent >= 90 {
-                label.textColor = .systemOrange
-            } else if storagePercent >= 100 {
-                label.textColor = .systemRed
+            // Color based on how full this resource's storage is
+            let textColor: UIColor
+            if storagePercent >= 1.0 {
+                textColor = .systemRed
+            } else if storagePercent >= 0.9 {
+                textColor = .systemOrange
             } else {
-                label.textColor = .white
+                textColor = .white
             }
             
-            label.text = "\(resourceType.icon) \(amount) (+\(String(format: "%.1f", rate))/s)"
+            label.textColor = textColor
+            
+            // ✅ Show per-resource cap: "🪵 500/800 (+0.5/s)"
+            label.text = "\(resourceType.icon) \(amount)/\(cap) (+\(String(format: "%.1f", rate))/s)"
         }
         
+        // Population display
         let currentPop = player.getCurrentPopulation()
         let maxPop = player.getPopulationCapacity()
         let consumptionRate = player.getFoodConsumptionRate()
         
         let popColor: UIColor = currentPop >= maxPop ? .systemOrange : .white
         populationLabel.textColor = popColor
-        populationLabel.text = "👥 \(currentPop)/\(maxPop) (-\(String(format: "%.1f", consumptionRate))/s)"
+        populationLabel.text = "👥 \(currentPop)/\(maxPop) (-\(String(format: "%.1f", consumptionRate))/s 🌾)"
         
-        // Update storage label if it exists (see below for adding it)
+        // Storage label now shows summary info (optional)
         if let storageLabel = storageLabel {
-            let storageColor: UIColor
-            if storagePercent >= 100 {
-                storageColor = .systemRed
-            } else if storagePercent >= 90 {
-                storageColor = .systemOrange
-            } else {
-                storageColor = .white
+            // Count how many resources are near capacity
+            var nearCapCount = 0
+            var fullCount = 0
+            
+            for type in ResourceType.allCases {
+                let percent = player.getStoragePercent(for: type)
+                if percent >= 1.0 {
+                    fullCount += 1
+                } else if percent >= 0.9 {
+                    nearCapCount += 1
+                }
             }
-            storageLabel.textColor = storageColor
-            storageLabel.text = "📦 \(totalStored)/\(capacity)"
+            
+            if fullCount > 0 {
+                storageLabel.textColor = .systemRed
+                storageLabel.text = "⚠️ \(fullCount) resource(s) FULL!"
+            } else if nearCapCount > 0 {
+                storageLabel.textColor = .systemOrange
+                storageLabel.text = "⚠️ \(nearCapCount) resource(s) near cap"
+            } else {
+                storageLabel.textColor = .white
+                storageLabel.text = ""  // Hide when storage is fine
+            }
         }
     }
     
@@ -934,9 +967,12 @@ class GameViewController: UIViewController {
             building.updateVisibility(displayMode: displayMode)
         }
         
+        // Recalculate map bounds for camera constraints
+        gameScene.calculateMapBounds()
+
         // Update resource display
         updateResourceDisplay()
-        
+
         print("🔄 Scene rebuilt with loaded data")
         print("   Tiles: \(hexMap.tiles.count)")
         print("   Buildings: \(hexMap.buildings.count)")

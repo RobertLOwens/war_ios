@@ -52,27 +52,67 @@ class ResearchManager {
     func isAvailable(_ researchType: ResearchType) -> Bool {
         // Already researched
         if isResearched(researchType) { return false }
-        
+
         // Currently researching something else
         if activeResearch != nil && !isResearching(researchType) { return false }
-        
+
         // Check prerequisites
         for prereq in researchType.prerequisites {
             if !isResearched(prereq) { return false }
         }
-        
-        // Check building requirement
+
+        // Check City Center level requirement
+        let requiredLevel = researchType.cityCenterLevelRequirement
+        if requiredLevel > 1 {
+            guard let player = player else { return false }
+            let cityCenterLevel = getCityCenterLevel(player: player)
+            if cityCenterLevel < requiredLevel { return false }
+        }
+
+        // Check building requirement (legacy support)
         if let (buildingType, level) = researchType.buildingRequirement {
             guard let player = player else { return false }
-            let hasBuilding = player.buildings.contains { 
-                $0.buildingType == buildingType && 
-                $0.level >= level && 
-                $0.isOperational 
+            let hasBuilding = player.buildings.contains {
+                $0.buildingType == buildingType &&
+                $0.level >= level &&
+                $0.isOperational
             }
             if !hasBuilding { return false }
         }
-        
+
         return true
+    }
+
+    /// Gets the current City Center level for the player
+    func getCityCenterLevel(player: Player) -> Int {
+        if let cityCenter = player.buildings.first(where: { $0.buildingType == .cityCenter && $0.isOperational }) {
+            return cityCenter.level
+        }
+        return 1  // Default to level 1 if no city center found
+    }
+
+    /// Returns the reason why a research is locked, or nil if available
+    func getLockedReason(_ researchType: ResearchType) -> String? {
+        if isResearched(researchType) { return "Already researched" }
+        if activeResearch != nil && !isResearching(researchType) { return "Research in progress" }
+
+        // Check prerequisites
+        let missingPrereqs = researchType.prerequisites.filter { !isResearched($0) }
+        if !missingPrereqs.isEmpty {
+            let prereqNames = missingPrereqs.map { $0.displayName }.joined(separator: ", ")
+            return "Requires: \(prereqNames)"
+        }
+
+        // Check City Center level
+        let requiredLevel = researchType.cityCenterLevelRequirement
+        if requiredLevel > 1, let player = player {
+            let currentLevel = getCityCenterLevel(player: player)
+            if currentLevel < requiredLevel {
+                return "Requires City Center Level \(requiredLevel)"
+            }
+        }
+
+        return nil
     }
     
     func canAfford(_ researchType: ResearchType) -> Bool {
@@ -215,25 +255,64 @@ class ResearchManager {
     func getWoodGatheringMultiplier() -> Double {
         return getBonusMultiplier(.woodGatheringRate)
     }
-    
+
     func getFoodGatheringMultiplier() -> Double {
         return getBonusMultiplier(.foodGatheringRate)
     }
-    
+
     func getStoneGatheringMultiplier() -> Double {
         return getBonusMultiplier(.stoneGatheringRate)
     }
-    
+
     func getOreGatheringMultiplier() -> Double {
         return getBonusMultiplier(.oreGatheringRate)
     }
-    
+
     func getBuildingSpeedMultiplier() -> Double {
         return getBonusMultiplier(.buildingSpeed)
     }
-    
+
     func getTrainingSpeedMultiplier() -> Double {
         return getBonusMultiplier(.trainingSpeed)
+    }
+
+    // New bonus methods for expanded research tree
+    func getFarmGatheringMultiplier() -> Double {
+        return getBonusMultiplier(.farmGatheringRate)
+    }
+
+    func getMiningCampGatheringMultiplier() -> Double {
+        return getBonusMultiplier(.miningCampGatheringRate)
+    }
+
+    func getLumberCampGatheringMultiplier() -> Double {
+        return getBonusMultiplier(.lumberCampGatheringRate)
+    }
+
+    func getMarketRateMultiplier() -> Double {
+        return getBonusMultiplier(.marketRate)
+    }
+
+    func getVillagerMarchSpeedMultiplier() -> Double {
+        return getBonusMultiplier(.villagerMarchSpeed)
+    }
+
+    func getTradeSpeedMultiplier() -> Double {
+        return getBonusMultiplier(.tradeSpeed)
+    }
+
+    func getRoadSpeedMultiplier() -> Double {
+        return getBonusMultiplier(.roadSpeed)
+    }
+
+    /// Returns flat bonus to population capacity
+    func getPopulationCapacityBonus() -> Int {
+        return Int(getBonus(.populationCapacity))
+    }
+
+    /// Returns the food consumption multiplier (1.0 - reduction)
+    func getFoodConsumptionMultiplier() -> Double {
+        return 1.0 + getBonus(.foodConsumption)  // Negative bonus reduces consumption
     }
     
     // MARK: - Save/Load Support

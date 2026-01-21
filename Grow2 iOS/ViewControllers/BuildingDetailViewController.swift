@@ -62,6 +62,14 @@ class BuildingDetailViewController: UIViewController {
         static var garrisonData = "garrisonData"
         static var villagerCountLabel: UInt8 = 0
     }
+
+    // Market Trading UI
+    var tradeFromSliders: [ResourceType: UISlider] = [:]
+    var tradeFromLabels: [ResourceType: UILabel] = [:]
+    var tradeToButtons: [ResourceType: UIButton] = [:]
+    var selectedTradeToResource: ResourceType = .food
+    var tradeResultLabel: UILabel?
+    var tradeButton: UIButton?
     
     // MARK: - Lifecycle
     
@@ -122,68 +130,101 @@ class BuildingDetailViewController: UIViewController {
     }
     
     func setupContent() {
-        let contentWidth = view.bounds.width - 40
         let leftMargin: CGFloat = 20
+        let contentWidth = view.bounds.width - 40
         var yOffset: CGFloat = 20
         
         // Title
         let titleLabel = createLabel(
             text: "\(building.buildingType.icon) \(building.buildingType.displayName)",
-            fontSize: 28,
+            fontSize: 24,
             weight: .bold,
             color: .white
         )
-        titleLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 35)
+        titleLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 30)
         contentView.addSubview(titleLabel)
-        yOffset += 45
+        yOffset += 40
         
-        // Level
+        // Level and State
+        let stateText = building.state == .constructing ? "🔨 Under Construction" :
+                        building.state == .upgrading ? "⬆️ Upgrading" :
+                        "✅ Operational"
         let levelLabel = createLabel(
-            text: "⭐ Level \(building.level)/\(building.maxLevel)",
-            fontSize: 18,
-            weight: .semibold,
-            color: UIColor(red: 1.0, green: 0.85, blue: 0.4, alpha: 1.0)
+            text: "Level \(building.level) • \(stateText)",
+            fontSize: 16,
+            color: UIColor(white: 0.8, alpha: 1.0)
         )
         levelLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
         contentView.addSubview(levelLabel)
         yOffset += 35
         
-        // Description
-        let descLabel = createLabel(
-            text: building.buildingType.description,
-            fontSize: 14,
-            color: UIColor(white: 0.8, alpha: 1.0)
-        )
-        descLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 0)
-        descLabel.numberOfLines = 0
-        descLabel.sizeToFit()
-        contentView.addSubview(descLabel)
-        yOffset += descLabel.frame.height + 20
-        
         // Location
         let locationLabel = createLabel(
             text: "📍 Location: (\(building.coordinate.q), \(building.coordinate.r))",
             fontSize: 14,
-            color: UIColor(white: 0.7, alpha: 1.0)
+            color: UIColor(white: 0.6, alpha: 1.0)
         )
-        locationLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
+        locationLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 20)
         contentView.addSubview(locationLabel)
-        yOffset += 35
+        yOffset += 30
+        
+        // Storage info (if applicable)
+        if let storageInfo = getStorageInfoString(for: building, player: player) {
+            let storageLabel = createLabel(
+                text: storageInfo,
+                fontSize: 14,
+                color: UIColor(white: 0.7, alpha: 1.0)
+            )
+            storageLabel.numberOfLines = 0
+            storageLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 0)
+            storageLabel.sizeToFit()
+            storageLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: storageLabel.frame.height)
+            contentView.addSubview(storageLabel)
+            yOffset += storageLabel.frame.height + 20
+        }
+        
+        // Separator
+        let separator1 = UIView(frame: CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 1))
+        separator1.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+        contentView.addSubview(separator1)
+        yOffset += 20
+        
+        // ✅ FIX 4: Only show training section if building can train units
+        let trainableUnits = building.getTrainableUnits()
+        print("🎓 Building \(building.buildingType.displayName) trainable units: \(trainableUnits.map { $0.displayName })")
+        
+        if !trainableUnits.isEmpty && building.state == .completed {
+            print("   → Showing training section")
+            yOffset = setupTrainingSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
+            
+            // Queue display (only if can train)
+            queueLabel = createLabel(text: getQueueDisplayText(), fontSize: 14, color: UIColor(white: 0.7, alpha: 1.0))
+            queueLabel?.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 0)
+            queueLabel?.numberOfLines = 0
+            queueLabel?.sizeToFit()
+            if let label = queueLabel {
+                contentView.addSubview(label)
+                yOffset += (label.frame.height > 0 ? label.frame.height + 30 : 0)
+            }
+        } else {
+            print("   → Skipping training section (no trainable units or not completed)")
+        }
         
         // Garrison info
-        if building.getTotalGarrisonCount() > 0 {
+        let garrisonText = getGarrisonText()
+        if !garrisonText.isEmpty {
             let garrisonLabel = createLabel(
-                text: "🏰 Garrison: \(building.getTotalGarrisonCount())/\(building.getGarrisonCapacity()) units",
+                text: "🏰 Garrison",
                 fontSize: 16,
                 weight: .semibold,
                 color: .white
             )
             garrisonLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
             contentView.addSubview(garrisonLabel)
-            yOffset += 35
+            yOffset += 30
             
             let garrisonDetailLabel = createLabel(
-                text: garrisonLabel.text!,
+                text: garrisonText,
                 fontSize: 14,
                 color: UIColor(white: 0.8, alpha: 1.0)
             )
@@ -192,84 +233,53 @@ class BuildingDetailViewController: UIViewController {
             garrisonDetailLabel.sizeToFit()
             contentView.addSubview(garrisonDetailLabel)
             yOffset += garrisonDetailLabel.frame.height + 20
-            
-            if building.state == .upgrading {
-                print("   → Showing upgrade PROGRESS section")
-                yOffset = setupUpgradingProgressSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
-            } else if building.state == .completed && building.canUpgrade {
-                print("   → Showing upgrade OPTION section")
-                yOffset = setupUpgradeSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
-            } else if building.state == .completed && building.level >= building.maxLevel {
-                print("   → Showing MAX LEVEL label")
-                let maxLevelLabel = createLabel(text: "✨ Maximum Level Reached",
-                                               fontSize: 14,
-                                               color: UIColor(red: 1.0, green: 0.85, blue: 0.4, alpha: 1.0))
-                maxLevelLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
-                contentView.addSubview(maxLevelLabel)
-                yOffset += 35
-            } else {
-                print("   → No upgrade section (state: \(building.state), canUpgrade: \(building.canUpgrade))")
-            }
-            
-            // Deploy button for City Center
-            if building.buildingType == .cityCenter && building.villagerGarrison > 0 {
-                let deployButton = createActionButton(
-                    title: "🚀 Deploy Villagers",
-                    y: yOffset,
-                    width: contentWidth,
-                    leftMargin: leftMargin,
-                    color: UIColor(red: 0.5, green: 0.6, blue: 0.8, alpha: 1.0),
-                    action: #selector(deployVillagersTapped)
-                )
-                contentView.addSubview(deployButton)
-                yOffset += 70
-            }
-            
-            // Reinforce Army button
-            if building.getTotalGarrisonedUnits() > 0 {
-                let reinforceButton = createActionButton(
-                    title: "⚔️ Reinforce Army",
-                    y: yOffset,
-                    width: contentWidth,
-                    leftMargin: leftMargin,
-                    color: UIColor(red: 0.6, green: 0.4, blue: 0.7, alpha: 1.0),
-                    action: #selector(reinforceArmyTapped)
-                )
-                contentView.addSubview(reinforceButton)
-                yOffset += 70
-            }
         }
         
-        // Training Section
-        if canTrainUnits() && building.state == .completed {
-            yOffset = setupTrainingSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
-        }
+        // ✅ FIX 6: Upgrade section with proper debug logging
+        print("🔧 DEBUG - Upgrade section check:")
+        print("   state: \(building.state)")
+        print("   canUpgrade: \(building.canUpgrade)")
+        print("   level: \(building.level)/\(building.maxLevel)")
         
-        // Queue display
-        let queueTitleLabel = createLabel(
-            text: "📋 Training Queue",
-            fontSize: 18,
-            weight: .semibold,
-            color: .white
-        )
-        queueTitleLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
-        contentView.addSubview(queueTitleLabel)
-        yOffset += 35
-        
-        
-        if canTrainUnits() && building.state == .completed {
-            queueLabel = createLabel(
-                text: getQueueDisplayText(),
+        if building.state == .upgrading {
+            print("   → Showing upgrade PROGRESS section")
+            yOffset = setupUpgradingProgressSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+        } else if building.state == .completed && building.canUpgrade {
+            print("   → Showing upgrade OPTION section")
+            yOffset = setupUpgradeSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+        } else if building.state == .completed && building.level >= building.maxLevel {
+            print("   → Showing MAX LEVEL label")
+            let maxLevelLabel = createLabel(
+                text: "✨ Maximum Level Reached",
                 fontSize: 14,
-                color: UIColor(white: 0.8, alpha: 1.0)
+                color: UIColor(red: 1.0, green: 0.85, blue: 0.4, alpha: 1.0)
             )
-            queueLabel?.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 0)
-            queueLabel?.numberOfLines = 0
-            queueLabel?.sizeToFit()
-            contentView.addSubview(queueLabel!)
-            yOffset += (queueLabel?.frame.height ?? 20) + 30
+            maxLevelLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
+            contentView.addSubview(maxLevelLabel)
+            yOffset += 35
+        } else {
+            print("   → No upgrade section shown")
+        }
+        
+        // Market Trading Section
+        if building.buildingType == .market && building.state == .completed {
+            yOffset = setupMarketTradingSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
         }
 
+        // Deploy button for City Center with garrisoned villagers
+        if building.buildingType == .cityCenter && building.villagerGarrison > 0 {
+            let deployButton = createActionButton(
+                title: "👷 Deploy \(building.villagerGarrison) Villagers",
+                y: yOffset,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                color: UIColor(red: 0.3, green: 0.6, blue: 0.3, alpha: 1.0),
+                action: #selector(deployVillagersTapped)
+            )
+            contentView.addSubview(deployButton)
+            yOffset += 60
+        }
+        
         // Close button
         let closeButton = createActionButton(
             title: "Close",
@@ -318,21 +328,21 @@ class BuildingDetailViewController: UIViewController {
     }
     
     func createTrainingRow(unitType: TrainableUnitType, index: Int, yOffset: CGFloat, contentWidth: CGFloat, leftMargin: CGFloat) -> CGFloat {
-        var currentY = yOffset
-        
+        let currentY = yOffset
+
         let container = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 120))
         container.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
         container.layer.cornerRadius = 10
         container.tag = index
         contentView.addSubview(container)
-        
+
         // Unit name
         let nameLabel = UILabel(frame: CGRect(x: 15, y: 10, width: contentWidth - 30, height: 25))
         nameLabel.text = "\(unitType.icon) \(unitType.displayName)"
         nameLabel.font = UIFont.boldSystemFont(ofSize: 16)
         nameLabel.textColor = .white
         container.addSubview(nameLabel)
-        
+
         // Cost label
         let costText = formatCost(unitType.trainingCost)
         let costLabel = UILabel(frame: CGRect(x: 15, y: 35, width: contentWidth - 30, height: 20))
@@ -341,16 +351,28 @@ class BuildingDetailViewController: UIViewController {
         costLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
         costLabel.tag = 1000 + index
         container.addSubview(costLabel)
-        
+
+        // Calculate max trainable based on resources and population
+        let maxTrainable = calculateMaxTrainable(unitType: unitType)
+
         // Slider
         let slider = UISlider(frame: CGRect(x: 15, y: 60, width: contentWidth - 110, height: 30))
         slider.minimumValue = 1
-        slider.maximumValue = 10
+        slider.maximumValue = Float(max(1, maxTrainable))
         slider.value = 1
         slider.tag = index
+        slider.isEnabled = maxTrainable >= 1
         slider.addTarget(self, action: #selector(trainingSliderChanged(_:)), for: .valueChanged)
         container.addSubview(slider)
-        
+
+        // Max info label
+        let maxLabel = UILabel(frame: CGRect(x: 15, y: 90, width: contentWidth - 30, height: 18))
+        maxLabel.text = maxTrainable >= 1 ? "Max: \(maxTrainable)" : "Cannot train (check resources/pop)"
+        maxLabel.font = UIFont.systemFont(ofSize: 11)
+        maxLabel.textColor = maxTrainable >= 1 ? UIColor(white: 0.6, alpha: 1.0) : UIColor(red: 0.9, green: 0.4, blue: 0.4, alpha: 1.0)
+        maxLabel.tag = 3000 + index
+        container.addSubview(maxLabel)
+
         // Count label
         let countLabel = UILabel(frame: CGRect(x: contentWidth - 90, y: 60, width: 30, height: 30))
         countLabel.text = "1"
@@ -359,24 +381,319 @@ class BuildingDetailViewController: UIViewController {
         countLabel.textAlignment = .center
         countLabel.tag = 2000 + index
         container.addSubview(countLabel)
-        
+
         // Train button
         let trainButton = UIButton(frame: CGRect(x: contentWidth - 55, y: 55, width: 40, height: 40))
         trainButton.setTitle("✅", for: .normal)
         trainButton.titleLabel?.font = UIFont.systemFont(ofSize: 24)
-        trainButton.backgroundColor = UIColor(red: 0.2, green: 0.6, blue: 0.3, alpha: 1.0)
+        trainButton.backgroundColor = maxTrainable >= 1 ?
+            UIColor(red: 0.2, green: 0.6, blue: 0.3, alpha: 1.0) :
+            UIColor(white: 0.4, alpha: 1.0)
         trainButton.layer.cornerRadius = 20
         trainButton.tag = index
+        trainButton.isEnabled = maxTrainable >= 1
         trainButton.addTarget(self, action: #selector(trainButtonTapped(_:)), for: .touchUpInside)
         container.addSubview(trainButton)
-        
+
         // Store context
         let context = TrainingSliderContext(unitType: unitType, container: container, building: building)
         trainingContexts?[index] = context
-        
+
         return currentY + 130
     }
-    
+
+    /// Calculate the maximum number of units that can be trained based on resources and population
+    func calculateMaxTrainable(unitType: TrainableUnitType) -> Int {
+        // Get available population space
+        let availablePop = player.getAvailablePopulation()
+
+        // Calculate max affordable based on each resource
+        var maxAffordable = Int.max
+        for (resourceType, costPerUnit) in unitType.trainingCost {
+            if costPerUnit > 0 {
+                let available = player.getResource(resourceType)
+                let canAfford = available / costPerUnit
+                maxAffordable = min(maxAffordable, canAfford)
+            }
+        }
+
+        // Take the minimum of population space and affordable units
+        let maxTrainable = min(availablePop, maxAffordable)
+
+        // Cap at a reasonable maximum for UI purposes
+        return min(maxTrainable, 50)
+    }
+
+    // =========================================================================
+    // MARK: - Market Trading Section
+    // =========================================================================
+
+    func setupMarketTradingSection(yOffset: CGFloat, contentWidth: CGFloat, leftMargin: CGFloat) -> CGFloat {
+        var currentY = yOffset
+
+        // Section header
+        let sectionLabel = createLabel(
+            text: "💱 Trade Resources",
+            fontSize: 18,
+            weight: .semibold,
+            color: .white
+        )
+        sectionLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(sectionLabel)
+        currentY += 35
+
+        // Exchange rate info
+        let baseRate = 0.80
+        let researchBonus = ResearchManager.shared.getMarketRateMultiplier()
+        let effectiveRate = baseRate * researchBonus
+        let ratePercent = Int(effectiveRate * 100)
+
+        let rateLabel = createLabel(
+            text: "Exchange Rate: \(ratePercent)%\(researchBonus > 1.0 ? " (Research bonus!)" : "")",
+            fontSize: 14,
+            color: UIColor(white: 0.7, alpha: 1.0)
+        )
+        rateLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+        contentView.addSubview(rateLabel)
+        currentY += 30
+
+        // "Trade FROM" section
+        let fromLabel = createLabel(
+            text: "📤 Resources to Trade:",
+            fontSize: 16,
+            weight: .medium,
+            color: .white
+        )
+        fromLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(fromLabel)
+        currentY += 30
+
+        // Create sliders for each resource type
+        tradeFromSliders.removeAll()
+        tradeFromLabels.removeAll()
+
+        for resourceType in ResourceType.allCases {
+            let available = player.getResource(resourceType)
+
+            // Resource row container
+            let rowContainer = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 50))
+            rowContainer.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+            rowContainer.layer.cornerRadius = 8
+            contentView.addSubview(rowContainer)
+
+            // Resource icon and name
+            let resourceLabel = UILabel(frame: CGRect(x: 10, y: 5, width: 80, height: 20))
+            resourceLabel.text = "\(resourceType.icon) \(resourceType.displayName)"
+            resourceLabel.font = UIFont.systemFont(ofSize: 14)
+            resourceLabel.textColor = .white
+            rowContainer.addSubview(resourceLabel)
+
+            // Available amount
+            let availableLabel = UILabel(frame: CGRect(x: 10, y: 25, width: 80, height: 18))
+            availableLabel.text = "Max: \(available)"
+            availableLabel.font = UIFont.systemFont(ofSize: 11)
+            availableLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+            rowContainer.addSubview(availableLabel)
+
+            // Slider
+            let slider = UISlider(frame: CGRect(x: 95, y: 10, width: contentWidth - 170, height: 30))
+            slider.minimumValue = 0
+            slider.maximumValue = Float(max(1, available))
+            slider.value = 0
+            slider.addTarget(self, action: #selector(tradeSliderChanged(_:)), for: .valueChanged)
+            rowContainer.addSubview(slider)
+            tradeFromSliders[resourceType] = slider
+
+            // Amount label
+            let amountLabel = UILabel(frame: CGRect(x: contentWidth - 70, y: 10, width: 60, height: 30))
+            amountLabel.text = "0"
+            amountLabel.font = UIFont.boldSystemFont(ofSize: 16)
+            amountLabel.textColor = .white
+            amountLabel.textAlignment = .right
+            rowContainer.addSubview(amountLabel)
+            tradeFromLabels[resourceType] = amountLabel
+
+            currentY += 55
+        }
+
+        currentY += 10
+
+        // "Trade TO" section
+        let toLabel = createLabel(
+            text: "📥 Receive Resource:",
+            fontSize: 16,
+            weight: .medium,
+            color: .white
+        )
+        toLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(toLabel)
+        currentY += 30
+
+        // Resource selection buttons
+        tradeToButtons.removeAll()
+        let buttonWidth = (contentWidth - 30) / 4
+
+        for (index, resourceType) in ResourceType.allCases.enumerated() {
+            let button = UIButton(frame: CGRect(
+                x: leftMargin + CGFloat(index) * (buttonWidth + 10),
+                y: currentY,
+                width: buttonWidth,
+                height: 50
+            ))
+            button.setTitle("\(resourceType.icon)\n\(resourceType.displayName)", for: .normal)
+            button.titleLabel?.font = UIFont.systemFont(ofSize: 12)
+            button.titleLabel?.numberOfLines = 2
+            button.titleLabel?.textAlignment = .center
+            button.backgroundColor = resourceType == selectedTradeToResource ?
+                UIColor(red: 0.3, green: 0.6, blue: 0.3, alpha: 1.0) :
+                UIColor(white: 0.25, alpha: 1.0)
+            button.layer.cornerRadius = 8
+            button.tag = index
+            button.addTarget(self, action: #selector(tradeToResourceTapped(_:)), for: .touchUpInside)
+            contentView.addSubview(button)
+            tradeToButtons[resourceType] = button
+        }
+        currentY += 60
+
+        // Trade result preview
+        tradeResultLabel = createLabel(
+            text: "Select resources to trade",
+            fontSize: 14,
+            color: UIColor(white: 0.8, alpha: 1.0)
+        )
+        tradeResultLabel?.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        tradeResultLabel?.textAlignment = .center
+        contentView.addSubview(tradeResultLabel!)
+        currentY += 35
+
+        // Trade button
+        tradeButton = createActionButton(
+            title: "💱 Execute Trade",
+            y: currentY,
+            width: contentWidth,
+            leftMargin: leftMargin,
+            color: UIColor(red: 0.3, green: 0.5, blue: 0.7, alpha: 1.0),
+            action: #selector(executeTradeTapped)
+        )
+        contentView.addSubview(tradeButton!)
+        currentY += 70
+
+        return currentY
+    }
+
+    @objc func tradeSliderChanged(_ sender: UISlider) {
+        // Find which resource this slider belongs to
+        for (resourceType, slider) in tradeFromSliders {
+            if slider === sender {
+                let value = Int(sender.value)
+                tradeFromLabels[resourceType]?.text = "\(value)"
+                break
+            }
+        }
+        updateTradePreview()
+    }
+
+    @objc func tradeToResourceTapped(_ sender: UIButton) {
+        let resourceTypes = ResourceType.allCases
+        guard sender.tag < resourceTypes.count else { return }
+
+        selectedTradeToResource = resourceTypes[sender.tag]
+
+        // Update button appearances
+        for (resourceType, button) in tradeToButtons {
+            button.backgroundColor = resourceType == selectedTradeToResource ?
+                UIColor(red: 0.3, green: 0.6, blue: 0.3, alpha: 1.0) :
+                UIColor(white: 0.25, alpha: 1.0)
+        }
+
+        updateTradePreview()
+    }
+
+    func updateTradePreview() {
+        // Calculate total resources being traded (excluding the target resource)
+        var totalInput = 0
+        for (resourceType, slider) in tradeFromSliders {
+            if resourceType != selectedTradeToResource {
+                totalInput += Int(slider.value)
+            }
+        }
+
+        // Calculate output with market rate and research bonus
+        let baseRate = 0.80
+        let researchBonus = ResearchManager.shared.getMarketRateMultiplier()
+        let effectiveRate = baseRate * researchBonus
+        let output = Int(Double(totalInput) * effectiveRate)
+
+        if totalInput > 0 {
+            tradeResultLabel?.text = "Trade \(totalInput) resources → Receive \(output) \(selectedTradeToResource.icon) \(selectedTradeToResource.displayName)"
+            tradeResultLabel?.textColor = UIColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1.0)
+        } else {
+            tradeResultLabel?.text = "Select resources to trade"
+            tradeResultLabel?.textColor = UIColor(white: 0.8, alpha: 1.0)
+        }
+    }
+
+    @objc func executeTradeTapped() {
+        // Calculate resources to spend
+        var resourcesToSpend: [ResourceType: Int] = [:]
+        var totalInput = 0
+
+        for (resourceType, slider) in tradeFromSliders {
+            let amount = Int(slider.value)
+            if amount > 0 && resourceType != selectedTradeToResource {
+                resourcesToSpend[resourceType] = amount
+                totalInput += amount
+            }
+        }
+
+        guard totalInput > 0 else {
+            showAlert(title: "No Resources Selected", message: "Select resources to trade using the sliders.")
+            return
+        }
+
+        // Calculate output
+        let baseRate = 0.80
+        let researchBonus = ResearchManager.shared.getMarketRateMultiplier()
+        let effectiveRate = baseRate * researchBonus
+        let output = Int(Double(totalInput) * effectiveRate)
+
+        // Verify player has the resources
+        for (resourceType, amount) in resourcesToSpend {
+            if !player.hasResource(resourceType, amount: amount) {
+                showAlert(title: "Insufficient Resources", message: "You don't have enough \(resourceType.displayName).")
+                return
+            }
+        }
+
+        // Execute the trade
+        for (resourceType, amount) in resourcesToSpend {
+            player.removeResource(resourceType, amount: amount)
+        }
+        player.addResource(selectedTradeToResource, amount: output)
+
+        // Update UI
+        gameViewController?.updateResourceDisplay()
+
+        // Show confirmation
+        let spentText = resourcesToSpend.map { "\($0.key.icon)\($0.value)" }.joined(separator: " ")
+        showAlert(
+            title: "✅ Trade Complete",
+            message: "Traded \(spentText) for \(output) \(selectedTradeToResource.icon) \(selectedTradeToResource.displayName)"
+        )
+
+        // Reset sliders and refresh
+        for slider in tradeFromSliders.values {
+            slider.value = 0
+        }
+        for label in tradeFromLabels.values {
+            label.text = "0"
+        }
+        updateTradePreview()
+
+        // Refresh the section to update max values
+        refreshContent()
+    }
+
     // =========================================================================
     // MARK: - Training Actions (Using Commands)
     // =========================================================================
@@ -408,6 +725,7 @@ class BuildingDetailViewController: UIViewController {
         updateSliderLimits(slider: slider, unitType: unitType, container: container)
     }
     
+    /// Executes training using Command pattern
     func executeTrainCommand(unitType: TrainableUnitType, quantity: Int) {
         print("🎯 executeTrainCommand called: \(quantity)x \(unitType.displayName)")
         
@@ -415,7 +733,7 @@ class BuildingDetailViewController: UIViewController {
         case .villager:
             let command = TrainVillagerCommand(
                 playerID: player.id,
-                buildingID: building.id,
+                buildingID: building.data.id,    // ✅ FIXED: was building.id
                 quantity: quantity
             )
             
@@ -424,7 +742,7 @@ class BuildingDetailViewController: UIViewController {
             if result.succeeded {
                 showAlert(title: "✅ Training Started", message: "Training \(quantity) Villager\(quantity > 1 ? "s" : "")")
                 updateQueueDisplay()
-                updateAllTrainingSliderLimits()  // ← ADD THIS
+                updateAllTrainingSliderLimits()
             } else if let reason = result.failureReason {
                 showAlert(title: "Cannot Train", message: reason)
             }
@@ -432,7 +750,7 @@ class BuildingDetailViewController: UIViewController {
         case .military(let militaryType):
             let command = TrainMilitaryCommand(
                 playerID: player.id,
-                buildingID: building.id,
+                buildingID: building.data.id,    // ✅ FIXED: was building.id
                 unitType: militaryType,
                 quantity: quantity
             )
@@ -442,7 +760,7 @@ class BuildingDetailViewController: UIViewController {
             if result.succeeded {
                 showAlert(title: "✅ Training Started", message: "Training \(quantity) \(militaryType.displayName)\(quantity > 1 ? "s" : "")")
                 updateQueueDisplay()
-                updateAllTrainingSliderLimits()  // ← ADD THIS
+                updateAllTrainingSliderLimits()
             } else if let reason = result.failureReason {
                 showAlert(title: "Cannot Train", message: reason)
             }
@@ -744,7 +1062,36 @@ class BuildingDetailViewController: UIViewController {
     }
     
     func updateUpgradeProgressDisplay() {
-        // Override in subclass if needed
+        guard building.state == .upgrading else { return }
+        
+        let currentTime = Date().timeIntervalSince1970
+        let progress = building.upgradeProgress
+        let progressPercent = Int(progress * 100)
+        
+        // Update progress bar fill (tag 9001)
+        if let progressBarFill = contentView.viewWithTag(9001) {
+            let contentWidth = view.bounds.width - 40
+            let fillWidth = max(0, contentWidth * CGFloat(progress))
+            progressBarFill.frame.size.width = fillWidth
+        }
+        
+        // Update progress label (tag 9002)
+        if let progressLabel = contentView.viewWithTag(9002) as? UILabel {
+            progressLabel.text = "Progress: \(progressPercent)%"
+        }
+        
+        // Update time remaining label (tag 9003)
+        if let timeLabel = contentView.viewWithTag(9003) as? UILabel,
+           let remainingTime = building.data.getRemainingUpgradeTime(currentTime: currentTime) {
+            let minutes = Int(remainingTime) / 60
+            let seconds = Int(remainingTime) % 60
+            timeLabel.text = "⏱️ Time Remaining: \(minutes)m \(seconds)s"
+        }
+        
+        // Check if upgrade completed
+        if progress >= 1.0 {
+            refreshContent()
+        }
     }
     
     func performUpgrade(villagerEntity: EntityNode) {
@@ -756,7 +1103,7 @@ class BuildingDetailViewController: UIViewController {
         // Create and execute the upgrade command
         let command = UpgradeCommand(
             playerID: player.id,
-            buildingID: building.id,
+            buildingID: building.data.id,
             upgraderEntityID: villagerEntity.entity.id
         )
         
@@ -782,7 +1129,7 @@ class BuildingDetailViewController: UIViewController {
         // Create and execute the cancel upgrade command
         let command = CancelUpgradeCommand(
             playerID: player.id,
-            buildingID: building.id
+            buildingID: building.data.id
         )
         
         let result = CommandExecutor.shared.execute(command)
@@ -907,25 +1254,31 @@ class BuildingDetailViewController: UIViewController {
             return nil
         }
         
-        let currentCapacity = building.buildingType.storageCapacity(forLevel: building.level)
-        let totalCapacity = player.getStorageCapacity()
-        let totalStored = ResourceType.allCases.reduce(0) { $0 + player.getResource($1) }
+        let perResourceCapacity = building.buildingType.storageCapacityPerResource(forLevel: building.level)
         
-        var info = "📦 Storage Contribution: +\(currentCapacity)"
+        var info = "📦 Storage Per Resource: +\(perResourceCapacity)"
         
         if building.level < building.buildingType.maxLevel {
-            let nextLevelCapacity = building.buildingType.storageCapacity(forLevel: building.level + 1)
-            let increase = nextLevelCapacity - currentCapacity
-            info += "\n📈 Next Level: +\(increase) more"
+            let nextLevelCapacity = building.buildingType.storageCapacityPerResource(forLevel: building.level + 1)
+            let increase = nextLevelCapacity - perResourceCapacity
+            info += "\n📈 Next Level: +\(increase) per resource"
         }
         
-        info += "\n\n🏪 Total Storage: \(totalStored)/\(totalCapacity)"
+        // Show current storage status for each resource
+        info += "\n\n📊 Current Storage:"
+        for type in ResourceType.allCases {
+            let current = player.getResource(type)
+            let cap = player.getStorageCapacity(for: type)
+            let percent = Int(player.getStoragePercent(for: type) * 100)
+            let statusIcon = percent >= 100 ? "🔴" : (percent >= 90 ? "🟡" : "🟢")
+            info += "\n   \(statusIcon) \(type.icon) \(current)/\(cap)"
+        }
         
         if building.buildingType == .cityCenter {
             let ccLevel = player.getCityCenterLevel()
             let maxWarehouses = BuildingType.maxWarehousesAllowed(forCityCenterLevel: ccLevel)
             let currentWarehouses = player.getWarehouseCount()
-            info += "\n📦 Warehouses: \(currentWarehouses)/\(maxWarehouses) allowed"
+            info += "\n\n🏭 Warehouses: \(currentWarehouses)/\(maxWarehouses) allowed"
             
             if ccLevel < 8 {
                 let nextUnlock: Int
@@ -942,7 +1295,6 @@ class BuildingDetailViewController: UIViewController {
         
         return info
     }
-    
     func updateAllTrainingSliderLimits() {
         guard let contexts = trainingContexts else { return }
         
@@ -1023,6 +1375,221 @@ class BuildingDetailViewController: UIViewController {
         trainingSliderChanged(slider)
     }
     
+    func getGarrisonText() -> String {
+        var text = ""
+        
+        if building.villagerGarrison > 0 {
+            text += "👷 Villagers: \(building.villagerGarrison)\n"
+        }
+        
+        for (unitType, count) in building.garrison where count > 0 {
+            text += "\(unitType.icon) \(unitType.displayName): \(count)\n"
+        }
+        
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    // ============================================================================
+    // MARK: - Upgrade Actions
+    // Add this section after the Training Actions section
+    // ============================================================================
+
+    @objc func upgradeTapped() {
+        print("⬆️ Upgrade button tapped for \(building.buildingType.displayName)")
+        
+        // Find available villager groups to perform the upgrade
+        let availableVillagers = player.entities.compactMap { entity -> VillagerGroup? in
+            guard let villagerGroup = entity as? VillagerGroup,
+                  villagerGroup.currentTask == .idle else {
+                return nil
+            }
+            return villagerGroup
+        }
+        
+        if availableVillagers.isEmpty {
+            // No villagers available - show selection anyway, upgrade will work without assigned villager
+            // Or you can choose to require a villager
+            showVillagerSelectionForUpgrade(availableVillagers: [])
+        } else {
+            showVillagerSelectionForUpgrade(availableVillagers: availableVillagers)
+        }
+    }
+
+    func showVillagerSelectionForUpgrade(availableVillagers: [VillagerGroup]) {
+        if availableVillagers.isEmpty {
+            // Proceed without assigning a villager (optional based on your game design)
+            // OR show error that no villagers are available
+            let alert = UIAlertController(
+                title: "No Idle Villagers",
+                message: "All your villagers are busy. Start upgrade anyway?",
+                preferredStyle: .alert
+            )
+            
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            alert.addAction(UIAlertAction(title: "Start Upgrade", style: .default) { [weak self] _ in
+                self?.executeUpgrade(villagerEntity: nil)
+            })
+            
+            present(alert, animated: true)
+            return
+        }
+        
+        // Show villager selection
+        let alert = UIAlertController(
+            title: "👷 Select Villager",
+            message: "Choose a villager group to perform the upgrade:",
+            preferredStyle: .actionSheet
+        )
+        
+        for villagerGroup in availableVillagers {
+            // Find the EntityNode for this villager group
+            if let entityNode = hexMap.entities.first(where: {
+                ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+            }) {
+                let distance = villagerGroup.coordinate.distance(to: building.coordinate)
+                let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
+                
+                alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                    self?.executeUpgrade(villagerEntity: entityNode)
+                })
+            }
+        }
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
+        }
+        
+        present(alert, animated: true)
+    }
+
+    func executeUpgrade(villagerEntity: EntityNode?) {
+        guard let player = player else {
+            showAlert(title: "Error", message: "Player not available.")
+            return
+        }
+        
+        // Create and execute the upgrade command
+        let command = UpgradeCommand(
+            playerID: player.id,
+            buildingID: building.data.id,  // ✅ Use data.id, not building.id
+            upgraderEntityID: villagerEntity?.entity.id
+        )
+        
+        let result = CommandExecutor.shared.execute(command)
+        
+        if result.succeeded {
+            showAlert(title: "✅ Upgrade Started", message: "Upgrading \(building.buildingType.displayName) to Level \(building.level + 1)")
+            
+            // Refresh the content to show upgrade progress
+            refreshContent()
+            
+            // Update resource display in game view
+            gameViewController?.updateResourceDisplay()
+        } else if let reason = result.failureReason {
+            showAlert(title: "Upgrade Failed", message: reason)
+        }
+    }
+
+
+    // ============================================================================
+    // MARK: - Upgrade Progress Section (when building IS upgrading)
+    // Add this method near setupUpgradeSection
+    // ============================================================================
+
+    func setupUpgradingProgressSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        var currentY = yOffset
+        
+        // Section header
+        let upgradeHeader = createLabel(
+            text: "⬆️ Upgrading to Level \(building.level + 1)",
+            fontSize: 18,
+            weight: .bold,
+            color: .cyan
+        )
+        upgradeHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(upgradeHeader)
+        currentY += 35
+        
+        // Progress calculation
+        let currentTime = Date().timeIntervalSince1970
+        let progress = building.upgradeProgress
+        let progressPercent = Int(progress * 100)
+        
+        // Progress bar background
+        let progressBarBg = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20))
+        progressBarBg.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+        progressBarBg.layer.cornerRadius = 10
+        contentView.addSubview(progressBarBg)
+        
+        // Progress bar fill
+        let fillWidth = max(0, contentWidth * CGFloat(progress))
+        let progressBarFill = UIView(frame: CGRect(x: leftMargin, y: currentY, width: fillWidth, height: 20))
+        progressBarFill.backgroundColor = UIColor(red: 0.3, green: 0.7, blue: 0.9, alpha: 1.0)
+        progressBarFill.layer.cornerRadius = 10
+        progressBarFill.tag = 9001  // Tag for updating later
+        contentView.addSubview(progressBarFill)
+        currentY += 30
+        
+        // Progress percentage label
+        let progressLabel = createLabel(
+            text: "Progress: \(progressPercent)%",
+            fontSize: 14,
+            color: UIColor(white: 0.8, alpha: 1.0)
+        )
+        progressLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+        progressLabel.tag = 9002  // Tag for updating later
+        contentView.addSubview(progressLabel)
+        currentY += 25
+        
+        // Time remaining
+        if let remainingTime = building.data.getRemainingUpgradeTime(currentTime: currentTime) {
+            let minutes = Int(remainingTime) / 60
+            let seconds = Int(remainingTime) % 60
+            
+            let timeLabel = createLabel(
+                text: "⏱️ Time Remaining: \(minutes)m \(seconds)s",
+                fontSize: 14,
+                color: UIColor(white: 0.7, alpha: 1.0)
+            )
+            timeLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+            timeLabel.tag = 9003  // Tag for updating later
+            contentView.addSubview(timeLabel)
+            currentY += 30
+        }
+        
+        // Cancel upgrade button
+        let cancelButton = UIButton(type: .system)
+        cancelButton.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 50)
+        cancelButton.setTitle("🚫 Cancel Upgrade", for: .normal)
+        cancelButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 18)
+        cancelButton.setTitleColor(.white, for: .normal)
+        cancelButton.backgroundColor = UIColor(red: 0.8, green: 0.3, blue: 0.3, alpha: 1.0)
+        cancelButton.layer.cornerRadius = 10
+        cancelButton.addTarget(self, action: #selector(cancelUpgradeTapped), for: .touchUpInside)
+        contentView.addSubview(cancelButton)
+        currentY += 60
+        
+        return currentY
+    }
+
+    @objc func cancelUpgradeTapped() {
+        let alert = UIAlertController(
+            title: "Cancel Upgrade?",
+            message: "Are you sure you want to cancel the upgrade? Resources will be refunded.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Keep Upgrading", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel Upgrade", style: .destructive) { [weak self] _ in
+            self?.performCancelUpgrade()
+        })
+        
+        present(alert, animated: true)
+    }
+    
     func setupUpgradeSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
         var currentY = yOffset
         
@@ -1097,5 +1664,4 @@ class BuildingDetailViewController: UIViewController {
         
         return currentY
     }
-    
 }

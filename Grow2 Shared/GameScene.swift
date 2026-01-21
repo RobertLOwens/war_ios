@@ -17,9 +17,18 @@ class GameScene: SKScene {
     var attackingArmy: Army?
     var player: Player?
     var enemyPlayer: Player?
+
+    // Camera control properties
     var cameraScale: CGFloat = 1.0
+    private let minCameraScale: CGFloat = 0.5   // Zoomed in (closer)
+    private let maxCameraScale: CGFloat = 2.5   // Zoomed out (further)
     var lastTouchPosition: CGPoint?
     var isPanning = false
+    private var cameraVelocity: CGPoint = .zero
+    private var panGestureRecognizer: UIPanGestureRecognizer?
+    private var pinchGestureRecognizer: UIPinchGestureRecognizer?
+    private var lastPanTranslation: CGPoint = .zero
+    private var mapBounds: CGRect = .zero
     var allGamePlayers: [Player] = []
     var mapSize: Int = 20
     var resourceDensity: Double = 1.0
@@ -46,7 +55,15 @@ class GameScene: SKScene {
     override func didMove(to view: SKView) {
         setupScene()
         setupCamera()
-        
+
+        // Register notification observers
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFarmCompleted(_:)),
+            name: NSNotification.Name("FarmCompletedNotification"),
+            object: nil
+        )
+
         // ✅ FIX: Only generate map and entities for NEW games
         if !skipInitialSetup {
             setupMap()
@@ -55,6 +72,9 @@ class GameScene: SKScene {
         } else {
             setupEmptyNodeStructure()
         }
+
+        // Setup gesture recognizers for smooth camera control
+        setupGestureRecognizers()
     }
     
     func setupEmptyNodeStructure() {
@@ -100,6 +120,196 @@ class GameScene: SKScene {
         camera = cameraNode
         addChild(cameraNode)
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        cameraNode.setScale(cameraScale)
+    }
+
+    func setupGestureRecognizers() {
+        guard let view = self.view else { return }
+
+        // Remove existing gesture recognizers if any
+        if let panGR = panGestureRecognizer {
+            view.removeGestureRecognizer(panGR)
+        }
+        if let pinchGR = pinchGestureRecognizer {
+            view.removeGestureRecognizer(pinchGR)
+        }
+
+        // Pan gesture for smooth scrolling
+        let panGR = UIPanGestureRecognizer(target: self, action: #selector(handlePanGesture(_:)))
+        panGR.minimumNumberOfTouches = 1
+        panGR.maximumNumberOfTouches = 1
+        view.addGestureRecognizer(panGR)
+        panGestureRecognizer = panGR
+
+        // Pinch gesture for zooming
+        let pinchGR = UIPinchGestureRecognizer(target: self, action: #selector(handlePinchGesture(_:)))
+        view.addGestureRecognizer(pinchGR)
+        pinchGestureRecognizer = pinchGR
+    }
+
+    func calculateMapBounds() {
+        // Calculate the bounds of the map in scene coordinates
+        guard hexMap != nil else { return }
+
+        let hexRadius = HexTileNode.hexRadius
+
+        // Use hexMap dimensions (handles both new and loaded games)
+        let width = hexMap.width
+        let height = hexMap.height
+
+        // Get corner positions
+        let minPos = HexMap.hexToPixel(q: 0, r: 0)
+        let maxPos = HexMap.hexToPixel(q: width - 1, r: height - 1)
+
+        // Add padding for hex size
+        let padding = hexRadius * 2
+        mapBounds = CGRect(
+            x: minPos.x - padding,
+            y: minPos.y - padding,
+            width: (maxPos.x - minPos.x) + padding * 2,
+            height: (maxPos.y - minPos.y) + padding * 2
+        )
+    }
+
+    @objc func handlePanGesture(_ gesture: UIPanGestureRecognizer) {
+        guard let view = self.view else { return }
+
+        let translation = gesture.translation(in: view)
+        let velocity = gesture.velocity(in: view)
+
+        switch gesture.state {
+        case .began:
+            isPanning = true
+            cameraVelocity = .zero
+            lastPanTranslation = .zero
+
+        case .changed:
+            // Calculate delta from last translation
+            let delta = CGPoint(
+                x: translation.x - lastPanTranslation.x,
+                y: translation.y - lastPanTranslation.y
+            )
+            lastPanTranslation = translation
+
+            // Apply movement (inverted and scaled)
+            let scaledDelta = CGPoint(
+                x: -delta.x * cameraScale,
+                y: delta.y * cameraScale  // Inverted Y for SpriteKit coordinate system
+            )
+            cameraNode.position.x += scaledDelta.x
+            cameraNode.position.y += scaledDelta.y
+
+            // Constrain camera position
+            constrainCameraPosition()
+
+        case .ended, .cancelled:
+            // Apply momentum based on velocity
+            cameraVelocity = CGPoint(
+                x: -velocity.x * cameraScale * 0.1,
+                y: velocity.y * cameraScale * 0.1
+            )
+
+            // Limit maximum velocity
+            let maxVelocity: CGFloat = 1500
+            let speed = sqrt(cameraVelocity.x * cameraVelocity.x + cameraVelocity.y * cameraVelocity.y)
+            if speed > maxVelocity {
+                let scale = maxVelocity / speed
+                cameraVelocity.x *= scale
+                cameraVelocity.y *= scale
+            }
+
+            isPanning = false
+
+        default:
+            break
+        }
+    }
+
+    @objc func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
+        guard let view = self.view else { return }
+
+        switch gesture.state {
+        case .began, .changed:
+            // Get the pinch center in scene coordinates
+            let pinchCenter = gesture.location(in: view)
+            let scenePoint = convertPoint(fromView: pinchCenter)
+
+            // Calculate new scale
+            let newScale = cameraScale / gesture.scale
+            let clampedScale = min(max(newScale, minCameraScale), maxCameraScale)
+
+            // Only apply if scale actually changed
+            if clampedScale != cameraScale {
+                // Calculate the offset to zoom towards the pinch point
+                let scaleDiff = clampedScale / cameraScale
+                let offsetX = (scenePoint.x - cameraNode.position.x) * (1 - scaleDiff)
+                let offsetY = (scenePoint.y - cameraNode.position.y) * (1 - scaleDiff)
+
+                cameraScale = clampedScale
+                cameraNode.setScale(cameraScale)
+
+                // Adjust camera position to zoom towards pinch point
+                cameraNode.position.x += offsetX
+                cameraNode.position.y += offsetY
+
+                // Constrain camera position
+                constrainCameraPosition()
+            }
+
+            // Reset gesture scale to 1 to get incremental changes
+            gesture.scale = 1.0
+
+        case .ended, .cancelled:
+            break
+
+        default:
+            break
+        }
+    }
+
+    func constrainCameraPosition() {
+        guard mapBounds != .zero else { return }
+
+        // Calculate the visible area based on current scale
+        let visibleWidth = size.width * cameraScale
+        let visibleHeight = size.height * cameraScale
+
+        // Calculate allowed camera position range
+        let minX = mapBounds.minX + visibleWidth / 2
+        let maxX = mapBounds.maxX - visibleWidth / 2
+        let minY = mapBounds.minY + visibleHeight / 2
+        let maxY = mapBounds.maxY - visibleHeight / 2
+
+        // If the map is smaller than the view, center it
+        if minX > maxX {
+            cameraNode.position.x = mapBounds.midX
+        } else {
+            cameraNode.position.x = min(max(cameraNode.position.x, minX), maxX)
+        }
+
+        if minY > maxY {
+            cameraNode.position.y = mapBounds.midY
+        } else {
+            cameraNode.position.y = min(max(cameraNode.position.y, minY), maxY)
+        }
+    }
+
+    func applyCameraMomentum() {
+        // Apply velocity with friction
+        let friction: CGFloat = 0.92
+
+        if abs(cameraVelocity.x) > 0.5 || abs(cameraVelocity.y) > 0.5 {
+            cameraNode.position.x += cameraVelocity.x * 0.016  // Approximate frame time
+            cameraNode.position.y += cameraVelocity.y * 0.016
+
+            cameraVelocity.x *= friction
+            cameraVelocity.y *= friction
+
+            // Constrain after momentum
+            constrainCameraPosition()
+        } else {
+            cameraVelocity = .zero
+        }
     }
     
     func setupMap() {
@@ -141,11 +351,14 @@ class GameScene: SKScene {
         
         // Spawn resources with density multiplier
         hexMap.spawnResourcesWithDensity(scene: resourcesNode, densityMultiplier: resourceDensity)
-        
+
+        // Calculate map bounds for camera constraints
+        calculateMapBounds()
+
         let mapCenter = HexMap.hexToPixel(q: hexMap.width / 2, r: hexMap.height / 2)
         cameraNode.position = mapCenter
     }
-    
+
     func debugFogState() {
         guard let player = player else {
             print("❌ DEBUG: No player")
@@ -509,9 +722,9 @@ class GameScene: SKScene {
         // =========================================================================
         // EVERY FRAME: Critical updates only
         // =========================================================================
-        // Currently nothing needs per-frame updates (movement is action-based)
-        // This section reserved for future smooth animations if needed
-        
+        // Apply camera momentum for smooth panning
+        applyCameraMomentum()
+
         // =========================================================================
         // FAST UPDATES (4x per second): Vision & Fog - needs to feel responsive
         // =========================================================================
@@ -604,25 +817,30 @@ class GameScene: SKScene {
         }
     }
     
-    /// Updates resource gathering with time-based accumulators - runs 2x per second
+    /// Updates resource gathering with time-based accumulators - runs ~2x per second
     private func updateResourceGathering(realWorldTime: TimeInterval) {
         guard let player = player else { return }
-        
+
         // Calculate time delta for accurate timing
         let gatherDeltaTime: TimeInterval
         if let lastGather = lastGatherUpdateTime {
             gatherDeltaTime = realWorldTime - lastGather
         } else {
-            gatherDeltaTime = 0
             lastGatherUpdateTime = realWorldTime
             return  // Skip first frame to establish baseline
         }
-        
-        // Update last gather time
+
+        // Only update every 0.5 seconds (2x per second)
+        // Skip if delta is too large (app was backgrounded)
+        guard gatherDeltaTime >= 0.5 else { return }
+        guard gatherDeltaTime < 2.0 else {
+            // Reset baseline if app was backgrounded
+            lastGatherUpdateTime = realWorldTime
+            return
+        }
+
+        // Update last gather time AFTER the guard succeeds
         lastGatherUpdateTime = realWorldTime
-        
-        // Skip if delta is too large (app was backgrounded) or too small
-        guard gatherDeltaTime > 0.1 && gatherDeltaTime < 2.0 else { return }
         
         // Process all resource points that are being gathered
         for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered {
@@ -655,16 +873,51 @@ class GameScene: SKScene {
         for villagerGroup in resourcePoint.assignedVillagerGroups {
             // Only gather if villagers have arrived at the resource
             if villagerGroup.coordinate == resourcePoint.coordinate {
-                gatherRatePerSecond += calculateGatherRate(
-                    villagerGroup: villagerGroup,
-                    resourceType: resourcePoint.resourceType
-                )
+                var baseRate = 0.2 * Double(villagerGroup.villagerCount)
+                
+                // Apply research bonus
+                let resourceYield = resourcePoint.resourceType.resourceYield
+                switch resourceYield {
+                case .wood:
+                    baseRate *= ResearchManager.shared.getWoodGatheringMultiplier()
+                case .food:
+                    baseRate *= ResearchManager.shared.getFoodGatheringMultiplier()
+                case .stone:
+                    baseRate *= ResearchManager.shared.getStoneGatheringMultiplier()
+                case .ore:
+                    baseRate *= ResearchManager.shared.getOreGatheringMultiplier()
+                }
+                
+                gatherRatePerSecond += baseRate
             }
         }
         
-        // Apply time-based gathering using accumulator
-        if gatherRatePerSecond > 0 {
-            applyGathering(resourcePoint: resourcePoint, rate: gatherRatePerSecond, deltaTime: deltaTime)
+        // Skip if no villagers are actually gathering
+        guard gatherRatePerSecond > 0 else { return }
+        
+        // Calculate amount gathered this frame
+        let gatherThisFrame = gatherRatePerSecond * deltaTime
+        
+        // Get/create accumulator
+        let currentAccumulator = gatherAccumulators[resourcePoint.coordinate] ?? 0
+        let newAccumulator = currentAccumulator + gatherThisFrame
+        
+        // Only deplete whole numbers
+        let wholeAmount = Int(newAccumulator)
+        if wholeAmount > 0 {
+            // ✅ FIX: Directly update remaining amount and call updateLabel
+            let actualGathered = min(wholeAmount, resourcePoint.remainingAmount)
+            resourcePoint.setRemainingAmount(resourcePoint.remainingAmount - actualGathered)
+            
+            // Keep the fractional remainder
+            gatherAccumulators[resourcePoint.coordinate] = newAccumulator - Double(wholeAmount)
+            
+            // Occasional logging
+            if actualGathered > 0 && Int.random(in: 0...60) == 0 {
+                print("⛏️ Depleted \(actualGathered) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
+            }
+        } else {
+            gatherAccumulators[resourcePoint.coordinate] = newAccumulator
         }
     }
     
@@ -768,54 +1021,33 @@ class GameScene: SKScene {
         resourcePoint.stopGathering()
     }
     // MARK: - Touch Handling
-    
+    // Note: Panning is handled by UIPanGestureRecognizer for smooth scrolling
+    // Touch handlers are used for tap detection to interact with tiles/entities
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-        lastTouchPosition = location
-        isPanning = false
-        print("👆 touchesBegan at \(location)")
+        lastTouchPosition = touch.location(in: self)
     }
-    
+
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-        
-        if let lastPos = lastTouchPosition {
-            let delta = CGPoint(x: location.x - lastPos.x, y: location.y - lastPos.y)
-            let distance = sqrt(delta.x * delta.x + delta.y * delta.y)
-            
-            if distance > 10 {
-                isPanning = true
-                print("📱 isPanning = true (distance: \(distance))")
-            }
-            
-            if isPanning {
-                cameraNode.position.x -= delta.x
-                cameraNode.position.y -= delta.y
-            }
-        }
-        
-        lastTouchPosition = location
+        // Panning is handled by gesture recognizer
+        // This is kept for compatibility but doesn't do camera movement
     }
-    
+
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
-        
-        print("👆 touchesEnded at \(location), isPanning: \(isPanning)")
-        
+
+        // Only handle as tap if not panning (gesture recognizer sets isPanning)
         if !isPanning {
             handleTouch(at: location)
         }
-        
+
         lastTouchPosition = nil
-        isPanning = false
     }
-    
+
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         lastTouchPosition = nil
-        isPanning = false
     }
     
     func handleTouch(at location: CGPoint) {
@@ -1383,14 +1615,39 @@ class GameScene: SKScene {
     @objc func handleFarmCompleted(_ notification: Notification) {
         guard let building = notification.object as? BuildingNode,
               let coordinate = notification.userInfo?["coordinate"] as? HexCoordinate else { return }
-        
+
         // Create farmland resource at farm location
         let farmland = ResourcePointNode(coordinate: coordinate, resourceType: .farmland)
         let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
         farmland.position = position
         farmland.zPosition = 4  // Above building
-        
+
+        // Add to hexMap's resource points array
         hexMap.addResourcePoint(farmland)
+
+        // Also add to scene's resources node so it's visible
+        if let resourcesNode = childNode(withName: "resourcesNode") {
+            resourcesNode.addChild(farmland)
+        } else {
+            // Fallback: add directly to scene
+            addChild(farmland)
+        }
+
         print("🌾 Created farmland at (\(coordinate.q), \(coordinate.r))")
+    }
+    
+    func checkPendingUpgradeArrival(entity: EntityNode) {
+        guard let villagers = entity.entity as? VillagerGroup,
+              case .upgrading(let building) = villagers.currentTask else {
+            return
+        }
+        
+        // Check if villager has arrived at building
+        if villagers.coordinate == building.coordinate && building.pendingUpgrade {
+            // Start the actual upgrade now
+            building.pendingUpgrade = false
+            building.startUpgrade()
+            print("✅ Villagers arrived - starting upgrade of \(building.buildingType.displayName) to Lv.\(building.level + 1)")
+        }
     }
 }
