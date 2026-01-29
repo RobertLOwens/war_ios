@@ -42,8 +42,8 @@ struct BuildCommand: GameCommand {
             }
 
             // Check terrain allows building
-            guard tile.terrain != .water && tile.terrain != .mountain else {
-                return .failure(reason: "Cannot build on \(tile.terrain)")
+            guard tile.terrain != .water else {
+                return .failure(reason: "Cannot build on water")
             }
 
             // Check no building already exists (roads can be built where there's already a road)
@@ -65,11 +65,14 @@ struct BuildCommand: GameCommand {
             return .failure(reason: "Requires City Center Level \(buildingType.requiredCityCenterLevel)")
         }
 
-        // Check resources
-        for (resourceType, amount) in buildingType.buildCost {
-            if !player.hasResource(resourceType, amount: amount) {
+        // Check resources (with terrain cost multiplier for mountains)
+        let costMultiplier = getTerrainCostMultiplier(for: occupiedCoords, in: context.hexMap)
+
+        for (resourceType, baseAmount) in buildingType.buildCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * costMultiplier))
+            if !player.hasResource(resourceType, amount: adjustedAmount) {
                 let current = player.getResource(resourceType)
-                return .failure(reason: "Need \(amount) \(resourceType.displayName), have \(current)")
+                return .failure(reason: "Need \(adjustedAmount) \(resourceType.displayName), have \(current)")
             }
         }
 
@@ -102,13 +105,17 @@ struct BuildCommand: GameCommand {
             if let existingBuilding = context.getBuilding(at: coord), existingBuilding.buildingType.isRoad {
                 context.hexMap.removeBuilding(existingBuilding)
                 player.removeBuilding(existingBuilding)
+                existingBuilding.clearTileOverlays()  // Clean up multi-tile overlays
                 existingBuilding.removeFromParent()
             }
         }
 
-        // Deduct resources
-        for (resourceType, amount) in buildingType.buildCost {
-            player.removeResource(resourceType, amount: amount)
+        // Deduct resources (with terrain cost multiplier for mountains)
+        let costMultiplier = getTerrainCostMultiplier(for: occupiedCoords, in: context.hexMap)
+
+        for (resourceType, baseAmount) in buildingType.buildCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * costMultiplier))
+            player.removeResource(resourceType, amount: adjustedAmount)
         }
 
         // Create building
@@ -168,6 +175,11 @@ struct BuildCommand: GameCommand {
         building.zPosition = buildingType.isRoad ? 2 : 5
         context.gameScene?.buildingsNode.addChild(building)
 
+        // Create per-tile visual overlays for multi-tile buildings
+        if let scene = context.gameScene, buildingType.hexSize > 1 {
+            building.createTileOverlays(in: scene)
+        }
+
         // Add to map and player
         context.hexMap.addBuilding(building)
         player.addBuilding(building)
@@ -188,5 +200,12 @@ struct BuildCommand: GameCommand {
         print("🏗️ Started building \(buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
 
         return .success
+    }
+
+    private func getTerrainCostMultiplier(for coordinates: [HexCoordinate], in hexMap: HexMap) -> Double {
+        let hasAnyMountainTile = coordinates.contains { coord in
+            hexMap.getTile(at: coord)?.terrain == .mountain
+        }
+        return hasAnyMountainTile ? 1.25 : 1.0
     }
 }

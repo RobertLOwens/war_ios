@@ -6,8 +6,10 @@ class GameViewController: UIViewController {
     var skView: SKView!
     var gameScene: GameScene!
     var player: Player!
+    var mapType: MapType = .arabia  // Arabia is default
     var mapSize: MapSize = .medium
     var resourceDensity: ResourceDensity = .normal
+    var visibilityMode: VisibilityMode = .normal
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
@@ -20,9 +22,16 @@ class GameViewController: UIViewController {
     // UI Elements
     var resourcePanel: UIView!
     var resourceLabels: [ResourceType: UILabel] = [:]
-    var commanderButton: UIButton!
-    var combatHistoryButton: UIButton!
-    var researchButton: UIButton!
+
+    // Rotation Preview UI
+    var rotationPreviewOverlay: UIView?
+    var rotationBuildingLabel: UILabel?
+    var rotationDirectionLabel: UILabel?
+
+    // Entities button and badge
+    private var entitiesButton: UIButton?
+    private var entitiesBadgeView: UIView?
+    private var entitiesBadgeLabel: UILabel?
     
     private struct AssociatedKeys {
         static var unitLabels: UInt8 = 0
@@ -44,7 +53,7 @@ class GameViewController: UIViewController {
         super.viewDidLoad()
     
         // Initialize player
-        player = Player(name: "Player 1", color: .blue)
+        player = Player(name: "Rob", color: .blue)
     
         setupSKView()
         setupUI()
@@ -127,10 +136,10 @@ class GameViewController: UIViewController {
     
     func initializePlayers() {
         // Create human player
-        player = Player(name: "Player 1", color: .blue)
-        
+        player = Player(name: "Rob", color: .blue)
+
         // Create AI opponent
-        let aiPlayer = Player(name: "AI Opponent", color: .red)
+        let aiPlayer = Player(name: "Enemy", color: .red)
         player.setDiplomacyStatus(with: aiPlayer, status: .enemy)
         
         // Store for later use in game setup
@@ -174,10 +183,49 @@ class GameViewController: UIViewController {
         gameScene = GameScene(size: skView.bounds.size)
         gameScene.scaleMode = .resizeFill
         gameScene.player = player
-        gameScene.mapSize = mapSize.rawValue
-        gameScene.resourceDensity = resourceDensity.multiplier
-        gameScene.gameDelegate = self  // ADD THIS LINE
-        skView.presentScene(gameScene)
+        gameScene.gameDelegate = self
+
+        if mapType == .arabia {
+            // Use Arabia map generator for competitive 1v1 maps
+            gameScene.skipInitialSetup = true
+            skView.presentScene(gameScene)
+
+            // Create AI opponent
+            let aiPlayer = Player(name: "Enemy", color: .red)
+
+            // Setup map with Arabia generator
+            let generator = ArabiaMapGenerator()
+            gameScene.setupMapWithGenerator(generator, players: [player, aiPlayer])
+
+            // Initialize fog of war after map is ready
+            let fullyVisible = visibilityMode == .fullyVisible
+            gameScene.initializeFogOfWar(fullyVisible: fullyVisible)
+
+            print("Arabia map generated!")
+        } else if mapType == .arena {
+            // Use Arena map generator for combat testing
+            gameScene.skipInitialSetup = true
+            skView.presentScene(gameScene)
+
+            // Create AI opponent
+            let aiPlayer = Player(name: "Enemy", color: .red)
+
+            // Setup arena with ArenaMapGenerator
+            let generator = ArenaMapGenerator()
+            gameScene.setupArenaWithGenerator(generator, players: [player, aiPlayer])
+
+            // Always fully visible for testing
+            gameScene.initializeFogOfWar(fullyVisible: true)
+
+            print("Arena map generated!")
+        } else {
+            // Use random map generation (legacy)
+            gameScene.mapSize = mapSize.rawValue
+            gameScene.resourceDensity = resourceDensity.multiplier
+            skView.presentScene(gameScene)
+
+            print("Random map generated!")
+        }
     }
     
     // MARK: - Combat System
@@ -406,134 +454,183 @@ class GameViewController: UIViewController {
                 storageLabel.text = ""  // Hide when storage is fine
             }
         }
-    }
-    
-    func setupStorageLabel() {
-        let label = UILabel()
-        label.font = UIFont.systemFont(ofSize: 14, weight: .medium)
-        label.textColor = .white
-        label.text = "📦 0/500"
-        // Position this label where appropriate in your UI
-        // For example, below the population label
-        storageLabel = label
-        // Add to your resource display stack or container
-        // resourceStackView.addArrangedSubview(label)  // Uncomment and adjust as needed
+
+        // Update idle villager badge
+        updateEntitiesBadge()
     }
     
     func setupUI() {
-        // Resource Panel
-        resourcePanel = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 140))
+        // Resource Panel (Top) - Full width
+        resourcePanel = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 70))
         resourcePanel.backgroundColor = UIColor(white: 0.1, alpha: 0.9)
         resourcePanel.autoresizingMask = [.flexibleWidth]
-        
-        let titleLabel = UILabel(frame: CGRect(x: 20, y: 10, width: 250, height: 30))
-        titleLabel.text = "Hex RTS Game"
-        titleLabel.font = UIFont.boldSystemFont(ofSize: 20)
-        titleLabel.textColor = .white
-        resourcePanel.addSubview(titleLabel)
-        
-        // ✅ ADD: Commander Button (top right)
-        commanderButton = UIButton(frame: CGRect(x: view.bounds.width - 160, y: 10, width: 140, height: 35))
-        commanderButton.setTitle("👤 Commanders", for: .normal)
-        commanderButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        commanderButton.backgroundColor = UIColor(red: 0.3, green: 0.4, blue: 0.8, alpha: 1.0)
-        commanderButton.layer.cornerRadius = 8
-        commanderButton.addTarget(self, action: #selector(showCommandersScreen), for: .touchUpInside)
-        commanderButton.autoresizingMask = [.flexibleLeftMargin]
-        resourcePanel.addSubview(commanderButton)
-        
-        // ✅ ADD: Combat History Button (below commander button)
-        combatHistoryButton = UIButton(frame: CGRect(x: view.bounds.width - 160, y: 55, width: 140, height: 35))
-        combatHistoryButton.setTitle("⚔️ Battles", for: .normal)
-        combatHistoryButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        combatHistoryButton.backgroundColor = UIColor(red: 0.8, green: 0.3, blue: 0.3, alpha: 1.0)
-        combatHistoryButton.layer.cornerRadius = 8
-        combatHistoryButton.addTarget(self, action: #selector(showCombatHistoryScreen), for: .touchUpInside)
-        combatHistoryButton.autoresizingMask = [.flexibleLeftMargin]
-        resourcePanel.addSubview(combatHistoryButton)
-        
-        researchButton = UIButton(frame: CGRect(x: view.bounds.width - 160, y: 95, width: 140, height: 35))
-        researchButton.setTitle("🔬 Research", for: .normal)
-        researchButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        researchButton.backgroundColor = UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)
-        researchButton.layer.cornerRadius = 8
-        researchButton.addTarget(self, action: #selector(showResearchScreen), for: .touchUpInside)
-        researchButton.autoresizingMask = [.flexibleLeftMargin]
-        resourcePanel.addSubview(researchButton)
 
-        
-        // Resource labels (2x2 grid)
+        // Resource labels - horizontal row across top
         let resourceTypes: [ResourceType] = [.wood, .food, .stone, .ore]
-        let labelWidth: CGFloat = 150
-        let labelHeight: CGFloat = 25
-        let startY: CGFloat = 45
-        let horizontalSpacing: CGFloat = 160
-        let verticalSpacing: CGFloat = 30
-        
-        for (index, resourceType) in resourceTypes.enumerated() {
-            let row = index / 2
-            let col = index % 2
-            let x: CGFloat = 20 + CGFloat(col) * horizontalSpacing
-            let y: CGFloat = startY + CGFloat(row) * verticalSpacing
-            
-            let label = UILabel(frame: CGRect(x: x, y: y, width: labelWidth, height: labelHeight))
-            label.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        let resourceStack = UIStackView()
+        resourceStack.axis = .horizontal
+        resourceStack.distribution = .fillEqually
+        resourceStack.spacing = 8
+        resourceStack.translatesAutoresizingMaskIntoConstraints = false
+        resourcePanel.addSubview(resourceStack)
+
+        NSLayoutConstraint.activate([
+            resourceStack.leadingAnchor.constraint(equalTo: resourcePanel.leadingAnchor, constant: 12),
+            resourceStack.trailingAnchor.constraint(equalTo: resourcePanel.trailingAnchor, constant: -12),
+            resourceStack.topAnchor.constraint(equalTo: resourcePanel.topAnchor, constant: 8),
+            resourceStack.heightAnchor.constraint(equalToConstant: 24)
+        ])
+
+        for resourceType in resourceTypes {
+            let label = UILabel()
+            label.font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
             label.textColor = .white
-            label.text = "\(resourceType.icon) 0 (+0.0/s)"
-            resourcePanel.addSubview(label)
+            label.textAlignment = .center
+            label.text = "\(resourceType.icon) 0/0 (+0.0)"
+            resourceStack.addArrangedSubview(label)
             resourceLabels[resourceType] = label
         }
-        
-        populationLabel = UILabel(frame: CGRect(x: 20, y: startY + CGFloat(2) * verticalSpacing + 10, width: 300, height: 25))
-        populationLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 16, weight: .medium)
+
+        // Bottom row: Population + Storage warning
+        let bottomStack = UIStackView()
+        bottomStack.axis = .horizontal
+        bottomStack.distribution = .fill
+        bottomStack.spacing = 8
+        bottomStack.translatesAutoresizingMaskIntoConstraints = false
+        resourcePanel.addSubview(bottomStack)
+
+        NSLayoutConstraint.activate([
+            bottomStack.leadingAnchor.constraint(equalTo: resourcePanel.leadingAnchor, constant: 12),
+            bottomStack.trailingAnchor.constraint(equalTo: resourcePanel.trailingAnchor, constant: -12),
+            bottomStack.topAnchor.constraint(equalTo: resourceStack.bottomAnchor, constant: 6),
+            bottomStack.heightAnchor.constraint(equalToConstant: 24)
+        ])
+
+        // Population label
+        populationLabel = UILabel()
+        populationLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
         populationLabel.textColor = .white
         populationLabel.text = "👥 0/0 (-0.0 🌾/s)"
-        resourcePanel.addSubview(populationLabel)
-        
+        bottomStack.addArrangedSubview(populationLabel)
+
+        // Storage warning label (right side)
+        storageLabel = UILabel()
+        storageLabel?.font = UIFont.systemFont(ofSize: 13, weight: .medium)
+        storageLabel?.textColor = .white
+        storageLabel?.textAlignment = .right
+        storageLabel?.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        if let storageLabel = storageLabel {
+            bottomStack.addArrangedSubview(storageLabel)
+        }
+
         view.addSubview(resourcePanel)
-        
-        // Bottom instruction panel
-        let bottomView = UIView(frame: CGRect(x: 0, y: view.bounds.height - 60, width: view.bounds.width, height: 60))
-        bottomView.backgroundColor = UIColor(white: 0.1, alpha: 0.9)
-        bottomView.autoresizingMask = [.flexibleWidth, .flexibleTopMargin]
-        
-        let instructionLabel = UILabel(frame: CGRect(x: 20, y: 15, width: view.bounds.width - 40, height: 30))
-        instructionLabel.text = "Tap villager → Build | Tap tile → Move"
-        instructionLabel.textColor = .white
-        instructionLabel.font = UIFont.systemFont(ofSize: 16)
-        instructionLabel.textAlignment = .center
-        instructionLabel.autoresizingMask = [.flexibleWidth]
-        bottomView.addSubview(instructionLabel)
-        
-        view.addSubview(bottomView)
-        
-        let menuButton = UIButton(frame: CGRect(x: view.bounds.width - 120, y: 30, width: 100, height: 40))
-        menuButton.setTitle("☰ Menu", for: .normal)
-        menuButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
-        menuButton.backgroundColor = UIColor(white: 0.2, alpha: 0.9)
-        menuButton.layer.cornerRadius = 8
-        menuButton.addTarget(self, action: #selector(showGameMenu), for: .touchUpInside)
-        view.addSubview(menuButton)
-        
-        let trainingButton = UIButton(frame: CGRect(x: view.bounds.width - 310, y: 10, width: 140, height: 35))
-        trainingButton.setTitle("🎓 Training", for: .normal)
-        trainingButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        trainingButton.backgroundColor = UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)
-        trainingButton.layer.cornerRadius = 8
-        trainingButton.addTarget(self, action: #selector(showTrainingOverview), for: .touchUpInside)
-        trainingButton.autoresizingMask = [.flexibleLeftMargin]
-        resourcePanel.addSubview(trainingButton)
-        
-        let buildingsButton = UIButton(frame: CGRect(x: view.bounds.width - 460, y: 10, width: 140, height: 35))
-        buildingsButton.setTitle("🏛️ Buildings", for: .normal)
-        buildingsButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        buildingsButton.backgroundColor = UIColor(red: 0.5, green: 0.4, blue: 0.6, alpha: 1.0)
-        buildingsButton.layer.cornerRadius = 8
-        buildingsButton.addTarget(self, action: #selector(showBuildingsOverview), for: .touchUpInside)
-        buildingsButton.autoresizingMask = [.flexibleLeftMargin]
-        resourcePanel.addSubview(buildingsButton)
+
+        // Bottom Button Bar
+        let bottomBar = UIView(frame: CGRect(x: 0, y: view.bounds.height - 60, width: view.bounds.width, height: 60))
+        bottomBar.backgroundColor = UIColor(white: 0.1, alpha: 0.9)
+        bottomBar.autoresizingMask = [.flexibleWidth, .flexibleTopMargin]
+
+        // Button stack view
+        let buttonStack = UIStackView()
+        buttonStack.axis = .horizontal
+        buttonStack.distribution = .fillEqually
+        buttonStack.spacing = 4
+        buttonStack.translatesAutoresizingMaskIntoConstraints = false
+        bottomBar.addSubview(buttonStack)
+
+        NSLayoutConstraint.activate([
+            buttonStack.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor, constant: 8),
+            buttonStack.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor, constant: -8),
+            buttonStack.topAnchor.constraint(equalTo: bottomBar.topAnchor, constant: 8),
+            buttonStack.bottomAnchor.constraint(equalTo: bottomBar.bottomAnchor, constant: -8)
+        ])
+
+        // Create buttons for bottom bar
+        let buttonConfigs: [(title: String, action: Selector, color: UIColor)] = [
+            ("Menu", #selector(showGameMenu), UIColor(white: 0.25, alpha: 1.0)),
+            ("Commanders", #selector(showCommandersScreen), UIColor(red: 0.3, green: 0.4, blue: 0.8, alpha: 1.0)),
+            ("Battles", #selector(showCombatHistoryScreen), UIColor(red: 0.8, green: 0.3, blue: 0.3, alpha: 1.0)),
+            ("Research", #selector(showResearchScreen), UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)),
+            ("Training", #selector(showTrainingOverview), UIColor(red: 0.5, green: 0.5, blue: 0.3, alpha: 1.0)),
+            ("Buildings", #selector(showBuildingsOverview), UIColor(red: 0.5, green: 0.4, blue: 0.6, alpha: 1.0)),
+            ("Entities", #selector(showEntitiesOverview), UIColor(red: 0.3, green: 0.5, blue: 0.5, alpha: 1.0))
+        ]
+
+        for config in buttonConfigs {
+            let button = UIButton(type: .system)
+            button.setTitle(config.title, for: .normal)
+            button.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+            button.backgroundColor = config.color
+            button.setTitleColor(.white, for: .normal)
+            button.layer.cornerRadius = 6
+            button.addTarget(self, action: config.action, for: .touchUpInside)
+            buttonStack.addArrangedSubview(button)
+
+            // Store reference to Entities button for badge
+            if config.title == "Entities" {
+                entitiesButton = button
+            }
+        }
+
+        // Create idle villager badge for Entities button
+        setupEntitiesBadge()
+
+        view.addSubview(bottomBar)
     }
-    
+
+    func setupEntitiesBadge() {
+        guard let button = entitiesButton else { return }
+
+        // Create badge view
+        let badge = UIView()
+        badge.backgroundColor = .systemRed
+        badge.layer.cornerRadius = 9
+        badge.clipsToBounds = true
+        badge.translatesAutoresizingMaskIntoConstraints = false
+        badge.isHidden = true  // Hidden by default
+        badge.isUserInteractionEnabled = false
+        button.addSubview(badge)
+
+        // Badge label
+        let label = UILabel()
+        label.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        label.textColor = .white
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        badge.addSubview(label)
+
+        // Position badge at top-right of button
+        NSLayoutConstraint.activate([
+            badge.topAnchor.constraint(equalTo: button.topAnchor, constant: -4),
+            badge.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: 4),
+            badge.widthAnchor.constraint(greaterThanOrEqualToConstant: 18),
+            badge.heightAnchor.constraint(equalToConstant: 18),
+
+            label.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: badge.leadingAnchor, constant: 4),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: badge.trailingAnchor, constant: -4)
+        ])
+
+        entitiesBadgeView = badge
+        entitiesBadgeLabel = label
+    }
+
+    func updateEntitiesBadge() {
+        guard let badge = entitiesBadgeView,
+              let label = entitiesBadgeLabel,
+              let player = player else { return }
+
+        let idleCount = player.getIdleVillagerCount()
+
+        if idleCount > 0 {
+            label.text = "\(idleCount)"
+            badge.isHidden = false
+        } else {
+            badge.isHidden = true
+        }
+    }
+
     @objc func showResearchScreen() {
         let researchVC = ResearchViewController()
         researchVC.player = player
@@ -551,6 +648,17 @@ class GameViewController: UIViewController {
         buildingsVC.modalPresentationStyle = .fullScreen
         present(buildingsVC, animated: true)
         print("🏛️ Opening Buildings Overview screen")
+    }
+
+    @objc func showEntitiesOverview() {
+        let entitiesVC = EntitiesOverviewViewController()
+        entitiesVC.player = player
+        entitiesVC.hexMap = gameScene.hexMap
+        entitiesVC.gameScene = gameScene
+        entitiesVC.gameViewController = self
+        entitiesVC.modalPresentationStyle = .fullScreen
+        present(entitiesVC, animated: true)
+        print("👥 Opening Entities Overview screen")
     }
     
     @objc func showGameMenu() {
@@ -616,15 +724,17 @@ class GameViewController: UIViewController {
             }
         }
         
-        // Rest of function remains the same...
-        let armyEntity = MapEntity(id: army.id, name: army.name, entityType: .army)
-        let armyNode = EntityNode(coordinate: spawnCoord, entityType: .army, entity: armyEntity)
+        // Create EntityNode with actual Army object so armyReference is set correctly
+        let armyNode = EntityNode(coordinate: spawnCoord, entityType: .army, entity: army, currentPlayer: player)
         let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
         armyNode.position = position
-        
+
         gameScene.hexMap.addEntity(armyNode)
         gameScene.entitiesNode.addChild(armyNode)
         player.addArmy(army)
+
+        // Setup health bar for combat visualization
+        armyNode.setupHealthBar(currentPlayer: player)
         
         print("✅ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
     }
@@ -730,6 +840,12 @@ class GameViewController: UIViewController {
         print("👤 Opening Commanders screen")
     }
 
+    /// Focuses the camera on a specific coordinate, optionally zooming in
+    func focusOnCoordinate(_ coordinate: HexCoordinate, zoomIn: Bool = true) {
+        let targetZoom: CGFloat? = zoomIn ? 0.7 : nil  // 0.7 is a good close-up zoom
+        gameScene.focusCamera(on: coordinate, zoom: targetZoom)
+    }
+
     @objc func showCombatHistoryScreen() {
         let combatHistoryVC = CombatHistoryViewController()
         combatHistoryVC.modalPresentationStyle = .fullScreen
@@ -752,13 +868,17 @@ class GameViewController: UIViewController {
             print("⚠️ Cannot auto-save - game not ready")
             return
         }
-        
+
+        // Collect reinforcement groups from nodes
+        let reinforcements = gameScene.reinforcementNodes.map { $0.reinforcement }
+
         let success = GameSaveManager.shared.saveGame(
             hexMap: hexMap,
             player: player,
-            allPlayers: gameScene.allGamePlayers
+            allPlayers: gameScene.allGamePlayers,
+            reinforcements: reinforcements
         )
-        
+
         if success {
             print("✅ Auto-save complete")
         } else {
@@ -773,13 +893,17 @@ class GameViewController: UIViewController {
             showSimpleAlert(title: "Cannot Save", message: "Game is not ready to be saved.")
             return
         }
-        
+
+        // Collect reinforcement groups from nodes
+        let reinforcements = gameScene.reinforcementNodes.map { $0.reinforcement }
+
         let success = GameSaveManager.shared.saveGame(
             hexMap: hexMap,
             player: player,
-            allPlayers: gameScene.allGamePlayers
+            allPlayers: gameScene.allGamePlayers,
+            reinforcements: reinforcements
         )
-        
+
         if success {
             showSimpleAlert(title: "✅ Game Saved", message: "Your progress has been saved successfully.")
         } else {
@@ -803,9 +927,12 @@ class GameViewController: UIViewController {
         ResearchManager.shared.setup(player: loadedData.player)
         gameScene.hexMap = loadedData.hexMap
         gameScene.allGamePlayers = loadedData.allPlayers
-        
+
         // Rebuild the scene
         rebuildSceneWithLoadedData(hexMap: loadedData.hexMap, player: loadedData.player, allPlayers: loadedData.allPlayers)
+
+        // Restore reinforcements
+        restoreReinforcements(loadedData.reinforcements, hexMap: loadedData.hexMap, allPlayers: loadedData.allPlayers)
         
         // ✅ FIX: Clear loading flag AFTER everything is rebuilt
         gameScene.isLoading = false
@@ -870,7 +997,12 @@ class GameViewController: UIViewController {
             let position = HexMap.hexToPixel(q: building.coordinate.q, r: building.coordinate.r)
             building.position = position
             gameScene.buildingsNode.addChild(building)
-            
+
+            // Create per-tile visual overlays for multi-tile buildings
+            if building.buildingType.hexSize > 1 {
+                building.createTileOverlays(in: gameScene)
+            }
+
             // Update appearance to match current state
             building.updateAppearance()
             building.updateLevelLabel()
@@ -979,6 +1111,54 @@ class GameViewController: UIViewController {
         print("   Entities: \(hexMap.entities.count)")
         print("   Resources: \(hexMap.resourcePoints.count)")
         print("   Explored tiles: \(player.fogOfWar?.getExploredCount() ?? 0)")
+    }
+
+    func restoreReinforcements(_ reinforcements: [ReinforcementGroup.SaveData], hexMap: HexMap, allPlayers: [Player]) {
+        guard !reinforcements.isEmpty else { return }
+
+        print("🚶 Restoring \(reinforcements.count) reinforcements...")
+
+        for saveData in reinforcements {
+            // Reconstruct reinforcement group
+            guard let reinforcement = ReinforcementGroup.fromSaveData(saveData) else {
+                print("❌ Failed to restore reinforcement \(saveData.id)")
+                continue
+            }
+
+            // Find and reconnect the owner
+            if let ownerID = saveData.ownerID,
+               let ownerUUID = UUID(uuidString: ownerID),
+               let owner = allPlayers.first(where: { $0.id == ownerUUID }) {
+                reinforcement.owner = owner
+            }
+
+            // Find and reconnect the target army
+            for player in allPlayers {
+                if let army = player.getArmies().first(where: { $0.id == reinforcement.targetArmyID }) {
+                    reinforcement.targetArmy = army
+                    break
+                }
+            }
+
+            // Find and reconnect the source building
+            if let building = hexMap.buildings.first(where: { $0.data.id == reinforcement.sourceBuildingID }) {
+                reinforcement.sourceBuilding = building
+            }
+
+            // Calculate remaining path from current position to target
+            guard let targetArmy = reinforcement.targetArmy,
+                  let remainingPath = hexMap.findPath(from: reinforcement.coordinate, to: targetArmy.coordinate) else {
+                print("⚠️ No path for reinforcement \(saveData.id) - units will be lost")
+                continue
+            }
+
+            // Spawn the reinforcement node and continue movement
+            gameScene.spawnReinforcementNode(reinforcement: reinforcement, path: remainingPath) { success in
+                print("✅ Restored reinforcement arrived: \(success)")
+            }
+
+            print("   ✅ Restored reinforcement to \(reinforcement.targetArmy?.name ?? "unknown army")")
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -1432,18 +1612,168 @@ class GameViewController: UIViewController {
               let villagers2 = group2.entity as? VillagerGroup else {
             return
         }
-        
+
         let mergeVC = VillagerMergeViewController()
         mergeVC.villagerGroup1 = villagers1
         mergeVC.villagerGroup2 = villagers2
         mergeVC.modalPresentationStyle = .overFullScreen
         mergeVC.modalTransitionStyle = .crossDissolve
-        
+
         mergeVC.onMergeComplete = { [weak self] count1, count2 in
             self?.gameScene.performMerge(group1: group1, group2: group2, newCount1: count1, newCount2: count2)
         }
-        
+
         present(mergeVC, animated: true)
+    }
+
+    // MARK: - Rotation Preview UI
+
+    func showRotationPreviewUI(buildingType: BuildingType, at anchor: HexCoordinate) {
+        // Remove any existing overlay
+        hideRotationPreviewUI()
+
+        // Create overlay container
+        let overlay = UIView()
+        overlay.backgroundColor = UIColor(white: 0.1, alpha: 0.95)
+        overlay.layer.cornerRadius = 16
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(overlay)
+
+        // Position at bottom of screen
+        NSLayoutConstraint.activate([
+            overlay.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            overlay.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            overlay.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            overlay.heightAnchor.constraint(equalToConstant: 140)
+        ])
+
+        // Building name label
+        let buildingLabel = UILabel()
+        buildingLabel.text = "\(buildingType.icon) Place \(buildingType.displayName)"
+        buildingLabel.font = UIFont.boldSystemFont(ofSize: 18)
+        buildingLabel.textColor = .white
+        buildingLabel.textAlignment = .center
+        buildingLabel.translatesAutoresizingMaskIntoConstraints = false
+        overlay.addSubview(buildingLabel)
+
+        NSLayoutConstraint.activate([
+            buildingLabel.topAnchor.constraint(equalTo: overlay.topAnchor, constant: 12),
+            buildingLabel.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 16),
+            buildingLabel.trailingAnchor.constraint(equalTo: overlay.trailingAnchor, constant: -16)
+        ])
+        rotationBuildingLabel = buildingLabel
+
+        // Direction label
+        let directionLabel = UILabel()
+        directionLabel.text = "Facing: East ➡️"
+        directionLabel.font = UIFont.systemFont(ofSize: 14)
+        directionLabel.textColor = .lightGray
+        directionLabel.textAlignment = .center
+        directionLabel.translatesAutoresizingMaskIntoConstraints = false
+        overlay.addSubview(directionLabel)
+
+        NSLayoutConstraint.activate([
+            directionLabel.topAnchor.constraint(equalTo: buildingLabel.bottomAnchor, constant: 4),
+            directionLabel.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 16),
+            directionLabel.trailingAnchor.constraint(equalTo: overlay.trailingAnchor, constant: -16)
+        ])
+        rotationDirectionLabel = directionLabel
+
+        // Button stack
+        let buttonStack = UIStackView()
+        buttonStack.axis = .horizontal
+        buttonStack.distribution = .fillEqually
+        buttonStack.spacing = 12
+        buttonStack.translatesAutoresizingMaskIntoConstraints = false
+        overlay.addSubview(buttonStack)
+
+        NSLayoutConstraint.activate([
+            buttonStack.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 16),
+            buttonStack.trailingAnchor.constraint(equalTo: overlay.trailingAnchor, constant: -16),
+            buttonStack.bottomAnchor.constraint(equalTo: overlay.bottomAnchor, constant: -16),
+            buttonStack.heightAnchor.constraint(equalToConstant: 50)
+        ])
+
+        // Cancel button
+        let cancelButton = UIButton(type: .system)
+        cancelButton.setTitle("Cancel", for: .normal)
+        cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .medium)
+        cancelButton.backgroundColor = UIColor(red: 0.6, green: 0.3, blue: 0.3, alpha: 1.0)
+        cancelButton.setTitleColor(.white, for: .normal)
+        cancelButton.layer.cornerRadius = 10
+        cancelButton.addTarget(self, action: #selector(rotationCancelTapped), for: .touchUpInside)
+        buttonStack.addArrangedSubview(cancelButton)
+
+        // Rotate button
+        let rotateButton = UIButton(type: .system)
+        rotateButton.setTitle("🔄 Rotate", for: .normal)
+        rotateButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        rotateButton.backgroundColor = UIColor(red: 0.3, green: 0.5, blue: 0.7, alpha: 1.0)
+        rotateButton.setTitleColor(.white, for: .normal)
+        rotateButton.layer.cornerRadius = 10
+        rotateButton.addTarget(self, action: #selector(rotationRotateTapped), for: .touchUpInside)
+        buttonStack.addArrangedSubview(rotateButton)
+
+        // Build button
+        let buildButton = UIButton(type: .system)
+        buildButton.setTitle("✅ Build", for: .normal)
+        buildButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        buildButton.backgroundColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0)
+        buildButton.setTitleColor(.white, for: .normal)
+        buildButton.layer.cornerRadius = 10
+        buildButton.addTarget(self, action: #selector(rotationBuildTapped), for: .touchUpInside)
+        buttonStack.addArrangedSubview(buildButton)
+
+        rotationPreviewOverlay = overlay
+
+        // Animate in
+        overlay.alpha = 0
+        overlay.transform = CGAffineTransform(translationX: 0, y: 50)
+        UIView.animate(withDuration: 0.3) {
+            overlay.alpha = 1
+            overlay.transform = .identity
+        }
+
+        print("🔄 Rotation preview UI shown for \(buildingType.displayName)")
+    }
+
+    func hideRotationPreviewUI() {
+        guard let overlay = rotationPreviewOverlay else { return }
+
+        UIView.animate(withDuration: 0.2, animations: {
+            overlay.alpha = 0
+            overlay.transform = CGAffineTransform(translationX: 0, y: 50)
+        }) { _ in
+            overlay.removeFromSuperview()
+        }
+
+        rotationPreviewOverlay = nil
+        rotationBuildingLabel = nil
+        rotationDirectionLabel = nil
+
+        print("🔄 Rotation preview UI hidden")
+    }
+
+    func updateRotationDirectionLabel() {
+        let directions = ["East ➡️", "Northeast ↗️", "Northwest ↖️", "West ⬅️", "Southwest ↙️", "Southeast ↘️"]
+        let rotation = gameScene.rotationPreviewRotation
+        let isValid = gameScene.isCurrentRotationValid()
+
+        rotationDirectionLabel?.text = "Facing: \(directions[rotation])" + (isValid ? "" : " ⚠️ Blocked")
+        rotationDirectionLabel?.textColor = isValid ? .lightGray : .systemRed
+    }
+
+    @objc func rotationCancelTapped() {
+        gameScene.exitRotationPreviewMode()
+    }
+
+    @objc func rotationRotateTapped() {
+        gameScene.cycleRotationPreview()
+        updateRotationDirectionLabel()
+    }
+
+    @objc func rotationBuildTapped() {
+        _ = gameScene.confirmRotationPreview()
     }
 
 }
@@ -1484,7 +1814,32 @@ extension GameViewController: GameSceneDelegate {
     func gameScene(_ scene: GameScene, didSelectVillagerGroup entity: EntityNode, at coordinate: HexCoordinate) {
         menuCoordinator.showVillagerMenu(at: coordinate, villagerGroup: entity)
     }
-    
+
+    func gameScene(_ scene: GameScene, didSelectArmy entity: EntityNode, at coordinate: HexCoordinate) {
+        showArmyDetailScreen(for: entity)
+    }
+
+    func showArmyDetailScreen(for entityNode: EntityNode) {
+        guard let army = entityNode.armyReference else {
+            print("❌ No army reference found in entity node")
+            return
+        }
+
+        let armyDetailVC = ArmyDetailViewController()
+        armyDetailVC.army = army
+        armyDetailVC.player = player
+        armyDetailVC.hexMap = gameScene?.hexMap
+        armyDetailVC.gameScene = gameScene
+        armyDetailVC.modalPresentationStyle = .pageSheet
+
+        if let sheet = armyDetailVC.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+
+        present(armyDetailVC, animated: true)
+    }
+
     func gameScene(_ scene: GameScene, didRequestBuildMenu coordinate: HexCoordinate, builder: EntityNode) {
         menuCoordinator.showBuildingMenu(at: coordinate, villagerGroup: builder)
     }
@@ -1508,5 +1863,30 @@ extension GameViewController: GameSceneDelegate {
     
     func showMergeMenu(group1: EntityNode, group2: EntityNode) {
         showMergeOption(for: group1, and: group2)
+    }
+
+    func gameScene(_ scene: GameScene, didEnterRotationPreviewForBuilding buildingType: BuildingType, at anchor: HexCoordinate) {
+        showRotationPreviewUI(buildingType: buildingType, at: anchor)
+    }
+
+    func gameSceneDidExitRotationPreview(_ scene: GameScene) {
+        hideRotationPreviewUI()
+    }
+
+    func showBattleEndNotification(title: String, message: String, isVictory: Bool) {
+        let icon = isVictory ? "🏆" : "💀"
+        let alert = UIAlertController(
+            title: "\(icon) \(title)",
+            message: message,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "View Battle Report", style: .default) { [weak self] _ in
+            self?.showCombatHistoryScreen()
+        })
+
+        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+
+        present(alert, animated: true)
     }
 }

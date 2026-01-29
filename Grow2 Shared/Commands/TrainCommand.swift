@@ -50,36 +50,50 @@ struct TrainMilitaryCommand: GameCommand {
             return .failure(reason: "Population cap reached. Available: \(available)")
         }
         
-        // Check resources
+        // Get adjacency cost reduction (warehouse bonus)
+        let costReduction = AdjacencyBonusManager.shared.getTrainingCostReduction(for: building.data.id)
+        let costMultiplier = 1.0 - costReduction
+
+        // Check resources with adjacency discount applied
         for (resourceType, baseCost) in unitType.trainingCost {
-            let totalCost = baseCost * quantity
+            let discountedCost = Int(ceil(Double(baseCost) * costMultiplier))
+            let totalCost = discountedCost * quantity
             if !player.hasResource(resourceType, amount: totalCost) {
                 return .failure(reason: "Insufficient \(resourceType.displayName)")
             }
         }
-        
+
         return .success
     }
-    
+
     func execute(in context: CommandContext) -> CommandResult {
         guard let player = context.getPlayer(by: playerID),
               let building = context.getBuilding(by: buildingID) else {
             return .failure(reason: "Building or player not found")
         }
-        
-        // Deduct resources
+
+        // Get adjacency cost reduction (warehouse bonus)
+        let costReduction = AdjacencyBonusManager.shared.getTrainingCostReduction(for: building.data.id)
+        let costMultiplier = 1.0 - costReduction
+
+        // Deduct resources with adjacency discount applied
         for (resourceType, baseCost) in unitType.trainingCost {
-            let totalCost = baseCost * quantity
+            let discountedCost = Int(ceil(Double(baseCost) * costMultiplier))
+            let totalCost = discountedCost * quantity
             player.removeResource(resourceType, amount: totalCost)
         }
         
         // Start training
         building.startTraining(unitType: unitType, quantity: quantity, at: timestamp)
-        
+
         context.onResourcesChanged?()
-        
-        print("🎓 Training \(quantity)x \(unitType.displayName) at \(building.buildingType.displayName)")
-        
+
+        if costReduction > 0 {
+            print("🎓 Training \(quantity)x \(unitType.displayName) at \(building.buildingType.displayName) (-\(Int(costReduction * 100))% warehouse bonus)")
+        } else {
+            print("🎓 Training \(quantity)x \(unitType.displayName) at \(building.buildingType.displayName)")
+        }
+
         return .success
     }
 }

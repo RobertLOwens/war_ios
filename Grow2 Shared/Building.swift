@@ -28,6 +28,7 @@ enum BuildingType: String, CaseIterable, Codable {
     case lumberCamp = "Lumber Camp"
     case warehouse = "Warehouse"
     case university = "University"
+    case mill = "Mill"
 
     // Infrastructure
     case road = "Road"
@@ -55,7 +56,7 @@ enum BuildingType: String, CaseIterable, Codable {
     
     var category: BuildingCategory {
         switch self {
-        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .road:
+        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .road, .mill:
             return .economic
         case .castle, .barracks, .archeryRange, .stable, .siegeWorkshop, .tower, .woodenFort:
             return .military
@@ -81,9 +82,10 @@ enum BuildingType: String, CaseIterable, Codable {
         case .siegeWorkshop: return "🎯"
         case .tower: return "🗼"
         case .woodenFort: return "🗝️"
+        case .mill: return "⚙️"
         }
     }
-    
+
     var requiredCityCenterLevel: Int {
         switch self {
         case .cityCenter:
@@ -95,18 +97,20 @@ enum BuildingType: String, CaseIterable, Codable {
         case .market, .blacksmith, .tower:
             return 3  // Tier 3
         case .woodenFort:
-            return 4  // Tier 4
+            return 1  // Tier 4
         case .siegeWorkshop:
             return 5  // Tier 5
         case .castle:
-            return 6  // Tier 6
+            return 1  // Tier 6
         case .miningCamp, .lumberCamp:
             return 1  // Resource camps available early
         case .university:
             return 3  // Same as other advanced economic buildings
+        case .mill:
+            return 2  // Mills available at CC level 2
         }
     }
-    
+
     var buildCost: [ResourceType: Int] {
         switch self {
         case .cityCenter:
@@ -143,9 +147,11 @@ enum BuildingType: String, CaseIterable, Codable {
             return [.wood: 80, .stone: 120]
         case .woodenFort:
             return [.wood: 200, .stone: 100]
+        case .mill:
+            return [.wood: 80, .stone: 40]
         }
     }
-    
+
     var buildTime: TimeInterval {
         switch self {
         case .cityCenter: return 60.0
@@ -165,9 +171,10 @@ enum BuildingType: String, CaseIterable, Codable {
         case .siegeWorkshop: return 45.0
         case .tower: return 30.0
         case .woodenFort: return 50.0
+        case .mill: return 25.0
         }
     }
-    
+
     var hexSize: Int {
         switch self {
         case .cityCenter: return 1  // City center is single tile
@@ -182,6 +189,8 @@ enum BuildingType: String, CaseIterable, Codable {
     }
 
     /// Returns the relative hex offsets for this building type at a given rotation
+    /// NOTE: This returns offsets that work for even rows only. For actual coordinate
+    /// calculation, use getOccupiedCoordinates() which handles odd-r offset coordinates.
     /// Rotation is 0-5 representing the 6 hex directions
     func getOccupiedOffsets(rotation: Int) -> [HexCoordinate] {
         guard hexSize > 1 else {
@@ -192,21 +201,18 @@ enum BuildingType: String, CaseIterable, Codable {
         // The shape looks like a triangle/wedge
         // Rotation determines which direction the wedge points
 
-        // Hex neighbor directions (q, r offsets):
-        // 0: (+1, 0)  - East
-        // 1: (+1, -1) - Northeast
-        // 2: (0, -1)  - Northwest
-        // 3: (-1, 0)  - West
-        // 4: (-1, +1) - Southwest
-        // 5: (0, +1)  - Southeast
+        // Directions are clockwise from East:
+        // 0: East, 1: Southeast, 2: Southwest, 3: West, 4: Northwest, 5: Northeast
+        // NOTE: Actual offsets depend on row parity in odd-r coordinates.
+        // These offsets are for even rows only - use getOccupiedCoordinates() for accuracy.
 
         let directions: [(Int, Int)] = [
             (1, 0),   // 0: East
-            (1, -1),  // 1: Northeast
-            (0, -1),  // 2: Northwest
+            (0, 1),   // 1: Southeast (even row)
+            (-1, 1),  // 2: Southwest (even row)
             (-1, 0),  // 3: West
-            (-1, 1),  // 4: Southwest
-            (0, 1)    // 5: Southeast
+            (-1, -1), // 4: Northwest (even row)
+            (0, -1)   // 5: Northeast (even row)
         ]
 
         let normalizedRotation = ((rotation % 6) + 6) % 6
@@ -223,15 +229,31 @@ enum BuildingType: String, CaseIterable, Codable {
     }
 
     /// Returns all coordinates this building would occupy at a given anchor position and rotation
+    /// Uses proper odd-r offset coordinate neighbor calculation
     func getOccupiedCoordinates(anchor: HexCoordinate, rotation: Int) -> [HexCoordinate] {
-        return getOccupiedOffsets(rotation: rotation).map { offset in
-            HexCoordinate(q: anchor.q + offset.q, r: anchor.r + offset.r)
+        guard hexSize > 1 else {
+            return [anchor]  // Single tile
         }
+
+        // 3-tile wedge: anchor + two adjacent tiles in consecutive directions
+        // Directions are clockwise from East:
+        // 0: East, 1: Southeast, 2: Southwest, 3: West, 4: Northwest, 5: Northeast
+        let normalizedRotation = ((rotation % 6) + 6) % 6
+        let dir1 = normalizedRotation
+        let dir2 = (normalizedRotation + 1) % 6
+
+        return [
+            anchor,
+            anchor.neighbor(inDirection: dir1),
+            anchor.neighbor(inDirection: dir2)
+        ]
     }
 
     /// Returns a description of the current rotation for UI display
+    /// Directions are clockwise from East:
+    /// 0: East, 1: Southeast, 2: Southwest, 3: West, 4: Northwest, 5: Northeast
     static func rotationDescription(_ rotation: Int) -> String {
-        let directions = ["East", "Northeast", "Northwest", "West", "Southwest", "Southeast"]
+        let directions = ["East", "Southeast", "Southwest", "West", "Northwest", "Northeast"]
         let normalizedRotation = ((rotation % 6) + 6) % 6
         return "Pointing \(directions[normalizedRotation])"
     }
@@ -255,9 +277,10 @@ enum BuildingType: String, CaseIterable, Codable {
         case .siegeWorkshop: return "Builds siege weapons"
         case .tower: return "Defensive structure"
         case .woodenFort: return "Basic defensive structure"
+        case .mill: return "Boosts adjacent farm gather rates by 25%"
         }
     }
-    
+
     // Resource bonuses provided by this building
     var resourceBonus: [ResourceType: Double]? {
         switch self {
@@ -365,6 +388,7 @@ enum BuildingState: String, Codable {
     case constructing
     case completed
     case upgrading
+    case demolishing
     case damaged
     case destroyed
 }
@@ -372,17 +396,20 @@ enum BuildingState: String, Codable {
 // MARK: - Building Node
 
 class BuildingNode: SKSpriteNode {
-    
+
     /// The data model for this building - source of truth for all state
     let data: BuildingData
-    let id: UUID = UUID()  // ← ADD THIS LINE
+    let id: UUID = UUID()
 
     // MARK: - Entity References (not part of data - runtime only)
     weak var builderEntity: EntityNode?
     weak var upgraderEntity: EntityNode?
+    weak var demolisherEntity: EntityNode?
     weak var owner: Player?  // Keep for convenience, derived from data.ownerID
 
-    
+    // MARK: - Pending States
+    var pendingDemolition: Bool = false
+
     // MARK: - UI Elements
     var progressBar: SKShapeNode?
     var timerLabel: SKLabelNode?
@@ -391,8 +418,13 @@ class BuildingNode: SKSpriteNode {
     var upgradeProgressBar: SKShapeNode?
     var upgradeTimerLabel: SKLabelNode?
     var pendingUpgrade: Bool = false
+    var demolitionProgressBar: SKShapeNode?
+    var demolitionTimerLabel: SKLabelNode?
 
-    
+    // MARK: - Multi-Tile Visual Overlays
+    private var tileOverlays: [SKShapeNode] = []
+    private var hasCreatedTileOverlays: Bool = false
+
     // MARK: - Convenience Accessors (delegate to data)
     
     var buildingType: BuildingType { data.buildingType }
@@ -439,6 +471,19 @@ class BuildingNode: SKSpriteNode {
         get { data.upgradeStartTime }
         set { data.upgradeStartTime = newValue }
     }
+    var demolitionProgress: Double {
+        get { data.demolitionProgress }
+        set { data.demolitionProgress = newValue }
+    }
+    var demolitionStartTime: TimeInterval? {
+        get { data.demolitionStartTime }
+        set { data.demolitionStartTime = newValue }
+    }
+    var demolishersAssigned: Int {
+        get { data.demolishersAssigned }
+        set { data.demolishersAssigned = newValue }
+    }
+    var canDemolish: Bool { data.canDemolish }
     var garrison: [MilitaryUnitType: Int] {
         get { data.garrison }
         set { data.garrison = newValue }
@@ -470,27 +515,29 @@ class BuildingNode: SKSpriteNode {
             rotation: rotation
         )
         self.owner = owner
-        
+
         let texture = BuildingNode.createBuildingTexture(for: buildingType, state: .planning)
-        super.init(texture: texture, color: .clear, size: CGSize(width: 40, height: 40))
-        
+        let nodeSize = BuildingNode.getNodeSize(for: buildingType)
+        super.init(texture: texture, color: .clear, size: nodeSize)
+
         self.zPosition = 5
         self.name = "building"
-        
+
         setupUI()
     }
-    
+
     /// Initialize from existing data (used when loading saves)
     init(data: BuildingData, owner: Player? = nil) {
         self.data = data
         self.owner = owner
-        
+
         let texture = BuildingNode.createBuildingTexture(for: data.buildingType, state: data.state)
-        super.init(texture: texture, color: .clear, size: CGSize(width: 40, height: 40))
-        
+        let nodeSize = BuildingNode.getNodeSize(for: data.buildingType)
+        super.init(texture: texture, color: .clear, size: nodeSize)
+
         self.zPosition = 5
         self.name = "building"
-        
+
         setupUI()
         updateAppearance()
     }
@@ -626,13 +673,13 @@ class BuildingNode: SKSpriteNode {
     
     func cancelUpgrade() -> [ResourceType: Int]? {
         let refund = data.cancelUpgrade()
-        
+
         // Remove upgrade UI elements
         upgradeTimerLabel?.removeFromParent()
         upgradeTimerLabel = nil
         upgradeProgressBar?.removeFromParent()
         upgradeProgressBar = nil
-        
+
         // Unlock the upgrader entity
         if let upgrader = upgraderEntity {
             upgrader.isMoving = false
@@ -641,14 +688,129 @@ class BuildingNode: SKSpriteNode {
             }
         }
         upgraderEntity = nil
-        
+
         updateAppearance()
         updateLevelLabel()
         print("🚫 Upgrade cancelled for \(buildingType.displayName)")
-        
+
         return refund
     }
-    
+
+    // MARK: - Demolition Methods
+
+    func startDemolition(demolishers: Int = 1) {
+        data.startDemolition(demolishers: demolishers)
+        print("🏚️ Started demolition of \(buildingType.displayName)")
+        updateAppearance()
+    }
+
+    func cancelDemolition() {
+        data.cancelDemolition()
+
+        // Remove demolition UI elements
+        demolitionTimerLabel?.removeFromParent()
+        demolitionTimerLabel = nil
+        demolitionProgressBar?.removeFromParent()
+        demolitionProgressBar = nil
+
+        // Unlock the demolisher entity
+        if let demolisher = demolisherEntity {
+            demolisher.isMoving = false
+            if let villagerGroup = demolisher.entity as? VillagerGroup {
+                villagerGroup.clearTask()
+            }
+        }
+        demolisherEntity = nil
+        pendingDemolition = false
+
+        updateAppearance()
+        print("🚫 Demolition cancelled for \(buildingType.displayName)")
+    }
+
+    /// Returns the resources to refund after demolition
+    func completeDemolition() -> [ResourceType: Int] {
+        let refund = data.getDemolitionRefund()
+
+        // Remove demolition UI elements
+        demolitionTimerLabel?.removeFromParent()
+        demolitionTimerLabel = nil
+        demolitionProgressBar?.removeFromParent()
+        demolitionProgressBar = nil
+
+        // Unlock the demolisher entity
+        if let demolisher = demolisherEntity {
+            demolisher.isMoving = false
+            if let villagerGroup = demolisher.entity as? VillagerGroup {
+                villagerGroup.clearTask()
+            }
+        }
+        demolisherEntity = nil
+
+        print("🏚️ Demolition complete: \(buildingType.displayName) - refunding resources")
+
+        return refund
+    }
+
+    func updateDemolitionTimerLabel() {
+        guard state == .demolishing else {
+            // Remove demolition UI if not demolishing
+            demolitionTimerLabel?.removeFromParent()
+            demolitionTimerLabel = nil
+            demolitionProgressBar?.removeFromParent()
+            demolitionProgressBar = nil
+            return
+        }
+
+        guard let startTime = demolitionStartTime else { return }
+
+        let currentTime = Date().timeIntervalSince1970
+        let elapsed = currentTime - startTime
+
+        let demolisherMultiplier = 1.0 + (Double(demolishersAssigned - 1) * 0.5)
+        let effectiveDemolitionTime = data.getDemolitionTime() / demolisherMultiplier
+        let remaining = max(0, effectiveDemolitionTime - elapsed)
+
+        let newProgress = min(1.0, max(0.0, elapsed / effectiveDemolitionTime))
+
+        // Check completion - handled by GameScene update loop
+        if newProgress >= 1.0 || remaining <= 0 {
+            return
+        }
+
+        demolitionProgress = newProgress
+
+        // Create timer label if needed
+        if demolitionTimerLabel == nil {
+            demolitionTimerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+            demolitionTimerLabel?.fontSize = 11
+            demolitionTimerLabel?.fontColor = .orange
+            demolitionTimerLabel?.position = CGPoint(x: 0, y: -30)
+            demolitionTimerLabel?.zPosition = 15
+            demolitionTimerLabel?.name = "demolitionTimerLabel"
+            addChild(demolitionTimerLabel!)
+        }
+
+        let minutes = Int(remaining) / 60
+        let seconds = Int(remaining) % 60
+        demolitionTimerLabel?.text = "🏚️ \(minutes):\(String(format: "%02d", seconds))"
+
+        // Update progress bar
+        demolitionProgressBar?.removeFromParent()
+
+        let barWidth: CGFloat = 44
+        let barHeight: CGFloat = 6
+        let progressWidth = max(2.0, barWidth * CGFloat(newProgress))
+
+        demolitionProgressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 3)
+        demolitionProgressBar?.fillColor = .orange
+        demolitionProgressBar?.strokeColor = .white
+        demolitionProgressBar?.lineWidth = 1
+        demolitionProgressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -40)
+        demolitionProgressBar?.zPosition = 15
+        demolitionProgressBar?.name = "demolitionProgressBar"
+        addChild(demolitionProgressBar!)
+    }
+
     func takeDamage(_ amount: Double) {
         data.takeDamage(amount)
         updateAppearance()
@@ -667,12 +829,17 @@ class BuildingNode: SKSpriteNode {
     // NOTE: The visual methods stay the same - they just read from data now
     
     static func createBuildingTexture(for type: BuildingType, state: BuildingState) -> SKTexture {
+        // Multi-tile buildings (Castle, Wooden Fort) get special large texture
+        if type == .castle || type == .woodenFort {
+            return createMultiTileBuildingTexture(for: type, state: state)
+        }
+
         let size = CGSize(width: 40, height: 40)
         let renderer = UIGraphicsImageRenderer(size: size)
-        
+
         let image = renderer.image { context in
             let rect = CGRect(origin: .zero, size: size)
-            
+
             // Background color based on category and state
             let bgColor: UIColor
             switch state {
@@ -680,6 +847,8 @@ class BuildingNode: SKSpriteNode {
                 bgColor = UIColor(white: 0.8, alpha: 0.5)
             case .constructing, .upgrading:
                 bgColor = UIColor(red: 0.9, green: 0.7, blue: 0.4, alpha: 1.0)
+            case .demolishing:
+                bgColor = UIColor(red: 0.9, green: 0.5, blue: 0.2, alpha: 1.0)  // Orange for demolition
             case .completed:
                 switch type.category {
                 case .economic:
@@ -692,15 +861,15 @@ class BuildingNode: SKSpriteNode {
             case .destroyed:
                 bgColor = UIColor(red: 0.3, green: 0.3, blue: 0.3, alpha: 1.0)
             }
-            
+
             bgColor.setFill()
             context.cgContext.fillEllipse(in: rect.insetBy(dx: 4, dy: 4))
-            
+
             // Border
             UIColor.white.setStroke()
             context.cgContext.setLineWidth(2)
             context.cgContext.strokeEllipse(in: rect.insetBy(dx: 4, dy: 4))
-            
+
             // Draw icon text
             let icon = type.icon
             let attributes: [NSAttributedString.Key: Any] = [
@@ -717,31 +886,124 @@ class BuildingNode: SKSpriteNode {
             )
             iconString.draw(in: iconRect)
         }
-        
+
         return SKTexture(image: image)
+    }
+
+    /// Creates a larger texture for multi-tile buildings (Castle, Wooden Fort)
+    static func createMultiTileBuildingTexture(for type: BuildingType, state: BuildingState) -> SKTexture {
+        // Size to cover approximately 3 hex tiles
+        let size = CGSize(width: 90, height: 80)
+        let renderer = UIGraphicsImageRenderer(size: size)
+
+        let image = renderer.image { context in
+            let rect = CGRect(origin: .zero, size: size)
+
+            // Background color - gray for Castle, brown for Wooden Fort
+            let bgColor: UIColor
+            switch state {
+            case .planning:
+                bgColor = UIColor(white: 0.6, alpha: 0.5)
+            case .constructing, .upgrading:
+                bgColor = UIColor(red: 0.7, green: 0.6, blue: 0.4, alpha: 1.0)
+            case .demolishing:
+                bgColor = UIColor(red: 0.7, green: 0.4, blue: 0.2, alpha: 1.0)  // Orange for demolition
+            case .completed:
+                if type == .castle {
+                    bgColor = UIColor(red: 0.5, green: 0.5, blue: 0.55, alpha: 1.0)  // Gray stone
+                } else {
+                    bgColor = UIColor(red: 0.55, green: 0.4, blue: 0.25, alpha: 1.0)  // Brown wood
+                }
+            case .damaged:
+                bgColor = UIColor(red: 0.5, green: 0.4, blue: 0.3, alpha: 1.0)
+            case .destroyed:
+                bgColor = UIColor(red: 0.3, green: 0.3, blue: 0.3, alpha: 1.0)
+            }
+
+            // Draw rounded rectangle fill
+            let buildingPath = UIBezierPath(roundedRect: rect.insetBy(dx: 4, dy: 4), cornerRadius: 12)
+            bgColor.setFill()
+            buildingPath.fill()
+
+            // Draw border/outline
+            let borderColor: UIColor
+            if type == .castle {
+                borderColor = UIColor(red: 0.3, green: 0.3, blue: 0.35, alpha: 1.0)  // Dark gray
+            } else {
+                borderColor = UIColor(red: 0.35, green: 0.25, blue: 0.15, alpha: 1.0)  // Dark brown
+            }
+            borderColor.setStroke()
+            buildingPath.lineWidth = 3
+            buildingPath.stroke()
+
+            // Inner border for depth
+            UIColor.white.withAlphaComponent(0.3).setStroke()
+            let innerPath = UIBezierPath(roundedRect: rect.insetBy(dx: 8, dy: 8), cornerRadius: 10)
+            innerPath.lineWidth = 1
+            innerPath.stroke()
+
+            // Draw building name text in center
+            let buildingName = type == .castle ? "CASTLE" : "FORT"
+            let textAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 14),
+                .foregroundColor: UIColor.white
+            ]
+            let textString = NSAttributedString(string: buildingName, attributes: textAttributes)
+            let textSize = textString.size()
+            let textRect = CGRect(
+                x: (size.width - textSize.width) / 2,
+                y: (size.height - textSize.height) / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+
+            // Text shadow for readability
+            let shadowAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 14),
+                .foregroundColor: UIColor.black.withAlphaComponent(0.5)
+            ]
+            let shadowString = NSAttributedString(string: buildingName, attributes: shadowAttributes)
+            let shadowRect = textRect.offsetBy(dx: 1, dy: 1)
+            shadowString.draw(in: shadowRect)
+
+            textString.draw(in: textRect)
+        }
+
+        return SKTexture(image: image)
+    }
+
+    /// Returns the node size based on building type
+    static func getNodeSize(for type: BuildingType) -> CGSize {
+        if type == .castle || type == .woodenFort {
+            return CGSize(width: 90, height: 80)
+        }
+        return CGSize(width: 40, height: 40)
     }
     
     func setupUI() {
-        // Building name label only
+        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
+
+        // Building name label (hidden for multi-tile buildings since name is in texture)
         buildingLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
         buildingLabel?.fontSize = 9
         buildingLabel?.fontColor = .white
         buildingLabel?.text = buildingType.displayName
-        buildingLabel?.position = CGPoint(x: 0, y: 25)
+        buildingLabel?.position = isMultiTile ? CGPoint(x: 0, y: 45) : CGPoint(x: 0, y: 25)
         buildingLabel?.zPosition = 1
         buildingLabel?.name = "buildingLabel"
-        
+        buildingLabel?.isHidden = isMultiTile  // Hide for multi-tile since name is in texture
+
         // Level label (only shown when completed)
         levelLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
-        levelLabel?.fontSize = 10
+        levelLabel?.fontSize = isMultiTile ? 12 : 10
         levelLabel?.fontColor = .yellow
-        levelLabel?.position = CGPoint(x: 18, y: 15)
+        levelLabel?.position = isMultiTile ? CGPoint(x: 40, y: 30) : CGPoint(x: 18, y: 15)
         levelLabel?.zPosition = 2
         levelLabel?.name = "levelLabel"
         levelLabel?.horizontalAlignmentMode = .right
         updateLevelLabel()
         addChild(levelLabel!)
-        
+
         // Add shadow effect to label
         let shadow = SKLabelNode(fontNamed: "Helvetica-Bold")
         shadow.fontSize = 9
@@ -750,9 +1012,9 @@ class BuildingNode: SKSpriteNode {
         shadow.position = CGPoint(x: 1, y: -1)
         shadow.zPosition = -1
         buildingLabel?.addChild(shadow)
-        
+
         addChild(buildingLabel!)
-        
+
         // Progress bars and timer will be created by updateTimerLabel when needed
         updateUIVisibility()
     }
@@ -768,42 +1030,56 @@ class BuildingNode: SKSpriteNode {
     
     func updateAppearance() {
         self.texture = BuildingNode.createBuildingTexture(for: buildingType, state: state)
-        
-        switch state {
-        case .planning:
-            self.alpha = 0.6
-        case .constructing:
-            self.alpha = 0.5 + (constructionProgress * 0.5)
-        case .completed:
-            self.alpha = 1.0
-        case .upgrading:
-            self.alpha = 0.8  // Slightly dimmed during upgrade
-        case .damaged:
-            self.alpha = 0.8
-        case .destroyed:
-            self.alpha = 0.3
+        self.size = BuildingNode.getNodeSize(for: buildingType)
+
+        // For multi-tile buildings with overlays, keep main sprite hidden
+        if hasCreatedTileOverlays {
+            self.alpha = 0
+            updateTileOverlays()
+        } else {
+            switch state {
+            case .planning:
+                self.alpha = 0.6
+            case .constructing:
+                self.alpha = 0.5 + (constructionProgress * 0.5)
+            case .completed:
+                self.alpha = 1.0
+            case .upgrading:
+                self.alpha = 0.8  // Slightly dimmed during upgrade
+            case .demolishing:
+                self.alpha = 0.6  // Dimmed during demolition
+            case .damaged:
+                self.alpha = 0.8
+            case .destroyed:
+                self.alpha = 0.3
+            }
         }
-        
+
         updateUIVisibility()
     }
     
     func updateUIVisibility() {
         let showConstruction = state == .constructing
         let showUpgrading = state == .upgrading
+        let showDemolishing = state == .demolishing
         let showCompleted = state == .completed
-        
+
         // Construction UI
         childNode(withName: "progressBarBg")?.isHidden = !showConstruction
         progressBar?.isHidden = !showConstruction
         timerLabel?.isHidden = !showConstruction
-        
+
         // Upgrade UI
         upgradeProgressBar?.isHidden = !showUpgrading
         upgradeTimerLabel?.isHidden = !showUpgrading
-        
-        // Building label - show during construction, upgrading, or completed
-        buildingLabel?.isHidden = !(showCompleted || showConstruction || showUpgrading)
-        
+
+        // Demolition UI
+        demolitionProgressBar?.isHidden = !showDemolishing
+        demolitionTimerLabel?.isHidden = !showDemolishing
+
+        // Building label - show during construction, upgrading, demolishing, or completed
+        buildingLabel?.isHidden = !(showCompleted || showConstruction || showUpgrading || showDemolishing)
+
         // Level label - show when completed or upgrading
         updateLevelLabel()
     }
@@ -890,14 +1166,19 @@ class BuildingNode: SKSpriteNode {
         progressBar?.removeFromParent()
         progressBar = nil
         
-        // ✅ Unlock the builder entity
+        // Unlock the builder entity (unless it's a farm - they'll start gathering)
         if let builder = builderEntity {
-            builder.isMoving = false
-            
-            // Clear the task for the villager group
-            if let villagerGroup = builder.entity as? VillagerGroup {
-                villagerGroup.clearTask()
-                print("✅ Villagers unlocked and available for new tasks")
+            if buildingType == .farm {
+                // For farms, don't clear task - they'll start gathering automatically
+                print("✅ Farm completed - villagers will start gathering")
+            } else {
+                builder.isMoving = false
+
+                // Clear the task for the villager group
+                if let villagerGroup = builder.entity as? VillagerGroup {
+                    villagerGroup.clearTask()
+                    print("✅ Villagers unlocked and available for new tasks")
+                }
             }
         }
         
@@ -905,10 +1186,14 @@ class BuildingNode: SKSpriteNode {
         updateAppearance()
         
         if buildingType == .farm {
+            var userInfo: [String: Any] = ["coordinate": coordinate]
+            if let builder = builderEntity {
+                userInfo["builder"] = builder
+            }
             NotificationCenter.default.post(
                 name: NSNotification.Name("FarmCompletedNotification"),
                 object: self,
-                userInfo: ["coordinate": coordinate]
+                userInfo: userInfo
             )
         }
         
@@ -948,20 +1233,33 @@ class BuildingNode: SKSpriteNode {
         switch displayMode {
         case .hidden:
             self.isHidden = true
-            
+
         case .memory:
             self.isHidden = false
-            self.alpha = 0.5  // Dimmed to show it's last-known
+            // For multi-tile buildings with overlays, keep main sprite hidden
+            if hasCreatedTileOverlays {
+                self.alpha = 0
+            } else {
+                self.alpha = 0.5  // Dimmed to show it's last-known
+            }
             // Hide real-time UI elements
             childNode(withName: "progressBarBg")?.isHidden = true
             progressBar?.isHidden = true
             timerLabel?.isHidden = true
-            
+
         case .current:
             self.isHidden = false
-            self.alpha = 1.0
+            // For multi-tile buildings with overlays, keep main sprite hidden
+            if hasCreatedTileOverlays {
+                self.alpha = 0
+            } else {
+                self.alpha = 1.0
+            }
             updateUIVisibility()  // Show appropriate UI
         }
+
+        // Also update tile overlays visibility
+        updateTileOverlayVisibility(displayMode: displayMode)
     }
     
     func getAssociatedResource(from hexMap: HexMap) -> ResourcePointNode? {
@@ -1088,6 +1386,185 @@ class BuildingNode: SKSpriteNode {
         } else {
             levelLabel?.isHidden = true
         }
+    }
+
+    // MARK: - Multi-Tile Visual Overlays
+
+    /// Creates per-tile hex overlays for multi-tile buildings (Castle, Wooden Fort)
+    /// Call this after the building is added to a scene
+    func createTileOverlays(in scene: SKScene) {
+        guard buildingType.hexSize > 1 else { return }
+        guard !hasCreatedTileOverlays else { return }
+
+        // Clear any existing overlays
+        clearTileOverlays()
+
+        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: data.rotation)
+
+        for (index, coord) in occupiedCoords.enumerated() {
+            let worldPos = HexMap.hexToPixel(q: coord.q, r: coord.r)
+            let isAnchor = index == 0
+
+            let overlay = createHexTileOverlay(at: worldPos, isAnchor: isAnchor)
+            overlay.name = "tileOverlay_\(coord.q)_\(coord.r)"
+            overlay.zPosition = 4  // Below the main building sprite but above terrain
+
+            scene.addChild(overlay)
+            tileOverlays.append(overlay)
+        }
+
+        // Hide the main sprite since we're using per-tile overlays
+        self.alpha = 0
+
+        // Move UI elements to anchor tile position (they're children of this node)
+        // They'll still be visible since only the sprite itself is hidden
+
+        hasCreatedTileOverlays = true
+        print("✅ Created \(tileOverlays.count) tile overlays for \(buildingType.displayName)")
+    }
+
+    /// Creates a single hex-shaped overlay for one tile
+    private func createHexTileOverlay(at position: CGPoint, isAnchor: Bool) -> SKShapeNode {
+        let radius: CGFloat = HexTileNode.hexRadius - 1
+        let path = CGMutablePath()
+
+        for i in 0..<6 {
+            let angle = CGFloat(i) * CGFloat.pi / 3 - CGFloat.pi / 6
+            let x = radius * cos(angle)
+            let y = radius * sin(angle)
+
+            if i == 0 {
+                path.move(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+        path.closeSubpath()
+
+        let overlay = SKShapeNode(path: path)
+        overlay.position = position
+
+        // Color based on building type and state
+        let fillColor = getTileOverlayColor()
+        overlay.fillColor = fillColor
+        overlay.strokeColor = getOverlayStrokeColor()
+        overlay.lineWidth = isAnchor ? 3 : 2
+        overlay.glowWidth = isAnchor ? 1 : 0
+
+        // Add building label on anchor tile
+        if isAnchor {
+            let label = SKLabelNode(fontNamed: "Helvetica-Bold")
+            label.text = buildingType == .castle ? "CASTLE" : "FORT"
+            label.fontSize = 11
+            label.fontColor = .white
+            label.verticalAlignmentMode = .center
+            label.horizontalAlignmentMode = .center
+            label.zPosition = 1
+
+            // Add shadow for readability
+            let shadow = SKLabelNode(fontNamed: "Helvetica-Bold")
+            shadow.text = label.text
+            shadow.fontSize = 11
+            shadow.fontColor = UIColor.black.withAlphaComponent(0.7)
+            shadow.verticalAlignmentMode = .center
+            shadow.horizontalAlignmentMode = .center
+            shadow.position = CGPoint(x: 1, y: -1)
+            shadow.zPosition = 0
+            overlay.addChild(shadow)
+
+            overlay.addChild(label)
+
+            // Add level label below the building name
+            let lvlLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
+            lvlLabel.text = "Lv.\(level)"
+            lvlLabel.fontSize = 9
+            lvlLabel.fontColor = .yellow
+            lvlLabel.verticalAlignmentMode = .center
+            lvlLabel.horizontalAlignmentMode = .center
+            lvlLabel.position = CGPoint(x: 0, y: -12)
+            lvlLabel.zPosition = 1
+            lvlLabel.name = "overlayLevelLabel"
+            overlay.addChild(lvlLabel)
+        }
+
+        return overlay
+    }
+
+    /// Returns the fill color for tile overlays based on building type and state
+    private func getTileOverlayColor() -> UIColor {
+        switch state {
+        case .planning:
+            return UIColor(white: 0.5, alpha: 0.4)
+        case .constructing, .upgrading:
+            return UIColor(red: 0.7, green: 0.6, blue: 0.4, alpha: 0.7)
+        case .demolishing:
+            return UIColor(red: 0.7, green: 0.4, blue: 0.2, alpha: 0.7)
+        case .completed:
+            if buildingType == .castle {
+                return UIColor(red: 0.45, green: 0.45, blue: 0.5, alpha: 0.85)  // Gray stone
+            } else {
+                return UIColor(red: 0.5, green: 0.38, blue: 0.25, alpha: 0.85)  // Brown wood
+            }
+        case .damaged:
+            return UIColor(red: 0.5, green: 0.4, blue: 0.3, alpha: 0.7)
+        case .destroyed:
+            return UIColor(red: 0.3, green: 0.3, blue: 0.3, alpha: 0.5)
+        }
+    }
+
+    /// Returns the stroke color for tile overlays
+    private func getOverlayStrokeColor() -> UIColor {
+        if buildingType == .castle {
+            return UIColor(red: 0.3, green: 0.3, blue: 0.35, alpha: 1.0)  // Dark gray
+        } else {
+            return UIColor(red: 0.35, green: 0.25, blue: 0.15, alpha: 1.0)  // Dark brown
+        }
+    }
+
+    /// Updates the appearance of tile overlays
+    func updateTileOverlays() {
+        let fillColor = getTileOverlayColor()
+        let strokeColor = getOverlayStrokeColor()
+
+        for (index, overlay) in tileOverlays.enumerated() {
+            overlay.fillColor = fillColor
+            overlay.strokeColor = strokeColor
+
+            // Update level label on anchor tile
+            if index == 0, let lvlLabel = overlay.childNode(withName: "overlayLevelLabel") as? SKLabelNode {
+                lvlLabel.text = "Lv.\(level)"
+            }
+        }
+    }
+
+    /// Clears all tile overlays
+    func clearTileOverlays() {
+        for overlay in tileOverlays {
+            overlay.removeFromParent()
+        }
+        tileOverlays.removeAll()
+        hasCreatedTileOverlays = false
+    }
+
+    /// Updates visibility of tile overlays for fog of war
+    func updateTileOverlayVisibility(displayMode: BuildingDisplayMode) {
+        for overlay in tileOverlays {
+            switch displayMode {
+            case .hidden:
+                overlay.isHidden = true
+            case .memory:
+                overlay.isHidden = false
+                overlay.alpha = 0.5
+            case .current:
+                overlay.isHidden = false
+                overlay.alpha = 1.0
+            }
+        }
+    }
+
+    /// Returns the coordinates this building occupies (for multi-tile buildings)
+    func getOccupiedCoordinates() -> [HexCoordinate] {
+        return buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: data.rotation)
     }
 
     var upgradeBlockedReason: String? {

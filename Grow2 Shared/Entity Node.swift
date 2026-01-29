@@ -7,25 +7,29 @@ import UIKit
 enum EntityType {
     case army
     case villagerGroup
-    
+    case reinforcement
+
     var displayName: String {
         switch self {
         case .army: return "Army"
         case .villagerGroup: return "Villager Group"
+        case .reinforcement: return "Reinforcements"
         }
     }
-    
+
     var icon: String {
         switch self {
         case .army: return "A"
         case .villagerGroup: return "V"
+        case .reinforcement: return "R"
         }
     }
-    
+
     var moveSpeed: TimeInterval {
         switch self {
         case .army: return 0.4
         case .villagerGroup: return 0.5
+        case .reinforcement: return 0.35  // Slightly faster than armies
         }
     }
 }
@@ -40,7 +44,19 @@ class EntityNode: SKSpriteNode {
     var movementPath: [HexCoordinate] = []
     private var pathLine: SKShapeNode?
 
-    
+    // Health bar UI elements
+    private var healthBarBackground: SKShapeNode?
+    private var healthBarFill: SKShapeNode?
+    private weak var currentPlayerReference: Player?
+
+    // Combat position tracking for HP bar
+    private var combatPositionIsTop: Bool = false
+
+    // Movement timer UI elements
+    private var movementTimerLabel: SKLabelNode?
+    private var estimatedRemainingTime: TimeInterval = 0
+    private var movementStartTime: TimeInterval = 0
+
     // ✅ ADD: Store the actual typed entity
     weak var armyReference: Army?
     weak var villagerReference: VillagerGroup?
@@ -56,7 +72,12 @@ class EntityNode: SKSpriteNode {
         } else if entityType == .villagerGroup, let villagers = entity as? VillagerGroup {
             self.villagerReference = villagers
         }
-        
+
+        // Warn if army created without proper reference
+        if entityType == .army && self.armyReference == nil {
+            print("⚠️ WARNING: EntityNode for army but armyReference is nil. Entity type: \(type(of: entity))")
+        }
+
         let texture = EntityNode.createEntityTexture(for: entityType, entity: entity, currentPlayer: currentPlayer)
         super.init(texture: texture, color: .clear, size: CGSize(width: 36, height: 36))
         
@@ -83,6 +104,8 @@ class EntityNode: SKSpriteNode {
                 bgColor = UIColor(red: 0.8, green: 0.2, blue: 0.2, alpha: 1.0)
             case .villagerGroup:
                 bgColor = UIColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1.0)
+            case .reinforcement:
+                bgColor = UIColor(red: 0.3, green: 0.5, blue: 0.3, alpha: 1.0)
             }
             
             // Draw circle
@@ -130,6 +153,9 @@ class EntityNode: SKSpriteNode {
 
         // Get HexMap from GameScene for road checking
         let hexMap = (self.scene as? GameScene)?.hexMap
+
+        // Start movement timer
+        startMovementTimer(path: path, hexMap: hexMap)
 
         // Calculate segment distances
         var segmentDistances: [CGFloat] = []
@@ -186,14 +212,14 @@ class EntityNode: SKSpriteNode {
             let updateAction = SKAction.run { [weak self] in
                 guard let self = self else { return }
                 self.coordinate = coord
-                
+
                 // Update the underlying entity's coordinate
                 if let army = self.entity as? Army {
                     army.coordinate = coord
                 } else if let villagers = self.entity as? VillagerGroup {
                     villagers.coordinate = coord
                 }
-                
+
                 // ✅ Update path visualization - remove completed segment
                 remainingPath.removeFirst()
                 if let scene = self.scene as? GameScene {
@@ -202,8 +228,11 @@ class EntityNode: SKSpriteNode {
                     } else {
                         scene.clearMovementPath()
                     }
+
+                    // Update movement timer with remaining path
+                    self.updateMovementTimer(remainingPath: remainingPath, hexMap: scene.hexMap)
                 }
-                
+
                 // Trigger fog of war update
                 if let owner = self.entity.owner {
                     NotificationCenter.default.post(
@@ -241,10 +270,11 @@ class EntityNode: SKSpriteNode {
             }
             self.isMoving = false
             self.movementPath = []
+            self.removeMovementTimer()
             completion()
         }
     }
-    
+
     func updateVisibility(for player: Player) {
         if let fogOfWar = player.fogOfWar {
             let visibility = fogOfWar.getVisibilityLevel(at: coordinate)
@@ -336,6 +366,214 @@ class EntityNode: SKSpriteNode {
             pathLine?.removeFromParent()
             pathLine = nil
         }
-        
-    
+
+    // MARK: - Health Bar
+
+    func setupHealthBar(currentPlayer: Player?) {
+        currentPlayerReference = currentPlayer
+
+        // Only show health bars for armies
+        guard entityType == .army else { return }
+
+        // Guard against duplicate health bars - skip if already created
+        if healthBarBackground != nil && healthBarFill != nil {
+            return
+        }
+
+        let barWidth: CGFloat = 32
+        let barHeight: CGFloat = 4
+
+        // Default all HP bars to bottom position
+        let yOffset: CGFloat = -22
+        combatPositionIsTop = false
+
+        // Background (dark)
+        let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
+        healthBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 2)
+        healthBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
+        healthBarBackground?.strokeColor = .clear
+        healthBarBackground?.zPosition = 15
+        addChild(healthBarBackground!)
+
+        // Fill color based on diplomacy status
+        let diplomacyStatus = currentPlayer?.getDiplomacyStatus(with: entity.owner) ?? .neutral
+        healthBarFill = SKShapeNode(rect: bgRect, cornerRadius: 2)
+        healthBarFill?.fillColor = diplomacyStatus.strokeColor
+        healthBarFill?.strokeColor = .clear
+        healthBarFill?.zPosition = 16
+        addChild(healthBarFill!)
+    }
+
+    /// Updates HP bar position for combat visualization
+    /// - Parameter isAttacker: If true, moves bar to top; if false, keeps at bottom
+    func updateHealthBarCombatPosition(isAttacker: Bool) {
+        combatPositionIsTop = isAttacker
+
+        let barWidth: CGFloat = 32
+        let barHeight: CGFloat = 4
+        let yOffset: CGFloat = isAttacker ? 22 : -22
+
+        // Update background position
+        let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
+        healthBarBackground?.path = CGPath(roundedRect: bgRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
+
+        // Update fill position (keeping current width ratio)
+        updateHealthBar()
+    }
+
+    /// Resets HP bar to default bottom position after combat ends
+    func resetHealthBarPosition() {
+        combatPositionIsTop = false
+
+        let barWidth: CGFloat = 32
+        let barHeight: CGFloat = 4
+        let yOffset: CGFloat = -22
+
+        let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
+        healthBarBackground?.path = CGPath(roundedRect: bgRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
+
+        updateHealthBar()
+    }
+
+    func updateHealthBar() {
+        // Use armyReference instead of casting entity for correct identity comparison
+        guard entityType == .army,
+              let army = armyReference,
+              let fill = healthBarFill else { return }
+
+        let totalUnits = army.getTotalMilitaryUnits()
+        guard totalUnits > 0 else {
+            // Hide health bar if no units
+            healthBarBackground?.isHidden = true
+            healthBarFill?.isHidden = true
+            return
+        }
+
+        healthBarBackground?.isHidden = false
+        healthBarFill?.isHidden = false
+
+        // Get current HP from active combat if in combat
+        let currentHP: Double
+        let maxHP: Double
+
+        if let combat = CombatSystem.shared.getActiveCombat(for: army) {
+            let isAttacker = combat.attackerArmy === army
+            let state = isAttacker ? combat.attackerState : combat.defenderState
+            currentHP = Double(state.totalUnits)
+            maxHP = Double(state.initialUnitCount)
+        } else {
+            currentHP = Double(totalUnits)
+            maxHP = Double(totalUnits)
+        }
+
+        let percentage = CGFloat(currentHP / max(maxHP, 1))
+        // Use combat position tracking instead of player ownership
+        let yOffset: CGFloat = combatPositionIsTop ? 22 : -22
+
+        let barWidth: CGFloat = 32 * max(0, min(1, percentage))
+        let newRect = CGRect(x: -16, y: yOffset, width: barWidth, height: 4)
+        fill.path = CGPath(roundedRect: newRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
+    }
+
+    // MARK: - Movement Timer
+
+    /// Calculate travel time for a path considering terrain, roads, and research bonuses
+    func calculateTravelTime(from startCoord: HexCoordinate, path: [HexCoordinate], hexMap: HexMap?) -> TimeInterval {
+        guard !path.isEmpty else { return 0 }
+
+        var totalTime: TimeInterval = 0
+        var previousCoord = startCoord
+
+        // Base move speed with research bonus
+        var baseMoveSpeed = entityType.moveSpeed
+
+        // Apply villager speed research bonus (lower moveSpeed = faster movement)
+        if entityType == .villagerGroup {
+            let speedMultiplier = ResearchManager.shared.getVillagerMarchSpeedMultiplier()
+            baseMoveSpeed = baseMoveSpeed / speedMultiplier
+        }
+
+        // Get road speed research bonus
+        let roadSpeedBonus = ResearchManager.shared.getRoadSpeedMultiplier()
+
+        for coord in path {
+            // Calculate segment distance
+            let prevPos = HexMap.hexToPixel(q: previousCoord.q, r: previousCoord.r)
+            let nextPos = HexMap.hexToPixel(q: coord.q, r: coord.r)
+            let dx = nextPos.x - prevPos.x
+            let dy = nextPos.y - prevPos.y
+            let distance = sqrt(dx * dx + dy * dy)
+
+            // Check if destination tile has a road
+            let hasRoad = hexMap?.hasRoad(at: coord) ?? false
+
+            // Calculate segment duration
+            var segmentSpeed = baseMoveSpeed
+            if hasRoad {
+                // Roads make movement 50% faster, plus any research bonus
+                segmentSpeed = baseMoveSpeed / (1.5 * roadSpeedBonus)
+            }
+
+            let segmentDuration = TimeInterval(distance / 100.0) * segmentSpeed
+            totalTime += segmentDuration
+
+            previousCoord = coord
+        }
+
+        return totalTime
+    }
+
+    /// Sets up the movement timer label
+    private func setupMovementTimer() {
+        guard movementTimerLabel == nil else { return }
+
+        movementTimerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+        movementTimerLabel?.fontSize = 11
+        movementTimerLabel?.fontColor = .yellow
+        movementTimerLabel?.position = CGPoint(x: 0, y: -30)
+        movementTimerLabel?.zPosition = 15
+        movementTimerLabel?.name = "movementTimerLabel"
+        addChild(movementTimerLabel!)
+    }
+
+    /// Updates the movement timer display with remaining time
+    private func updateMovementTimerDisplay(remaining: TimeInterval) {
+        guard let label = movementTimerLabel else { return }
+
+        if remaining > 60 {
+            let minutes = Int(remaining) / 60
+            let seconds = Int(remaining) % 60
+            label.text = String(format: "%d:%02d", minutes, seconds)
+        } else {
+            let seconds = Int(remaining)
+            label.text = String(format: "0:%02d", seconds)
+        }
+    }
+
+    /// Removes the movement timer label
+    private func removeMovementTimer() {
+        movementTimerLabel?.removeFromParent()
+        movementTimerLabel = nil
+        estimatedRemainingTime = 0
+    }
+
+    /// Starts the movement timer for the given path
+    func startMovementTimer(path: [HexCoordinate], hexMap: HexMap?) {
+        setupMovementTimer()
+        movementStartTime = Date().timeIntervalSince1970
+        estimatedRemainingTime = calculateTravelTime(from: coordinate, path: path, hexMap: hexMap)
+        updateMovementTimerDisplay(remaining: estimatedRemainingTime)
+    }
+
+    /// Updates the movement timer after reaching a waypoint
+    func updateMovementTimer(remainingPath: [HexCoordinate], hexMap: HexMap?) {
+        guard !remainingPath.isEmpty else {
+            removeMovementTimer()
+            return
+        }
+
+        estimatedRemainingTime = calculateTravelTime(from: coordinate, path: remainingPath, hexMap: hexMap)
+        updateMovementTimerDisplay(remaining: estimatedRemainingTime)
+    }
+
 }

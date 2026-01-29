@@ -5,12 +5,34 @@
 
 import UIKit
 
+enum MapType: String {
+    case arabia = "Arabia"
+    case random = "Random"
+    case arena = "Arena"
+
+    var displayName: String {
+        switch self {
+        case .arabia: return "Arabia (35x35)"
+        case .random: return "Random"
+        case .arena: return "Arena (5x5)"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .arabia: return "Competitive 1v1 map with balanced resources and opposite corner spawns"
+        case .random: return "Randomly generated terrain and resources"
+        case .arena: return "Small combat test arena with two armies"
+        }
+    }
+}
+
 enum MapSize: Int {
     case small = 15
     case medium = 20
     case large = 25
     case huge = 30
-    
+
     var displayName: String {
         switch self {
         case .small: return "Small (15x15)"
@@ -25,7 +47,7 @@ enum ResourceDensity: String {
     case sparse = "Sparse"
     case normal = "Normal"
     case abundant = "Abundant"
-    
+
     var multiplier: Double {
         switch self {
         case .sparse: return 0.5
@@ -35,13 +57,39 @@ enum ResourceDensity: String {
     }
 }
 
+enum VisibilityMode: String {
+    case normal = "Normal"
+    case fullyVisible = "Fully Visible"
+
+    var displayName: String {
+        switch self {
+        case .normal: return "Normal (Fog of War)"
+        case .fullyVisible: return "Fully Visible"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .normal: return "Explore the map to reveal new areas"
+        case .fullyVisible: return "See the entire map from the start"
+        }
+    }
+}
+
 class GameSetupViewController: UIViewController {
-    
+
+    var selectedMapType: MapType = .arabia  // Arabia is default
     var selectedMapSize: MapSize = .medium
     var selectedResourceDensity: ResourceDensity = .normal
-    
+    var selectedVisibilityMode: VisibilityMode = .normal
+
+    var mapTypeSegmentedControl: UISegmentedControl!
     var mapSizeSegmentedControl: UISegmentedControl!
     var resourceDensitySegmentedControl: UISegmentedControl!
+    var visibilityModeSegmentedControl: UISegmentedControl!
+    var mapSizeSection: UIView?
+    var resourceDensitySection: UIView?
+    var visibilityModeSection: UIView?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -67,12 +115,30 @@ class GameSetupViewController: UIViewController {
         view.addSubview(backButton)
         
         let startY: CGFloat = 150
-        let sectionSpacing: CGFloat = 120
-        
-        // Map Size Section
+        let sectionSpacing: CGFloat = 100
+
+        // Map Type Section (Arabia vs Random vs Arena)
         createSection(
-            title: "🗺️ Map Size",
+            title: "🗺️ Map Type",
             yPosition: startY,
+            options: [MapType.arabia.displayName, MapType.random.displayName, MapType.arena.displayName],
+            selectedIndex: 0  // Arabia is default
+        ) { [weak self] control in
+            guard let self = self else { return }
+            switch control.selectedSegmentIndex {
+            case 0: self.selectedMapType = .arabia
+            case 1: self.selectedMapType = .random
+            case 2: self.selectedMapType = .arena
+            default: self.selectedMapType = .arabia
+            }
+            self.mapTypeSegmentedControl = control
+            self.updateMapOptionsVisibility()
+        }
+
+        // Map Size Section (only for Random maps)
+        let sizeSection = createSectionView(
+            title: "📐 Map Size",
+            yPosition: startY + sectionSpacing,
             options: [MapSize.small.displayName, MapSize.medium.displayName, MapSize.large.displayName, MapSize.huge.displayName],
             selectedIndex: 1
         ) { [weak self] control in
@@ -80,11 +146,12 @@ class GameSetupViewController: UIViewController {
             self.selectedMapSize = [MapSize.small, MapSize.medium, MapSize.large, MapSize.huge][control.selectedSegmentIndex]
             self.mapSizeSegmentedControl = control
         }
-        
-        // Resource Density Section
-        createSection(
+        mapSizeSection = sizeSection
+
+        // Resource Density Section (only for Random maps)
+        let densitySection = createSectionView(
             title: "💎 Resource Density",
-            yPosition: startY + sectionSpacing,
+            yPosition: startY + sectionSpacing * 2,
             options: [ResourceDensity.sparse.rawValue, ResourceDensity.normal.rawValue, ResourceDensity.abundant.rawValue],
             selectedIndex: 1
         ) { [weak self] control in
@@ -92,9 +159,26 @@ class GameSetupViewController: UIViewController {
             self.selectedResourceDensity = [ResourceDensity.sparse, ResourceDensity.normal, ResourceDensity.abundant][control.selectedSegmentIndex]
             self.resourceDensitySegmentedControl = control
         }
-        
+        resourceDensitySection = densitySection
+
+        // Visibility Mode Section
+        let visibilitySection = createSectionView(
+            title: "👁️ Visibility Mode",
+            yPosition: startY + sectionSpacing * 3,
+            options: [VisibilityMode.normal.displayName, VisibilityMode.fullyVisible.displayName],
+            selectedIndex: 0
+        ) { [weak self] control in
+            guard let self = self else { return }
+            self.selectedVisibilityMode = control.selectedSegmentIndex == 0 ? .normal : .fullyVisible
+            self.visibilityModeSegmentedControl = control
+        }
+        visibilityModeSection = visibilitySection
+
+        // Initially hide size/density for Arabia (default)
+        updateMapOptionsVisibility()
+
         // Game Info
-        let infoView = UIView(frame: CGRect(x: 20, y: startY + sectionSpacing * 2, width: view.bounds.width - 40, height: 120))
+        let infoView = UIView(frame: CGRect(x: 20, y: startY + sectionSpacing * 4, width: view.bounds.width - 40, height: 120))
         infoView.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
         infoView.layer.cornerRadius = 12
         view.addSubview(infoView)
@@ -138,11 +222,52 @@ class GameSetupViewController: UIViewController {
     
     @objc func segmentChanged(_ sender: UISegmentedControl) {
         // Update selected values
-        if sender == mapSizeSegmentedControl {
+        if sender == mapTypeSegmentedControl {
+            switch sender.selectedSegmentIndex {
+            case 0: selectedMapType = .arabia
+            case 1: selectedMapType = .random
+            case 2: selectedMapType = .arena
+            default: selectedMapType = .arabia
+            }
+            updateMapOptionsVisibility()
+        } else if sender == mapSizeSegmentedControl {
             selectedMapSize = [MapSize.small, MapSize.medium, MapSize.large, MapSize.huge][sender.selectedSegmentIndex]
         } else if sender == resourceDensitySegmentedControl {
             selectedResourceDensity = [ResourceDensity.sparse, ResourceDensity.normal, ResourceDensity.abundant][sender.selectedSegmentIndex]
+        } else if sender == visibilityModeSegmentedControl {
+            selectedVisibilityMode = sender.selectedSegmentIndex == 0 ? .normal : .fullyVisible
         }
+    }
+
+    func updateMapOptionsVisibility() {
+        // Only show size/density options for random maps
+        let showRandomOptions = selectedMapType == .random
+        UIView.animate(withDuration: 0.3) {
+            self.mapSizeSection?.alpha = showRandomOptions ? 1.0 : 0.3
+            self.resourceDensitySection?.alpha = showRandomOptions ? 1.0 : 0.3
+        }
+        mapSizeSegmentedControl?.isEnabled = showRandomOptions
+        resourceDensitySegmentedControl?.isEnabled = showRandomOptions
+    }
+
+    func createSectionView(title: String, yPosition: CGFloat, options: [String], selectedIndex: Int, onChange: @escaping (UISegmentedControl) -> Void) -> UIView {
+        let container = UIView(frame: CGRect(x: 0, y: yPosition, width: view.bounds.width, height: 80))
+        view.addSubview(container)
+
+        let sectionLabel = UILabel(frame: CGRect(x: 40, y: 0, width: view.bounds.width - 80, height: 30))
+        sectionLabel.text = title
+        sectionLabel.font = UIFont.boldSystemFont(ofSize: 18)
+        sectionLabel.textColor = .white
+        container.addSubview(sectionLabel)
+
+        let segmentedControl = UISegmentedControl(items: options)
+        segmentedControl.frame = CGRect(x: 40, y: 35, width: view.bounds.width - 80, height: 40)
+        segmentedControl.selectedSegmentIndex = selectedIndex
+        segmentedControl.addTarget(self, action: #selector(segmentChanged(_:)), for: .valueChanged)
+        container.addSubview(segmentedControl)
+
+        onChange(segmentedControl)
+        return container
     }
     
     @objc func backTapped() {
@@ -151,8 +276,10 @@ class GameSetupViewController: UIViewController {
     
     @objc func startGameTapped() {
         let gameVC = GameViewController()
+        gameVC.mapType = selectedMapType
         gameVC.mapSize = selectedMapSize
         gameVC.resourceDensity = selectedResourceDensity
+        gameVC.visibilityMode = selectedVisibilityMode
         gameVC.modalPresentationStyle = .fullScreen
         present(gameVC, animated: true)
     }

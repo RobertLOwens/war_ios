@@ -32,23 +32,28 @@ struct RecruitCommanderCommand: GameCommand {
         guard let player = context.getPlayer(by: playerID) else {
             return .failure(reason: "Player not found")
         }
-        
+
+        // Check army limit (recruiting creates an army)
+        if let error = player.getArmySpawnError() {
+            return .failure(reason: error)
+        }
+
         // Check for completed city center
         let cityCenters = player.buildings.filter {
             $0.buildingType == .cityCenter &&
             $0.state == .completed
         }
-        
+
         guard let cityCenter = cityCenters.first else {
             return .failure(reason: "No City Center found. Build one first!")
         }
-        
+
         // Check if city center is occupied
         let spawnCoord = cityCenter.coordinate
         if context.hexMap.getEntity(at: spawnCoord) != nil {
             return .failure(reason: "City Center is occupied. Move units away first.")
         }
-        
+
         return .success
     }
     

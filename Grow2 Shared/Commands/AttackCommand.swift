@@ -53,22 +53,34 @@ struct AttackCommand: GameCommand {
     func execute(in context: CommandContext) -> CommandResult {
         guard let attacker = context.getEntity(by: attackerEntityID),
               let attackerArmy = attacker.entity as? Army,
-              let target = context.hexMap.getEntity(at: targetCoordinate) else {
+              let target = context.hexMap.getEntity(at: targetCoordinate),
+              let defenderArmy = target.entity as? Army else {
             return .failure(reason: "Required objects not found")
         }
-        
-        // Move to target and initiate combat
-        // The actual combat resolution would happen in the game loop
-        // For now, just set up the attack
-        
-        if let path = context.hexMap.findPath(from: attacker.coordinate, to: targetCoordinate) {
+
+        // Store references for use in completion handler
+        let hexMap = context.hexMap
+        let targetCoord = targetCoordinate
+
+        // Get terrain type at target location for combat modifiers
+        let terrainType = hexMap.getTile(at: targetCoordinate)?.terrain ?? .plains
+
+        if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate) {
             attacker.moveTo(path: path) {
-                print("⚔️ \(attackerArmy.name) arrived at attack position")
+                // Initiate combat when army arrives
+                // Use the already-captured defenderArmy (not re-lookup, which would find the attacker)
+                print("⚔️ \(attackerArmy.name) arrived - initiating combat!")
+                _ = CombatSystem.shared.startPhasedCombat(
+                    attacker: attackerArmy,
+                    defender: defenderArmy,
+                    location: targetCoord,
+                    terrainType: terrainType
+                )
             }
         }
-        
+
         print("⚔️ \(attackerArmy.name) attacking target at (\(targetCoordinate.q), \(targetCoordinate.r))")
-        
+
         return .success
     }
 }

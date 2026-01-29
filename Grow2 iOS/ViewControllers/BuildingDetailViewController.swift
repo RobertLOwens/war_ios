@@ -148,6 +148,7 @@ class BuildingDetailViewController: UIViewController {
         // Level and State
         let stateText = building.state == .constructing ? "🔨 Under Construction" :
                         building.state == .upgrading ? "⬆️ Upgrading" :
+                        building.state == .demolishing ? "🏚️ Being Demolished" :
                         "✅ Operational"
         let levelLabel = createLabel(
             text: "Level \(building.level) • \(stateText)",
@@ -167,7 +168,33 @@ class BuildingDetailViewController: UIViewController {
         locationLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 20)
         contentView.addSubview(locationLabel)
         yOffset += 30
-        
+
+        // Adjacency Bonuses (if any)
+        if let bonusData = AdjacencyBonusManager.shared.getBonusData(for: building.data.id),
+           !bonusData.bonusSources.isEmpty {
+            let bonusHeader = createLabel(
+                text: "🏘️ Adjacency Bonuses",
+                fontSize: 16,
+                weight: .semibold,
+                color: UIColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1.0)
+            )
+            bonusHeader.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 25)
+            contentView.addSubview(bonusHeader)
+            yOffset += 28
+
+            for source in bonusData.bonusSources {
+                let bonusLabel = createLabel(
+                    text: "  • \(source)",
+                    fontSize: 14,
+                    color: UIColor(white: 0.8, alpha: 1.0)
+                )
+                bonusLabel.frame = CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 20)
+                contentView.addSubview(bonusLabel)
+                yOffset += 22
+            }
+            yOffset += 10
+        }
+
         // Storage info (if applicable)
         if let storageInfo = getStorageInfoString(for: building, player: player) {
             let storageLabel = createLabel(
@@ -260,7 +287,14 @@ class BuildingDetailViewController: UIViewController {
         } else {
             print("   → No upgrade section shown")
         }
-        
+
+        // Demolition section (only for completed buildings, not City Center)
+        if building.state == .completed && building.buildingType != .cityCenter {
+            yOffset = setupDemolishSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+        } else if building.state == .demolishing {
+            yOffset = setupDemolishingProgressSection(yOffset: yOffset, leftMargin: leftMargin, contentWidth: contentWidth)
+        }
+
         // Market Trading Section
         if building.buildingType == .market && building.state == .completed {
             yOffset = setupMarketTradingSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
@@ -343,12 +377,16 @@ class BuildingDetailViewController: UIViewController {
         nameLabel.textColor = .white
         container.addSubview(nameLabel)
 
-        // Cost label
-        let costText = formatCost(unitType.trainingCost)
+        // Cost label with warehouse discount if applicable
+        let costReduction = AdjacencyBonusManager.shared.getTrainingCostReduction(for: building.data.id)
+        var costText = formatCost(unitType.trainingCost)
+        if costReduction > 0 {
+            costText += " (-\(Int(costReduction * 100))% 📦)"
+        }
         let costLabel = UILabel(frame: CGRect(x: 15, y: 35, width: contentWidth - 30, height: 20))
         costLabel.text = "Cost: \(costText)"
         costLabel.font = UIFont.systemFont(ofSize: 12)
-        costLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
+        costLabel.textColor = costReduction > 0 ? UIColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1.0) : UIColor(white: 0.7, alpha: 1.0)
         costLabel.tag = 1000 + index
         container.addSubview(costLabel)
 
@@ -1661,7 +1699,286 @@ class BuildingDetailViewController: UIViewController {
             contentView.addSubview(upgradeButton)
             currentY += 60
         }
-        
+
         return currentY
+    }
+
+    // ============================================================================
+    // MARK: - Demolition Section
+    // ============================================================================
+
+    func setupDemolishSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        var currentY = yOffset
+
+        // Separator
+        let separator = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 1))
+        separator.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+        contentView.addSubview(separator)
+        currentY += 20
+
+        // Section header
+        let demolishHeader = createLabel(
+            text: "🏚️ Demolish Building",
+            fontSize: 18,
+            weight: .bold,
+            color: .orange
+        )
+        demolishHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(demolishHeader)
+        currentY += 30
+
+        // Refund info
+        let refund = building.data.getDemolitionRefund()
+        let refundText = refund.map { "\($0.key.icon)\($0.value)" }.joined(separator: " ")
+        let refundLabel = createLabel(
+            text: "Refund: \(refundText)",
+            fontSize: 14,
+            color: UIColor(white: 0.7, alpha: 1.0)
+        )
+        refundLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+        contentView.addSubview(refundLabel)
+        currentY += 25
+
+        // Time info
+        let demolitionTime = building.data.getDemolitionTime()
+        let minutes = Int(demolitionTime) / 60
+        let seconds = Int(demolitionTime) % 60
+        let timeLabel = createLabel(
+            text: "⏱️ Time: \(minutes)m \(seconds)s",
+            fontSize: 14,
+            color: UIColor(white: 0.7, alpha: 1.0)
+        )
+        timeLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+        contentView.addSubview(timeLabel)
+        currentY += 30
+
+        // Check for garrisoned units
+        let hasGarrison = building.getTotalGarrisonCount() > 0
+
+        // Demolish button
+        let demolishButton = createActionButton(
+            title: "🏚️ Demolish",
+            y: currentY,
+            width: contentWidth,
+            leftMargin: leftMargin,
+            color: hasGarrison ? .gray : UIColor(red: 0.8, green: 0.4, blue: 0.2, alpha: 1.0),
+            action: #selector(demolishTapped)
+        )
+        demolishButton.isEnabled = !hasGarrison
+        contentView.addSubview(demolishButton)
+        currentY += 60
+
+        if hasGarrison {
+            let warningLabel = createLabel(
+                text: "⚠️ Remove garrisoned units before demolishing",
+                fontSize: 12,
+                color: .systemRed
+            )
+            warningLabel.frame = CGRect(x: leftMargin, y: currentY - 25, width: contentWidth, height: 20)
+            contentView.addSubview(warningLabel)
+        }
+
+        return currentY
+    }
+
+    func setupDemolishingProgressSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        var currentY = yOffset
+
+        // Section header
+        let demolishHeader = createLabel(
+            text: "🏚️ Demolishing...",
+            fontSize: 18,
+            weight: .bold,
+            color: .orange
+        )
+        demolishHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(demolishHeader)
+        currentY += 35
+
+        // Progress bar background
+        let progress = building.demolitionProgress
+        let progressBarBg = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20))
+        progressBarBg.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+        progressBarBg.layer.cornerRadius = 10
+        contentView.addSubview(progressBarBg)
+
+        // Progress bar fill
+        let fillWidth = max(0, contentWidth * CGFloat(progress))
+        let progressBarFill = UIView(frame: CGRect(x: leftMargin, y: currentY, width: fillWidth, height: 20))
+        progressBarFill.backgroundColor = .orange
+        progressBarFill.layer.cornerRadius = 10
+        progressBarFill.tag = 9101
+        contentView.addSubview(progressBarFill)
+        currentY += 30
+
+        // Progress label
+        let progressPercent = Int(progress * 100)
+        let progressLabel = createLabel(
+            text: "Progress: \(progressPercent)%",
+            fontSize: 14,
+            color: UIColor(white: 0.8, alpha: 1.0)
+        )
+        progressLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+        progressLabel.tag = 9102
+        contentView.addSubview(progressLabel)
+        currentY += 25
+
+        // Time remaining
+        let currentTime = Date().timeIntervalSince1970
+        if let remainingTime = building.data.getRemainingDemolitionTime(currentTime: currentTime) {
+            let minutes = Int(remainingTime) / 60
+            let seconds = Int(remainingTime) % 60
+            let timeLabel = createLabel(
+                text: "⏱️ Time Remaining: \(minutes)m \(seconds)s",
+                fontSize: 14,
+                color: UIColor(white: 0.7, alpha: 1.0)
+            )
+            timeLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+            timeLabel.tag = 9103
+            contentView.addSubview(timeLabel)
+            currentY += 30
+        }
+
+        // Refund preview
+        let refund = building.data.getDemolitionRefund()
+        let refundText = refund.map { "\($0.key.icon)\($0.value)" }.joined(separator: " ")
+        let refundLabel = createLabel(
+            text: "Will refund: \(refundText)",
+            fontSize: 14,
+            color: UIColor(white: 0.6, alpha: 1.0)
+        )
+        refundLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
+        contentView.addSubview(refundLabel)
+        currentY += 30
+
+        // Cancel button
+        let cancelButton = createActionButton(
+            title: "🚫 Cancel Demolition",
+            y: currentY,
+            width: contentWidth,
+            leftMargin: leftMargin,
+            color: UIColor(red: 0.6, green: 0.3, blue: 0.3, alpha: 1.0),
+            action: #selector(cancelDemolitionTapped)
+        )
+        contentView.addSubview(cancelButton)
+        currentY += 60
+
+        return currentY
+    }
+
+    @objc func demolishTapped() {
+        // Show confirmation
+        let refund = building.data.getDemolitionRefund()
+        let refundText = refund.map { "\($0.key.icon)\($0.value)" }.joined(separator: " ")
+        let demolitionTime = building.data.getDemolitionTime()
+        let minutes = Int(demolitionTime) / 60
+        let seconds = Int(demolitionTime) % 60
+
+        let alert = UIAlertController(
+            title: "🏚️ Demolish \(building.buildingType.displayName)?",
+            message: "This will take \(minutes)m \(seconds)s and refund \(refundText).",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Demolish", style: .destructive) { [weak self] _ in
+            self?.showVillagerSelectionForDemolition()
+        })
+
+        present(alert, animated: true)
+    }
+
+    func showVillagerSelectionForDemolition() {
+        // Find available villager groups
+        let availableVillagers = player.entities.compactMap { entity -> VillagerGroup? in
+            guard let villagerGroup = entity as? VillagerGroup,
+                  villagerGroup.currentTask == .idle else {
+                return nil
+            }
+            return villagerGroup
+        }
+
+        if availableVillagers.isEmpty {
+            // Proceed without villager
+            executeDemolition(villagerEntity: nil)
+        } else {
+            // Show villager selection
+            let alert = UIAlertController(
+                title: "👷 Select Villager",
+                message: "Choose a villager group to perform the demolition:",
+                preferredStyle: .actionSheet
+            )
+
+            for villagerGroup in availableVillagers {
+                if let entityNode = hexMap.entities.first(where: {
+                    ($0.entity as? VillagerGroup)?.id == villagerGroup.id
+                }) {
+                    let distance = villagerGroup.coordinate.distance(to: building.coordinate)
+                    let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
+
+                    alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                        self?.executeDemolition(villagerEntity: entityNode)
+                    })
+                }
+            }
+
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+
+            if let popover = alert.popoverPresentationController {
+                popover.sourceView = view
+                popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
+            }
+
+            present(alert, animated: true)
+        }
+    }
+
+    func executeDemolition(villagerEntity: EntityNode?) {
+        let command = DemolishCommand(
+            playerID: player.id,
+            buildingID: building.data.id,
+            demolisherEntityID: villagerEntity?.entity.id
+        )
+
+        let result = CommandExecutor.shared.execute(command)
+
+        if result.succeeded {
+            showAlert(title: "🏚️ Demolition Started", message: "Demolishing \(building.buildingType.displayName)")
+            refreshContent()
+            gameViewController?.updateResourceDisplay()
+        } else if let reason = result.failureReason {
+            showAlert(title: "Demolition Failed", message: reason)
+        }
+    }
+
+    @objc func cancelDemolitionTapped() {
+        let alert = UIAlertController(
+            title: "Cancel Demolition?",
+            message: "Are you sure you want to stop demolishing this building?",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Keep Demolishing", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel Demolition", style: .default) { [weak self] _ in
+            self?.performCancelDemolition()
+        })
+
+        present(alert, animated: true)
+    }
+
+    func performCancelDemolition() {
+        let command = CancelDemolitionCommand(
+            playerID: player.id,
+            buildingID: building.data.id
+        )
+
+        let result = CommandExecutor.shared.execute(command)
+
+        if result.succeeded {
+            showAlert(title: "🚫 Demolition Cancelled", message: "The building is no longer being demolished.")
+            refreshContent()
+        } else if let reason = result.failureReason {
+            showAlert(title: "Cancel Failed", message: reason)
+        }
     }
 }

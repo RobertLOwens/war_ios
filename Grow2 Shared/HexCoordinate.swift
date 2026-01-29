@@ -50,4 +50,12 @@ struct HexCoordinate: Hashable, Codable {
         return directions.map { HexCoordinate(q: q + $0.0, r: r + $0.1) }
     }
 
+    /// Returns the neighbor in a specific direction (0-5)
+    /// Direction order (clockwise from East): 0=East, 1=Southeast, 2=Southwest, 3=West, 4=Northwest, 5=Northeast
+    func neighbor(inDirection direction: Int) -> HexCoordinate {
+        let allNeighbors = neighbors()
+        let normalizedDir = ((direction % 6) + 6) % 6
+        return allNeighbors[normalizedDir]
+    }
+
 }

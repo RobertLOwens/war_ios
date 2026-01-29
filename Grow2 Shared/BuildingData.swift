@@ -31,7 +31,12 @@ class BuildingData: Codable {
     // MARK: - Upgrade
     var upgradeProgress: Double = 0.0
     var upgradeStartTime: TimeInterval?
-    
+
+    // MARK: - Demolition
+    var demolitionProgress: Double = 0.0
+    var demolitionStartTime: TimeInterval?
+    var demolishersAssigned: Int = 0
+
     // MARK: - Garrison
     var garrison: [MilitaryUnitType: Int] = [:]
     var villagerGarrison: Int = 0
@@ -91,6 +96,7 @@ class BuildingData: Codable {
         case state, level, health, maxHealth
         case constructionProgress, constructionStartTime, buildersAssigned
         case upgradeProgress, upgradeStartTime
+        case demolitionProgress, demolitionStartTime, demolishersAssigned
         case garrison, villagerGarrison
         case trainingQueue, villagerTrainingQueue
     }
@@ -115,7 +121,11 @@ class BuildingData: Codable {
         
         upgradeProgress = try container.decode(Double.self, forKey: .upgradeProgress)
         upgradeStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .upgradeStartTime)
-        
+
+        demolitionProgress = try container.decodeIfPresent(Double.self, forKey: .demolitionProgress) ?? 0.0
+        demolitionStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .demolitionStartTime)
+        demolishersAssigned = try container.decodeIfPresent(Int.self, forKey: .demolishersAssigned) ?? 0
+
         garrison = try container.decode([MilitaryUnitType: Int].self, forKey: .garrison)
         villagerGarrison = try container.decode(Int.self, forKey: .villagerGarrison)
         
@@ -143,7 +153,11 @@ class BuildingData: Codable {
         
         try container.encode(upgradeProgress, forKey: .upgradeProgress)
         try container.encodeIfPresent(upgradeStartTime, forKey: .upgradeStartTime)
-        
+
+        try container.encode(demolitionProgress, forKey: .demolitionProgress)
+        try container.encodeIfPresent(demolitionStartTime, forKey: .demolitionStartTime)
+        try container.encode(demolishersAssigned, forKey: .demolishersAssigned)
+
         try container.encode(garrison, forKey: .garrison)
         try container.encode(villagerGarrison, forKey: .villagerGarrison)
         
@@ -255,11 +269,77 @@ class BuildingData: Codable {
         guard state == .upgrading,
               let startTime = upgradeStartTime,
               let totalTime = getUpgradeTime() else { return nil }
-        
+
         let elapsed = currentTime - startTime
         return max(0, totalTime - elapsed)
     }
-    
+
+    // MARK: - Demolition Logic
+
+    /// Returns demolition time (50% of original build time)
+    func getDemolitionTime() -> TimeInterval {
+        return buildingType.buildTime * 0.5
+    }
+
+    /// Returns resources refunded on demolition (25% of build cost)
+    func getDemolitionRefund() -> [ResourceType: Int] {
+        var refund: [ResourceType: Int] = [:]
+        for (resourceType, amount) in buildingType.buildCost {
+            refund[resourceType] = Int(Double(amount) * 0.25)
+        }
+        return refund
+    }
+
+    /// Whether this building can be demolished
+    var canDemolish: Bool {
+        // Cannot demolish City Center
+        guard buildingType != .cityCenter else { return false }
+        // Can only demolish completed buildings
+        guard state == .completed else { return false }
+        return true
+    }
+
+    func startDemolition(demolishers: Int = 1) {
+        guard canDemolish, state == .completed else { return }
+
+        state = .demolishing
+        demolitionStartTime = Date().timeIntervalSince1970
+        demolishersAssigned = max(1, demolishers)
+        demolitionProgress = 0.0
+    }
+
+    /// Updates demolition and returns true if demolition completed this frame
+    func updateDemolition(currentTime: TimeInterval) -> Bool {
+        guard state == .demolishing, let startTime = demolitionStartTime else { return false }
+
+        let elapsed = currentTime - startTime
+        let demolisherMultiplier = 1.0 + (Double(demolishersAssigned - 1) * 0.5)
+        let effectiveDemolitionTime = getDemolitionTime() / demolisherMultiplier
+
+        demolitionProgress = min(1.0, elapsed / effectiveDemolitionTime)
+
+        return demolitionProgress >= 1.0
+    }
+
+    func cancelDemolition() {
+        guard state == .demolishing else { return }
+
+        state = .completed
+        demolitionProgress = 0.0
+        demolitionStartTime = nil
+        demolishersAssigned = 0
+    }
+
+    func getRemainingDemolitionTime(currentTime: TimeInterval) -> TimeInterval? {
+        guard state == .demolishing, let startTime = demolitionStartTime else { return nil }
+
+        let elapsed = currentTime - startTime
+        let demolisherMultiplier = 1.0 + (Double(demolishersAssigned - 1) * 0.5)
+        let effectiveDemolitionTime = getDemolitionTime() / demolisherMultiplier
+
+        return max(0, effectiveDemolitionTime - elapsed)
+    }
+
     // MARK: - Training Logic
     
     func canTrain(_ unitType: MilitaryUnitType) -> Bool {

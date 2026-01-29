@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3FARMYDTL12F28A00100ARMYD /* ArmyDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */; };
+		3FDETCMBT12F28B00100DTCMB /* DetailedCombatRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */; };
+		3FCMBTDTL12F28C00100CMBTD /* CombatDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCMBTDTL22F28C00100CMBTD /* CombatDetailViewController.swift */; };
+		3FLIVECBT12F28D00100LIVEC /* LiveCombatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */; };
 		3F286A052F195A5B004636ED /* BuildingData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A042F195A5B004636ED /* BuildingData.swift */; };
 		3F286A072F19608D004636ED /* GameCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A062F19608D004636ED /* GameCommand.swift */; };
 		3F286A092F1960C0004636ED /* CommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A082F1960C0004636ED /* CommandExecutor.swift */; };
@@ -29,6 +33,16 @@
 		3F6AE44D2F1818C200C885D6 /* ResearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */; };
 		3F6AE44E2F1818C200C885D6 /* ResearchType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44C2F1818C200C885D6 /* ResearchType.swift */; };
 		3F6AE4512F18228000C885D6 /* ResearchType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44F2F18228000C885D6 /* ResearchType.swift */; };
+		3F98926C2F21DB81008A24E7 /* EntitiesOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F98926B2F21DB81008A24E7 /* EntitiesOverviewViewController.swift */; };
+		3F98926E2F21DB9C008A24E7 /* DemolishCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F98926D2F21DB9C008A24E7 /* DemolishCommand.swift */; };
+		3F98926F2F21DBAA008A24E7 /* AdjacencyBonusManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */; };
+		3FREINGRP12F29A00100REINF /* ReinforcementGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */; };
+		3FREINNODE12F29B00100REIN /* ReinforcementNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */; };
+		3FCANCREIN12F29C00100CANC /* CancelReinforcementCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCANCREIN22F29C00100CANC /* CancelReinforcementCommand.swift */; };
+		3F9892712F21DBC0008A24E7 /* CombatState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9892722F21DBC0008A24E7 /* CombatState.swift */; };
+		3FA12B012F27A00000MAPGEN /* MapGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA12B022F27A00000MAPGEN /* MapGenerator.swift */; };
+		3FA12B032F27A00100ARABIA /* ArabiaMapGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */; };
+		3FA12B052F27A00200ARENA /* ArenaMapGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */; };
 		3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */; };
 		3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */; };
 		3FC0F1022EC7965F007C0782 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F1012EC7965F007C0782 /* GameViewController.swift */; };
@@ -63,6 +77,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArmyDetailViewController.swift; sourceTree = "<group>"; };
+		3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedCombatRecord.swift; sourceTree = "<group>"; };
+		3FCMBTDTL22F28C00100CMBTD /* CombatDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatDetailViewController.swift; sourceTree = "<group>"; };
+		3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCombatViewController.swift; sourceTree = "<group>"; };
 		3F286A042F195A5B004636ED /* BuildingData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingData.swift; sourceTree = "<group>"; };
 		3F286A062F19608D004636ED /* GameCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCommand.swift; sourceTree = "<group>"; };
 		3F286A082F1960C0004636ED /* CommandExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandExecutor.swift; sourceTree = "<group>"; };
@@ -86,6 +104,16 @@
 		3F6AE44C2F1818C200C885D6 /* ResearchType.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ResearchType.swift; path = "Grow2 Shared/ResearchType.swift"; sourceTree = SOURCE_ROOT; };
 		3F6AE44F2F18228000C885D6 /* ResearchType.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResearchType.swift; sourceTree = "<group>"; };
 		3F6AE4502F18228000C885D6 /* ResearchManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResearchManager.swift; sourceTree = "<group>"; };
+		3F98926B2F21DB81008A24E7 /* EntitiesOverviewViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EntitiesOverviewViewController.swift; sourceTree = "<group>"; };
+		3F98926D2F21DB9C008A24E7 /* DemolishCommand.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DemolishCommand.swift; sourceTree = "<group>"; };
+		3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdjacencyBonusManager.swift; sourceTree = "<group>"; };
+		3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementGroup.swift; sourceTree = "<group>"; };
+		3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementNode.swift; sourceTree = "<group>"; };
+		3FCANCREIN22F29C00100CANC /* CancelReinforcementCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CancelReinforcementCommand.swift; sourceTree = "<group>"; };
+		3F9892722F21DBC0008A24E7 /* CombatState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatState.swift; sourceTree = "<group>"; };
+		3FA12B022F27A00000MAPGEN /* MapGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapGenerator.swift; sourceTree = "<group>"; };
+		3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArabiaMapGenerator.swift; sourceTree = "<group>"; };
+		3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaMapGenerator.swift; sourceTree = "<group>"; };
 		3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecruitCommanderCommand.swift; path = "Grow2 iOS/ViewControllers/RecruitCommanderCommand.swift"; sourceTree = SOURCE_ROOT; };
 		3FC0F0F42EC7965C007C0782 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		3FC0F0F62EC7965C007C0782 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
@@ -136,8 +164,10 @@
 			children = (
 				3F286A172F19617D004636ED /* AttackCommand.swift */,
 				3F286A0C2F1960FF004636ED /* BuildCommand.swift */,
+				3FCANCREIN22F29C00100CANC /* CancelReinforcementCommand.swift */,
 				3F286A082F1960C0004636ED /* CommandExecutor.swift */,
 				3F286A152F19616F004636ED /* DeployCommand.swift */,
+				3F98926D2F21DB9C008A24E7 /* DemolishCommand.swift */,
 				3F286A062F19608D004636ED /* GameCommand.swift */,
 				3F286A112F19614C004636ED /* GatherCommand.swift */,
 				3F286A0A2F1960D9004636ED /* MoveCommand.swift */,
@@ -161,12 +191,17 @@
 		3FC0F0F32EC7965C007C0782 /* Grow2 Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */,
+				3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */,
+				3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */,
 				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
 				3F34D5B02ECA5CD900AE6DF0 /* Building.swift */,
 				3F286A042F195A5B004636ED /* BuildingData.swift */,
+				3F9892722F21DBC0008A24E7 /* CombatState.swift */,
 				3FEBD2022EF3610E00341AEE /* CombatSystem.swift */,
 				3F286A0E2F196114004636ED /* Commands */,
 				3FEBD2002EF360E200341AEE /* CombatRecord.swift */,
+				3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */,
 				3FEBD1FC2EEF5C6400341AEE /* Commander.swift */,
 				3FEBD2062EF3B10200341AEE /* Diplomacy.swift */,
 				3F34D5B22ECABDFF00AE6DF0 /* Entity Node.swift */,
@@ -177,9 +212,12 @@
 				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
 				3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */,
 				3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */,
+				3FA12B022F27A00000MAPGEN /* MapGenerator.swift */,
 				3F34D5B42ECBB6B200AE6DF0 /* Map Entity.swift */,
 				3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */,
 				3F34D5AC2ECA584A00AE6DF0 /* Player.swift */,
+				3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */,
+				3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */,
 				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
 				3F6AE4502F18228000C885D6 /* ResearchManager.swift */,
 				3F6AE44F2F18228000C885D6 /* ResearchType.swift */,
@@ -222,13 +260,17 @@
 		3FF8CF652F0DB0B8002FA5D7 /* ViewControllers */ = {
 			isa = PBXGroup;
 			children = (
+				3F98926B2F21DB81008A24E7 /* EntitiesOverviewViewController.swift */,
 				3FF8CF502F083158002FA5D7 /* AboutViewController.swift */,
+				3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */,
 				3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */,
+				3FCMBTDTL22F28C00100CMBTD /* CombatDetailViewController.swift */,
 				3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */,
 				3F6AE44C2F1818C200C885D6 /* ResearchType.swift */,
 				3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */,
 				3F39A62D2F14728500E9F506 /* BuildingsOverviewViewController.swift */,
 				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
+				3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */,
 				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
 				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
 				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
@@ -328,6 +370,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FARMYDTL12F28A00100ARMYD /* ArmyDetailViewController.swift in Sources */,
+				3F98926F2F21DBAA008A24E7 /* AdjacencyBonusManager.swift in Sources */,
+				3FA12B032F27A00100ARABIA /* ArabiaMapGenerator.swift in Sources */,
+				3FA12B052F27A00200ARENA /* ArenaMapGenerator.swift in Sources */,
+				3FA12B012F27A00000MAPGEN /* MapGenerator.swift in Sources */,
+				3F9892712F21DBC0008A24E7 /* CombatState.swift in Sources */,
 				3FF8CF472F03073C002FA5D7 /* CombatSystem.swift in Sources */,
 				3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */,
 				3F286A1A2F199C93004636ED /* ReinforceArmyCommand.swift in Sources */,
@@ -338,6 +386,8 @@
 				3F286A092F1960C0004636ED /* CommandExecutor.swift in Sources */,
 				3F286A142F19615D004636ED /* UpgradeCommand.swift in Sources */,
 				3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */,
+				3FDETCMBT12F28B00100DTCMB /* DetailedCombatRecord.swift in Sources */,
+				3FCMBTDTL12F28C00100CMBTD /* CombatDetailViewController.swift in Sources */,
 				3FF8CF512F083158002FA5D7 /* AboutViewController.swift in Sources */,
 				3F286A052F195A5B004636ED /* BuildingData.swift in Sources */,
 				3F6AE44D2F1818C200C885D6 /* ResearchManager.swift in Sources */,
@@ -355,7 +405,9 @@
 				3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */,
 				3F286A0D2F1960FF004636ED /* BuildCommand.swift in Sources */,
 				3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */,
+				3FLIVECBT12F28D00100LIVEC /* LiveCombatViewController.swift in Sources */,
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
+				3F98926C2F21DB81008A24E7 /* EntitiesOverviewViewController.swift in Sources */,
 				3F286A102F19613C004636ED /* TrainCommand.swift in Sources */,
 				3F34D5B12ECA5CD900AE6DF0 /* Building.swift in Sources */,
 				3F39A62E2F14728500E9F506 /* BuildingsOverviewViewController.swift in Sources */,
@@ -368,6 +420,10 @@
 				3F34D5B52ECBB6B200AE6DF0 /* Map Entity.swift in Sources */,
 				3F286A182F19617D004636ED /* AttackCommand.swift in Sources */,
 				3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */,
+				3FCANCREIN12F29C00100CANC /* CancelReinforcementCommand.swift in Sources */,
+				3F98926E2F21DB9C008A24E7 /* DemolishCommand.swift in Sources */,
+				3FREINGRP12F29A00100REINF /* ReinforcementGroup.swift in Sources */,
+				3FREINNODE12F29B00100REIN /* ReinforcementNode.swift in Sources */,
 				3FF8CF4D2F08312E002FA5D7 /* GameSetupViewController.swift in Sources */,
 				3FF8CF532F099148002FA5D7 /* GameSaveManager.swift in Sources */,
 				3F286A162F19616F004636ED /* DeployCommand.swift in Sources */,

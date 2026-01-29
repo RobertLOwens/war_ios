@@ -262,7 +262,11 @@ class Player {
     func getVillagerGroups() -> [VillagerGroup] {
         return entities.compactMap { $0 as? VillagerGroup }
     }
-    
+
+    func getIdleVillagerCount() -> Int {
+        return getVillagerGroups().filter { $0.currentTask == .idle }.count
+    }
+
     func getTotalVillagerCount() -> Int {
         return getVillagerGroups().reduce(0) { $0 + $1.villagerCount }
     }
@@ -462,8 +466,9 @@ class Player {
     }
     
     func getCityCenterLevel() -> Int {
+        // Include upgrading buildings - they should still count at their current level
         let cityCenters = buildings.filter {
-            $0.buildingType == .cityCenter && $0.state == .completed
+            $0.buildingType == .cityCenter && ($0.state == .completed || $0.state == .upgrading)
         }
         return cityCenters.map { $0.level }.max() ?? 0
     }
@@ -508,7 +513,7 @@ class Player {
         let ccLevel = getCityCenterLevel()
         let maxAllowed = BuildingType.maxWarehousesAllowed(forCityCenterLevel: ccLevel)
         let currentCount = getWarehouseCount() + getWarehousesUnderConstruction()
-        
+
         if currentCount >= maxAllowed {
             if maxAllowed == 0 {
                 return "Requires City Center Level 2"
@@ -520,6 +525,54 @@ class Player {
                     return "Maximum warehouses reached (\(maxAllowed)/\(maxAllowed))"
                 }
             }
+        }
+        return nil
+    }
+
+    // MARK: - Entity Limits
+
+    /// Returns maximum number of villager groups allowed based on City Center level
+    /// Formula: 2 + CC level
+    func getMaxVillagerGroups() -> Int {
+        return 2 + getCityCenterLevel()
+    }
+
+    /// Returns maximum number of armies allowed based on City Center level
+    /// Formula: 1 + (CC level / 2)
+    func getMaxArmies() -> Int {
+        return 1 + (getCityCenterLevel() / 2)
+    }
+
+    /// Returns true if player can spawn another villager group
+    func canSpawnVillagerGroup() -> Bool {
+        return getVillagerGroups().count < getMaxVillagerGroups()
+    }
+
+    /// Returns true if player can spawn another army
+    func canSpawnArmy() -> Bool {
+        return getArmies().count < getMaxArmies()
+    }
+
+    /// Returns the reason why player can't spawn a villager group, or nil if they can
+    func getVillagerGroupSpawnError() -> String? {
+        let currentCount = getVillagerGroups().count
+        let maxAllowed = getMaxVillagerGroups()
+
+        if currentCount >= maxAllowed {
+            let ccLevel = getCityCenterLevel()
+            return "Max \(maxAllowed) villager groups at CC Lv.\(ccLevel). Upgrade City Center for more."
+        }
+        return nil
+    }
+
+    /// Returns the reason why player can't spawn an army, or nil if they can
+    func getArmySpawnError() -> String? {
+        let currentCount = getArmies().count
+        let maxAllowed = getMaxArmies()
+
+        if currentCount >= maxAllowed {
+            let ccLevel = getCityCenterLevel()
+            return "Max \(maxAllowed) armies at CC Lv.\(ccLevel). Upgrade City Center for more."
         }
         return nil
     }

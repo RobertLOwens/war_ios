@@ -128,7 +128,7 @@ enum ResourcePointType: String, CaseIterable {
     
     var requiredTerrain: TerrainType? {
         switch self {
-        case .forage: return .forest
+        case .forage: return .plains  // Forage now spawns on plains (was forest)
         case .oreMine, .stoneQuarry: return .mountain
         case .trees, .deer, .wildBoar, .boarCarcass, .deerCarcass, .farmland: return nil // Can appear on any walkable terrain
         }

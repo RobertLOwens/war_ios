@@ -48,7 +48,17 @@ struct MoveCommand: GameCommand {
                 }
             }
         }
-        
+
+        // Check if army is in combat or awaiting reinforcements
+        if let army = entity.entity as? Army {
+            if CombatSystem.shared.isInCombat(army) {
+                return .failure(reason: "Cannot move while in combat")
+            }
+            if army.isAwaitingReinforcements {
+                return .failure(reason: "Cannot move while reinforcements are en route")
+            }
+        }
+
         // Check destination is valid
         guard context.hexMap.getTile(at: destination) != nil else {
             return .failure(reason: "Invalid destination")

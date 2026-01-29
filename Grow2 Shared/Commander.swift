@@ -86,13 +86,19 @@ enum CommanderSpecialty: String, CaseIterable, Codable {
     }
     
     func getBonus(for unitType: MilitaryUnitType) -> Double {
-        switch (self, unitType) {
-        case (.infantry, .swordsman), (.infantry, .pikeman):
-            return 0.20
-        case (.cavalry, .knight):
-            return 0.25
-        case (.ranged, .archer):
-            return 0.20
+        return getBonus(for: unitType.category)
+    }
+
+    func getBonus(for category: UnitCategory) -> Double {
+        switch (self, category) {
+        case (.infantry, .infantry):
+            return 0.20  // +20% to infantry units
+        case (.cavalry, .cavalry):
+            return 0.25  // +25% to cavalry units
+        case (.ranged, .ranged):
+            return 0.20  // +20% to ranged units
+        case (.siege, .siege):
+            return 0.25  // +25% to siege units
         default:
             return 0.0
         }
@@ -180,10 +186,14 @@ class Commander {
     // MARK: - Combat Bonuses
     
     func getAttackBonus(for unitType: MilitaryUnitType) -> Double {
-        let specialtyBonus = specialty.getBonus(for: unitType)
+        return getAttackBonus(for: unitType.category)
+    }
+
+    func getAttackBonus(for category: UnitCategory) -> Double {
+        let specialtyBonus = specialty.getBonus(for: category)
         let rankBonus = rank.leadershipBonus
         let levelBonus = Double(level) * 0.01
-        
+
         return specialtyBonus + rankBonus + levelBonus
     }
     
@@ -225,24 +235,32 @@ class Commander {
     }
         
     // MARK: - Factory Methods
-    
-    static func createRandom(name: String? = nil, owner: Player? = nil) -> Commander {
+
+    /// Returns a random commander name
+    static func randomName() -> String {
         let randomNames = [
             "Alexander", "Caesar", "Napoleon", "Hannibal", "Genghis",
             "Joan", "Boudicca", "Cleopatra", "Tomyris", "Zenobia",
             "Sun Tzu", "Khalid", "Saladin", "Richard", "Frederick"
         ]
-        
-        let commanderName = name ?? randomNames.randomElement()!
-        let specialty = CommanderSpecialty.allCases.randomElement()!
-        let baseLeadership = Int.random(in: 8...15)
-        let baseTactics = Int.random(in: 8...15)
-        
+        return randomNames.randomElement()!
+    }
+
+    /// Returns a random portrait color
+    static func randomColor() -> UIColor {
         let colors: [UIColor] = [
             .blue, .red, .green, .purple, .orange, .brown, .cyan, .magenta
         ]
-        let color = colors.randomElement()!
-        
+        return colors.randomElement()!
+    }
+
+    static func createRandom(name: String? = nil, owner: Player? = nil) -> Commander {
+        let commanderName = name ?? randomName()
+        let specialty = CommanderSpecialty.allCases.randomElement()!
+        let baseLeadership = Int.random(in: 8...15)
+        let baseTactics = Int.random(in: 8...15)
+        let color = randomColor()
+
         return Commander(
             name: commanderName,
             specialty: specialty,

@@ -26,14 +26,23 @@ struct DeployArmyCommand: GameCommand {
     }
     
     func validate(in context: CommandContext) -> CommandResult {
+        guard let player = context.getPlayer(by: playerID) else {
+            return .failure(reason: "Player not found")
+        }
+
         guard let building = context.getBuilding(by: buildingID) else {
             return .failure(reason: "Building not found")
         }
-        
+
         guard building.owner?.id == playerID else {
             return .failure(reason: "You don't own this building")
         }
-        
+
+        // Check army limit
+        if let error = player.getArmySpawnError() {
+            return .failure(reason: error)
+        }
+
         // Check building has enough units
         for (unitType, count) in units {
             let available = building.getGarrisonCount(of: unitType)
@@ -41,22 +50,22 @@ struct DeployArmyCommand: GameCommand {
                 return .failure(reason: "Not enough \(unitType.displayName) in garrison")
             }
         }
-        
+
         // Check we can find a spawn location
         guard context.hexMap.findNearestWalkable(to: building.coordinate) != nil else {
             return .failure(reason: "No valid spawn location")
         }
-        
+
         return .success
     }
-    
+
     func execute(in context: CommandContext) -> CommandResult {
         guard let player = context.getPlayer(by: playerID),
               let building = context.getBuilding(by: buildingID),
               let spawnCoord = context.hexMap.findNearestWalkable(to: building.coordinate) else {
             return .failure(reason: "Required objects not found")
         }
-        
+
         // Create commander
         let commander = Commander.createRandom()
         
@@ -71,15 +80,20 @@ struct DeployArmyCommand: GameCommand {
             }
         }
         
-        // Create entity node
-        let armyEntity = MapEntity(id: army.id, name: army.name, entityType: .army)
-        let armyNode = EntityNode(coordinate: spawnCoord, entityType: .army, entity: armyEntity)
+        // Create entity node - pass actual Army object so armyReference is set correctly
+        let armyNode = EntityNode(coordinate: spawnCoord, entityType: .army, entity: army, currentPlayer: context.getPlayer(by: playerID))
         armyNode.position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
         
         // Add to game
         context.hexMap.addEntity(armyNode)
         player.addArmy(army)
-        
+
+        // Add visual sprite to scene
+        context.gameScene?.entitiesNode.addChild(armyNode)
+
+        // Setup health bar for combat visualization
+        armyNode.setupHealthBar(currentPlayer: context.getPlayer(by: playerID))
+
         print("🛡️ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
         
         return .success
@@ -107,32 +121,41 @@ struct DeployVillagersCommand: GameCommand {
     }
     
     func validate(in context: CommandContext) -> CommandResult {
+        guard let player = context.getPlayer(by: playerID) else {
+            return .failure(reason: "Player not found")
+        }
+
         guard let building = context.getBuilding(by: buildingID) else {
             return .failure(reason: "Building not found")
         }
-        
+
         guard building.owner?.id == playerID else {
             return .failure(reason: "You don't own this building")
         }
-        
+
+        // Check villager group limit
+        if let error = player.getVillagerGroupSpawnError() {
+            return .failure(reason: error)
+        }
+
         guard building.villagerGarrison >= count else {
             return .failure(reason: "Not enough villagers in garrison")
         }
-        
+
         guard context.hexMap.findNearestWalkable(to: building.coordinate) != nil else {
             return .failure(reason: "No valid spawn location")
         }
-        
+
         return .success
     }
-    
+
     func execute(in context: CommandContext) -> CommandResult {
         guard let player = context.getPlayer(by: playerID),
               let building = context.getBuilding(by: buildingID),
               let spawnCoord = context.hexMap.findNearestWalkable(to: building.coordinate) else {
             return .failure(reason: "Required objects not found")
         }
-        
+
         // Remove from garrison
         let removed = building.removeVillagersFromGarrison(quantity: count)
         guard removed > 0 else {

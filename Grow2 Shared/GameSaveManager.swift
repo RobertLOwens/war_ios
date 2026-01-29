@@ -40,12 +40,54 @@ struct MapSaveData: Codable {
     let buildings: [BuildingData]  // ← Changed to BuildingData
     let resourcePoints: [ResourcePointSaveData]
     let exploredTiles: [TileSaveData]
+    let reinforcements: [ReinforcementGroup.SaveData]?  // Marching reinforcements
+
+    // Custom decoder for backwards compatibility
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        width = try container.decode(Int.self, forKey: .width)
+        height = try container.decode(Int.self, forKey: .height)
+        tiles = try container.decode([TileSaveData].self, forKey: .tiles)
+        buildings = try container.decode([BuildingData].self, forKey: .buildings)
+        resourcePoints = try container.decode([ResourcePointSaveData].self, forKey: .resourcePoints)
+        exploredTiles = try container.decode([TileSaveData].self, forKey: .exploredTiles)
+        reinforcements = try container.decodeIfPresent([ReinforcementGroup.SaveData].self, forKey: .reinforcements)
+    }
+
+    init(width: Int, height: Int, tiles: [TileSaveData], buildings: [BuildingData],
+         resourcePoints: [ResourcePointSaveData], exploredTiles: [TileSaveData],
+         reinforcements: [ReinforcementGroup.SaveData]? = nil) {
+        self.width = width
+        self.height = height
+        self.tiles = tiles
+        self.buildings = buildings
+        self.resourcePoints = resourcePoints
+        self.exploredTiles = exploredTiles
+        self.reinforcements = reinforcements
+    }
 }
 
 struct TileSaveData: Codable {
     let q: Int
     let r: Int
     let terrain: String  // TerrainType.rawValue
+    let elevation: Int   // NEW - default 0 for backwards compatibility
+
+    init(q: Int, r: Int, terrain: String, elevation: Int = 0) {
+        self.q = q
+        self.r = r
+        self.terrain = terrain
+        self.elevation = elevation
+    }
+
+    // Custom decoder for backwards compatibility with saves without elevation
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        q = try container.decode(Int.self, forKey: .q)
+        r = try container.decode(Int.self, forKey: .r)
+        terrain = try container.decode(String.self, forKey: .terrain)
+        elevation = try container.decodeIfPresent(Int.self, forKey: .elevation) ?? 0
+    }
 }
 
 struct PlayerSaveData: Codable {
@@ -89,6 +131,35 @@ struct ArmySaveData: Codable {
     let commanderID: String?
     let unitComposition: [String: Int]  // UnitType: count
     let militaryComposition: [String: Int]  // MilitaryUnitType: count
+    let pendingReinforcements: [PendingReinforcement]?  // Reinforcements en route
+
+    // Custom decoder for backwards compatibility
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        q = try container.decode(Int.self, forKey: .q)
+        r = try container.decode(Int.self, forKey: .r)
+        ownerID = try container.decode(String.self, forKey: .ownerID)
+        commanderID = try container.decodeIfPresent(String.self, forKey: .commanderID)
+        unitComposition = try container.decode([String: Int].self, forKey: .unitComposition)
+        militaryComposition = try container.decode([String: Int].self, forKey: .militaryComposition)
+        pendingReinforcements = try container.decodeIfPresent([PendingReinforcement].self, forKey: .pendingReinforcements)
+    }
+
+    init(id: String, name: String, q: Int, r: Int, ownerID: String, commanderID: String?,
+         unitComposition: [String: Int], militaryComposition: [String: Int],
+         pendingReinforcements: [PendingReinforcement]? = nil) {
+        self.id = id
+        self.name = name
+        self.q = q
+        self.r = r
+        self.ownerID = ownerID
+        self.commanderID = commanderID
+        self.unitComposition = unitComposition
+        self.militaryComposition = militaryComposition
+        self.pendingReinforcements = pendingReinforcements
+    }
 }
 
 struct CommanderSaveData: Codable {
@@ -145,12 +216,12 @@ class GameSaveManager {
     }
     
     // MARK: - Save Game
-    
-    func saveGame(hexMap: HexMap, player: Player, allPlayers: [Player]) -> Bool {
+
+    func saveGame(hexMap: HexMap, player: Player, allPlayers: [Player], reinforcements: [ReinforcementGroup] = []) -> Bool {
         print("💾 Starting game save...")
-        
+
         // Create save data
-        let mapData = createMapSaveData(from: hexMap, player: player)
+        let mapData = createMapSaveData(from: hexMap, player: player, reinforcements: reinforcements)
         let playerData = createPlayerSaveData(from: player)
         let allPlayersData = allPlayers.map { createPlayerSaveData(from: $0) }
         
@@ -181,7 +252,7 @@ class GameSaveManager {
         }
     }
 
-    func loadGame() -> (hexMap: HexMap, player: Player, allPlayers: [Player])? {
+    func loadGame() -> (hexMap: HexMap, player: Player, allPlayers: [Player], reinforcements: [ReinforcementGroup.SaveData])? {
         print("📂 Loading game...")
         
         guard FileManager.default.fileExists(atPath: saveFileURL.path) else {
@@ -259,15 +330,19 @@ class GameSaveManager {
             
             // Apply offline progress
             applyOfflineProgress(hexMap: hexMap, player: player, saveDate: saveData.saveDate)
-            
+
+            // Get reinforcement save data
+            let reinforcements = saveData.mapData.reinforcements ?? []
+
             print("✅ Game loaded successfully")
             print("   Map: \(hexMap.width)x\(hexMap.height)")
             print("   Player: \(player.name)")
             print("   Player Buildings: \(player.buildings.count)")
             print("   HexMap Buildings: \(hexMap.buildings.count)")
             print("   Entities: \(player.entities.count)")
-            
-            return (hexMap, player, allPlayers)
+            print("   Reinforcements: \(reinforcements.count)")
+
+            return (hexMap, player, allPlayers, reinforcements)
             
         } catch {
             print("❌ Failed to load game: \(error)")
@@ -311,17 +386,17 @@ class GameSaveManager {
     }
     
     // MARK: - Create Save Data
-    
-    private func createMapSaveData(from hexMap: HexMap, player: Player) -> MapSaveData {
-        
-        // Tiles
+
+    private func createMapSaveData(from hexMap: HexMap, player: Player, reinforcements: [ReinforcementGroup] = []) -> MapSaveData {
+
+        // Tiles (with elevation)
         let tiles = hexMap.tiles.map { coord, tile in
-            TileSaveData(q: coord.q, r: coord.r, terrain: terrainTypeToString(tile.terrain))
+            TileSaveData(q: coord.q, r: coord.r, terrain: terrainTypeToString(tile.terrain), elevation: tile.elevation)
         }
-        
+
         // ✅ SIMPLIFIED: Buildings are now just their data objects
         let buildings = hexMap.buildings.map { $0.data }
-        
+
         // Resource points
         let resourcePoints = hexMap.resourcePoints.map { resource in
             ResourcePointSaveData(
@@ -334,7 +409,7 @@ class GameSaveManager {
                 assignedVillagerGroupIDs: resource.assignedVillagerGroups.map { $0.id.uuidString }
             )
         }
-        
+
         // Explored tiles
         var exploredTiles: [TileSaveData] = []
         if let fogOfWar = player.fogOfWar {
@@ -349,14 +424,18 @@ class GameSaveManager {
                 }
             }
         }
-        
+
+        // Save reinforcements
+        let reinforcementsSaveData = reinforcements.map { $0.toSaveData() }
+
         return MapSaveData(
             width: hexMap.width,
             height: hexMap.height,
             tiles: tiles,
             buildings: buildings,
             resourcePoints: resourcePoints,
-            exploredTiles: exploredTiles
+            exploredTiles: exploredTiles,
+            reinforcements: reinforcementsSaveData.isEmpty ? nil : reinforcementsSaveData
         )
     }
 
@@ -449,8 +528,12 @@ class GameSaveManager {
             taskR = resourcePoint.coordinate.r
         case .upgrading:
             taskString = "upgrading"
+        case .demolishing(let building):
+            taskString = "demolishing"
+            taskQ = building.coordinate.q
+            taskR = building.coordinate.r
         }
-        
+
         // ✅ ALSO save taskTarget if it exists (belt and suspenders)
         if taskQ == nil, let target = villagers.taskTarget {
             taskQ = target.q
@@ -489,12 +572,15 @@ class GameSaveManager {
     
     private func createArmySaveData(from army: Army) -> ArmySaveData {
         var unitComp: [String: Int] = [:]
-        
+
         var militaryComp: [String: Int] = [:]
         for (unitType, count) in army.militaryComposition {
             militaryComp[unitType.rawValue] = count
         }
-        
+
+        // Save pending reinforcements
+        let pendingReinforcements = army.pendingReinforcements.isEmpty ? nil : army.pendingReinforcements
+
         return ArmySaveData(
             id: army.id.uuidString,
             name: army.name,
@@ -503,7 +589,8 @@ class GameSaveManager {
             ownerID: army.owner?.id.uuidString ?? "",
             commanderID: army.commander?.id.uuidString,
             unitComposition: unitComp,
-            militaryComposition: militaryComp
+            militaryComposition: militaryComp,
+            pendingReinforcements: pendingReinforcements
         )
     }
     
@@ -533,16 +620,17 @@ class GameSaveManager {
     private func reconstructHexMap(from data: MapSaveData, player: Player, allPlayers: [Player]) -> HexMap {
         let hexMap = HexMap(width: data.width, height: data.height)
         
-        // Reconstruct tiles
+        // Reconstruct tiles (with elevation)
         for tileData in data.tiles {
             let coord = HexCoordinate(q: tileData.q, r: tileData.r)
             let terrain = stringToTerrainType(tileData.terrain)
-            
+
             if let existingTile = hexMap.tiles[coord] {
                 existingTile.terrain = terrain
+                existingTile.elevation = tileData.elevation
                 existingTile.updateAppearance()
             } else {
-                let tile = HexTileNode(coordinate: coord, terrain: terrain)
+                let tile = HexTileNode(coordinate: coord, terrain: terrain, elevation: tileData.elevation)
                 hexMap.tiles[coord] = tile
             }
         }
@@ -690,11 +778,19 @@ class GameSaveManager {
                 army.addMilitaryUnits(unitType, count: count)
             }
         }
-        
+
+        // Restore pending reinforcements
+        if let pendingData = data.pendingReinforcements {
+            for pending in pendingData {
+                army.addPendingReinforcement(pending)
+            }
+            print("   📦 Restored \(pendingData.count) pending reinforcements for \(army.name)")
+        }
+
         return army
     }
 
-    
+
     private func reconstructVillagerGroup(from data: EntitySaveData, player: Player) -> VillagerGroup? {
         let coord = HexCoordinate(q: data.q, r: data.r)
         let villagers = VillagerGroup(
@@ -784,24 +880,24 @@ class GameSaveManager {
     
     private func terrainTypeToString(_ terrain: TerrainType) -> String {
         switch terrain {
-        case .grass: return "grass"
+        case .plains: return "plains"
         case .water: return "water"
         case .mountain: return "mountain"
         case .desert: return "desert"
-        case .forest: return "forest"
         case .hill: return "hill"
         }
     }
-    
+
     private func stringToTerrainType(_ string: String) -> TerrainType {
         switch string {
-        case "grass": return .grass
+        case "plains": return .plains
         case "water": return .water
         case "mountain": return .mountain
         case "desert": return .desert
-        case "forest": return .forest
         case "hill": return .hill
-        default: return .grass
+        // Backwards compatibility: old saves with "grass" or "forest" map to plains
+        case "grass", "forest": return .plains
+        default: return .plains
         }
     }
     
@@ -813,9 +909,10 @@ class GameSaveManager {
         case .damaged: return "damaged"
         case .destroyed: return "destroyed"
         case .upgrading: return "upgrading"
+        case .demolishing: return "demolishing"
         }
     }
-    
+
     private func stringToBuildingState(_ string: String) -> BuildingState {
         switch string {
         case "planning": return .planning
@@ -824,6 +921,7 @@ class GameSaveManager {
         case "damaged": return .damaged
         case "destroyed": return .destroyed
         case "upgrading": return .upgrading
+        case "demolishing": return .demolishing
         default: return .planning
         }
     }

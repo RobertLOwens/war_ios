@@ -136,12 +136,16 @@ class MainMenuViewController: UIViewController {
     func startNewGame() {
         // ✅ FIX: Clear background time data so new game doesn't inherit old resources
         BackgroundTimeManager.shared.clearExitTime()
-    
-         _ = GameSaveManager.shared.deleteSave()
-    
-        let gameVC = GameViewController()
-        gameVC.modalPresentationStyle = .fullScreen
-        present(gameVC, animated: true)
+
+        _ = GameSaveManager.shared.deleteSave()
+
+        // Clear combat history from previous games
+        CombatSystem.shared.clearCombatHistory()
+
+        // Show game setup screen to allow configuration
+        let setupVC = GameSetupViewController()
+        setupVC.modalPresentationStyle = .fullScreen
+        present(setupVC, animated: true)
     }
     
     @objc func resumeGameTapped() {

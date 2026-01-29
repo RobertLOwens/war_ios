@@ -7,30 +7,81 @@ import SpriteKit
 
 // MARK: - Terrain Type
 
-enum TerrainType {
-    case grass
+enum TerrainType: String, Codable {
+    case plains      // Renamed from grass - environment-neutral naming
     case water
     case mountain
     case desert
-    case forest      // ✅ NEW
-    case hill        // ✅ NEW
-    
+    case hill        // Trees spawn here as resources, not terrain
+
     var color: UIColor {
         switch self {
-        case .grass: return UIColor(red: 0.2, green: 0.7, blue: 0.2, alpha: 1.0)
+        case .plains: return UIColor(red: 0.2, green: 0.7, blue: 0.2, alpha: 1.0)
         case .water: return UIColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1.0)
         case .mountain: return UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
         case .desert: return UIColor(red: 0.9, green: 0.8, blue: 0.4, alpha: 1.0)
-        case .forest: return UIColor(red: 0.15, green: 0.5, blue: 0.15, alpha: 1.0)  // ✅ NEW
-        case .hill: return UIColor(red: 0.6, green: 0.5, blue: 0.4, alpha: 1.0)     // ✅ NEW
+        case .hill: return UIColor(red: 0.6, green: 0.5, blue: 0.4, alpha: 1.0)
         }
     }
-    
+
     var isWalkable: Bool {
         switch self {
-        case .grass, .desert, .forest, .hill: return true  // ✅ UPDATED
-        case .water, .mountain: return false
+        case .plains, .desert, .hill, .mountain: return true
+        case .water: return false
         }
+    }
+
+    var displayName: String {
+        switch self {
+        case .plains: return "Plains"
+        case .water: return "Water"
+        case .mountain: return "Mountain"
+        case .desert: return "Desert"
+        case .hill: return "Hill"
+        }
+    }
+
+    var movementCost: Int {
+        switch self {
+        case .plains, .desert: return 3
+        case .hill: return 4
+        case .mountain: return 5  // ~67% slower than plains
+        case .water: return Int.max
+        }
+    }
+
+    var combatModifier: TerrainCombatModifier {
+        switch self {
+        case .plains: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.0, attackerAttackPenalty: 0.0)
+        case .hill: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.15, attackerAttackPenalty: 0.0)
+        case .mountain: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.25, attackerAttackPenalty: 0.10)
+        case .desert: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: -0.05, attackerAttackPenalty: 0.0)
+        case .water: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.0, attackerAttackPenalty: 0.0)
+        }
+    }
+}
+
+// MARK: - Terrain Combat Modifier
+
+struct TerrainCombatModifier {
+    let terrain: TerrainType
+    let defenderDefenseBonus: Double    // e.g., 0.15 for +15%
+    let attackerAttackPenalty: Double   // e.g., 0.10 for -10%
+
+    var defenderMultiplier: Double { 1.0 + defenderDefenseBonus }
+    var attackerMultiplier: Double { 1.0 - attackerAttackPenalty }
+
+    var displayDescription: String {
+        var parts: [String] = []
+        if defenderDefenseBonus > 0 {
+            parts.append("Defender +\(Int(defenderDefenseBonus * 100))% defense")
+        } else if defenderDefenseBonus < 0 {
+            parts.append("Defender \(Int(defenderDefenseBonus * 100))% defense")
+        }
+        if attackerAttackPenalty > 0 {
+            parts.append("Attacker -\(Int(attackerAttackPenalty * 100))% attack")
+        }
+        return parts.isEmpty ? "No terrain effects" : parts.joined(separator: ", ")
     }
 }
 
@@ -48,14 +99,20 @@ class HexTileNode: SKShapeNode {
             updateAppearance()
         }
     }
-    
+    var elevation: Int = 0 {
+        didSet {
+            updateAppearance()
+        }
+    }
+
     static let hexRadius: CGFloat = 30
     
-    init(coordinate: HexCoordinate, terrain: TerrainType) {
+    init(coordinate: HexCoordinate, terrain: TerrainType, elevation: Int = 0) {
         self.coordinate = coordinate
         self.terrain = terrain
         super.init()
-        
+        self.elevation = elevation
+
         self.path = HexTileNode.createHexagonPath(radius: HexTileNode.hexRadius)
         self.lineWidth = 2
         self.isUserInteractionEnabled = false
@@ -67,7 +124,18 @@ class HexTileNode: SKShapeNode {
     }
     
     func updateAppearance() {
-        self.fillColor = terrain.color
+        // Apply elevation-based brightness adjustment
+        var baseColor = terrain.color
+        if elevation > 0 {
+            // Lighten color for higher elevations (each level adds 10% brightness)
+            let brightnessIncrease = CGFloat(elevation) * 0.1
+            var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+            baseColor.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+            let newBrightness = min(1.0, brightness + brightnessIncrease)
+            let newSaturation = max(0.3, saturation - brightnessIncrease * 0.3) // Slightly desaturate
+            baseColor = UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
+        }
+        self.fillColor = baseColor
         self.strokeColor = isSelected ? .yellow : UIColor(white: 0.3, alpha: 1.0)
         self.lineWidth = isSelected ? 4 : 2
     }
@@ -131,32 +199,30 @@ class HexMap {
         }
     }
     
-    // ✅ NEW METHOD: Generate varied terrain with natural distribution
+    // Generate varied terrain with natural distribution
     func generateVariedTerrain() {
         tiles.removeAll()
-        
+
         for r in 0..<height {
             for q in 0..<width {
                 let coord = HexCoordinate(q: q, r: r)
-                
+
                 // Generate terrain with weighted randomness for natural distribution
                 let rand = Double.random(in: 0...1)
                 let terrain: TerrainType
-                
+
                 if rand < 0.70 {
-                    terrain = .grass       // 60% grass (most common)
+                    terrain = .plains      // 70% plains (most common)
                 } else if rand < 0.80 {
-                    terrain = .forest      // 10% forest
-                } else if rand < 0.85 {
                     terrain = .hill        // 10% hill
                 } else if rand < 0.90 {
                     terrain = .desert      // 10% desert
-                } else if rand < 0.99 {
+                } else if rand < 0.95 {
                     terrain = .mountain    // 5% mountain
                 } else {
                     terrain = .water       // 5% water
                 }
-                
+
                 let tile = HexTileNode(coordinate: coord, terrain: terrain)
                 tiles[coord] = tile
             }
@@ -177,36 +243,33 @@ class HexMap {
             
             // Terrain-specific resource spawning
             switch tile.terrain {
-            case .forest:
-                if rand < 0.4 {
-                    resourceType = .trees
-                } else if rand < 0.5 {
+            case .plains:
+                if rand < 0.05 {
+                    resourceType = .deer
+                } else if rand < 0.07 {
+                    resourceType = .wildBoar
+                } else if rand < 0.10 {
                     resourceType = .forage
+                } else if rand < 0.20 {
+                    resourceType = .trees
                 }
-                
+
             case .mountain:
                 if rand < 0.3 {
                     resourceType = .oreMine
                 } else if rand < 0.4 {
                     resourceType = .stoneQuarry
                 }
-                
-            case .grass:
-                if rand < 0.05 {
-                    resourceType = .deer
-                } else if rand < 0.07 {
-                    resourceType = .wildBoar
-                } else if rand < 0.15 {
-                    resourceType = .trees
-                }
-                
+
             case .hill:
-                if rand < 0.2 {
-                    resourceType = .stoneQuarry
+                if rand < 0.15 {
+                    resourceType = .trees
                 } else if rand < 0.25 {
+                    resourceType = .stoneQuarry
+                } else if rand < 0.30 {
                     resourceType = .deer
                 }
-                
+
             default:
                 break
             }
@@ -223,7 +286,7 @@ class HexMap {
         print("✅ Spawned \(resourcePoints.count) resource points")
     }
     
-    func generateMap(terrain: TerrainType = .grass) {
+    func generateMap(terrain: TerrainType = .plains) {
         tiles.removeAll()
         
         for r in 0..<height {
@@ -282,20 +345,28 @@ class HexMap {
     }
 
     /// Get the movement cost for a tile (lower = preferred in pathfinding)
-    /// Roads have cost 1, non-roads have cost 3
+    /// Roads have cost 1, terrain types have varying costs
     func getMovementCost(at coordinate: HexCoordinate) -> Int {
         if hasRoad(at: coordinate) {
-            return 1  // Road tiles are fast
+            return 1  // Roads negate terrain penalty
         }
-        return 3  // Non-road tiles are slower
+        guard let tile = getTile(at: coordinate) else {
+            return 3
+        }
+        return tile.terrain.movementCost
+    }
+
+    /// Check if a single tile can have a building placed on it (no multi-tile calculation)
+    func canPlaceBuildingOnTile(at coordinate: HexCoordinate) -> Bool {
+        guard isValidCoordinate(coordinate) && isWalkable(coordinate) else { return false }
+        guard getBuilding(at: coordinate) == nil else { return false }
+        return true
     }
 
     func canPlaceBuilding(at coordinate: HexCoordinate, buildingType: BuildingType? = nil, rotation: Int = 0) -> Bool {
         guard let type = buildingType else {
             // Simple check without building type
-            guard isValidCoordinate(coordinate) && isWalkable(coordinate) else { return false }
-            guard getBuilding(at: coordinate) == nil else { return false }
-            return true
+            return canPlaceBuildingOnTile(at: coordinate)
         }
 
         // Get all coordinates this building would occupy
@@ -303,8 +374,7 @@ class HexMap {
 
         // Check all tiles are valid for placement
         for coord in occupiedCoords {
-            guard isValidCoordinate(coord) && isWalkable(coord) else { return false }
-            guard getBuilding(at: coord) == nil else { return false }
+            guard canPlaceBuildingOnTile(at: coord) else { return false }
         }
 
         // Mining camps and lumber camps CAN be placed on their required resource
@@ -574,36 +644,33 @@ class HexMap {
             
             // Terrain-specific resource spawning
             switch tile.terrain {
-            case .forest:
-                if densityAdjustedRand < 0.4 {
-                    resourceType = .trees
-                } else if densityAdjustedRand < 0.5 {
+            case .plains:
+                if densityAdjustedRand < 0.05 {
+                    resourceType = .deer
+                } else if densityAdjustedRand < 0.07 {
+                    resourceType = .wildBoar
+                } else if densityAdjustedRand < 0.10 {
                     resourceType = .forage
+                } else if densityAdjustedRand < 0.20 {
+                    resourceType = .trees
                 }
-                
+
             case .mountain:
                 if densityAdjustedRand < 0.3 {
                     resourceType = .oreMine
                 } else if densityAdjustedRand < 0.4 {
                     resourceType = .stoneQuarry
                 }
-                
-            case .grass:
-                if densityAdjustedRand < 0.05 {
-                    resourceType = .deer
-                } else if densityAdjustedRand < 0.07 {
-                    resourceType = .wildBoar
-                } else if densityAdjustedRand < 0.15 {
-                    resourceType = .trees
-                }
-                
+
             case .hill:
-                if densityAdjustedRand < 0.2 {
-                    resourceType = .stoneQuarry
+                if densityAdjustedRand < 0.15 {
+                    resourceType = .trees
                 } else if densityAdjustedRand < 0.25 {
+                    resourceType = .stoneQuarry
+                } else if densityAdjustedRand < 0.30 {
                     resourceType = .deer
                 }
-                
+
             default:
                 break
             }
@@ -628,5 +695,114 @@ class HexMap {
         }
         resourcePoints.append(resource)
         print("✅ Added resource point: \(resource.resourceType.displayName) at (\(resource.coordinate.q), \(resource.coordinate.r))")
+    }
+
+    // MARK: - Adjacency Bonus Support
+
+    /// Gets all buildings within a specified radius of a coordinate
+    func getBuildingsNear(coordinate: HexCoordinate, radius: Int) -> [BuildingNode] {
+        var nearbyBuildings: [BuildingNode] = []
+
+        for building in buildings {
+            // Check distance from any coordinate the building occupies
+            for occupiedCoord in building.data.occupiedCoordinates {
+                if occupiedCoord.distance(to: coordinate) <= radius {
+                    if !nearbyBuildings.contains(where: { $0.data.id == building.data.id }) {
+                        nearbyBuildings.append(building)
+                    }
+                    break
+                }
+            }
+        }
+
+        return nearbyBuildings
+    }
+
+    // MARK: - Road-Extended Camp Coverage
+
+    /// Uses BFS to find all coordinates reachable from a camp via connected roads
+    /// Roads extend camp coverage for resource gathering
+    func getExtendedCampReach(from campCoordinate: HexCoordinate) -> Set<HexCoordinate> {
+        var reachableCoordinates: Set<HexCoordinate> = []
+        var visited: Set<HexCoordinate> = []
+        var queue: [HexCoordinate] = [campCoordinate]
+
+        // Start with the camp's direct neighbors (always reachable)
+        for neighbor in campCoordinate.neighbors() {
+            reachableCoordinates.insert(neighbor)
+        }
+        reachableCoordinates.insert(campCoordinate)
+
+        // BFS through connected roads
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+
+            guard !visited.contains(current) else { continue }
+            visited.insert(current)
+
+            // Check all neighbors
+            for neighbor in current.neighbors() {
+                guard isValidCoordinate(neighbor) else { continue }
+
+                // If neighbor has a road, it extends coverage
+                if hasRoad(at: neighbor), !visited.contains(neighbor) {
+                    // Add the road tile itself
+                    reachableCoordinates.insert(neighbor)
+
+                    // Add all neighbors of the road tile (resource can be gathered)
+                    for roadNeighbor in neighbor.neighbors() {
+                        reachableCoordinates.insert(roadNeighbor)
+                    }
+
+                    // Continue BFS through this road
+                    queue.append(neighbor)
+                }
+            }
+        }
+
+        return reachableCoordinates
+    }
+
+    /// Checks if a coordinate can be reached by a matching camp via roads
+    /// This allows resources to be gathered even if they're far from the camp
+    func hasExtendedCampCoverage(at coordinate: HexCoordinate, forResourceType resourceType: ResourcePointType) -> Bool {
+        guard let requiredCamp = resourceType.requiredCampType else {
+            return true  // No camp required for this resource type
+        }
+
+        // Find all camps of the required type
+        let matchingCamps = buildings.filter {
+            $0.buildingType == requiredCamp && $0.state == .completed
+        }
+
+        // Check if any camp can reach this coordinate via roads
+        for camp in matchingCamps {
+            let reachableCoords = getExtendedCampReach(from: camp.coordinate)
+            if reachableCoords.contains(coordinate) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Gets all resources that can be gathered by a specific camp, including road-extended reach
+    func getResourcesInExtendedCampRange(campCoordinate: HexCoordinate, campType: BuildingType) -> [ResourcePointNode] {
+        let reachableCoords = getExtendedCampReach(from: campCoordinate)
+        var resources: [ResourcePointNode] = []
+
+        for coord in reachableCoords {
+            if let resource = getResourcePoint(at: coord) {
+                // Check if this resource type matches the camp type
+                if campType == .lumberCamp && resource.resourceType == .trees {
+                    resources.append(resource)
+                } else if campType == .miningCamp &&
+                          (resource.resourceType == .oreMine || resource.resourceType == .stoneQuarry) {
+                    resources.append(resource)
+                }
+            }
+        }
+
+        return resources
     }
 }

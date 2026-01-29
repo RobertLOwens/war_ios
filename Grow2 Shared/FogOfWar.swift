@@ -369,6 +369,15 @@ class FogOfWarManager {
         print("   Total: \(visionMap.count)")
     }
 
+    /// Reveals all tiles on the map (for fully visible mode)
+    func revealAllTiles() {
+        for coord in visionMap.keys {
+            visionMap[coord] = .visible
+            saveToMemory(coord)
+        }
+        print("👁️ Revealed all \(visionMap.count) tiles")
+    }
+
 }
 
 enum BuildingDisplayMode {
