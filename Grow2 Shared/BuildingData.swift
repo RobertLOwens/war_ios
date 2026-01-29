@@ -80,11 +80,18 @@ class BuildingData: Codable {
         self.rotation = rotation
 
         // Set health based on building type
-        switch buildingType.category {
-        case .military:
-            self.maxHealth = 500.0
-        case .economic:
-            self.maxHealth = 200.0
+        switch buildingType {
+        case .wall:
+            self.maxHealth = 600.0  // Sturdy walls
+        case .gate:
+            self.maxHealth = 400.0  // Gates can be broken through
+        default:
+            switch buildingType.category {
+            case .military:
+                self.maxHealth = 500.0
+            case .economic:
+                self.maxHealth = 200.0
+            }
         }
         self.health = maxHealth
     }
@@ -193,11 +200,46 @@ class BuildingData: Codable {
     
     func completeConstruction() {
         guard state == .constructing else { return }
-        
+
         state = .completed
         constructionProgress = 1.0
+
+        // Apply building HP research bonus to maxHealth
+        applyBuildingHPBonus()
+
         health = maxHealth
         constructionStartTime = nil
+    }
+
+    /// Applies the building HP research bonus to maxHealth
+    /// Call this when construction completes or when the fortified buildings research finishes
+    func applyBuildingHPBonus() {
+        // Get base health (without research bonus)
+        let baseHealth: Double
+        switch buildingType {
+        case .wall:
+            baseHealth = 600.0
+        case .gate:
+            baseHealth = 400.0
+        default:
+            switch buildingType.category {
+            case .military:
+                baseHealth = 500.0
+            case .economic:
+                baseHealth = 200.0
+            }
+        }
+
+        // Apply research bonus
+        let hpMultiplier = ResearchManager.shared.getBuildingHPMultiplier()
+        maxHealth = baseHealth * hpMultiplier
+
+        // If building is damaged, keep the same damage ratio
+        let healthRatio = health / maxHealth
+        if healthRatio < 1.0 && state == .completed {
+            // Building was damaged, maintain the damage proportion
+            health = min(health, maxHealth)
+        }
     }
     
     func getRemainingConstructionTime(currentTime: TimeInterval) -> TimeInterval? {
@@ -469,23 +511,112 @@ class BuildingData: Codable {
     
     func takeDamage(_ amount: Double) {
         guard state == .completed || state == .damaged else { return }
-        
+
         health = max(0, health - amount)
-        
+
         if health <= 0 {
             state = .destroyed
         } else if health < maxHealth / 2 {
             state = .damaged
         }
     }
-    
+
     func repair(_ amount: Double) {
         guard state == .damaged else { return }
-        
+
         health = min(maxHealth, health + amount)
-        
+
         if health >= maxHealth / 2 {
             state = .completed
         }
+    }
+
+    // MARK: - Garrison Defense
+
+    /// Whether this building type can provide garrison defense (auto-attack enemies)
+    var canProvideGarrisonDefense: Bool {
+        switch buildingType {
+        case .castle, .woodenFort, .tower:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The range at which this building can attack enemies (in hexes)
+    var garrisonDefenseRange: Int {
+        guard canProvideGarrisonDefense else { return 0 }
+        return 1  // All defensive buildings have 1 hex range
+    }
+
+    /// Calculates total pierce damage from garrisoned ranged units (archers, crossbows)
+    func getGarrisonPierceDamage() -> Double {
+        guard canProvideGarrisonDefense && isOperational else { return 0 }
+
+        var pierceDamage: Double = 0
+
+        // Archers: 12 pierce damage each
+        if let archerCount = garrison[.archer], archerCount > 0 {
+            pierceDamage += Double(archerCount) * 12.0
+        }
+
+        // Crossbows: 14 pierce damage each
+        if let crossbowCount = garrison[.crossbow], crossbowCount > 0 {
+            pierceDamage += Double(crossbowCount) * 14.0
+        }
+
+        // Apply piercing damage research bonus
+        return pierceDamage * ResearchManager.shared.getPiercingDamageMultiplier()
+    }
+
+    /// Calculates total bludgeon damage from garrisoned siege units (mangonels, trebuchets)
+    func getGarrisonBludgeonDamage() -> Double {
+        guard canProvideGarrisonDefense && isOperational else { return 0 }
+
+        var bludgeonDamage: Double = 0
+
+        // Mangonels: 18 bludgeon damage each
+        if let mangonelCount = garrison[.mangonel], mangonelCount > 0 {
+            bludgeonDamage += Double(mangonelCount) * 18.0
+        }
+
+        // Trebuchets: 25 bludgeon damage each
+        if let trebuchetCount = garrison[.trebuchet], trebuchetCount > 0 {
+            bludgeonDamage += Double(trebuchetCount) * 25.0
+        }
+
+        return bludgeonDamage
+    }
+
+    /// Calculates total garrison defense damage (pierce + bludgeon from ranged/siege units)
+    func getTotalGarrisonDefenseDamage() -> Double {
+        return getGarrisonPierceDamage() + getGarrisonBludgeonDamage()
+    }
+
+    /// Whether this building has any ranged or siege units that can contribute to garrison defense
+    func hasDefensiveGarrison() -> Bool {
+        guard canProvideGarrisonDefense && isOperational else { return false }
+
+        // Check for ranged units
+        let archerCount = garrison[.archer] ?? 0
+        let crossbowCount = garrison[.crossbow] ?? 0
+
+        // Check for siege units
+        let mangonelCount = garrison[.mangonel] ?? 0
+        let trebuchetCount = garrison[.trebuchet] ?? 0
+
+        return (archerCount + crossbowCount + mangonelCount + trebuchetCount) > 0
+    }
+
+    /// Gets the count of units that can contribute to garrison defense
+    func getDefensiveGarrisonCount() -> Int {
+        guard canProvideGarrisonDefense else { return 0 }
+
+        let archerCount = garrison[.archer] ?? 0
+        let crossbowCount = garrison[.crossbow] ?? 0
+        let mangonelCount = garrison[.mangonel] ?? 0
+        let trebuchetCount = garrison[.trebuchet] ?? 0
+
+        return archerCount + crossbowCount + mangonelCount + trebuchetCount
     }
 }

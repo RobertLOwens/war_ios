@@ -44,6 +44,24 @@ enum ResearchBonusType: String, Codable {
     case miningCampGatheringRate // Mining camp gathering rate
     case lumberCampGatheringRate // Lumber camp gathering rate
 
+    // Military bonuses
+    case militaryMarchSpeed      // Army movement speed
+    case militaryRetreatSpeed    // Retreat movement speed
+    case infantryMeleeAttack     // Infantry melee damage
+    case cavalryMeleeAttack      // Cavalry melee damage
+    case infantryMeleeArmor      // Infantry melee armor
+    case cavalryMeleeArmor       // Cavalry melee armor
+    case archerMeleeArmor        // Archer/ranged melee armor
+    case piercingDamage          // Archers + garrison pierce damage
+    case infantryPierceArmor     // Infantry pierce armor
+    case cavalryPierceArmor      // Cavalry pierce armor
+    case archerPierceArmor       // Archer/ranged pierce armor
+    case siegeBludgeonDamage     // Siege bludgeon damage
+    case buildingBludgeonArmor   // Building bludgeon armor
+    case militaryTrainingSpeed   // Military unit training speed
+    case militaryFoodConsumption // Military food consumption (negative = reduction)
+    case buildingHP              // Building max HP
+
     var displayName: String {
         switch self {
         case .woodGatheringRate: return "Wood Gathering"
@@ -64,6 +82,22 @@ enum ResearchBonusType: String, Codable {
         case .farmGatheringRate: return "Farm Gathering"
         case .miningCampGatheringRate: return "Mining Camp Gathering"
         case .lumberCampGatheringRate: return "Lumber Camp Gathering"
+        case .militaryMarchSpeed: return "March Speed"
+        case .militaryRetreatSpeed: return "Retreat Speed"
+        case .infantryMeleeAttack: return "Infantry Melee Attack"
+        case .cavalryMeleeAttack: return "Cavalry Melee Attack"
+        case .infantryMeleeArmor: return "Infantry Melee Armor"
+        case .cavalryMeleeArmor: return "Cavalry Melee Armor"
+        case .archerMeleeArmor: return "Archer Melee Armor"
+        case .piercingDamage: return "Piercing Damage"
+        case .infantryPierceArmor: return "Infantry Pierce Armor"
+        case .cavalryPierceArmor: return "Cavalry Pierce Armor"
+        case .archerPierceArmor: return "Archer Pierce Armor"
+        case .siegeBludgeonDamage: return "Siege Bludgeon Damage"
+        case .buildingBludgeonArmor: return "Building Bludgeon Armor"
+        case .militaryTrainingSpeed: return "Military Training Speed"
+        case .militaryFoodConsumption: return "Military Food Consumption"
+        case .buildingHP: return "Building HP"
         }
     }
 }
@@ -148,9 +182,88 @@ enum ResearchType: String, CaseIterable, Codable {
     case buildingSpeedIII = "building_speed_3"
 
     // ========================================
-    // MILITARY BRANCH (Empty for now)
+    // MILITARY BRANCH
     // ========================================
-    // Future military research will go here
+
+    // --- March Speed ---
+    case marchSpeedI = "march_speed_1"
+    case marchSpeedII = "march_speed_2"
+    case marchSpeedIII = "march_speed_3"
+
+    // --- Retreat Speed ---
+    case retreatSpeedI = "retreat_speed_1"
+    case retreatSpeedII = "retreat_speed_2"
+    case retreatSpeedIII = "retreat_speed_3"
+
+    // --- Infantry Melee Attack ---
+    case infantryMeleeAttackI = "infantry_melee_attack_1"
+    case infantryMeleeAttackII = "infantry_melee_attack_2"
+    case infantryMeleeAttackIII = "infantry_melee_attack_3"
+
+    // --- Cavalry Melee Attack ---
+    case cavalryMeleeAttackI = "cavalry_melee_attack_1"
+    case cavalryMeleeAttackII = "cavalry_melee_attack_2"
+    case cavalryMeleeAttackIII = "cavalry_melee_attack_3"
+
+    // --- Infantry Melee Armor ---
+    case infantryMeleeArmorI = "infantry_melee_armor_1"
+    case infantryMeleeArmorII = "infantry_melee_armor_2"
+    case infantryMeleeArmorIII = "infantry_melee_armor_3"
+
+    // --- Cavalry Melee Armor ---
+    case cavalryMeleeArmorI = "cavalry_melee_armor_1"
+    case cavalryMeleeArmorII = "cavalry_melee_armor_2"
+    case cavalryMeleeArmorIII = "cavalry_melee_armor_3"
+
+    // --- Archer Melee Armor ---
+    case archerMeleeArmorI = "archer_melee_armor_1"
+    case archerMeleeArmorII = "archer_melee_armor_2"
+    case archerMeleeArmorIII = "archer_melee_armor_3"
+
+    // --- Piercing Damage ---
+    case piercingDamageI = "piercing_damage_1"
+    case piercingDamageII = "piercing_damage_2"
+    case piercingDamageIII = "piercing_damage_3"
+
+    // --- Infantry Pierce Armor ---
+    case infantryPierceArmorI = "infantry_pierce_armor_1"
+    case infantryPierceArmorII = "infantry_pierce_armor_2"
+    case infantryPierceArmorIII = "infantry_pierce_armor_3"
+
+    // --- Cavalry Pierce Armor ---
+    case cavalryPierceArmorI = "cavalry_pierce_armor_1"
+    case cavalryPierceArmorII = "cavalry_pierce_armor_2"
+    case cavalryPierceArmorIII = "cavalry_pierce_armor_3"
+
+    // --- Archer Pierce Armor ---
+    case archerPierceArmorI = "archer_pierce_armor_1"
+    case archerPierceArmorII = "archer_pierce_armor_2"
+    case archerPierceArmorIII = "archer_pierce_armor_3"
+
+    // --- Siege Bludgeon Damage ---
+    case siegeBludgeonDamageI = "siege_bludgeon_damage_1"
+    case siegeBludgeonDamageII = "siege_bludgeon_damage_2"
+    case siegeBludgeonDamageIII = "siege_bludgeon_damage_3"
+
+    // --- Building Bludgeon Armor ---
+    case buildingBludgeonArmorI = "building_bludgeon_armor_1"
+    case buildingBludgeonArmorII = "building_bludgeon_armor_2"
+    case buildingBludgeonArmorIII = "building_bludgeon_armor_3"
+
+    // --- Military Training Speed ---
+    case militaryTrainingSpeedI = "military_training_speed_1"
+    case militaryTrainingSpeedII = "military_training_speed_2"
+    case militaryTrainingSpeedIII = "military_training_speed_3"
+
+    // --- Military Rations (Food Consumption) ---
+    case militaryRationsI = "military_rations_1"
+    case militaryRationsII = "military_rations_2"
+    case militaryRationsIII = "military_rations_3"
+
+    // --- Fortified Buildings (Building HP) ---
+    case fortifiedBuildingsI = "fortified_buildings_1"
+    case fortifiedBuildingsII = "fortified_buildings_2"
+    case fortifiedBuildingsIII = "fortified_buildings_3"
 
     // MARK: - Display Name
     var displayName: String {
@@ -195,6 +308,75 @@ enum ResearchType: String, CaseIterable, Codable {
         case .buildingSpeedI: return "Construction I"
         case .buildingSpeedII: return "Construction II"
         case .buildingSpeedIII: return "Construction III"
+
+        // ========================================
+        // MILITARY BRANCH
+        // ========================================
+
+        // March Speed
+        case .marchSpeedI: return "Forced March I"
+        case .marchSpeedII: return "Forced March II"
+        case .marchSpeedIII: return "Forced March III"
+        // Retreat Speed
+        case .retreatSpeedI: return "Tactical Retreat I"
+        case .retreatSpeedII: return "Tactical Retreat II"
+        case .retreatSpeedIII: return "Tactical Retreat III"
+        // Infantry Melee Attack
+        case .infantryMeleeAttackI: return "Infantry Weapons I"
+        case .infantryMeleeAttackII: return "Infantry Weapons II"
+        case .infantryMeleeAttackIII: return "Infantry Weapons III"
+        // Cavalry Melee Attack
+        case .cavalryMeleeAttackI: return "Cavalry Weapons I"
+        case .cavalryMeleeAttackII: return "Cavalry Weapons II"
+        case .cavalryMeleeAttackIII: return "Cavalry Weapons III"
+        // Infantry Melee Armor
+        case .infantryMeleeArmorI: return "Infantry Shields I"
+        case .infantryMeleeArmorII: return "Infantry Shields II"
+        case .infantryMeleeArmorIII: return "Infantry Shields III"
+        // Cavalry Melee Armor
+        case .cavalryMeleeArmorI: return "Cavalry Barding I"
+        case .cavalryMeleeArmorII: return "Cavalry Barding II"
+        case .cavalryMeleeArmorIII: return "Cavalry Barding III"
+        // Archer Melee Armor
+        case .archerMeleeArmorI: return "Archer Padding I"
+        case .archerMeleeArmorII: return "Archer Padding II"
+        case .archerMeleeArmorIII: return "Archer Padding III"
+        // Piercing Damage
+        case .piercingDamageI: return "Bodkin Points I"
+        case .piercingDamageII: return "Bodkin Points II"
+        case .piercingDamageIII: return "Bodkin Points III"
+        // Infantry Pierce Armor
+        case .infantryPierceArmorI: return "Infantry Mail I"
+        case .infantryPierceArmorII: return "Infantry Mail II"
+        case .infantryPierceArmorIII: return "Infantry Mail III"
+        // Cavalry Pierce Armor
+        case .cavalryPierceArmorI: return "Cavalry Mail I"
+        case .cavalryPierceArmorII: return "Cavalry Mail II"
+        case .cavalryPierceArmorIII: return "Cavalry Mail III"
+        // Archer Pierce Armor
+        case .archerPierceArmorI: return "Archer Mail I"
+        case .archerPierceArmorII: return "Archer Mail II"
+        case .archerPierceArmorIII: return "Archer Mail III"
+        // Siege Bludgeon Damage
+        case .siegeBludgeonDamageI: return "Siege Ammunition I"
+        case .siegeBludgeonDamageII: return "Siege Ammunition II"
+        case .siegeBludgeonDamageIII: return "Siege Ammunition III"
+        // Building Bludgeon Armor
+        case .buildingBludgeonArmorI: return "Reinforced Walls I"
+        case .buildingBludgeonArmorII: return "Reinforced Walls II"
+        case .buildingBludgeonArmorIII: return "Reinforced Walls III"
+        // Military Training Speed
+        case .militaryTrainingSpeedI: return "Military Drills I"
+        case .militaryTrainingSpeedII: return "Military Drills II"
+        case .militaryTrainingSpeedIII: return "Military Drills III"
+        // Military Rations
+        case .militaryRationsI: return "Field Rations I"
+        case .militaryRationsII: return "Field Rations II"
+        case .militaryRationsIII: return "Field Rations III"
+        // Fortified Buildings
+        case .fortifiedBuildingsI: return "Fortifications I"
+        case .fortifiedBuildingsII: return "Fortifications II"
+        case .fortifiedBuildingsIII: return "Fortifications III"
         }
     }
 
@@ -211,6 +393,24 @@ enum ResearchType: String, CaseIterable, Codable {
         case .populationCapacityI, .populationCapacityII, .populationCapacityIII: return "🏘️"
         case .efficientRationsI, .efficientRationsII, .efficientRationsIII: return "🍽️"
         case .buildingSpeedI, .buildingSpeedII, .buildingSpeedIII: return "🏗️"
+
+        // Military icons
+        case .marchSpeedI, .marchSpeedII, .marchSpeedIII: return "🚶"
+        case .retreatSpeedI, .retreatSpeedII, .retreatSpeedIII: return "🏃"
+        case .infantryMeleeAttackI, .infantryMeleeAttackII, .infantryMeleeAttackIII: return "🗡️"
+        case .cavalryMeleeAttackI, .cavalryMeleeAttackII, .cavalryMeleeAttackIII: return "⚔️"
+        case .infantryMeleeArmorI, .infantryMeleeArmorII, .infantryMeleeArmorIII: return "🛡️"
+        case .cavalryMeleeArmorI, .cavalryMeleeArmorII, .cavalryMeleeArmorIII: return "🐴"
+        case .archerMeleeArmorI, .archerMeleeArmorII, .archerMeleeArmorIII: return "🎯"
+        case .piercingDamageI, .piercingDamageII, .piercingDamageIII: return "🏹"
+        case .infantryPierceArmorI, .infantryPierceArmorII, .infantryPierceArmorIII: return "⛓️"
+        case .cavalryPierceArmorI, .cavalryPierceArmorII, .cavalryPierceArmorIII: return "🐎"
+        case .archerPierceArmorI, .archerPierceArmorII, .archerPierceArmorIII: return "🦺"
+        case .siegeBludgeonDamageI, .siegeBludgeonDamageII, .siegeBludgeonDamageIII: return "🪨"
+        case .buildingBludgeonArmorI, .buildingBludgeonArmorII, .buildingBludgeonArmorIII: return "🧱"
+        case .militaryTrainingSpeedI, .militaryTrainingSpeedII, .militaryTrainingSpeedIII: return "⚔️"
+        case .militaryRationsI, .militaryRationsII, .militaryRationsIII: return "🥘"
+        case .fortifiedBuildingsI, .fortifiedBuildingsII, .fortifiedBuildingsIII: return "🏰"
         }
     }
 
@@ -247,13 +447,94 @@ enum ResearchType: String, CaseIterable, Codable {
         case .buildingSpeedI: return "Improve construction techniques for faster building."
         case .buildingSpeedII: return "Advanced tools speed up construction."
         case .buildingSpeedIII: return "Master builders construct at incredible speed."
+
+        // Military descriptions
+        case .marchSpeedI: return "Train armies for faster marching speeds."
+        case .marchSpeedII: return "Improved conditioning increases army movement."
+        case .marchSpeedIII: return "Elite training enables rapid force deployment."
+        case .retreatSpeedI: return "Develop tactical retreat procedures."
+        case .retreatSpeedII: return "Organized withdrawal protocols save lives."
+        case .retreatSpeedIII: return "Master escape tactics ensure army survival."
+        case .infantryMeleeAttackI: return "Sharper swords and better technique for infantry."
+        case .infantryMeleeAttackII: return "Advanced weaponry increases infantry damage."
+        case .infantryMeleeAttackIII: return "Elite weapons make infantry devastating in melee."
+        case .cavalryMeleeAttackI: return "Better lances and sabers for mounted units."
+        case .cavalryMeleeAttackII: return "Advanced cavalry weapons deal more damage."
+        case .cavalryMeleeAttackIII: return "Elite cavalry weapons crush enemies in charges."
+        case .infantryMeleeArmorI: return "Improved shields protect infantry from melee."
+        case .infantryMeleeArmorII: return "Reinforced shields block more melee damage."
+        case .infantryMeleeArmorIII: return "Elite shields make infantry nearly impervious to melee."
+        case .cavalryMeleeArmorI: return "Horse barding protects cavalry from melee."
+        case .cavalryMeleeArmorII: return "Improved barding increases cavalry protection."
+        case .cavalryMeleeArmorIII: return "Full plate barding for maximum cavalry defense."
+        case .archerMeleeArmorI: return "Padded armor helps archers survive melee."
+        case .archerMeleeArmorII: return "Improved padding reduces archer casualties."
+        case .archerMeleeArmorIII: return "Elite archer padding significantly reduces losses."
+        case .piercingDamageI: return "Bodkin arrow points penetrate armor better."
+        case .piercingDamageII: return "Advanced arrowheads increase pierce damage."
+        case .piercingDamageIII: return "Elite ammunition devastates armored targets."
+        case .infantryPierceArmorI: return "Chain mail protects infantry from arrows."
+        case .infantryPierceArmorII: return "Improved mail reduces arrow damage."
+        case .infantryPierceArmorIII: return "Elite mail makes infantry resistant to arrows."
+        case .cavalryPierceArmorI: return "Mail armor protects cavalry from arrows."
+        case .cavalryPierceArmorII: return "Improved mail increases cavalry arrow resistance."
+        case .cavalryPierceArmorIII: return "Elite mail makes cavalry nearly arrow-proof."
+        case .archerPierceArmorI: return "Archer mail protects from counter-fire."
+        case .archerPierceArmorII: return "Improved archer mail reduces losses."
+        case .archerPierceArmorIII: return "Elite archer mail for maximum protection."
+        case .siegeBludgeonDamageI: return "Heavier siege ammunition deals more damage."
+        case .siegeBludgeonDamageII: return "Improved projectiles increase siege damage."
+        case .siegeBludgeonDamageIII: return "Elite ammunition demolishes structures quickly."
+        case .buildingBludgeonArmorI: return "Reinforced structures resist siege damage."
+        case .buildingBludgeonArmorII: return "Improved reinforcement increases building toughness."
+        case .buildingBludgeonArmorIII: return "Elite fortifications withstand heavy bombardment."
+        case .militaryTrainingSpeedI: return "Improved drills speed up unit training."
+        case .militaryTrainingSpeedII: return "Advanced training methods increase efficiency."
+        case .militaryTrainingSpeedIII: return "Elite instructors rapidly train soldiers."
+        case .militaryRationsI: return "Better supply management reduces food consumption."
+        case .militaryRationsII: return "Improved logistics lower army upkeep."
+        case .militaryRationsIII: return "Elite supply corps minimize food requirements."
+        case .fortifiedBuildingsI: return "Reinforce buildings for more hit points."
+        case .fortifiedBuildingsII: return "Improved construction increases building durability."
+        case .fortifiedBuildingsIII: return "Elite fortification techniques maximize building HP."
         }
     }
 
     // MARK: - Category
     var category: ResearchCategory {
-        // All current research is economic
-        return .economic
+        switch self {
+        // Economic research
+        case .farmGatheringI, .farmGatheringII, .farmGatheringIII,
+             .miningCampGatheringI, .miningCampGatheringII, .miningCampGatheringIII,
+             .lumberCampGatheringI, .lumberCampGatheringII, .lumberCampGatheringIII,
+             .betterMarketRatesI, .betterMarketRatesII, .betterMarketRatesIII,
+             .villagerSpeedI, .villagerSpeedII, .villagerSpeedIII,
+             .tradeSpeedI, .tradeSpeedII, .tradeSpeedIII,
+             .improvedRoadsI, .improvedRoadsII, .improvedRoadsIII,
+             .populationCapacityI, .populationCapacityII, .populationCapacityIII,
+             .efficientRationsI, .efficientRationsII, .efficientRationsIII,
+             .buildingSpeedI, .buildingSpeedII, .buildingSpeedIII:
+            return .economic
+
+        // Military research
+        case .marchSpeedI, .marchSpeedII, .marchSpeedIII,
+             .retreatSpeedI, .retreatSpeedII, .retreatSpeedIII,
+             .infantryMeleeAttackI, .infantryMeleeAttackII, .infantryMeleeAttackIII,
+             .cavalryMeleeAttackI, .cavalryMeleeAttackII, .cavalryMeleeAttackIII,
+             .infantryMeleeArmorI, .infantryMeleeArmorII, .infantryMeleeArmorIII,
+             .cavalryMeleeArmorI, .cavalryMeleeArmorII, .cavalryMeleeArmorIII,
+             .archerMeleeArmorI, .archerMeleeArmorII, .archerMeleeArmorIII,
+             .piercingDamageI, .piercingDamageII, .piercingDamageIII,
+             .infantryPierceArmorI, .infantryPierceArmorII, .infantryPierceArmorIII,
+             .cavalryPierceArmorI, .cavalryPierceArmorII, .cavalryPierceArmorIII,
+             .archerPierceArmorI, .archerPierceArmorII, .archerPierceArmorIII,
+             .siegeBludgeonDamageI, .siegeBludgeonDamageII, .siegeBludgeonDamageIII,
+             .buildingBludgeonArmorI, .buildingBludgeonArmorII, .buildingBludgeonArmorIII,
+             .militaryTrainingSpeedI, .militaryTrainingSpeedII, .militaryTrainingSpeedIII,
+             .militaryRationsI, .militaryRationsII, .militaryRationsIII,
+             .fortifiedBuildingsI, .fortifiedBuildingsII, .fortifiedBuildingsIII:
+            return .military
+        }
     }
 
     // MARK: - Research Time (in seconds)
@@ -273,6 +554,36 @@ enum ResearchType: String, CaseIterable, Codable {
         case .farmGatheringIII, .miningCampGatheringIII, .lumberCampGatheringIII,
              .betterMarketRatesIII, .villagerSpeedIII, .tradeSpeedIII,
              .improvedRoadsIII, .populationCapacityIII, .efficientRationsIII, .buildingSpeedIII:
+            return 120.0
+
+        // Military Tier I - 30 seconds
+        case .marchSpeedI, .retreatSpeedI,
+             .infantryMeleeAttackI, .cavalryMeleeAttackI,
+             .infantryMeleeArmorI, .cavalryMeleeArmorI, .archerMeleeArmorI,
+             .piercingDamageI,
+             .infantryPierceArmorI, .cavalryPierceArmorI, .archerPierceArmorI,
+             .siegeBludgeonDamageI, .buildingBludgeonArmorI,
+             .militaryTrainingSpeedI, .militaryRationsI, .fortifiedBuildingsI:
+            return 30.0
+
+        // Military Tier II - 60 seconds
+        case .marchSpeedII, .retreatSpeedII,
+             .infantryMeleeAttackII, .cavalryMeleeAttackII,
+             .infantryMeleeArmorII, .cavalryMeleeArmorII, .archerMeleeArmorII,
+             .piercingDamageII,
+             .infantryPierceArmorII, .cavalryPierceArmorII, .archerPierceArmorII,
+             .siegeBludgeonDamageII, .buildingBludgeonArmorII,
+             .militaryTrainingSpeedII, .militaryRationsII, .fortifiedBuildingsII:
+            return 60.0
+
+        // Military Tier III - 120 seconds
+        case .marchSpeedIII, .retreatSpeedIII,
+             .infantryMeleeAttackIII, .cavalryMeleeAttackIII,
+             .infantryMeleeArmorIII, .cavalryMeleeArmorIII, .archerMeleeArmorIII,
+             .piercingDamageIII,
+             .infantryPierceArmorIII, .cavalryPierceArmorIII, .archerPierceArmorIII,
+             .siegeBludgeonDamageIII, .buildingBludgeonArmorIII,
+             .militaryTrainingSpeedIII, .militaryRationsIII, .fortifiedBuildingsIII:
             return 120.0
         }
     }
@@ -315,6 +626,30 @@ enum ResearchType: String, CaseIterable, Codable {
         case .populationCapacityIII: return [.wood: 200, .stone: 120, .food: 60, .ore: 30]
         case .efficientRationsIII: return [.food: 320, .wood: 80, .stone: 40, .ore: 20]
         case .buildingSpeedIII: return [.wood: 160, .stone: 160, .food: 60, .ore: 40]
+
+        // Military Tier I costs - Wood: 75, Food: 50, Stone: 25
+        case .marchSpeedI, .retreatSpeedI: return [.wood: 75, .food: 50, .stone: 25]
+        case .infantryMeleeAttackI, .infantryMeleeArmorI, .infantryPierceArmorI: return [.wood: 75, .food: 50, .stone: 25]
+        case .cavalryMeleeAttackI, .cavalryMeleeArmorI, .cavalryPierceArmorI: return [.wood: 75, .food: 50, .stone: 25]
+        case .archerMeleeArmorI, .archerPierceArmorI, .piercingDamageI: return [.wood: 75, .food: 50, .stone: 25]
+        case .siegeBludgeonDamageI, .buildingBludgeonArmorI: return [.wood: 75, .food: 50, .stone: 25]
+        case .militaryTrainingSpeedI, .militaryRationsI, .fortifiedBuildingsI: return [.wood: 75, .food: 50, .stone: 25]
+
+        // Military Tier II costs - Wood: 150, Food: 100, Stone: 50, Ore: 25
+        case .marchSpeedII, .retreatSpeedII: return [.wood: 150, .food: 100, .stone: 50, .ore: 25]
+        case .infantryMeleeAttackII, .infantryMeleeArmorII, .infantryPierceArmorII: return [.wood: 150, .food: 100, .stone: 50, .ore: 25]
+        case .cavalryMeleeAttackII, .cavalryMeleeArmorII, .cavalryPierceArmorII: return [.wood: 150, .food: 100, .stone: 50, .ore: 25]
+        case .archerMeleeArmorII, .archerPierceArmorII, .piercingDamageII: return [.wood: 150, .food: 100, .stone: 50, .ore: 25]
+        case .siegeBludgeonDamageII, .buildingBludgeonArmorII: return [.wood: 150, .food: 100, .stone: 50, .ore: 25]
+        case .militaryTrainingSpeedII, .militaryRationsII, .fortifiedBuildingsII: return [.wood: 150, .food: 100, .stone: 50, .ore: 25]
+
+        // Military Tier III costs - Wood: 300, Food: 200, Stone: 100, Ore: 50
+        case .marchSpeedIII, .retreatSpeedIII: return [.wood: 300, .food: 200, .stone: 100, .ore: 50]
+        case .infantryMeleeAttackIII, .infantryMeleeArmorIII, .infantryPierceArmorIII: return [.wood: 300, .food: 200, .stone: 100, .ore: 50]
+        case .cavalryMeleeAttackIII, .cavalryMeleeArmorIII, .cavalryPierceArmorIII: return [.wood: 300, .food: 200, .stone: 100, .ore: 50]
+        case .archerMeleeArmorIII, .archerPierceArmorIII, .piercingDamageIII: return [.wood: 300, .food: 200, .stone: 100, .ore: 50]
+        case .siegeBludgeonDamageIII, .buildingBludgeonArmorIII: return [.wood: 300, .food: 200, .stone: 100, .ore: 50]
+        case .militaryTrainingSpeedIII, .militaryRationsIII, .fortifiedBuildingsIII: return [.wood: 300, .food: 200, .stone: 100, .ore: 50]
         }
     }
 
@@ -370,6 +705,90 @@ enum ResearchType: String, CaseIterable, Codable {
         case .buildingSpeedI: return [ResearchBonus(type: .buildingSpeed, value: 0.10)]
         case .buildingSpeedII: return [ResearchBonus(type: .buildingSpeed, value: 0.15)]
         case .buildingSpeedIII: return [ResearchBonus(type: .buildingSpeed, value: 0.20)]
+
+        // ========================================
+        // MILITARY BONUSES
+        // ========================================
+
+        // March Speed: +5%, +7%, +10% (total +22%)
+        case .marchSpeedI: return [ResearchBonus(type: .militaryMarchSpeed, value: 0.05)]
+        case .marchSpeedII: return [ResearchBonus(type: .militaryMarchSpeed, value: 0.07)]
+        case .marchSpeedIII: return [ResearchBonus(type: .militaryMarchSpeed, value: 0.10)]
+
+        // Retreat Speed: +5%, +7%, +10% (total +22%)
+        case .retreatSpeedI: return [ResearchBonus(type: .militaryRetreatSpeed, value: 0.05)]
+        case .retreatSpeedII: return [ResearchBonus(type: .militaryRetreatSpeed, value: 0.07)]
+        case .retreatSpeedIII: return [ResearchBonus(type: .militaryRetreatSpeed, value: 0.10)]
+
+        // Infantry Melee Attack: +5%, +7%, +10% (total +22%)
+        case .infantryMeleeAttackI: return [ResearchBonus(type: .infantryMeleeAttack, value: 0.05)]
+        case .infantryMeleeAttackII: return [ResearchBonus(type: .infantryMeleeAttack, value: 0.07)]
+        case .infantryMeleeAttackIII: return [ResearchBonus(type: .infantryMeleeAttack, value: 0.10)]
+
+        // Cavalry Melee Attack: +5%, +7%, +10% (total +22%)
+        case .cavalryMeleeAttackI: return [ResearchBonus(type: .cavalryMeleeAttack, value: 0.05)]
+        case .cavalryMeleeAttackII: return [ResearchBonus(type: .cavalryMeleeAttack, value: 0.07)]
+        case .cavalryMeleeAttackIII: return [ResearchBonus(type: .cavalryMeleeAttack, value: 0.10)]
+
+        // Infantry Melee Armor: +5%, +7%, +10% (total +22%)
+        case .infantryMeleeArmorI: return [ResearchBonus(type: .infantryMeleeArmor, value: 0.05)]
+        case .infantryMeleeArmorII: return [ResearchBonus(type: .infantryMeleeArmor, value: 0.07)]
+        case .infantryMeleeArmorIII: return [ResearchBonus(type: .infantryMeleeArmor, value: 0.10)]
+
+        // Cavalry Melee Armor: +5%, +7%, +10% (total +22%)
+        case .cavalryMeleeArmorI: return [ResearchBonus(type: .cavalryMeleeArmor, value: 0.05)]
+        case .cavalryMeleeArmorII: return [ResearchBonus(type: .cavalryMeleeArmor, value: 0.07)]
+        case .cavalryMeleeArmorIII: return [ResearchBonus(type: .cavalryMeleeArmor, value: 0.10)]
+
+        // Archer Melee Armor: +5%, +7%, +10% (total +22%)
+        case .archerMeleeArmorI: return [ResearchBonus(type: .archerMeleeArmor, value: 0.05)]
+        case .archerMeleeArmorII: return [ResearchBonus(type: .archerMeleeArmor, value: 0.07)]
+        case .archerMeleeArmorIII: return [ResearchBonus(type: .archerMeleeArmor, value: 0.10)]
+
+        // Piercing Damage: +5%, +7%, +10% (total +22%)
+        case .piercingDamageI: return [ResearchBonus(type: .piercingDamage, value: 0.05)]
+        case .piercingDamageII: return [ResearchBonus(type: .piercingDamage, value: 0.07)]
+        case .piercingDamageIII: return [ResearchBonus(type: .piercingDamage, value: 0.10)]
+
+        // Infantry Pierce Armor: +5%, +7%, +10% (total +22%)
+        case .infantryPierceArmorI: return [ResearchBonus(type: .infantryPierceArmor, value: 0.05)]
+        case .infantryPierceArmorII: return [ResearchBonus(type: .infantryPierceArmor, value: 0.07)]
+        case .infantryPierceArmorIII: return [ResearchBonus(type: .infantryPierceArmor, value: 0.10)]
+
+        // Cavalry Pierce Armor: +5%, +7%, +10% (total +22%)
+        case .cavalryPierceArmorI: return [ResearchBonus(type: .cavalryPierceArmor, value: 0.05)]
+        case .cavalryPierceArmorII: return [ResearchBonus(type: .cavalryPierceArmor, value: 0.07)]
+        case .cavalryPierceArmorIII: return [ResearchBonus(type: .cavalryPierceArmor, value: 0.10)]
+
+        // Archer Pierce Armor: +5%, +7%, +10% (total +22%)
+        case .archerPierceArmorI: return [ResearchBonus(type: .archerPierceArmor, value: 0.05)]
+        case .archerPierceArmorII: return [ResearchBonus(type: .archerPierceArmor, value: 0.07)]
+        case .archerPierceArmorIII: return [ResearchBonus(type: .archerPierceArmor, value: 0.10)]
+
+        // Siege Bludgeon Damage: +5%, +7%, +10% (total +22%)
+        case .siegeBludgeonDamageI: return [ResearchBonus(type: .siegeBludgeonDamage, value: 0.05)]
+        case .siegeBludgeonDamageII: return [ResearchBonus(type: .siegeBludgeonDamage, value: 0.07)]
+        case .siegeBludgeonDamageIII: return [ResearchBonus(type: .siegeBludgeonDamage, value: 0.10)]
+
+        // Building Bludgeon Armor: +5%, +7%, +10% (total +22%)
+        case .buildingBludgeonArmorI: return [ResearchBonus(type: .buildingBludgeonArmor, value: 0.05)]
+        case .buildingBludgeonArmorII: return [ResearchBonus(type: .buildingBludgeonArmor, value: 0.07)]
+        case .buildingBludgeonArmorIII: return [ResearchBonus(type: .buildingBludgeonArmor, value: 0.10)]
+
+        // Military Training Speed: +10%, +15%, +20% (total +45%)
+        case .militaryTrainingSpeedI: return [ResearchBonus(type: .militaryTrainingSpeed, value: 0.10)]
+        case .militaryTrainingSpeedII: return [ResearchBonus(type: .militaryTrainingSpeed, value: 0.15)]
+        case .militaryTrainingSpeedIII: return [ResearchBonus(type: .militaryTrainingSpeed, value: 0.20)]
+
+        // Military Rations (Food Consumption): -5%, -10%, -15% (total -30%)
+        case .militaryRationsI: return [ResearchBonus(type: .militaryFoodConsumption, value: -0.05)]
+        case .militaryRationsII: return [ResearchBonus(type: .militaryFoodConsumption, value: -0.10)]
+        case .militaryRationsIII: return [ResearchBonus(type: .militaryFoodConsumption, value: -0.15)]
+
+        // Fortified Buildings (Building HP): +10%, +15%, +20% (total +45%)
+        case .fortifiedBuildingsI: return [ResearchBonus(type: .buildingHP, value: 0.10)]
+        case .fortifiedBuildingsII: return [ResearchBonus(type: .buildingHP, value: 0.15)]
+        case .fortifiedBuildingsIII: return [ResearchBonus(type: .buildingHP, value: 0.20)]
         }
     }
 
@@ -405,6 +824,52 @@ enum ResearchType: String, CaseIterable, Codable {
         case .populationCapacityIII: return [.populationCapacityII, .efficientRationsI]  // Need some rations research
         case .efficientRationsIII: return [.efficientRationsII]
         case .buildingSpeedIII: return [.buildingSpeedII]
+
+        // Military Tier I - no prerequisites
+        case .marchSpeedI, .retreatSpeedI,
+             .infantryMeleeAttackI, .cavalryMeleeAttackI,
+             .infantryMeleeArmorI, .cavalryMeleeArmorI, .archerMeleeArmorI,
+             .piercingDamageI,
+             .infantryPierceArmorI, .cavalryPierceArmorI, .archerPierceArmorI,
+             .siegeBludgeonDamageI, .buildingBludgeonArmorI,
+             .militaryTrainingSpeedI, .militaryRationsI, .fortifiedBuildingsI:
+            return []
+
+        // Military Tier II - requires Tier I of same type
+        case .marchSpeedII: return [.marchSpeedI]
+        case .retreatSpeedII: return [.retreatSpeedI]
+        case .infantryMeleeAttackII: return [.infantryMeleeAttackI]
+        case .cavalryMeleeAttackII: return [.cavalryMeleeAttackI]
+        case .infantryMeleeArmorII: return [.infantryMeleeArmorI]
+        case .cavalryMeleeArmorII: return [.cavalryMeleeArmorI]
+        case .archerMeleeArmorII: return [.archerMeleeArmorI]
+        case .piercingDamageII: return [.piercingDamageI]
+        case .infantryPierceArmorII: return [.infantryPierceArmorI]
+        case .cavalryPierceArmorII: return [.cavalryPierceArmorI]
+        case .archerPierceArmorII: return [.archerPierceArmorI]
+        case .siegeBludgeonDamageII: return [.siegeBludgeonDamageI]
+        case .buildingBludgeonArmorII: return [.buildingBludgeonArmorI]
+        case .militaryTrainingSpeedII: return [.militaryTrainingSpeedI]
+        case .militaryRationsII: return [.militaryRationsI]
+        case .fortifiedBuildingsII: return [.fortifiedBuildingsI]
+
+        // Military Tier III - requires Tier II of same type
+        case .marchSpeedIII: return [.marchSpeedII]
+        case .retreatSpeedIII: return [.retreatSpeedII]
+        case .infantryMeleeAttackIII: return [.infantryMeleeAttackII]
+        case .cavalryMeleeAttackIII: return [.cavalryMeleeAttackII]
+        case .infantryMeleeArmorIII: return [.infantryMeleeArmorII]
+        case .cavalryMeleeArmorIII: return [.cavalryMeleeArmorII]
+        case .archerMeleeArmorIII: return [.archerMeleeArmorII]
+        case .piercingDamageIII: return [.piercingDamageII]
+        case .infantryPierceArmorIII: return [.infantryPierceArmorII]
+        case .cavalryPierceArmorIII: return [.cavalryPierceArmorII]
+        case .archerPierceArmorIII: return [.archerPierceArmorII]
+        case .siegeBludgeonDamageIII: return [.siegeBludgeonDamageII]
+        case .buildingBludgeonArmorIII: return [.buildingBludgeonArmorII]
+        case .militaryTrainingSpeedIII: return [.militaryTrainingSpeedII]
+        case .militaryRationsIII: return [.militaryRationsII]
+        case .fortifiedBuildingsIII: return [.fortifiedBuildingsII]
         }
     }
 
@@ -427,6 +892,36 @@ enum ResearchType: String, CaseIterable, Codable {
         case .farmGatheringIII, .miningCampGatheringIII, .lumberCampGatheringIII,
              .betterMarketRatesIII, .villagerSpeedIII, .tradeSpeedIII,
              .improvedRoadsIII, .populationCapacityIII, .efficientRationsIII, .buildingSpeedIII:
+            return 3
+
+        // Military Tier I - City Center level 1
+        case .marchSpeedI, .retreatSpeedI,
+             .infantryMeleeAttackI, .cavalryMeleeAttackI,
+             .infantryMeleeArmorI, .cavalryMeleeArmorI, .archerMeleeArmorI,
+             .piercingDamageI,
+             .infantryPierceArmorI, .cavalryPierceArmorI, .archerPierceArmorI,
+             .siegeBludgeonDamageI, .buildingBludgeonArmorI,
+             .militaryTrainingSpeedI, .militaryRationsI, .fortifiedBuildingsI:
+            return 1
+
+        // Military Tier II - City Center level 2
+        case .marchSpeedII, .retreatSpeedII,
+             .infantryMeleeAttackII, .cavalryMeleeAttackII,
+             .infantryMeleeArmorII, .cavalryMeleeArmorII, .archerMeleeArmorII,
+             .piercingDamageII,
+             .infantryPierceArmorII, .cavalryPierceArmorII, .archerPierceArmorII,
+             .siegeBludgeonDamageII, .buildingBludgeonArmorII,
+             .militaryTrainingSpeedII, .militaryRationsII, .fortifiedBuildingsII:
+            return 2
+
+        // Military Tier III - City Center level 3
+        case .marchSpeedIII, .retreatSpeedIII,
+             .infantryMeleeAttackIII, .cavalryMeleeAttackIII,
+             .infantryMeleeArmorIII, .cavalryMeleeArmorIII, .archerMeleeArmorIII,
+             .piercingDamageIII,
+             .infantryPierceArmorIII, .cavalryPierceArmorIII, .archerPierceArmorIII,
+             .siegeBludgeonDamageIII, .buildingBludgeonArmorIII,
+             .militaryTrainingSpeedIII, .militaryRationsIII, .fortifiedBuildingsIII:
             return 3
         }
     }
@@ -451,6 +946,36 @@ enum ResearchType: String, CaseIterable, Codable {
         case .farmGatheringIII, .miningCampGatheringIII, .lumberCampGatheringIII,
              .betterMarketRatesIII, .villagerSpeedIII, .tradeSpeedIII,
              .improvedRoadsIII, .populationCapacityIII, .efficientRationsIII, .buildingSpeedIII:
+            return 3
+
+        // Military Tier 1
+        case .marchSpeedI, .retreatSpeedI,
+             .infantryMeleeAttackI, .cavalryMeleeAttackI,
+             .infantryMeleeArmorI, .cavalryMeleeArmorI, .archerMeleeArmorI,
+             .piercingDamageI,
+             .infantryPierceArmorI, .cavalryPierceArmorI, .archerPierceArmorI,
+             .siegeBludgeonDamageI, .buildingBludgeonArmorI,
+             .militaryTrainingSpeedI, .militaryRationsI, .fortifiedBuildingsI:
+            return 1
+
+        // Military Tier 2
+        case .marchSpeedII, .retreatSpeedII,
+             .infantryMeleeAttackII, .cavalryMeleeAttackII,
+             .infantryMeleeArmorII, .cavalryMeleeArmorII, .archerMeleeArmorII,
+             .piercingDamageII,
+             .infantryPierceArmorII, .cavalryPierceArmorII, .archerPierceArmorII,
+             .siegeBludgeonDamageII, .buildingBludgeonArmorII,
+             .militaryTrainingSpeedII, .militaryRationsII, .fortifiedBuildingsII:
+            return 2
+
+        // Military Tier 3
+        case .marchSpeedIII, .retreatSpeedIII,
+             .infantryMeleeAttackIII, .cavalryMeleeAttackIII,
+             .infantryMeleeArmorIII, .cavalryMeleeArmorIII, .archerMeleeArmorIII,
+             .piercingDamageIII,
+             .infantryPierceArmorIII, .cavalryPierceArmorIII, .archerPierceArmorIII,
+             .siegeBludgeonDamageIII, .buildingBludgeonArmorIII,
+             .militaryTrainingSpeedIII, .militaryRationsIII, .fortifiedBuildingsIII:
             return 3
         }
     }

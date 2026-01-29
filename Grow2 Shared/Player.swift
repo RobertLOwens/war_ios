@@ -457,12 +457,27 @@ class Player {
     
     /// Returns the food consumption rate per second based on current population
     func getFoodConsumptionRate() -> Double {
-        let baseRate = Double(getCurrentPopulation()) * Player.foodConsumptionPerPop
+        // Calculate military population
+        let militaryPopulation = getTotalMilitaryUnits()
+        // Include garrisoned military units
+        let garrisonedMilitary = buildings.reduce(0) { $0 + $1.getTotalGarrisonedUnits() }
+        let totalMilitary = militaryPopulation + garrisonedMilitary
 
-        // Apply Efficient Rations research bonus (reduces food consumption)
-        let consumptionMultiplier = ResearchManager.shared.getFoodConsumptionMultiplier()
+        // Calculate civilian population (villagers + garrisoned villagers + training)
+        let totalPop = getCurrentPopulation()
+        let civilianPopulation = totalPop - totalMilitary
 
-        return baseRate * consumptionMultiplier
+        // Base rates
+        let civilianBaseRate = Double(civilianPopulation) * Player.foodConsumptionPerPop
+        let militaryBaseRate = Double(totalMilitary) * Player.foodConsumptionPerPop
+
+        // Apply Efficient Rations research bonus (reduces civilian food consumption)
+        let civilianMultiplier = ResearchManager.shared.getFoodConsumptionMultiplier()
+
+        // Apply Military Rations research bonus (reduces military food consumption)
+        let militaryMultiplier = ResearchManager.shared.getMilitaryFoodConsumptionMultiplier()
+
+        return (civilianBaseRate * civilianMultiplier) + (militaryBaseRate * militaryMultiplier)
     }
     
     func getCityCenterLevel() -> Int {

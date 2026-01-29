@@ -314,7 +314,89 @@ class ResearchManager {
     func getFoodConsumptionMultiplier() -> Double {
         return 1.0 + getBonus(.foodConsumption)  // Negative bonus reduces consumption
     }
-    
+
+    // MARK: - Military Research Bonuses
+
+    /// Returns the military march speed multiplier (1.0 + bonus)
+    func getMilitaryMarchSpeedMultiplier() -> Double {
+        return getBonusMultiplier(.militaryMarchSpeed)
+    }
+
+    /// Returns the military retreat speed multiplier (1.0 + bonus)
+    func getMilitaryRetreatSpeedMultiplier() -> Double {
+        return getBonusMultiplier(.militaryRetreatSpeed)
+    }
+
+    /// Returns the infantry melee attack multiplier (1.0 + bonus)
+    func getInfantryMeleeAttackMultiplier() -> Double {
+        return getBonusMultiplier(.infantryMeleeAttack)
+    }
+
+    /// Returns the cavalry melee attack multiplier (1.0 + bonus)
+    func getCavalryMeleeAttackMultiplier() -> Double {
+        return getBonusMultiplier(.cavalryMeleeAttack)
+    }
+
+    /// Returns the infantry melee armor multiplier (1.0 + bonus)
+    func getInfantryMeleeArmorMultiplier() -> Double {
+        return getBonusMultiplier(.infantryMeleeArmor)
+    }
+
+    /// Returns the cavalry melee armor multiplier (1.0 + bonus)
+    func getCavalryMeleeArmorMultiplier() -> Double {
+        return getBonusMultiplier(.cavalryMeleeArmor)
+    }
+
+    /// Returns the archer melee armor multiplier (1.0 + bonus)
+    func getArcherMeleeArmorMultiplier() -> Double {
+        return getBonusMultiplier(.archerMeleeArmor)
+    }
+
+    /// Returns the piercing damage multiplier (1.0 + bonus)
+    func getPiercingDamageMultiplier() -> Double {
+        return getBonusMultiplier(.piercingDamage)
+    }
+
+    /// Returns the infantry pierce armor multiplier (1.0 + bonus)
+    func getInfantryPierceArmorMultiplier() -> Double {
+        return getBonusMultiplier(.infantryPierceArmor)
+    }
+
+    /// Returns the cavalry pierce armor multiplier (1.0 + bonus)
+    func getCavalryPierceArmorMultiplier() -> Double {
+        return getBonusMultiplier(.cavalryPierceArmor)
+    }
+
+    /// Returns the archer pierce armor multiplier (1.0 + bonus)
+    func getArcherPierceArmorMultiplier() -> Double {
+        return getBonusMultiplier(.archerPierceArmor)
+    }
+
+    /// Returns the siege bludgeon damage multiplier (1.0 + bonus)
+    func getSiegeBludgeonDamageMultiplier() -> Double {
+        return getBonusMultiplier(.siegeBludgeonDamage)
+    }
+
+    /// Returns the building bludgeon armor multiplier (1.0 + bonus)
+    func getBuildingBludgeonArmorMultiplier() -> Double {
+        return getBonusMultiplier(.buildingBludgeonArmor)
+    }
+
+    /// Returns the military training speed multiplier (1.0 + bonus)
+    func getMilitaryTrainingSpeedMultiplier() -> Double {
+        return getBonusMultiplier(.militaryTrainingSpeed)
+    }
+
+    /// Returns the military food consumption multiplier (1.0 - reduction)
+    func getMilitaryFoodConsumptionMultiplier() -> Double {
+        return 1.0 + getBonus(.militaryFoodConsumption)  // Negative bonus reduces consumption
+    }
+
+    /// Returns the building HP multiplier (1.0 + bonus)
+    func getBuildingHPMultiplier() -> Double {
+        return getBonusMultiplier(.buildingHP)
+    }
+
     // MARK: - Save/Load Support
     
     struct ResearchSaveData: Codable {

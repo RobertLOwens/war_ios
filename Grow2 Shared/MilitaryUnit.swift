@@ -339,17 +339,20 @@ struct TrainingQueueEntry: Codable {
     let quantity: Int
     let startTime: TimeInterval
     var progress: Double = 0.0
-    
+
     init(unitType: MilitaryUnitType, quantity: Int, startTime: TimeInterval) {
         self.id = UUID()
         self.unitType = unitType
         self.quantity = quantity
         self.startTime = startTime
     }
-    
+
     func getProgress(currentTime: TimeInterval) -> Double {
         let elapsed = currentTime - startTime
-        let totalTime = unitType.trainingTime * Double(quantity)
+        let baseTime = unitType.trainingTime * Double(quantity)
+        // Apply military training speed research bonus (higher multiplier = faster training = less time)
+        let trainingSpeedMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+        let totalTime = baseTime / trainingSpeedMultiplier
         return min(1.0, elapsed / totalTime)
     }
 }

@@ -180,6 +180,18 @@ class EntityNode: SKSpriteNode {
             baseMoveSpeed = baseMoveSpeed / speedMultiplier
         }
 
+        // Apply army march speed research bonus
+        if entityType == .army {
+            let marchSpeedMultiplier = ResearchManager.shared.getMilitaryMarchSpeedMultiplier()
+            baseMoveSpeed = baseMoveSpeed / marchSpeedMultiplier
+        }
+
+        // Apply retreat speed research bonus when retreating
+        if let army = armyReference, army.isRetreating {
+            let retreatSpeedMultiplier = ResearchManager.shared.getMilitaryRetreatSpeedMultiplier()
+            baseMoveSpeed = baseMoveSpeed / retreatSpeedMultiplier
+        }
+
         // Get road speed research bonus
         let roadSpeedBonus = ResearchManager.shared.getRoadSpeedMultiplier()
 
@@ -250,14 +262,25 @@ class EntityNode: SKSpriteNode {
             guard let self = self else { return }
             if let lastCoord = path.last {
                 self.coordinate = lastCoord
-                
+
                 if let army = self.entity as? Army {
                     army.coordinate = lastCoord
                     print("✅ Updated Army coordinate to (\(lastCoord.q), \(lastCoord.r))")
+
+                    // Clear retreating flag when movement completes
+                    if army.isRetreating {
+                        army.isRetreating = false
+                        print("🏠 Army \(army.name) retreat completed")
+                    }
+
+                    // Check if arrived at a valid home base building and update
+                    if let gameScene = self.scene as? GameScene {
+                        gameScene.checkAndUpdateHomeBase(for: army, at: lastCoord)
+                    }
                 } else if let villagers = self.entity as? VillagerGroup {
                     villagers.coordinate = lastCoord
                     print("✅ Updated VillagerGroup coordinate to (\(lastCoord.q), \(lastCoord.r))")
-                    
+
                     // ✅ FIX: Check if villagers have a hunting task to execute
                     if case .hunting(let target) = villagers.currentTask {
                         print("🏹 Villagers arrived at hunting target!")
@@ -491,6 +514,18 @@ class EntityNode: SKSpriteNode {
         if entityType == .villagerGroup {
             let speedMultiplier = ResearchManager.shared.getVillagerMarchSpeedMultiplier()
             baseMoveSpeed = baseMoveSpeed / speedMultiplier
+        }
+
+        // Apply army march speed research bonus
+        if entityType == .army {
+            let marchSpeedMultiplier = ResearchManager.shared.getMilitaryMarchSpeedMultiplier()
+            baseMoveSpeed = baseMoveSpeed / marchSpeedMultiplier
+        }
+
+        // Apply retreat speed research bonus when retreating
+        if let army = armyReference, army.isRetreating {
+            let retreatSpeedMultiplier = ResearchManager.shared.getMilitaryRetreatSpeedMultiplier()
+            baseMoveSpeed = baseMoveSpeed / retreatSpeedMultiplier
         }
 
         // Get road speed research bonus
