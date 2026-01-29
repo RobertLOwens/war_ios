@@ -51,8 +51,8 @@ struct DeployArmyCommand: GameCommand {
             }
         }
 
-        // Check we can find a spawn location
-        guard context.hexMap.findNearestWalkable(to: building.coordinate) != nil else {
+        // Check we can find a spawn location (pass player for wall/gate checks)
+        guard context.hexMap.findNearestWalkable(to: building.coordinate, for: player) != nil else {
             return .failure(reason: "No valid spawn location")
         }
 
@@ -62,16 +62,21 @@ struct DeployArmyCommand: GameCommand {
     func execute(in context: CommandContext) -> CommandResult {
         guard let player = context.getPlayer(by: playerID),
               let building = context.getBuilding(by: buildingID),
-              let spawnCoord = context.hexMap.findNearestWalkable(to: building.coordinate) else {
+              let spawnCoord = context.hexMap.findNearestWalkable(to: building.coordinate, for: player) else {
             return .failure(reason: "Required objects not found")
         }
 
         // Create commander
         let commander = Commander.createRandom()
-        
+
         // Create army
         let army = Army(name: "Army", coordinate: spawnCoord, commander: commander, owner: player)
-        
+
+        // Set initial home base if deploying from valid building type (City Center, Fort, Castle)
+        if Army.canBeHomeBase(building.buildingType) && building.data.isOperational {
+            army.setHomeBase(building.data.id)
+        }
+
         // Transfer units
         for (unitType, count) in units {
             let removed = building.removeFromGarrison(unitType: unitType, quantity: count)
@@ -79,11 +84,11 @@ struct DeployArmyCommand: GameCommand {
                 army.addMilitaryUnits(unitType, count: removed)
             }
         }
-        
+
         // Create entity node - pass actual Army object so armyReference is set correctly
         let armyNode = EntityNode(coordinate: spawnCoord, entityType: .army, entity: army, currentPlayer: context.getPlayer(by: playerID))
         armyNode.position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
-        
+
         // Add to game
         context.hexMap.addEntity(armyNode)
         player.addArmy(army)
@@ -142,7 +147,7 @@ struct DeployVillagersCommand: GameCommand {
             return .failure(reason: "Not enough villagers in garrison")
         }
 
-        guard context.hexMap.findNearestWalkable(to: building.coordinate) != nil else {
+        guard context.hexMap.findNearestWalkable(to: building.coordinate, for: player) != nil else {
             return .failure(reason: "No valid spawn location")
         }
 
@@ -152,7 +157,7 @@ struct DeployVillagersCommand: GameCommand {
     func execute(in context: CommandContext) -> CommandResult {
         guard let player = context.getPlayer(by: playerID),
               let building = context.getBuilding(by: buildingID),
-              let spawnCoord = context.hexMap.findNearestWalkable(to: building.coordinate) else {
+              let spawnCoord = context.hexMap.findNearestWalkable(to: building.coordinate, for: player) else {
             return .failure(reason: "Required objects not found")
         }
 

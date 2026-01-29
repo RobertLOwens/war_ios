@@ -65,6 +65,7 @@ enum CommandType: String, Codable, CaseIterable {
     case recruitCommander
     case demolish
     case cancelDemolition
+    case retreat
 }
 
 // MARK: - Command Context
@@ -152,6 +153,8 @@ struct AnyCommand: Codable {
             return try decoder.decode(DemolishCommand.self, from: data)
         case .cancelDemolition:
             return try decoder.decode(CancelDemolitionCommand.self, from: data)
+        case .retreat:
+            return try decoder.decode(RetreatCommand.self, from: data)
         }
     }
 }

@@ -41,6 +41,8 @@ enum BuildingType: String, CaseIterable, Codable {
     case siegeWorkshop = "Siege Workshop"
     case tower = "Tower"
     case woodenFort = "Wooden Fort"
+    case wall = "Wall"
+    case gate = "Gate"
     
     var displayName: String {
         return rawValue
@@ -58,7 +60,7 @@ enum BuildingType: String, CaseIterable, Codable {
         switch self {
         case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .road, .mill:
             return .economic
-        case .castle, .barracks, .archeryRange, .stable, .siegeWorkshop, .tower, .woodenFort:
+        case .castle, .barracks, .archeryRange, .stable, .siegeWorkshop, .tower, .woodenFort, .wall, .gate:
             return .military
         }
     }
@@ -83,6 +85,8 @@ enum BuildingType: String, CaseIterable, Codable {
         case .tower: return "🗼"
         case .woodenFort: return "🗝️"
         case .mill: return "⚙️"
+        case .wall: return "🧱"
+        case .gate: return "🚪"
         }
     }
 
@@ -108,6 +112,8 @@ enum BuildingType: String, CaseIterable, Codable {
             return 3  // Same as other advanced economic buildings
         case .mill:
             return 2  // Mills available at CC level 2
+        case .wall, .gate:
+            return 2  // Walls and gates available at CC level 2
         }
     }
 
@@ -149,6 +155,10 @@ enum BuildingType: String, CaseIterable, Codable {
             return [.wood: 200, .stone: 100]
         case .mill:
             return [.wood: 80, .stone: 40]
+        case .wall:
+            return [.wood: 30, .stone: 50]
+        case .gate:
+            return [.wood: 60, .stone: 40]
         }
     }
 
@@ -172,6 +182,8 @@ enum BuildingType: String, CaseIterable, Codable {
         case .tower: return 30.0
         case .woodenFort: return 50.0
         case .mill: return 25.0
+        case .wall: return 15.0
+        case .gate: return 20.0
         }
     }
 
@@ -278,6 +290,8 @@ enum BuildingType: String, CaseIterable, Codable {
         case .tower: return "Defensive structure"
         case .woodenFort: return "Basic defensive structure"
         case .mill: return "Boosts adjacent farm gather rates by 25%"
+        case .wall: return "Blocks all movement"
+        case .gate: return "Allows passage for owner and allies"
         }
     }
 
@@ -295,6 +309,7 @@ enum BuildingType: String, CaseIterable, Codable {
         switch self {
         case .cityCenter: return 10
         case .road: return 1  // Roads don't upgrade
+        case .wall, .gate: return 1  // Walls and gates don't upgrade
         default: return 5
         }
     }
@@ -306,8 +321,13 @@ enum BuildingType: String, CaseIterable, Codable {
 
     /// Whether this building provides road benefits (roads + all other buildings)
     var providesRoadBonus: Bool {
-        // All buildings act as roads, plus actual roads
-        return true
+        // All buildings act as roads, plus actual roads (except walls/gates)
+        return self != .wall && self != .gate
+    }
+
+    /// Whether this building blocks movement (walls always, gates conditionally)
+    var blocksMovement: Bool {
+        return self == .wall || self == .gate
     }
         
     /// Returns the upgrade cost for a given level (upgrading FROM this level)

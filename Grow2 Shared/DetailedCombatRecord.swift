@@ -98,6 +98,103 @@ struct UnitCombatBreakdown: Codable {
     }
 }
 
+// MARK: - Army Combat Breakdown
+
+/// Records combat statistics for a specific army in a multi-army battle
+struct ArmyCombatBreakdown: Codable {
+    let armyID: String
+    let armyName: String
+    let ownerName: String
+    let commanderName: String?
+    let joinTime: TimeInterval
+    let wasReinforcement: Bool
+    let initialComposition: [String: Int]   // MilitaryUnitType.rawValue -> count
+    let finalComposition: [String: Int]
+    let casualtiesByType: [String: Int]
+    let damageDealtByType: [String: Double]
+    let totalDamageDealt: Double
+    let totalCasualties: Int
+
+    init(
+        armyID: UUID,
+        armyName: String,
+        ownerName: String,
+        commanderName: String?,
+        joinTime: TimeInterval,
+        wasReinforcement: Bool,
+        initialComposition: [MilitaryUnitType: Int],
+        finalComposition: [MilitaryUnitType: Int],
+        casualtiesByType: [MilitaryUnitType: Int],
+        damageDealtByType: [MilitaryUnitType: Double]
+    ) {
+        self.armyID = armyID.uuidString
+        self.armyName = armyName
+        self.ownerName = ownerName
+        self.commanderName = commanderName
+        self.joinTime = joinTime
+        self.wasReinforcement = wasReinforcement
+
+        // Convert to string-keyed dictionaries
+        var initialDict: [String: Int] = [:]
+        for (unitType, count) in initialComposition {
+            initialDict[unitType.rawValue] = count
+        }
+        self.initialComposition = initialDict
+
+        var finalDict: [String: Int] = [:]
+        for (unitType, count) in finalComposition {
+            finalDict[unitType.rawValue] = count
+        }
+        self.finalComposition = finalDict
+
+        var casualtiesDict: [String: Int] = [:]
+        for (unitType, count) in casualtiesByType {
+            casualtiesDict[unitType.rawValue] = count
+        }
+        self.casualtiesByType = casualtiesDict
+
+        var damageDict: [String: Double] = [:]
+        for (unitType, damage) in damageDealtByType {
+            damageDict[unitType.rawValue] = damage
+        }
+        self.damageDealtByType = damageDict
+
+        self.totalDamageDealt = damageDealtByType.values.reduce(0.0, +)
+        self.totalCasualties = casualtiesByType.values.reduce(0, +)
+    }
+
+    // Helper methods
+    func getInitialComposition() -> [MilitaryUnitType: Int] {
+        var result: [MilitaryUnitType: Int] = [:]
+        for (key, value) in initialComposition {
+            if let unitType = MilitaryUnitType(rawValue: key) {
+                result[unitType] = value
+            }
+        }
+        return result
+    }
+
+    func getFinalComposition() -> [MilitaryUnitType: Int] {
+        var result: [MilitaryUnitType: Int] = [:]
+        for (key, value) in finalComposition {
+            if let unitType = MilitaryUnitType(rawValue: key) {
+                result[unitType] = value
+            }
+        }
+        return result
+    }
+
+    func getCasualtiesByType() -> [MilitaryUnitType: Int] {
+        var result: [MilitaryUnitType: Int] = [:]
+        for (key, value) in casualtiesByType {
+            if let unitType = MilitaryUnitType(rawValue: key) {
+                result[unitType] = value
+            }
+        }
+        return result
+    }
+}
+
 // MARK: - Detailed Combat Record
 
 /// Enhanced combat record with phase-by-phase and unit-by-unit breakdown
@@ -134,7 +231,26 @@ struct DetailedCombatRecord: Codable {
     let attackerUnitBreakdowns: [UnitCombatBreakdown]
     let defenderUnitBreakdowns: [UnitCombatBreakdown]
 
+    // Army breakdown (for multi-army combats)
+    let attackerArmyBreakdowns: [ArmyCombatBreakdown]
+    let defenderArmyBreakdowns: [ArmyCombatBreakdown]
+
     // MARK: - Computed Properties
+
+    /// Number of armies that participated on attacker side
+    var attackerArmyCount: Int {
+        return attackerArmyBreakdowns.count
+    }
+
+    /// Number of armies that participated on defender side
+    var defenderArmyCount: Int {
+        return defenderArmyBreakdowns.count
+    }
+
+    /// Whether this was a multi-army battle
+    var isMultiArmyBattle: Bool {
+        return attackerArmyBreakdowns.count > 1 || defenderArmyBreakdowns.count > 1
+    }
 
     var attackerTotalCasualties: Int {
         return attackerUnitBreakdowns.reduce(0) { $0 + $1.casualties }
@@ -189,7 +305,9 @@ struct DetailedCombatRecord: Codable {
         defenderFinalComposition: [MilitaryUnitType: Int],
         phaseRecords: [CombatPhaseRecord],
         attackerUnitBreakdowns: [UnitCombatBreakdown],
-        defenderUnitBreakdowns: [UnitCombatBreakdown]
+        defenderUnitBreakdowns: [UnitCombatBreakdown],
+        attackerArmyBreakdowns: [ArmyCombatBreakdown] = [],
+        defenderArmyBreakdowns: [ArmyCombatBreakdown] = []
     ) {
         self.id = UUID()
         self.timestamp = Date()
@@ -208,6 +326,8 @@ struct DetailedCombatRecord: Codable {
         self.phaseRecords = phaseRecords
         self.attackerUnitBreakdowns = attackerUnitBreakdowns
         self.defenderUnitBreakdowns = defenderUnitBreakdowns
+        self.attackerArmyBreakdowns = attackerArmyBreakdowns
+        self.defenderArmyBreakdowns = defenderArmyBreakdowns
 
         // Convert compositions to string-keyed dictionaries
         var attackerInitial: [String: Int] = [:]

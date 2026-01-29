@@ -71,6 +71,32 @@ class Army: MapEntity {
         return !pendingReinforcements.isEmpty
     }
 
+    // MARK: - Home Base System
+
+    /// Reference to this army's home base building (City Center, Wooden Fort, or Castle)
+    var homeBaseID: UUID?
+
+    /// Whether this army is currently retreating (grants 10% speed bonus)
+    var isRetreating: Bool = false
+
+    /// Building types that can serve as a home base
+    static let validHomeBaseTypes: Set<BuildingType> = [.cityCenter, .woodenFort, .castle]
+
+    /// Check if a building type can be used as a home base
+    static func canBeHomeBase(_ buildingType: BuildingType) -> Bool {
+        return validHomeBaseTypes.contains(buildingType)
+    }
+
+    /// Updates the army's home base
+    func setHomeBase(_ buildingID: UUID?) {
+        homeBaseID = buildingID
+        if let id = buildingID {
+            print("🏠 Army \(name) home base set to building \(id)")
+        } else {
+            print("🏠 Army \(name) home base cleared")
+        }
+    }
+
     init(id: UUID = UUID(), name: String = "Army", coordinate: HexCoordinate, commander: Commander? = nil, owner: Player? = nil) {
         self.coordinate = coordinate
         self.commander = commander

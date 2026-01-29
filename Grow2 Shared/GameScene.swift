@@ -45,6 +45,8 @@ class GameScene: SKScene, CombatSystemDelegate {
     private var lastBuildingTimerUpdateTime: TimeInterval = 0
     private var lastTrainingUpdateTime: TimeInterval = 0
     private var lastCombatUpdateTime: TimeInterval = 0
+    private var lastGarrisonDefenseUpdateTime: TimeInterval = 0
+    private var lastStaminaUpdateTime: TimeInterval = 0
 
     // Update intervals (in seconds) - tune these based on gameplay feel
     private let visionUpdateInterval: TimeInterval = 0.25       // Fog/vision: 4x per second
@@ -52,6 +54,8 @@ class GameScene: SKScene, CombatSystemDelegate {
     private let trainingUpdateInterval: TimeInterval = 1.0      // Training queues: 1x per second
     private let gatheringUpdateInterval: TimeInterval = 0.5
     private let combatUpdateInterval: TimeInterval = 1.0        // Combat ticks: 1x per second
+    private let garrisonDefenseUpdateInterval: TimeInterval = 1.0  // Garrison defense: 1x per second
+    private let staminaUpdateInterval: TimeInterval = 1.0       // Stamina regen: 1x per second
 
     // Building placement mode
     var isInBuildingPlacementMode: Bool = false
@@ -73,6 +77,14 @@ class GameScene: SKScene, CombatSystemDelegate {
     var reinforcementNodes: [ReinforcementNode] = []
     private var reinforcementsNode: SKNode?
 
+    // End game / starvation tracking
+    var gameStartTime: TimeInterval = 0
+    private var zeroFoodStartTime: TimeInterval?
+    private var lastStarvationCheckTime: TimeInterval = 0
+    private let starvationCheckInterval: TimeInterval = 1.0
+    private let starvationTimeLimit: TimeInterval = 60.0  // 60 seconds with no food
+    var isGameOver: Bool = false
+    var onGameOver: ((Bool, GameOverReason) -> Void)?  // (isVictory, reason)
 
     override func didMove(to view: SKView) {
         setupScene()
@@ -1087,7 +1099,7 @@ class GameScene: SKScene, CombatSystemDelegate {
     
     override func update(_ currentTime: TimeInterval) {
         // Skip updates while loading or if map isn't ready
-        guard !isLoading, hexMap != nil else { return }
+        guard !isLoading, hexMap != nil, !isGameOver else { return }
         
         let realWorldTime = Date().timeIntervalSince1970
         
@@ -1144,9 +1156,33 @@ class GameScene: SKScene, CombatSystemDelegate {
         }
 
         // =========================================================================
+        // GARRISON DEFENSE UPDATES (1x per second): Buildings attack nearby enemies
+        // =========================================================================
+        if currentTime - lastGarrisonDefenseUpdateTime >= garrisonDefenseUpdateInterval {
+            updateGarrisonDefense()
+            lastGarrisonDefenseUpdateTime = currentTime
+        }
+
+        // =========================================================================
+        // STAMINA REGENERATION (1x per second): Commanders regain stamina over time
+        // =========================================================================
+        if currentTime - lastStaminaUpdateTime >= staminaUpdateInterval {
+            updateCommanderStamina(currentTime: realWorldTime)
+            lastStaminaUpdateTime = currentTime
+        }
+
+        // =========================================================================
         // GATHERING UPDATES (2x per second): Resource gathering with accumulators
         // =========================================================================
         updateResourceGathering(realWorldTime: realWorldTime)
+
+        // =========================================================================
+        // STARVATION CHECK (1x per second): Check if player has been at 0 food
+        // =========================================================================
+        if currentTime - lastStarvationCheckTime >= starvationCheckInterval {
+            checkStarvationCondition(currentTime: realWorldTime)
+            lastStarvationCheckTime = currentTime
+        }
     }
     
     // MARK: - Time-Sliced Update Helpers
@@ -1172,7 +1208,81 @@ class GameScene: SKScene, CombatSystemDelegate {
             building.updateVisibility(displayMode: displayMode)
         }
     }
-    
+
+    /// Updates garrison defense - buildings with ranged/siege garrison attack nearby enemies
+    private func updateGarrisonDefense() {
+        // Process garrison defense for all players
+        for gamePlayer in allGamePlayers {
+            updateGarrisonDefenseForPlayer(gamePlayer)
+        }
+    }
+
+    /// Processes garrison defense for a specific player's buildings
+    private func updateGarrisonDefenseForPlayer(_ gamePlayer: Player) {
+        // Get all buildings owned by this player
+        let playerBuildings = hexMap.buildings.filter { $0.owner?.id == gamePlayer.id }
+
+        for building in playerBuildings {
+            // Only process defensive buildings with ranged/siege garrison
+            guard building.data.hasDefensiveGarrison() else { continue }
+
+            // Find enemy armies within range
+            let range = building.data.garrisonDefenseRange
+            let enemyArmies = hexMap.getEnemyArmiesInRange(of: building, range: range, for: gamePlayer)
+
+            guard !enemyArmies.isEmpty else { continue }
+
+            // Process garrison attack
+            let results = CombatSystem.shared.processGarrisonDefense(
+                building: building.data,
+                targetArmies: enemyArmies
+            )
+
+            // Handle results - remove destroyed armies and log combat
+            for result in results {
+                if result.armyDestroyed {
+                    // Find and remove the destroyed army's entity
+                    if let entityToRemove = hexMap.entities.first(where: { $0.armyReference?.id == result.targetArmyID }) {
+                        removeDestroyedArmy(entity: entityToRemove, fromPlayer: entityToRemove.armyReference?.owner)
+                    }
+                }
+
+                // Log garrison attack (only if damage was dealt)
+                if result.totalDamageDealt > 0 {
+                    let casualtyCount = result.casualtiesInflicted.values.reduce(0, +)
+                    if casualtyCount > 0 {
+                        print("🏰 \(result.buildingName) garrison fired at \(result.targetArmyName): \(casualtyCount) casualties")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Removes a destroyed army from the game
+    private func removeDestroyedArmy(entity: EntityNode, fromPlayer armyOwner: Player?) {
+        // Remove from owner's army list
+        if let owner = armyOwner, let army = entity.armyReference {
+            owner.removeArmy(army)
+        }
+
+        // Remove entity from map
+        hexMap.removeEntity(entity)
+        entity.removeFromParent()
+
+        print("💀 Army destroyed by garrison fire!")
+    }
+
+    /// Updates commander stamina regeneration for all players - runs 1x per second
+    private func updateCommanderStamina(currentTime: TimeInterval) {
+        for gamePlayer in allGamePlayers {
+            for army in gamePlayer.armies {
+                if let commander = army.commander {
+                    commander.regenerateStamina(currentTime: currentTime)
+                }
+            }
+        }
+    }
+
     /// Updates building construction/upgrade/demolition timer UI - runs 2x per second
     private func updateBuildingTimers() {
         let currentTime = Date().timeIntervalSince1970
@@ -1530,6 +1640,42 @@ class GameScene: SKScene, CombatSystemDelegate {
         }
     }
 
+    // MARK: - Home Base System
+
+    /// Checks if an army has arrived at a valid home base and updates the home base reference
+    func checkAndUpdateHomeBase(for army: Army, at coordinate: HexCoordinate) {
+        // Check if there's a building at this coordinate
+        guard let building = hexMap?.getBuilding(at: coordinate) else { return }
+
+        // Check if building is a valid home base type
+        guard Army.canBeHomeBase(building.buildingType) else { return }
+
+        // Check if army owner matches building owner
+        guard building.owner?.id == army.owner?.id else { return }
+
+        // Check if building is operational (completed state)
+        guard building.data.isOperational else { return }
+
+        // Update the army's home base
+        army.setHomeBase(building.data.id)
+        print("🏠 Army \(army.name) home base updated to \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
+    }
+
+    /// Handles building destruction by clearing home base references for affected armies
+    func handleBuildingDestruction(_ building: BuildingNode) {
+        let buildingID = building.data.id
+
+        // Find all armies that have this building as their home base and clear it
+        guard let player = building.owner else { return }
+
+        for army in player.armies {
+            if army.homeBaseID == buildingID {
+                army.setHomeBase(nil)
+                print("⚠️ Army \(army.name) home base destroyed!")
+            }
+        }
+    }
+
     // MARK: - CombatSystemDelegate
 
     func combatSystem(_ system: CombatSystem, didStartPhasedCombat combat: ActiveCombat) {
@@ -1637,6 +1783,59 @@ class GameScene: SKScene, CombatSystemDelegate {
             message: message,
             isVictory: playerWon
         )
+    }
+
+    // MARK: - End Game / Starvation
+
+    /// Checks if the player has been at 0 food for too long
+    private func checkStarvationCondition(currentTime: TimeInterval) {
+        guard let player = player else { return }
+
+        let currentFood = player.getResource(.food)
+
+        if currentFood <= 0 {
+            // Start tracking zero food time if not already
+            if zeroFoodStartTime == nil {
+                zeroFoodStartTime = currentTime
+                print("Warning: Food reached 0! Starvation timer started.")
+            } else {
+                // Check if time limit exceeded
+                let timeAtZeroFood = currentTime - zeroFoodStartTime!
+                if timeAtZeroFood >= starvationTimeLimit {
+                    // Game over - starvation
+                    triggerGameOver(isVictory: false, reason: .starvation)
+                }
+            }
+        } else {
+            // Reset timer if food is above 0
+            if zeroFoodStartTime != nil {
+                print("Food restored. Starvation timer reset.")
+                zeroFoodStartTime = nil
+            }
+        }
+    }
+
+    /// Returns how many seconds remain before starvation (nil if food > 0)
+    func getStarvationTimeRemaining() -> TimeInterval? {
+        guard let startTime = zeroFoodStartTime else { return nil }
+        let elapsed = Date().timeIntervalSince1970 - startTime
+        return max(0, starvationTimeLimit - elapsed)
+    }
+
+    /// Triggers the end of the game
+    func triggerGameOver(isVictory: Bool, reason: GameOverReason) {
+        guard !isGameOver else { return }
+
+        isGameOver = true
+        print("Game Over! Victory: \(isVictory), Reason: \(reason)")
+
+        // Notify delegate
+        onGameOver?(isVictory, reason)
+    }
+
+    /// Called when player resigns
+    func resignGame() {
+        triggerGameOver(isVictory: false, reason: .resignation)
     }
 
     // MARK: - Touch Handling
@@ -2260,6 +2459,9 @@ class GameScene: SKScene, CombatSystemDelegate {
             }
         } else if let building = defender as? BuildingNode {
             if building.state == .destroyed {
+                // Clear home base references for any armies using this building
+                handleBuildingDestruction(building)
+
                 hexMap.removeBuilding(building)
                 building.clearTileOverlays()  // Clean up multi-tile overlays
                 building.removeFromParent()

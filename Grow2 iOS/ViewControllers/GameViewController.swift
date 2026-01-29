@@ -226,6 +226,16 @@ class GameViewController: UIViewController {
 
             print("Random map generated!")
         }
+
+        // Initialize game start time for statistics
+        gameScene.gameStartTime = Date().timeIntervalSince1970
+
+        // Setup game over callback
+        gameScene.onGameOver = { [weak self] isVictory, reason in
+            DispatchQueue.main.async {
+                self?.handleGameOver(isVictory: isVictory, reason: reason)
+            }
+        }
     }
     
     // MARK: - Combat System
@@ -691,6 +701,35 @@ class GameViewController: UIViewController {
         )
     }
 
+    func confirmResign() {
+        showDestructiveConfirmation(
+            title: "🏳️ Resign Game?",
+            message: "Are you sure you want to resign? This will end the game and count as a defeat.",
+            confirmTitle: "Resign",
+            onConfirm: { [weak self] in
+                self?.gameScene?.resignGame()
+            }
+        )
+    }
+
+    func handleGameOver(isVictory: Bool, reason: GameOverReason) {
+        // Stop auto-save
+        autoSaveTimer?.invalidate()
+        autoSaveTimer = nil
+
+        // Gather statistics
+        let stats = GameStatistics.gather(from: player, gameStartTime: gameScene.gameStartTime)
+
+        // Present game over screen
+        let gameOverVC = GameOverViewController()
+        gameOverVC.isVictory = isVictory
+        gameOverVC.gameOverReason = reason
+        gameOverVC.statistics = stats
+        gameOverVC.modalPresentationStyle = .fullScreen
+
+        present(gameOverVC, animated: true)
+    }
+
     func returnToMainMenu() {
         // Save before returning
         autoSaveGame()
@@ -955,6 +994,18 @@ class GameViewController: UIViewController {
             }
         }
         
+        // Set game start time (approximate from save date or use current time)
+        if gameScene.gameStartTime == 0 {
+            gameScene.gameStartTime = Date().timeIntervalSince1970 - 300  // Assume 5 min played before save
+        }
+
+        // Setup game over callback
+        gameScene.onGameOver = { [weak self] isVictory, reason in
+            DispatchQueue.main.async {
+                self?.handleGameOver(isVictory: isVictory, reason: reason)
+            }
+        }
+
         print("✅ Game loaded successfully")
         showSimpleAlert(title: "✅ Game Loaded", message: "Your saved game has been restored.")
     }

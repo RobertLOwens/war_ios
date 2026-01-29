@@ -131,6 +131,16 @@ class ArmyDetailViewController: UIViewController {
 
         yOffset = setupCombatStatsSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
 
+        // Separator
+        let separator3 = UIView(frame: CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: 1))
+        separator3.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+        contentView.addSubview(separator3)
+        yOffset += 20
+
+        // MARK: - Home Base Section
+
+        yOffset = setupHomeBaseSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
+
         // MARK: - Close Button
 
         let closeButton = createActionButton(
@@ -165,8 +175,8 @@ class ArmyDetailViewController: UIViewController {
         currentY += 35
 
         if let commander = army.commander {
-            // Commander card
-            let commanderCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 140))
+            // Commander card (expanded height for stamina)
+            let commanderCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 175))
             commanderCard.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
             commanderCard.layer.cornerRadius = 12
             contentView.addSubview(commanderCard)
@@ -215,7 +225,29 @@ class ArmyDetailViewController: UIViewController {
             levelLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
             commanderCard.addSubview(levelLabel)
 
-            currentY += 150
+            // Stamina bar background
+            let staminaBarBg = UIView(frame: CGRect(x: 15, y: 140, width: contentWidth - 30, height: 8))
+            staminaBarBg.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+            staminaBarBg.layer.cornerRadius = 4
+            commanderCard.addSubview(staminaBarBg)
+
+            // Stamina bar fill
+            let staminaPercentage = commander.staminaPercentage
+            let staminaBarFill = UIView(frame: CGRect(x: 15, y: 140, width: (contentWidth - 30) * staminaPercentage, height: 8))
+            staminaBarFill.backgroundColor = staminaPercentage > 0.3 ?
+                UIColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0) :
+                UIColor(red: 1.0, green: 0.4, blue: 0.3, alpha: 1.0)
+            staminaBarFill.layer.cornerRadius = 4
+            commanderCard.addSubview(staminaBarFill)
+
+            // Stamina label
+            let staminaLabel = UILabel(frame: CGRect(x: 15, y: 150, width: contentWidth - 30, height: 18))
+            staminaLabel.text = "⚡ Stamina: \(Int(commander.stamina))/\(Int(Commander.maxStamina)) (regen: 1/min)"
+            staminaLabel.font = UIFont.systemFont(ofSize: 12)
+            staminaLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+            commanderCard.addSubview(staminaLabel)
+
+            currentY += 185
         } else {
             // No commander
             let noCommanderLabel = createLabel(
@@ -447,6 +479,138 @@ class ArmyDetailViewController: UIViewController {
         }
 
         return currentY + 10
+    }
+
+    // MARK: - Home Base Section
+
+    func setupHomeBaseSection(yOffset: CGFloat, contentWidth: CGFloat, leftMargin: CGFloat) -> CGFloat {
+        var currentY = yOffset
+
+        let sectionLabel = createLabel(
+            text: "🏠 Home Base",
+            fontSize: 18,
+            weight: .semibold,
+            color: .white
+        )
+        sectionLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
+        contentView.addSubview(sectionLabel)
+        currentY += 35
+
+        // Check if army has a home base
+        if let homeBaseID = army.homeBaseID,
+           let homeBase = hexMap.buildings.first(where: { $0.data.id == homeBaseID }) {
+            // Home base card
+            let homeBaseCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 80))
+            homeBaseCard.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+            homeBaseCard.layer.cornerRadius = 12
+            contentView.addSubview(homeBaseCard)
+
+            // Building info
+            let buildingLabel = UILabel(frame: CGRect(x: 15, y: 10, width: contentWidth - 30, height: 25))
+            buildingLabel.text = "\(homeBase.buildingType.icon) \(homeBase.buildingType.displayName)"
+            buildingLabel.font = UIFont.boldSystemFont(ofSize: 16)
+            buildingLabel.textColor = .white
+            homeBaseCard.addSubview(buildingLabel)
+
+            // Location
+            let locationLabel = UILabel(frame: CGRect(x: 15, y: 35, width: contentWidth - 30, height: 20))
+            locationLabel.text = "📍 Location: (\(homeBase.coordinate.q), \(homeBase.coordinate.r))"
+            locationLabel.font = UIFont.systemFont(ofSize: 14)
+            locationLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
+            homeBaseCard.addSubview(locationLabel)
+
+            // Status
+            let statusLabel = UILabel(frame: CGRect(x: 15, y: 55, width: contentWidth - 30, height: 20))
+            statusLabel.text = homeBase.data.isOperational ? "✅ Operational" : "⚠️ Not Operational"
+            statusLabel.font = UIFont.systemFont(ofSize: 14)
+            statusLabel.textColor = homeBase.data.isOperational ?
+                UIColor(red: 0.4, green: 0.8, blue: 0.4, alpha: 1.0) :
+                UIColor(red: 1.0, green: 0.6, blue: 0.3, alpha: 1.0)
+            homeBaseCard.addSubview(statusLabel)
+
+            currentY += 90
+
+            // Retreat button - check if in combat for different styling/text
+            let isInCombat = CombatSystem.shared.isInCombat(army)
+            let retreatTitle = isInCombat ?
+                "⚔️🏃 Disengage & Retreat to Home Base" :
+                "🏃 Retreat to Home Base (10% faster)"
+            let retreatColor = isInCombat ?
+                UIColor(red: 0.7, green: 0.3, blue: 0.3, alpha: 1.0) :
+                UIColor(red: 0.3, green: 0.5, blue: 0.7, alpha: 1.0)
+
+            let retreatButton = createActionButton(
+                title: retreatTitle,
+                y: currentY,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                color: retreatColor,
+                action: #selector(retreatTapped)
+            )
+            contentView.addSubview(retreatButton)
+            currentY += 65
+        } else {
+            // No home base
+            let noHomeBaseCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 70))
+            noHomeBaseCard.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+            noHomeBaseCard.layer.cornerRadius = 12
+            contentView.addSubview(noHomeBaseCard)
+
+            let noHomeBaseLabel = createLabel(
+                text: "⚠️ No Home Base Set",
+                fontSize: 16,
+                color: UIColor(red: 1.0, green: 0.6, blue: 0.3, alpha: 1.0)
+            )
+            noHomeBaseLabel.frame = CGRect(x: 15, y: 15, width: contentWidth - 30, height: 20)
+            noHomeBaseCard.addSubview(noHomeBaseLabel)
+
+            let hintLabel = createLabel(
+                text: "Move to a City Center, Wooden Fort, or Castle to set home base",
+                fontSize: 12,
+                color: UIColor(white: 0.6, alpha: 1.0)
+            )
+            hintLabel.frame = CGRect(x: 15, y: 38, width: contentWidth - 30, height: 20)
+            hintLabel.numberOfLines = 0
+            noHomeBaseCard.addSubview(hintLabel)
+
+            currentY += 80
+        }
+
+        return currentY
+    }
+
+    @objc func retreatTapped() {
+        guard let player = player else { return }
+
+        // Create and execute retreat command
+        let command = RetreatCommand(playerID: player.id, armyID: army.id)
+        let context = CommandContext(hexMap: hexMap, player: player, allPlayers: gameScene.allGamePlayers, gameScene: gameScene)
+
+        let validationResult = command.validate(in: context)
+        if !validationResult.succeeded {
+            // Show error alert
+            let alert = UIAlertController(
+                title: "Cannot Retreat",
+                message: validationResult.failureReason ?? "Unknown error",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        let result = command.execute(in: context)
+        if result.succeeded {
+            dismiss(animated: true)
+        } else {
+            let alert = UIAlertController(
+                title: "Retreat Failed",
+                message: result.failureReason ?? "Unknown error",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
     }
 
     // MARK: - Helper Methods

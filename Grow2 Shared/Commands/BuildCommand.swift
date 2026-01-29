@@ -142,7 +142,7 @@ struct BuildCommand: GameCommand {
                 builderEntity.isMoving = true
 
                 // Move the entity to the build site
-                if let path = context.hexMap.findPath(from: builderEntity.coordinate, to: coordinate) {
+                if let path = context.hexMap.findPath(from: builderEntity.coordinate, to: coordinate, for: builderEntity.entity.owner) {
                     builderEntity.moveTo(path: path) {
                         // When movement completes, start construction
                         if building.state == .planning {

@@ -311,6 +311,26 @@ class HexMap {
         guard let tile = getTile(at: coord) else { return false }
         return tile.terrain.isWalkable
     }
+
+    /// Check if a coordinate is passable for a specific player (considers walls/gates)
+    func isPassable(at coord: HexCoordinate, for requestingOwner: Player?) -> Bool {
+        guard isWalkable(coord) else { return false }
+
+        if let building = getBuilding(at: coord), building.state == .completed {
+            switch building.buildingType {
+            case .wall:
+                return false  // Walls block everyone
+            case .gate:
+                guard let gateOwner = building.owner,
+                      let requestor = requestingOwner else { return false }
+                let status = requestor.getDiplomacyStatus(with: gateOwner)
+                return status.canMove  // true for .me, .guild, .ally
+            default:
+                break
+            }
+        }
+        return true
+    }
     
     func getBuilding(at coordinate: HexCoordinate) -> BuildingNode? {
         // First check anchor coordinates (fast path)
@@ -486,10 +506,10 @@ class HexMap {
     }
     
     // MARK: - Pathfinding
-    
-    func findPath(from start: HexCoordinate, to goal: HexCoordinate) -> [HexCoordinate]? {
+
+    func findPath(from start: HexCoordinate, to goal: HexCoordinate, for requestingOwner: Player? = nil) -> [HexCoordinate]? {
         guard isValidCoordinate(start) && isValidCoordinate(goal) else { return nil }
-        guard isWalkable(goal) else { return nil }
+        guard isPassable(at: goal, for: requestingOwner) else { return nil }
         guard start != goal else { return [] }
 
         // A* pathfinding with road preference
@@ -522,7 +542,7 @@ class HexMap {
             openSet.remove(current)
 
             for neighbor in current.neighbors() {
-                guard isValidCoordinate(neighbor) && isWalkable(neighbor) else { continue }
+                guard isValidCoordinate(neighbor) && isPassable(at: neighbor, for: requestingOwner) else { continue }
 
                 // Use movement cost based on whether tile has road
                 let movementCost = getMovementCost(at: neighbor)
@@ -542,26 +562,26 @@ class HexMap {
     }
         
     
-    func findNearestWalkable(to target: HexCoordinate, maxDistance: Int = 5) -> HexCoordinate? {
-        // Check if target itself is walkable and unoccupied
-        if isWalkable(target) && getEntity(at: target) == nil && getBuilding(at: target) == nil {
+    func findNearestWalkable(to target: HexCoordinate, maxDistance: Int = 5, for requestingOwner: Player? = nil) -> HexCoordinate? {
+        // Check if target itself is passable and unoccupied
+        if isPassable(at: target, for: requestingOwner) && getEntity(at: target) == nil && getBuilding(at: target) == nil {
             return target
         }
-        
+
         // Search in expanding rings using proper hex distance
         for distance in 1...maxDistance {
             var candidates: [HexCoordinate] = []
-            
+
             // Check all tiles on the map within this distance
             for (coord, _) in tiles {
                 // Use proper hex distance calculation
                 if coord.distance(to: target) == distance {
-                    if isWalkable(coord) && getEntity(at: coord) == nil && getBuilding(at: coord) == nil {
+                    if isPassable(at: coord, for: requestingOwner) && getEntity(at: coord) == nil && getBuilding(at: coord) == nil {
                         candidates.append(coord)
                     }
                 }
             }
-            
+
             // Return closest candidate by actual distance
             if !candidates.isEmpty {
                 return candidates.min(by: {
@@ -569,7 +589,7 @@ class HexMap {
                 })
             }
         }
-        
+
         return nil
     }
 
@@ -716,6 +736,49 @@ class HexMap {
         }
 
         return nearbyBuildings
+    }
+
+    // MARK: - Garrison Defense Support
+
+    /// Gets all enemy armies within a specified range of a coordinate for a given player
+    /// Used by garrison defense to find targets for defensive fire
+    func getEnemyArmiesInRange(of coordinate: HexCoordinate, range: Int, for player: Player) -> [Army] {
+        var enemyArmies: [Army] = []
+
+        for entity in entities {
+            // Only consider army entities
+            guard let entityArmy = entity.armyReference else { continue }
+
+            // Check if this is an enemy (different owner)
+            guard let entityOwner = entityArmy.owner, entityOwner.id != player.id else { continue }
+
+            // Check if within range
+            if entity.coordinate.distance(to: coordinate) <= range {
+                enemyArmies.append(entityArmy)
+            }
+        }
+
+        return enemyArmies
+    }
+
+    /// Gets all enemy armies within range of any coordinate a building occupies
+    /// Accounts for multi-tile buildings like castles
+    func getEnemyArmiesInRange(of building: BuildingNode, range: Int, for player: Player) -> [Army] {
+        var enemyArmies: Set<UUID> = []
+        var result: [Army] = []
+
+        // Check from all coordinates the building occupies
+        for coord in building.data.occupiedCoordinates {
+            let armies = getEnemyArmiesInRange(of: coord, range: range, for: player)
+            for army in armies {
+                if !enemyArmies.contains(army.id) {
+                    enemyArmies.insert(army.id)
+                    result.append(army)
+                }
+            }
+        }
+
+        return result
     }
 
     // MARK: - Road-Extended Camp Coverage

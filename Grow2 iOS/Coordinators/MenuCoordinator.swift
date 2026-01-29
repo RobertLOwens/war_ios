@@ -1478,7 +1478,7 @@ class MenuCoordinator {
     func showGameMenu() {
         guard let vc = viewController,
               let gameVC = vc as? GameViewController else { return }
-        
+
         let actions: [AlertAction] = [
             AlertAction(title: "💾 Save Game") {
                 gameVC.manualSave()
@@ -1486,11 +1486,14 @@ class MenuCoordinator {
             AlertAction(title: "📂 Load Game") {
                 gameVC.confirmLoad()
             },
+            AlertAction(title: "🏳️ Resign", style: .destructive) {
+                gameVC.confirmResign()
+            },
             AlertAction(title: "🏠 Main Menu") {
                 gameVC.returnToMainMenu()
             }
         ]
-        
+
         vc.showActionSheet(
             title: "⚙️ Game Menu",
             actions: actions,

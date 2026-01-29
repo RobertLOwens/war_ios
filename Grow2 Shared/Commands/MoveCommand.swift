@@ -57,6 +57,13 @@ struct MoveCommand: GameCommand {
             if army.isAwaitingReinforcements {
                 return .failure(reason: "Cannot move while reinforcements are en route")
             }
+
+            // Check commander stamina
+            if let commander = army.commander {
+                if !commander.hasEnoughStamina() {
+                    return .failure(reason: "Commander \(commander.name) is too exhausted! (Stamina: \(Int(commander.stamina))/\(Int(Commander.maxStamina)))")
+                }
+            }
         }
 
         // Check destination is valid
@@ -73,11 +80,11 @@ struct MoveCommand: GameCommand {
             }
         }
         
-        // Check path exists
-        guard context.hexMap.findPath(from: entity.coordinate, to: destination) != nil else {
+        // Check path exists (pass owner for wall/gate checks)
+        guard context.hexMap.findPath(from: entity.coordinate, to: destination, for: entity.entity.owner) != nil else {
             return .failure(reason: "No valid path to destination")
         }
-        
+
         return .success
     }
     
@@ -85,18 +92,23 @@ struct MoveCommand: GameCommand {
         guard let entity = context.getEntity(by: entityID) else {
             return .failure(reason: "Entity not found")
         }
-        
-        // Find path and start movement
-        guard let path = context.hexMap.findPath(from: entity.coordinate, to: destination) else {
+
+        // Find path and start movement (pass owner for wall/gate checks)
+        guard let path = context.hexMap.findPath(from: entity.coordinate, to: destination, for: entity.entity.owner) else {
             return .failure(reason: "No valid path")
         }
-        
+
+        // Consume commander stamina for army movement
+        if let army = entity.entity as? Army, let commander = army.commander {
+            commander.consumeStamina()
+        }
+
         entity.moveTo(path: path) {
             print("⚔️ \(String(describing: entity.name)) Moving")
         }
-        
+
         print("🚶 Moving \(entity.entityType.displayName) to (\(destination.q), \(destination.r))")
-        
+
         return .success
     }
 }

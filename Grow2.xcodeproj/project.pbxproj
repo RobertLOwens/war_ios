@@ -20,6 +20,7 @@
 		3F286A122F19614C004636ED /* GatherCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A112F19614C004636ED /* GatherCommand.swift */; };
 		3F286A142F19615D004636ED /* UpgradeCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A132F19615D004636ED /* UpgradeCommand.swift */; };
 		3F286A162F19616F004636ED /* DeployCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A152F19616F004636ED /* DeployCommand.swift */; };
+		3FRETREAT12F2AA00100RETRT /* RetreatCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */; };
 		3F286A182F19617D004636ED /* AttackCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A172F19617D004636ED /* AttackCommand.swift */; };
 		3F286A1A2F199C93004636ED /* ReinforceArmyCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A192F199C93004636ED /* ReinforceArmyCommand.swift */; };
 		3F34D5AD2ECA584A00AE6DF0 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F34D5AC2ECA584A00AE6DF0 /* Player.swift */; };
@@ -39,6 +40,8 @@
 		3FREINGRP12F29A00100REINF /* ReinforcementGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */; };
 		3FREINNODE12F29B00100REIN /* ReinforcementNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */; };
 		3FCANCREIN12F29C00100CANC /* CancelReinforcementCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCANCREIN22F29C00100CANC /* CancelReinforcementCommand.swift */; };
+		3FGMOVERVC12F29D00100GMOV /* GameOverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */; };
+		3FGMOVRSN12F29E00100GMOV /* GameOverReason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */; };
 		3F9892712F21DBC0008A24E7 /* CombatState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9892722F21DBC0008A24E7 /* CombatState.swift */; };
 		3FA12B012F27A00000MAPGEN /* MapGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA12B022F27A00000MAPGEN /* MapGenerator.swift */; };
 		3FA12B032F27A00100ARABIA /* ArabiaMapGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */; };
@@ -90,6 +93,7 @@
 		3F286A112F19614C004636ED /* GatherCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatherCommand.swift; sourceTree = "<group>"; };
 		3F286A132F19615D004636ED /* UpgradeCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpgradeCommand.swift; sourceTree = "<group>"; };
 		3F286A152F19616F004636ED /* DeployCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeployCommand.swift; sourceTree = "<group>"; };
+		3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetreatCommand.swift; sourceTree = "<group>"; };
 		3F286A172F19617D004636ED /* AttackCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttackCommand.swift; sourceTree = "<group>"; };
 		3F286A192F199C93004636ED /* ReinforceArmyCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforceArmyCommand.swift; sourceTree = "<group>"; };
 		3F34D5AC2ECA584A00AE6DF0 /* Player.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
@@ -110,6 +114,8 @@
 		3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementGroup.swift; sourceTree = "<group>"; };
 		3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementNode.swift; sourceTree = "<group>"; };
 		3FCANCREIN22F29C00100CANC /* CancelReinforcementCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CancelReinforcementCommand.swift; sourceTree = "<group>"; };
+		3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverViewController.swift; sourceTree = "<group>"; };
+		3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverReason.swift; sourceTree = "<group>"; };
 		3F9892722F21DBC0008A24E7 /* CombatState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatState.swift; sourceTree = "<group>"; };
 		3FA12B022F27A00000MAPGEN /* MapGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapGenerator.swift; sourceTree = "<group>"; };
 		3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArabiaMapGenerator.swift; sourceTree = "<group>"; };
@@ -173,6 +179,7 @@
 				3F286A0A2F1960D9004636ED /* MoveCommand.swift */,
 				3F286A192F199C93004636ED /* ReinforceArmyCommand.swift */,
 				3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */,
+				3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */,
 				3F286A132F19615D004636ED /* UpgradeCommand.swift */,
 				3F286A0F2F19613C004636ED /* TrainCommand.swift */,
 			);
@@ -209,6 +216,7 @@
 				3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */,
 				3FC0F0F62EC7965C007C0782 /* GameScene.swift */,
 				3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */,
+				3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */,
 				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
 				3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */,
 				3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */,
@@ -265,6 +273,7 @@
 				3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */,
 				3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */,
 				3FCMBTDTL22F28C00100CMBTD /* CombatDetailViewController.swift */,
+				3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */,
 				3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */,
 				3F6AE44C2F1818C200C885D6 /* ResearchType.swift */,
 				3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */,
@@ -408,6 +417,8 @@
 				3FLIVECBT12F28D00100LIVEC /* LiveCombatViewController.swift in Sources */,
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
 				3F98926C2F21DB81008A24E7 /* EntitiesOverviewViewController.swift in Sources */,
+				3FGMOVERVC12F29D00100GMOV /* GameOverViewController.swift in Sources */,
+				3FGMOVRSN12F29E00100GMOV /* GameOverReason.swift in Sources */,
 				3F286A102F19613C004636ED /* TrainCommand.swift in Sources */,
 				3F34D5B12ECA5CD900AE6DF0 /* Building.swift in Sources */,
 				3F39A62E2F14728500E9F506 /* BuildingsOverviewViewController.swift in Sources */,
@@ -427,6 +438,7 @@
 				3FF8CF4D2F08312E002FA5D7 /* GameSetupViewController.swift in Sources */,
 				3FF8CF532F099148002FA5D7 /* GameSaveManager.swift in Sources */,
 				3F286A162F19616F004636ED /* DeployCommand.swift in Sources */,
+				3FRETREAT12F2AA00100RETRT /* RetreatCommand.swift in Sources */,
 				3F34D5B32ECABDFF00AE6DF0 /* Entity Node.swift in Sources */,
 				3FF8CF5B2F0D92CE002FA5D7 /* VillagerMergeViewController.swift in Sources */,
 				3F34D5B72ECBB7B800AE6DF0 /* HexMap.swift in Sources */,

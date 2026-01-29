@@ -321,7 +321,14 @@ class EntityOverviewCell: UITableViewCell {
         let commanderName = army.commander?.name ?? "No Commander"
         nameLabel.text = "🛡️ \(army.name)"
         countLabel.text = "\(army.getTotalMilitaryUnits()) units"
-        locationLabel.text = "📍 (\(army.coordinate.q), \(army.coordinate.r)) • 👤 \(commanderName)"
+
+        // Show stamina if commander exists
+        if let commander = army.commander {
+            let staminaText = "⚡\(Int(commander.stamina))/\(Int(Commander.maxStamina))"
+            locationLabel.text = "📍 (\(army.coordinate.q), \(army.coordinate.r)) • 👤 \(commanderName) • \(staminaText)"
+        } else {
+            locationLabel.text = "📍 (\(army.coordinate.q), \(army.coordinate.r)) • 👤 \(commanderName)"
+        }
 
         // Check if army is in combat
         if CombatSystem.shared.isInCombat(army) {

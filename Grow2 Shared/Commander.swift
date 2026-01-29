@@ -114,28 +114,50 @@ class Commander {
     var specialty: CommanderSpecialty
     weak var owner: Player?
     weak var assignedArmy: Army?
-    
+
     private(set) var experience: Int = 0
     private(set) var level: Int = 1
     private let baseLeadership: Int
     private let baseTactics: Int
-    
+
+    // MARK: - Stamina System
+
+    /// Current stamina level
+    private(set) var stamina: Double = 100.0
+
+    /// Maximum stamina
+    static let maxStamina: Double = 100.0
+
+    /// Stamina cost per movement or attack command
+    static let staminaCostPerCommand: Double = 5.0
+
+    /// Stamina regeneration rate (1 per minute = 1/60 per second)
+    static let staminaRegenPerSecond: Double = 1.0 / 60.0
+
+    /// Last time stamina was updated (for regeneration calculation)
+    var lastStaminaUpdateTime: TimeInterval = 0
+
     // Stats
     var leadership: Int {
         return baseLeadership + (level - 1) * 2
     }
-    
+
     var tactics: Int {
         return baseTactics + (level - 1) * 2
     }
-    
+
     var isAssigned: Bool {
         return assignedArmy != nil
     }
 
+    /// Current stamina as a percentage (0.0 to 1.0)
+    var staminaPercentage: Double {
+        return stamina / Commander.maxStamina
+    }
+
     // Portrait color for visual identification
     var portraitColor: UIColor
-    
+
     init(id: UUID = UUID(), name: String, rank: CommanderRank = .recruit, specialty: CommanderSpecialty,
          baseLeadership: Int = 10, baseTactics: Int = 10, portraitColor: UIColor = .blue, owner: Player? = nil) {
         self.id = id
@@ -146,10 +168,61 @@ class Commander {
         self.baseTactics = baseTactics
         self.portraitColor = portraitColor
         self.owner = owner
+        self.stamina = Commander.maxStamina
+        self.lastStaminaUpdateTime = Date().timeIntervalSince1970
     }
     
+    // MARK: - Stamina Management
+
+    /// Checks if the commander has enough stamina for a command
+    func hasEnoughStamina(cost: Double = Commander.staminaCostPerCommand) -> Bool {
+        return stamina >= cost
+    }
+
+    /// Consumes stamina for a command. Returns true if successful, false if not enough stamina.
+    @discardableResult
+    func consumeStamina(cost: Double = Commander.staminaCostPerCommand) -> Bool {
+        guard hasEnoughStamina(cost: cost) else {
+            print("⚡ \(name) doesn't have enough stamina! (\(Int(stamina))/\(Int(Commander.maxStamina)))")
+            return false
+        }
+
+        stamina = max(0, stamina - cost)
+        print("⚡ \(name) used \(Int(cost)) stamina. Remaining: \(Int(stamina))/\(Int(Commander.maxStamina))")
+        return true
+    }
+
+    /// Regenerates stamina based on elapsed time since last update
+    func regenerateStamina(currentTime: TimeInterval) {
+        guard lastStaminaUpdateTime > 0 else {
+            lastStaminaUpdateTime = currentTime
+            return
+        }
+
+        let elapsed = currentTime - lastStaminaUpdateTime
+        let regenAmount = elapsed * Commander.staminaRegenPerSecond
+
+        if stamina < Commander.maxStamina {
+            let oldStamina = stamina
+            stamina = min(Commander.maxStamina, stamina + regenAmount)
+
+            // Only log when stamina actually increased by a meaningful amount
+            if Int(stamina) > Int(oldStamina) {
+                print("⚡ \(name) regenerated stamina: \(Int(stamina))/\(Int(Commander.maxStamina))")
+            }
+        }
+
+        lastStaminaUpdateTime = currentTime
+    }
+
+    /// Manually sets stamina (for loading saved games)
+    func setStamina(_ value: Double, lastUpdateTime: TimeInterval) {
+        stamina = min(Commander.maxStamina, max(0, value))
+        lastStaminaUpdateTime = lastUpdateTime
+    }
+
     // MARK: - Experience and Leveling
-    
+
     func addExperience(_ amount: Int) {
         experience += amount
         checkLevelUp()
@@ -224,9 +297,10 @@ class Commander {
         desc += "Level: \(level) (XP: \(experience)/\(level * 100))\n"
         desc += "Leadership: \(leadership)\n"
         desc += "Tactics: \(tactics)\n"
+        desc += "Stamina: \(Int(stamina))/\(Int(Commander.maxStamina)) ⚡\n"
         desc += "Max Army Size: \(rank.maxArmySize)\n"
         desc += "\n\(specialty.description)"
-        
+
         return desc
     }
     

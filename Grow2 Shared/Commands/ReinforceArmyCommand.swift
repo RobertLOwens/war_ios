@@ -69,8 +69,8 @@ struct ReinforceArmyCommand: GameCommand {
             }
         }
 
-        // Check path exists from building to army
-        guard context.hexMap.findPath(from: building.coordinate, to: army.coordinate) != nil else {
+        // Check path exists from building to army (pass player for wall/gate checks)
+        guard context.hexMap.findPath(from: building.coordinate, to: army.coordinate, for: player) != nil else {
             return .failure(reason: "No path to army location")
         }
 
@@ -85,8 +85,8 @@ struct ReinforceArmyCommand: GameCommand {
             return .failure(reason: "Building, army, or game scene not found")
         }
 
-        // Find path from building to army
-        guard let path = context.hexMap.findPath(from: building.coordinate, to: army.coordinate) else {
+        // Find path from building to army (pass player for wall/gate checks)
+        guard let path = context.hexMap.findPath(from: building.coordinate, to: army.coordinate, for: player) else {
             return .failure(reason: "No path to army")
         }
 

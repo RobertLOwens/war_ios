@@ -207,6 +207,153 @@ struct SideCombatState: Codable {
     }
 }
 
+// MARK: - Army Combat State
+
+/// Tracks per-army combat statistics within a multi-army battle
+struct ArmyCombatState: Codable {
+    let armyID: UUID
+    let armyName: String
+    let ownerName: String
+    let commanderName: String?
+    let joinTime: TimeInterval
+    var chargePhaseEndTime: TimeInterval?
+    var rangedPhaseEndTime: TimeInterval?
+    let initialComposition: [MilitaryUnitType: Int]
+    var currentUnits: [MilitaryUnitType: Int]
+    var damageDealtByType: [MilitaryUnitType: Double] = [:]
+    var casualtiesByType: [MilitaryUnitType: Int] = [:]
+
+    /// Weak reference to army (not saved)
+    weak var army: Army?
+
+    init(army: Army, joinTime: TimeInterval, isReinforcement: Bool) {
+        self.armyID = army.id
+        self.armyName = army.name
+        self.ownerName = army.owner?.name ?? "Unknown"
+        self.commanderName = army.commander?.name
+        self.army = army
+        self.joinTime = joinTime
+        self.initialComposition = army.militaryComposition
+        self.currentUnits = army.militaryComposition
+
+        // Initialize tracking dictionaries
+        for unitType in army.militaryComposition.keys {
+            damageDealtByType[unitType] = 0.0
+            casualtiesByType[unitType] = 0
+        }
+
+        // Reinforcements get special bonus windows
+        if isReinforcement {
+            self.chargePhaseEndTime = joinTime + 3.0
+            self.rangedPhaseEndTime = joinTime + 3.0
+        } else {
+            self.chargePhaseEndTime = nil
+            self.rangedPhaseEndTime = nil
+        }
+    }
+
+    // MARK: - Codable
+
+    enum CodingKeys: String, CodingKey {
+        case armyID, armyName, ownerName, commanderName, joinTime
+        case chargePhaseEndTime, rangedPhaseEndTime
+        case initialComposition, currentUnits
+        case damageDealtByType, casualtiesByType
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        armyID = try container.decode(UUID.self, forKey: .armyID)
+        armyName = try container.decode(String.self, forKey: .armyName)
+        ownerName = try container.decode(String.self, forKey: .ownerName)
+        commanderName = try container.decodeIfPresent(String.self, forKey: .commanderName)
+        joinTime = try container.decode(TimeInterval.self, forKey: .joinTime)
+        chargePhaseEndTime = try container.decodeIfPresent(TimeInterval.self, forKey: .chargePhaseEndTime)
+        rangedPhaseEndTime = try container.decodeIfPresent(TimeInterval.self, forKey: .rangedPhaseEndTime)
+        initialComposition = try container.decode([MilitaryUnitType: Int].self, forKey: .initialComposition)
+        currentUnits = try container.decode([MilitaryUnitType: Int].self, forKey: .currentUnits)
+        damageDealtByType = try container.decodeIfPresent([MilitaryUnitType: Double].self, forKey: .damageDealtByType) ?? [:]
+        casualtiesByType = try container.decodeIfPresent([MilitaryUnitType: Int].self, forKey: .casualtiesByType) ?? [:]
+        army = nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(armyID, forKey: .armyID)
+        try container.encode(armyName, forKey: .armyName)
+        try container.encode(ownerName, forKey: .ownerName)
+        try container.encodeIfPresent(commanderName, forKey: .commanderName)
+        try container.encode(joinTime, forKey: .joinTime)
+        try container.encodeIfPresent(chargePhaseEndTime, forKey: .chargePhaseEndTime)
+        try container.encodeIfPresent(rangedPhaseEndTime, forKey: .rangedPhaseEndTime)
+        try container.encode(initialComposition, forKey: .initialComposition)
+        try container.encode(currentUnits, forKey: .currentUnits)
+        try container.encode(damageDealtByType, forKey: .damageDealtByType)
+        try container.encode(casualtiesByType, forKey: .casualtiesByType)
+    }
+
+    // MARK: - Computed Properties
+
+    /// Total units remaining in this army
+    var totalUnits: Int {
+        return currentUnits.values.reduce(0, +)
+    }
+
+    /// Check if this army still has units
+    var isActive: Bool {
+        return totalUnits > 0
+    }
+
+    /// Check if this army is currently in its reinforcement charge window
+    func isInChargeWindow(combatTime: TimeInterval) -> Bool {
+        guard let endTime = chargePhaseEndTime else { return false }
+        return combatTime < endTime
+    }
+
+    /// Check if this army is currently in its reinforcement ranged window
+    func isInRangedWindow(combatTime: TimeInterval) -> Bool {
+        guard let endTime = rangedPhaseEndTime else { return false }
+        return combatTime < endTime
+    }
+
+    /// Get units of a specific type
+    func getUnits(ofType type: MilitaryUnitType) -> Int {
+        return currentUnits[type] ?? 0
+    }
+
+    /// Get ranged units in this army
+    var rangedUnits: Int {
+        return currentUnits.filter { $0.key.category == .ranged }.values.reduce(0, +)
+    }
+
+    /// Get melee units in this army
+    var meleeUnits: Int {
+        return currentUnits.filter { $0.key.category == .infantry || $0.key.category == .cavalry }
+            .values.reduce(0, +)
+    }
+
+    // MARK: - Mutation Methods
+
+    /// Apply casualties to this army state
+    mutating func applyCasualties(unitType: MilitaryUnitType, count: Int) {
+        guard count > 0 else { return }
+        let current = currentUnits[unitType] ?? 0
+        let actualCasualties = min(count, current)
+        currentUnits[unitType] = max(0, current - actualCasualties)
+        casualtiesByType[unitType, default: 0] += actualCasualties
+
+        // Clean up empty entries
+        if currentUnits[unitType] == 0 {
+            currentUnits.removeValue(forKey: unitType)
+        }
+    }
+
+    /// Track damage dealt by this army
+    mutating func trackDamageDealt(_ damage: Double, by unitType: MilitaryUnitType) {
+        damageDealtByType[unitType, default: 0.0] += damage
+    }
+}
+
 // MARK: - Active Combat
 
 /// Represents an ongoing phased combat between two armies
@@ -251,6 +398,14 @@ class ActiveCombat: Codable {
     /// Casualties suffered by defender in current phase
     var phaseDefenderCasualties: [MilitaryUnitType: Int] = [:]
 
+    // MARK: - Multi-Army Support
+
+    /// Per-army tracking for attacker side
+    var attackerArmies: [ArmyCombatState] = []
+
+    /// Per-army tracking for defender side
+    var defenderArmies: [ArmyCombatState] = []
+
     init(attacker: Army, defender: Army, location: HexCoordinate, terrainType: TerrainType = .plains) {
         self.id = UUID()
         self.attackerState = SideCombatState(army: attacker)
@@ -265,6 +420,10 @@ class ActiveCombat: Codable {
         self.attackerArmy = attacker
         self.defenderArmy = defender
         self.phaseStartTime = 0
+
+        // Initialize army tracking arrays (first armies are not reinforcements)
+        self.attackerArmies = [ArmyCombatState(army: attacker, joinTime: 0, isReinforcement: false)]
+        self.defenderArmies = [ArmyCombatState(army: defender, joinTime: 0, isReinforcement: false)]
     }
 
     // MARK: - Codable
@@ -274,6 +433,7 @@ class ActiveCombat: Codable {
         case terrainType, terrainDefenseBonus, terrainAttackPenalty
         case phaseRecords, phaseStartTime, phaseAttackerDamage, phaseDefenderDamage
         case phaseAttackerCasualties, phaseDefenderCasualties
+        case attackerArmies, defenderArmies
     }
 
     required init(from decoder: Decoder) throws {
@@ -294,6 +454,8 @@ class ActiveCombat: Codable {
         phaseDefenderDamage = try container.decodeIfPresent(Double.self, forKey: .phaseDefenderDamage) ?? 0
         phaseAttackerCasualties = try container.decodeIfPresent([MilitaryUnitType: Int].self, forKey: .phaseAttackerCasualties) ?? [:]
         phaseDefenderCasualties = try container.decodeIfPresent([MilitaryUnitType: Int].self, forKey: .phaseDefenderCasualties) ?? [:]
+        attackerArmies = try container.decodeIfPresent([ArmyCombatState].self, forKey: .attackerArmies) ?? []
+        defenderArmies = try container.decodeIfPresent([ArmyCombatState].self, forKey: .defenderArmies) ?? []
         attackerArmy = nil
         defenderArmy = nil
     }
@@ -316,6 +478,8 @@ class ActiveCombat: Codable {
         try container.encode(phaseDefenderDamage, forKey: .phaseDefenderDamage)
         try container.encode(phaseAttackerCasualties, forKey: .phaseAttackerCasualties)
         try container.encode(phaseDefenderCasualties, forKey: .phaseDefenderCasualties)
+        try container.encode(attackerArmies, forKey: .attackerArmies)
+        try container.encode(defenderArmies, forKey: .defenderArmies)
     }
 
     // MARK: - Terrain Modifiers
@@ -430,6 +594,105 @@ class ActiveCombat: Codable {
         self.defenderArmy = defender
         self.attackerState.army = attacker
         self.defenderState.army = defender
+    }
+
+    // MARK: - Reinforcement Methods
+
+    /// Adds a reinforcement army to the combat
+    /// - Parameters:
+    ///   - army: The army joining the combat
+    ///   - isAttacker: Whether this army joins the attacker side (true) or defender side (false)
+    func addReinforcement(army: Army, isAttacker: Bool) {
+        // Create army state with reinforcement bonuses (charge and ranged windows)
+        let armyState = ArmyCombatState(army: army, joinTime: elapsedTime, isReinforcement: true)
+
+        if isAttacker {
+            attackerArmies.append(armyState)
+            // Merge army units into aggregated side state
+            mergeIntoSideState(&attackerState, from: army)
+        } else {
+            defenderArmies.append(armyState)
+            // Merge army units into aggregated side state
+            mergeIntoSideState(&defenderState, from: army)
+        }
+
+        print("⚔️ Reinforcements arrived: \(army.name) joined \(isAttacker ? "attacker" : "defender") side at time \(String(format: "%.1f", elapsedTime))s")
+    }
+
+    /// Merges an army's units into an aggregated side state
+    private func mergeIntoSideState(_ state: inout SideCombatState, from army: Army) {
+        for (unitType, count) in army.militaryComposition {
+            state.unitCounts[unitType, default: 0] += count
+
+            // Initialize accumulators for new unit types
+            if state.damageAccumulators[unitType] == nil {
+                state.damageAccumulators[unitType] = 0.0
+            }
+            if state.damageDealtByType[unitType] == nil {
+                state.damageDealtByType[unitType] = 0.0
+            }
+            if state.damageReceivedByType[unitType] == nil {
+                state.damageReceivedByType[unitType] = 0.0
+            }
+
+            // Update initial composition to track total units that participated
+            state.initialComposition[unitType, default: 0] += count
+        }
+    }
+
+    /// Gets all active army states for a side
+    func getActiveArmies(isAttacker: Bool) -> [ArmyCombatState] {
+        let armies = isAttacker ? attackerArmies : defenderArmies
+        return armies.filter { $0.isActive }
+    }
+
+    /// Gets army state by army ID
+    func getArmyState(armyID: UUID) -> ArmyCombatState? {
+        if let state = attackerArmies.first(where: { $0.armyID == armyID }) {
+            return state
+        }
+        return defenderArmies.first(where: { $0.armyID == armyID })
+    }
+
+    /// Checks if any reinforcement on a side has an active ranged window
+    func hasReinforcementRangedWindow(isAttacker: Bool) -> Bool {
+        let armies = isAttacker ? attackerArmies : defenderArmies
+        // Skip first army (original, not a reinforcement)
+        guard armies.count > 1 else { return false }
+        return armies.dropFirst().contains { $0.isInRangedWindow(combatTime: elapsedTime) }
+    }
+
+    /// Checks if any reinforcement on a side has an active charge window
+    func hasReinforcementChargeWindow(isAttacker: Bool) -> Bool {
+        let armies = isAttacker ? attackerArmies : defenderArmies
+        // Skip first army (original, not a reinforcement)
+        guard armies.count > 1 else { return false }
+        return armies.dropFirst().contains { $0.isInChargeWindow(combatTime: elapsedTime) }
+    }
+
+    /// Links all army references after loading from save
+    func linkAllArmies(armies: [Army]) {
+        // Link primary armies
+        if let attacker = armies.first(where: { $0.id == attackerArmies.first?.armyID }) {
+            self.attackerArmy = attacker
+            self.attackerState.army = attacker
+        }
+        if let defender = armies.first(where: { $0.id == defenderArmies.first?.armyID }) {
+            self.defenderArmy = defender
+            self.defenderState.army = defender
+        }
+
+        // Link all army states
+        for i in 0..<attackerArmies.count {
+            if let army = armies.first(where: { $0.id == attackerArmies[i].armyID }) {
+                attackerArmies[i].army = army
+            }
+        }
+        for i in 0..<defenderArmies.count {
+            if let army = armies.first(where: { $0.id == defenderArmies[i].armyID }) {
+                defenderArmies[i].army = army
+            }
+        }
     }
 }
 

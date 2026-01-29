@@ -27,26 +27,33 @@ struct AttackCommand: GameCommand {
         guard let attacker = context.getEntity(by: attackerEntityID) else {
             return .failure(reason: "Attacker not found")
         }
-        
+
         guard attacker.entity.owner?.id == playerID else {
             return .failure(reason: "You don't own this unit")
         }
-        
+
         guard attacker.entityType == .army else {
             return .failure(reason: "Only armies can attack")
         }
-        
+
+        // Check commander stamina
+        if let army = attacker.entity as? Army, let commander = army.commander {
+            if !commander.hasEnoughStamina() {
+                return .failure(reason: "Commander \(commander.name) is too exhausted! (Stamina: \(Int(commander.stamina))/\(Int(Commander.maxStamina)))")
+            }
+        }
+
         // Check target has enemy
         guard let target = context.hexMap.getEntity(at: targetCoordinate) else {
             return .failure(reason: "No target at this location")
         }
-        
+
         let player = context.getPlayer(by: playerID)
         let diplomacy = player?.getDiplomacyStatus(with: target.entity.owner) ?? .neutral
         guard diplomacy == .enemy else {
             return .failure(reason: "Target is not an enemy")
         }
-        
+
         return .success
     }
     
@@ -58,6 +65,11 @@ struct AttackCommand: GameCommand {
             return .failure(reason: "Required objects not found")
         }
 
+        // Consume commander stamina for attack command
+        if let commander = attackerArmy.commander {
+            commander.consumeStamina()
+        }
+
         // Store references for use in completion handler
         let hexMap = context.hexMap
         let targetCoord = targetCoordinate
@@ -65,7 +77,7 @@ struct AttackCommand: GameCommand {
         // Get terrain type at target location for combat modifiers
         let terrainType = hexMap.getTile(at: targetCoordinate)?.terrain ?? .plains
 
-        if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate) {
+        if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate, for: attacker.entity.owner) {
             attacker.moveTo(path: path) {
                 // Initiate combat when army arrives
                 // Use the already-captured defenderArmy (not re-lookup, which would find the attacker)
