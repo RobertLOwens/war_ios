@@ -5,6 +5,14 @@
 
 import Foundation
 
+// MARK: - Type Aliases for Backward Compatibility
+
+/// Alias for backward compatibility - use ResourceTypeData directly in new code
+typealias ResourceType = ResourceTypeData
+
+/// Alias for backward compatibility - use DiplomacyStatusData directly in new code
+typealias DiplomacyStatus = DiplomacyStatusData
+
 // MARK: - Resource Type Data
 
 /// Pure data representation of resource types
@@ -16,6 +24,15 @@ enum ResourceTypeData: String, Codable, CaseIterable {
 
     var displayName: String {
         return rawValue.capitalized
+    }
+
+    var icon: String {
+        switch self {
+        case .wood: return "🪵"
+        case .food: return "🌾"
+        case .stone: return "🪨"
+        case .ore: return "⛏️"
+        }
     }
 }
 
@@ -37,6 +54,20 @@ enum DiplomacyStatusData: String, Codable {
         case .neutral: return "Neutral"
         case .enemy: return "Enemy"
         }
+    }
+
+    var strokeColorHex: String {
+        switch self {
+        case .me: return "#0000FF"      // Blue
+        case .guild: return "#800080"   // Purple
+        case .ally: return "#00FF00"    // Green
+        case .enemy: return "#FF0000"   // Red
+        case .neutral: return "#FFA500" // Orange
+        }
+    }
+
+    var canAttack: Bool {
+        return self == .enemy
     }
 }
 

@@ -17,7 +17,7 @@ struct VillagerTaskWarningHelper {
     /// Returns empty string if the task is idle.
     /// - Parameter task: The villager's current task
     /// - Returns: A user-friendly warning message
-    static func warningMessage(for task: VillagerTask) -> String {
+    static func warningMessage(for task: VillagerTaskVisual) -> String {
         switch task {
         case .building(let building):
             return "Will cancel: Building \(building.buildingType.displayName)"
@@ -44,7 +44,7 @@ struct VillagerTaskWarningHelper {
     /// Used specifically for move panels.
     /// - Parameter task: The villager's current task
     /// - Returns: A user-friendly warning message for move operations
-    static func moveWarningMessage(for task: VillagerTask) -> String {
+    static func moveWarningMessage(for task: VillagerTaskVisual) -> String {
         switch task {
         case .building(let building):
             return "Moving will cancel: Building \(building.buildingType.displayName)"

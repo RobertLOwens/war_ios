@@ -5,6 +5,11 @@
 
 import Foundation
 
+// MARK: - Type Alias for Backward Compatibility
+
+/// Alias for backward compatibility - use TerrainData directly in new code
+typealias TerrainType = TerrainData
+
 // MARK: - Terrain Data
 
 /// Pure data representation of terrain type (mirrors TerrainType but with no UI dependencies)
@@ -14,6 +19,26 @@ enum TerrainData: String, Codable, CaseIterable {
     case mountain
     case desert
     case hill
+
+    var displayName: String {
+        switch self {
+        case .plains: return "Plains"
+        case .water: return "Water"
+        case .mountain: return "Mountain"
+        case .desert: return "Desert"
+        case .hill: return "Hill"
+        }
+    }
+
+    var colorHex: String {
+        switch self {
+        case .plains: return "#33B333"   // Green
+        case .water: return "#3380E6"    // Blue
+        case .mountain: return "#808080" // Gray
+        case .desert: return "#E6CC66"   // Sandy yellow
+        case .hill: return "#998066"     // Brown
+        }
+    }
 
     var isWalkable: Bool {
         switch self {

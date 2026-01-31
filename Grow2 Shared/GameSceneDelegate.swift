@@ -18,7 +18,10 @@ protocol GameSceneDelegate: AnyObject {
     
     /// Called when a tile is selected and menu should be shown
     func gameScene(_ scene: GameScene, didRequestMenuForTile coordinate: HexCoordinate)
-    
+
+    /// Called when an unexplored tile is selected (shows simplified menu with move/scout option)
+    func gameScene(_ scene: GameScene, didRequestUnexploredTileMenu coordinate: HexCoordinate)
+
     /// Called when entities at a location should be shown for move selection
     func gameScene(_ scene: GameScene, didRequestMoveSelection destination: HexCoordinate, availableEntities: [EntityNode])
     
@@ -77,6 +80,10 @@ protocol GameSceneDelegate: AnyObject {
 
 extension GameSceneDelegate {
     // Default implementations for optional methods
+
+    func gameScene(_ scene: GameScene, didRequestUnexploredTileMenu coordinate: HexCoordinate) {
+        // Default: no-op
+    }
 
     func gameScene(_ scene: GameScene, didSelectEntity entity: EntityNode, at coordinate: HexCoordinate) {
         // Default: no-op

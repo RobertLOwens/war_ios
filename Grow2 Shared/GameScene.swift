@@ -50,6 +50,13 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     var mapSize: Int = 20
     var resourceDensity: Double = 1.0
     var movementPathRenderer: MovementPathRenderer!
+
+    // Drag-to-move gesture state
+    var dragStartCoordinate: HexCoordinate?
+    var dragSourceEntity: EntityNode?
+    var isDragging: Bool = false
+    var dragPathPreview: SKShapeNode?
+    let dragThreshold: CGFloat = 20
     var showMergeOption: ((EntityNode, EntityNode) -> Void)?
     weak var gameDelegate: GameSceneDelegate?
     var lastUpdateTime: TimeInterval?
@@ -458,6 +465,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // Update building placement controller references
         updateBuildingPlacementControllerReferences()
         updateReinforcementManagerReferences()
+        updateVillagerJoinManagerReferences()
 
         print("Arabia map generated!")
         print("   Map size: \(generator.width)x\(generator.height)")
@@ -1143,17 +1151,76 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
-        lastTouchPosition = touch.location(in: self)
+        let location = touch.location(in: self)
+        lastTouchPosition = location
+
+        // Check if touch starts on a tile with player-owned, non-moving entity
+        if let coordinate = getTileCoordinate(at: location),
+           let entity = hexMap?.getEntity(at: coordinate),
+           entity.entity.owner?.id == player?.id,
+           !entity.isMoving {
+            // Check entity is not in combat (for armies)
+            if let army = entity.armyReference {
+                guard !GameEngine.shared.combatEngine.isInCombat(armyID: army.id) else { return }
+            }
+            dragStartCoordinate = coordinate
+            dragSourceEntity = entity
+        }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Panning is handled by gesture recognizer
-        // This is kept for compatibility but doesn't do camera movement
+        guard let touch = touches.first,
+              let startPos = lastTouchPosition,
+              let sourceEntity = dragSourceEntity,
+              let startCoord = dragStartCoordinate else { return }
+
+        let currentPos = touch.location(in: self)
+        let distance = hypot(currentPos.x - startPos.x, currentPos.y - startPos.y)
+
+        // Enter drag mode if distance exceeds threshold
+        if distance > dragThreshold && !isDragging {
+            isDragging = true
+        }
+
+        if isDragging {
+            // Calculate path to current tile under touch
+            if let destCoord = getTileCoordinate(at: currentPos),
+               destCoord != startCoord {
+                if let path = hexMap?.findPath(from: startCoord, to: destCoord) {
+                    updateDragPathPreview(from: startCoord, path: path)
+                } else {
+                    clearDragPathPreview()
+                }
+            } else {
+                clearDragPathPreview()
+            }
+        }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
+
+        // Handle drag-to-move completion
+        if isDragging, let sourceEntity = dragSourceEntity, let startCoord = dragStartCoordinate {
+            clearDragPathPreview()
+
+            if let destCoord = getTileCoordinate(at: location), destCoord != startCoord {
+                executeDragMove(entity: sourceEntity, to: destCoord)
+            }
+
+            // Reset drag state
+            isDragging = false
+            dragSourceEntity = nil
+            dragStartCoordinate = nil
+            lastTouchPosition = nil
+            return
+        }
+
+        // Reset drag state
+        isDragging = false
+        dragSourceEntity = nil
+        dragStartCoordinate = nil
 
         // Only handle as tap if not panning (gesture recognizer sets isPanning)
         if !isPanning {
@@ -1164,9 +1231,98 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Clean up drag state
+        clearDragPathPreview()
+        isDragging = false
+        dragSourceEntity = nil
+        dragStartCoordinate = nil
         lastTouchPosition = nil
     }
-    
+
+    // MARK: - Drag-to-Move Helpers
+
+    /// Converts a touch point to a hex coordinate
+    func getTileCoordinate(at point: CGPoint) -> HexCoordinate? {
+        let nodesAtPoint = nodes(at: point)
+        for node in nodesAtPoint {
+            if let hexTile = node as? HexTileNode {
+                return hexTile.coordinate
+            }
+        }
+        return nil
+    }
+
+    /// Draws a cyan path preview line during drag
+    func updateDragPathPreview(from start: HexCoordinate, path: [HexCoordinate]) {
+        clearDragPathPreview()
+
+        guard !path.isEmpty else { return }
+
+        let bezierPath = UIBezierPath()
+        let startPos = HexMap.hexToPixel(q: start.q, r: start.r)
+        bezierPath.move(to: startPos)
+
+        for coord in path {
+            let pos = HexMap.hexToPixel(q: coord.q, r: coord.r)
+            bezierPath.addLine(to: pos)
+        }
+
+        let shapeNode = SKShapeNode(path: bezierPath.cgPath)
+        shapeNode.strokeColor = UIColor(red: 0.0, green: 0.8, blue: 1.0, alpha: 0.8)  // Cyan
+        shapeNode.lineWidth = 4
+        shapeNode.lineCap = .round
+        shapeNode.lineJoin = .round
+        shapeNode.zPosition = 150
+        shapeNode.name = "dragPathPreview"
+
+        // Add a glow effect
+        shapeNode.glowWidth = 2
+
+        addChild(shapeNode)
+        dragPathPreview = shapeNode
+    }
+
+    /// Removes the drag path preview node
+    func clearDragPathPreview() {
+        dragPathPreview?.removeFromParent()
+        dragPathPreview = nil
+    }
+
+    /// Cancels any in-progress drag (called by camera controller)
+    func cancelDrag() {
+        clearDragPathPreview()
+        isDragging = false
+        dragSourceEntity = nil
+        dragStartCoordinate = nil
+    }
+
+    /// Executes a move command from a drag gesture
+    func executeDragMove(entity: EntityNode, to destination: HexCoordinate) {
+        guard let player = player else { return }
+
+        // Check if destination is unexplored and show warning
+        let visibility = player.getVisibilityLevel(at: destination)
+        if visibility == .unexplored {
+            // Show confirmation for unexplored move
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Scout Unknown Area?",
+                message: "Moving to unexplored territory. Your unit will reveal the fog of war as it travels.")
+        }
+
+        let command = MoveCommand(
+            playerID: player.id,
+            entityID: entity.entity.id,
+            destination: destination
+        )
+
+        let result = CommandExecutor.shared.execute(command)
+
+        if !result.succeeded, let reason = result.failureReason {
+            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: reason)
+        }
+
+        deselectAll()
+    }
+
     func handleTouch(at location: CGPoint) {
         let nodesAtPoint = nodes(at: location)
 
@@ -1210,14 +1366,29 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 if visibility == .visible || visibility == .explored {
                     selectTile(hexTile)
                     return
-                } else {
-                    print("❌ Cannot interact with unexplored tile at (\(hexTile.coordinate.q), \(hexTile.coordinate.r))")
+                } else if visibility == .unexplored {
+                    // Allow selecting unexplored tiles for movement (scouting)
+                    selectUnexploredTile(hexTile)
                     return
                 }
             }
         }
 
         print("❌ No HexTileNode found in touch")
+    }
+
+    /// Selects an unexplored tile for potential movement/scouting
+    func selectUnexploredTile(_ tile: HexTileNode) {
+        selectedTile?.isSelected = false
+        selectedEntity = nil
+
+        tile.isSelected = true
+        selectedTile = tile
+
+        print("Selected unexplored tile at q:\(tile.coordinate.q), r:\(tile.coordinate.r)")
+
+        // Request unexplored tile menu via delegate
+        gameDelegate?.gameScene(self, didRequestUnexploredTileMenu: tile.coordinate)
     }
 
     // MARK: - Building Placement Mode

@@ -325,8 +325,8 @@ struct GameStatistics {
         stats.buildingsBuilt = player.buildings.count
 
         // Resources (sum of current resources as approximation)
-        for (_, amount) in player.resources {
-            stats.totalResourcesGathered += amount
+        for resourceType in ResourceType.allCases {
+            stats.totalResourcesGathered += player.getResource(resourceType)
         }
 
         // Population

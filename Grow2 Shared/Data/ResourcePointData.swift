@@ -5,6 +5,11 @@
 
 import Foundation
 
+// MARK: - Type Alias for Backward Compatibility
+
+/// Alias for backward compatibility - use ResourcePointTypeData directly in new code
+typealias ResourcePointType = ResourcePointTypeData
+
 // MARK: - Resource Point Type Data
 
 /// Pure data representation of resource point types
@@ -30,6 +35,20 @@ enum ResourcePointTypeData: String, Codable, CaseIterable {
         case .deerCarcass: return "Deer Carcass"
         case .boarCarcass: return "Boar Carcass"
         case .farmland: return "Farmland"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .trees: return "🌲"
+        case .forage: return "🍄"
+        case .oreMine: return "⛏️"
+        case .stoneQuarry: return "🪨"
+        case .deer: return "🦌"
+        case .wildBoar: return "🐗"
+        case .deerCarcass: return "🥩"
+        case .boarCarcass: return "🥩"
+        case .farmland: return "🌾"
         }
     }
 
@@ -107,6 +126,15 @@ enum ResourcePointTypeData: String, Codable, CaseIterable {
         }
     }
 
+    /// Required terrain for spawning
+    var requiredTerrain: TerrainData? {
+        switch self {
+        case .forage: return .plains
+        case .oreMine, .stoneQuarry: return .mountain
+        case .trees, .deer, .wildBoar, .boarCarcass, .deerCarcass, .farmland: return nil
+        }
+    }
+
     // Combat stats for huntable animals
     var attackPower: Double {
         switch self {
@@ -131,6 +159,9 @@ enum ResourcePointTypeData: String, Codable, CaseIterable {
         default: return 0
         }
     }
+
+    /// Alias for backward compatibility with legacy code
+    var health: Double { return maxHealth }
 
     var carcassType: ResourcePointTypeData? {
         switch self {

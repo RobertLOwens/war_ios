@@ -48,7 +48,7 @@ struct GatherCommand: GameCommand {
         // Check if resource requires a camp and if there's camp coverage
         if resource.resourceType.requiresCamp {
             guard context.hexMap.hasExtendedCampCoverage(at: resourceCoordinate, forResourceType: resource.resourceType) else {
-                let campName = resource.resourceType.requiredCampType?.displayName ?? "Camp"
+                let campName = resource.resourceType.requiredCampType?.capitalized.replacingOccurrences(of: "Camp", with: " Camp") ?? "Camp"
                 return .failure(reason: "No \(campName) in range. Build a \(campName) nearby or connect with roads.")
             }
         }

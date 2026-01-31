@@ -9,25 +9,82 @@ import Foundation
 
 /// Pure data representation of military unit types
 enum MilitaryUnitTypeData: String, Codable, CaseIterable {
-    case swordsman
-    case archer
-    case crossbow
-    case pikeman
-    case knight
-    case heavyCavalry
-    case mangonel
-    case trebuchet
+    case swordsman = "Swordsman"
+    case archer = "Archer"
+    case crossbow = "Crossbow"
+    case pikeman = "Pikeman"
+    case scout = "Scout"
+    case knight = "Knight"
+    case heavyCavalry = "Heavy Cavalry"
+    case mangonel = "Mangonel"
+    case trebuchet = "Trebuchet"
 
     var displayName: String {
+        return rawValue
+    }
+
+    var icon: String {
         switch self {
-        case .swordsman: return "Swordsman"
-        case .archer: return "Archer"
-        case .crossbow: return "Crossbow"
-        case .pikeman: return "Pikeman"
-        case .knight: return "Knight"
-        case .heavyCavalry: return "Heavy Cavalry"
-        case .mangonel: return "Mangonel"
-        case .trebuchet: return "Trebuchet"
+        case .swordsman: return "🗡️"
+        case .pikeman: return "🔱"
+        case .archer: return "🏹"
+        case .crossbow: return "🎯"
+        case .scout: return "🐎"
+        case .knight: return "🐴"
+        case .heavyCavalry: return "🐴"
+        case .mangonel: return "⚙️"
+        case .trebuchet: return "🪨"
+        }
+    }
+
+    var moveSpeed: TimeInterval {
+        switch self {
+        case .swordsman: return 0.35
+        case .pikeman: return 0.40
+        case .archer: return 0.35
+        case .crossbow: return 0.38
+        case .scout: return 0.22  // Fast cavalry
+        case .knight: return 0.25
+        case .heavyCavalry: return 0.28
+        case .mangonel: return 0.50  // Slow siege
+        case .trebuchet: return 0.60  // Very slow siege
+        }
+    }
+
+    var attackSpeed: TimeInterval {
+        switch self {
+        case .swordsman: return 1.0    // Standard melee
+        case .pikeman: return 1.2      // Slower heavy weapon
+        case .archer: return 0.8       // Fast ranged
+        case .crossbow: return 1.5     // Slow reload
+        case .scout: return 0.7        // Fast light cavalry
+        case .knight: return 1.1       // Heavy cavalry
+        case .heavyCavalry: return 1.2
+        case .mangonel: return 2.5     // Slow siege
+        case .trebuchet: return 4.0    // Very slow siege
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .swordsman:
+            return "Balanced melee infantry unit with good armor"
+        case .pikeman:
+            return "Anti-cavalry infantry with bonus damage vs mounted units"
+        case .archer:
+            return "Ranged unit with pierce damage"
+        case .crossbow:
+            return "Heavy ranged unit with high pierce damage and armor"
+        case .scout:
+            return "Fast light cavalry for reconnaissance"
+        case .knight:
+            return "Powerful mounted unit with high melee damage"
+        case .heavyCavalry:
+            return "Very heavy mounted unit with devastating charge"
+        case .mangonel:
+            return "Siege weapon with bludgeon damage, effective vs buildings"
+        case .trebuchet:
+            return "Long-range siege weapon, devastating vs buildings"
         }
     }
 
@@ -35,7 +92,7 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
         switch self {
         case .swordsman, .pikeman: return .infantry
         case .archer, .crossbow: return .ranged
-        case .knight, .heavyCavalry: return .cavalry
+        case .scout, .knight, .heavyCavalry: return .cavalry
         case .mangonel, .trebuchet: return .siege
         }
     }
@@ -67,6 +124,12 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
                 meleeArmor: 4, pierceArmor: 3, bludgeonArmor: 3,
                 bonusVsInfantry: 0, bonusVsCavalry: 15, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
             )
+        case .scout:
+            return UnitCombatStatsData(
+                meleeDamage: 6, pierceDamage: 0, bludgeonDamage: 0,
+                meleeArmor: 3, pierceArmor: 6, bludgeonArmor: 0,
+                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
+            )
         case .knight:
             return UnitCombatStatsData(
                 meleeDamage: 14, pierceDamage: 0, bludgeonDamage: 0,
@@ -97,14 +160,15 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
     /// Hit points for this unit type
     var hp: Double {
         switch self {
-        case .swordsman:  return 120  // Tanky infantry
-        case .archer:     return 70   // Fragile ranged
-        case .crossbow:   return 85   // Armored ranged
-        case .pikeman:    return 100  // Standard infantry
-        case .knight:     return 140  // Heavy cavalry
-        case .heavyCavalry: return 160 // Very heavy cavalry
-        case .mangonel:   return 150  // Siege - tanky but slow
-        case .trebuchet:  return 180  // Heavy siege
+        case .swordsman:    return 120  // Tanky infantry
+        case .archer:       return 70   // Fragile ranged
+        case .crossbow:     return 85   // Armored ranged
+        case .pikeman:      return 100  // Standard infantry
+        case .scout:        return 80   // Light cavalry
+        case .knight:       return 140  // Heavy cavalry
+        case .heavyCavalry: return 160  // Very heavy cavalry
+        case .mangonel:     return 150  // Siege - tanky but slow
+        case .trebuchet:    return 180  // Heavy siege
         }
     }
 
@@ -114,6 +178,7 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
         case .archer: return 12
         case .crossbow: return 18
         case .pikeman: return 14
+        case .scout: return 18
         case .knight: return 25
         case .heavyCavalry: return 35
         case .mangonel: return 45
@@ -127,6 +192,7 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
         case .archer: return [.food: 40, .wood: 30]
         case .crossbow: return [.food: 50, .wood: 40, .ore: 20]
         case .pikeman: return [.food: 45, .wood: 20, .ore: 15]
+        case .scout: return [.food: 60, .ore: 20]
         case .knight: return [.food: 80, .ore: 60]
         case .heavyCavalry: return [.food: 100, .ore: 80]
         case .mangonel: return [.food: 60, .wood: 100, .ore: 40]
@@ -134,12 +200,12 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
         }
     }
 
-    var trainingBuilding: String {
+    var trainingBuilding: BuildingType {
         switch self {
-        case .swordsman, .pikeman: return "barracks"
-        case .archer, .crossbow: return "archeryRange"
-        case .knight, .heavyCavalry: return "stable"
-        case .mangonel, .trebuchet: return "siegeWorkshop"
+        case .swordsman, .pikeman: return .barracks
+        case .archer, .crossbow: return .archeryRange
+        case .scout, .knight, .heavyCavalry: return .stable
+        case .mangonel, .trebuchet: return .siegeWorkshop
         }
     }
 }
@@ -468,6 +534,61 @@ class ArmyData: Codable {
     }
 }
 
+// MARK: - Commander Specialty Data
+
+/// Type alias for backward compatibility
+typealias CommanderSpecialty = CommanderSpecialtyData
+
+enum CommanderSpecialtyData: String, Codable, CaseIterable {
+    case infantry = "Infantry"
+    case cavalry = "Cavalry"
+    case ranged = "Ranged"
+    case siege = "Siege"
+    case defensive = "Defensive"
+    case logistics = "Logistics"
+
+    var displayName: String {
+        return rawValue
+    }
+
+    var icon: String {
+        switch self {
+        case .infantry: return "🗡️"
+        case .cavalry: return "🐴"
+        case .ranged: return "🏹"
+        case .siege: return "🎯"
+        case .defensive: return "🛡️"
+        case .logistics: return "📦"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .infantry: return "Bonus to infantry attack and defense"
+        case .cavalry: return "Bonus to cavalry speed and attack"
+        case .ranged: return "Bonus to ranged unit damage and range"
+        case .siege: return "Bonus to siege weapons and building damage"
+        case .defensive: return "Bonus to all unit defense"
+        case .logistics: return "Reduced movement time and resource costs"
+        }
+    }
+
+    func getBonus(for category: UnitCategoryData) -> Double {
+        switch (self, category) {
+        case (.infantry, .infantry):
+            return 0.20  // +20% to infantry units
+        case (.cavalry, .cavalry):
+            return 0.25  // +25% to cavalry units
+        case (.ranged, .ranged):
+            return 0.20  // +20% to ranged units
+        case (.siege, .siege):
+            return 0.25  // +25% to siege units
+        default:
+            return 0.0
+        }
+    }
+}
+
 // MARK: - Commander Data
 
 /// Pure data representation of a commander
@@ -478,68 +599,267 @@ class CommanderData: Codable {
     var assignedArmyID: UUID?
 
     var level: Int = 1
-    var experience: Double = 0.0
+    var experience: Int = 0
 
-    var specialty: UnitCategoryData?
-    var rank: CommanderRankData = .captain
+    var specialty: CommanderSpecialtyData
+    var rank: CommanderRankData = .recruit
 
-    init(id: UUID = UUID(), name: String, ownerID: UUID? = nil) {
+    // Base stats (set at creation)
+    let baseLeadership: Int
+    let baseTactics: Int
+
+    // Stamina system
+    var stamina: Double = 100.0
+    var lastStaminaUpdateTime: TimeInterval = 0
+
+    static let maxStamina: Double = 100.0
+    static let staminaCostPerCommand: Double = 5.0
+    static let staminaRegenPerSecond: Double = 1.0 / 60.0
+
+    // Portrait color stored as hex
+    var portraitColorHex: String = "#0000FF"
+
+    init(id: UUID = UUID(), name: String, specialty: CommanderSpecialtyData, baseLeadership: Int = 10, baseTactics: Int = 10, ownerID: UUID? = nil) {
         self.id = id
         self.name = name
+        self.specialty = specialty
+        self.baseLeadership = baseLeadership
+        self.baseTactics = baseTactics
         self.ownerID = ownerID
+        self.lastStaminaUpdateTime = Date().timeIntervalSince1970
     }
 
-    func getAttackBonus(for category: UnitCategoryData) -> Double {
-        var bonus = rank.baseAttackBonus
+    // MARK: - Computed Stats
 
-        if let specialty = specialty, specialty == category {
-            bonus += 0.1  // 10% bonus for specialty
+    var leadership: Int {
+        return baseLeadership + (level - 1) * 2
+    }
+
+    var tactics: Int {
+        return baseTactics + (level - 1) * 2
+    }
+
+    var staminaPercentage: Double {
+        return stamina / CommanderData.maxStamina
+    }
+
+    // MARK: - Stamina Management
+
+    func hasEnoughStamina(cost: Double = CommanderData.staminaCostPerCommand) -> Bool {
+        return stamina >= cost
+    }
+
+    @discardableResult
+    func consumeStamina(cost: Double = CommanderData.staminaCostPerCommand) -> Bool {
+        guard hasEnoughStamina(cost: cost) else { return false }
+        stamina = max(0, stamina - cost)
+        return true
+    }
+
+    func regenerateStamina(currentTime: TimeInterval) {
+        guard lastStaminaUpdateTime > 0 else {
+            lastStaminaUpdateTime = currentTime
+            return
         }
 
-        return bonus
+        let elapsed = currentTime - lastStaminaUpdateTime
+        let regenAmount = elapsed * CommanderData.staminaRegenPerSecond
+
+        if stamina < CommanderData.maxStamina {
+            stamina = min(CommanderData.maxStamina, stamina + regenAmount)
+        }
+
+        lastStaminaUpdateTime = currentTime
+    }
+
+    func setStamina(_ value: Double, lastUpdateTime: TimeInterval) {
+        stamina = min(CommanderData.maxStamina, max(0, value))
+        lastStaminaUpdateTime = lastUpdateTime
+    }
+
+    // MARK: - Experience and Leveling
+
+    func addExperience(_ amount: Int) {
+        experience += amount
+        checkLevelUp()
+    }
+
+    private func checkLevelUp() {
+        let requiredXP = level * 100
+        if experience >= requiredXP {
+            level += 1
+            experience -= requiredXP
+            checkRankPromotion()
+        }
+    }
+
+    private func checkRankPromotion() {
+        let newRank: CommanderRankData?
+
+        switch level {
+        case 5: newRank = .sergeant
+        case 10: newRank = .captain
+        case 15: newRank = .major
+        case 20: newRank = .colonel
+        case 25: newRank = .general
+        default: newRank = nil
+        }
+
+        if let newRank = newRank, newRank.maxArmySize > rank.maxArmySize {
+            rank = newRank
+        }
+    }
+
+    // MARK: - Combat Bonuses
+
+    func getAttackBonus(for category: UnitCategoryData) -> Double {
+        let specialtyBonus = specialty.getBonus(for: category)
+        let rankBonus = rank.leadershipBonus
+        let levelBonus = Double(level) * 0.01
+        return specialtyBonus + rankBonus + levelBonus
     }
 
     func getDefenseBonus() -> Double {
-        return rank.baseDefenseBonus
+        let rankBonus = rank.leadershipBonus
+        let levelBonus = Double(level) * 0.01
+
+        if specialty == .defensive {
+            return rankBonus + levelBonus + 0.15
+        }
+
+        return rankBonus + levelBonus
+    }
+
+    func getSpeedBonus() -> Double {
+        if specialty == .logistics {
+            return 0.20
+        }
+        return 0.0
+    }
+
+    // MARK: - Codable
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, ownerID, assignedArmyID
+        case level, experience
+        case specialty, rank
+        case baseLeadership, baseTactics
+        case stamina, lastStaminaUpdateTime
+        case portraitColorHex
     }
 }
 
 // MARK: - Commander Rank Data
 
-enum CommanderRankData: String, Codable {
-    case captain
-    case major
-    case colonel
-    case general
-    case marshal
+/// Type alias for backward compatibility
+typealias CommanderRank = CommanderRankData
+
+enum CommanderRankData: String, Codable, CaseIterable {
+    case recruit = "Recruit"
+    case sergeant = "Sergeant"
+    case captain = "Captain"
+    case major = "Major"
+    case colonel = "Colonel"
+    case general = "General"
+
+    var displayName: String {
+        return rawValue
+    }
+
+    var icon: String {
+        switch self {
+        case .recruit: return "⭐"
+        case .sergeant: return "⭐⭐"
+        case .captain: return "⭐⭐⭐"
+        case .major: return "🎖️"
+        case .colonel: return "🎖️🎖️"
+        case .general: return "👑"
+        }
+    }
 
     var maxArmySize: Int {
         switch self {
-        case .captain: return 200
-        case .major: return 400
-        case .colonel: return 600
-        case .general: return 800
-        case .marshal: return 1000
+        case .recruit: return 50
+        case .sergeant: return 100
+        case .captain: return 150
+        case .major: return 200
+        case .colonel: return 300
+        case .general: return 500
+        }
+    }
+
+    var leadershipBonus: Double {
+        switch self {
+        case .recruit: return 0.0
+        case .sergeant: return 0.05
+        case .captain: return 0.10
+        case .major: return 0.15
+        case .colonel: return 0.20
+        case .general: return 0.30
         }
     }
 
     var baseAttackBonus: Double {
-        switch self {
-        case .captain: return 0.05
-        case .major: return 0.10
-        case .colonel: return 0.15
-        case .general: return 0.20
-        case .marshal: return 0.25
-        }
+        return leadershipBonus
     }
 
     var baseDefenseBonus: Double {
         switch self {
-        case .captain: return 0.03
-        case .major: return 0.06
-        case .colonel: return 0.09
-        case .general: return 0.12
-        case .marshal: return 0.15
+        case .recruit: return 0.0
+        case .sergeant: return 0.02
+        case .captain: return 0.05
+        case .major: return 0.08
+        case .colonel: return 0.12
+        case .general: return 0.18
         }
+    }
+}
+
+// MARK: - Training Queue Entry Data
+
+/// Pure data representation of a military unit training queue entry
+struct TrainingQueueEntryData: Codable {
+    let id: UUID
+    let unitType: MilitaryUnitTypeData
+    let quantity: Int
+    let startTime: TimeInterval
+    var progress: Double = 0.0
+
+    init(unitType: MilitaryUnitTypeData, quantity: Int, startTime: TimeInterval) {
+        self.id = UUID()
+        self.unitType = unitType
+        self.quantity = quantity
+        self.startTime = startTime
+    }
+
+    func getProgress(currentTime: TimeInterval, trainingSpeedMultiplier: Double = 1.0) -> Double {
+        let elapsed = currentTime - startTime
+        let baseTime = unitType.trainingTime * Double(quantity)
+        let totalTime = baseTime / trainingSpeedMultiplier
+        return min(1.0, elapsed / totalTime)
+    }
+}
+
+// MARK: - Villager Training Entry Data
+
+/// Pure data representation of a villager training queue entry
+struct VillagerTrainingEntryData: Codable {
+    let id: UUID
+    let quantity: Int
+    let startTime: TimeInterval
+    var progress: Double = 0.0
+
+    static let trainingTimePerVillager: TimeInterval = 10.0
+
+    init(quantity: Int, startTime: TimeInterval) {
+        self.id = UUID()
+        self.quantity = quantity
+        self.startTime = startTime
+    }
+
+    func getProgress(currentTime: TimeInterval) -> Double {
+        let elapsed = currentTime - startTime
+        let totalTime = VillagerTrainingEntryData.trainingTimePerVillager * Double(quantity)
+        return min(1.0, elapsed / totalTime)
     }
 }

@@ -425,6 +425,16 @@ class SidePanelViewController: UIViewController {
         }
     }
 
+    /// Updates the warning label with custom text and optional color
+    func updateWarningLabel(text: String, color: UIColor? = nil) {
+        warningLabel.text = text
+        if let color = color {
+            warningLabel.textColor = color
+        } else {
+            warningLabel.textColor = UIColor.systemOrange
+        }
+    }
+
     /// Clears the warning label
     func clearWarningLabel() {
         warningLabel.text = ""

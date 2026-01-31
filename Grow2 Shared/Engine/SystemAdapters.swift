@@ -1,6 +1,7 @@
 // ============================================================================
 // FILE: Grow2 Shared/Engine/SystemAdapters.swift
 // PURPOSE: Adapters that bridge existing systems with the new engine architecture
+// NOTE: With unified types (via TypeAliases.swift), conversion is now simplified
 // ============================================================================
 
 import Foundation
@@ -32,11 +33,9 @@ class CombatDataAdapter {
             ownerID: army.owner?.id
         )
 
-        // Copy composition
+        // Types are now unified, copy directly
         for (unitType, count) in army.militaryComposition {
-            if let dataType = MilitaryUnitTypeData(rawValue: unitType.rawValue) {
-                armyData.addMilitaryUnits(dataType, count: count)
-            }
+            armyData.addMilitaryUnits(unitType, count: count)
         }
 
         armyData.isRetreating = army.isRetreating
@@ -48,7 +47,7 @@ class CombatDataAdapter {
 
     /// Convert ArmyData (pure data) back to update an Army (visual)
     func updateArmy(_ army: Army, from armyData: ArmyData) {
-        // Update composition
+        // Clear existing composition
         for unitType in MilitaryUnitType.allCases {
             let current = army.getMilitaryUnitCount(ofType: unitType)
             if current > 0 {
@@ -56,10 +55,9 @@ class CombatDataAdapter {
             }
         }
 
-        for (dataType, count) in armyData.militaryComposition {
-            if let unitType = MilitaryUnitType(rawValue: dataType.rawValue) {
-                army.addMilitaryUnits(unitType, count: count)
-            }
+        // Types are now unified, copy directly
+        for (unitType, count) in armyData.militaryComposition {
+            army.addMilitaryUnits(unitType, count: count)
         }
 
         army.isRetreating = armyData.isRetreating
@@ -105,15 +103,11 @@ class ResourceSystemAdapter {
 
     /// Convert ResourcePointNode (visual) to ResourcePointData (pure data)
     func convertToResourcePointData(_ node: ResourcePointNode) -> ResourcePointData {
-        guard let dataType = ResourcePointTypeData(rawValue: node.resourceType.rawValue) else {
-            // Fallback
-            return ResourcePointData(coordinate: node.coordinate, resourceType: .trees)
-        }
-
+        // Types are now unified, use directly
         let data = ResourcePointData(
-            id: UUID(),  // Generate new ID since nodes don't have IDs currently
+            id: UUID(),
             coordinate: node.coordinate,
-            resourceType: dataType
+            resourceType: node.resourceType
         )
         data.setRemainingAmount(node.remainingAmount)
         data.setCurrentHealth(node.currentHealth)
@@ -143,39 +137,11 @@ class ResourceSystemAdapter {
             ownerID: group.owner?.id
         )
 
-        // Convert task
-        data.currentTask = convertTask(group.currentTask)
+        // Convert visual task to data task
+        data.currentTask = group.currentTask.toTaskData()
         data.taskTargetCoordinate = group.taskTarget
 
         return data
-    }
-
-    /// Convert VillagerTask to VillagerTaskData
-    func convertTask(_ task: VillagerTask) -> VillagerTaskData {
-        switch task {
-        case .idle:
-            return .idle
-        case .building(let building):
-            return .building(buildingID: building.data.id)
-        case .gathering(let resourceType):
-            if let dataType = ResourceTypeData(rawValue: resourceType.rawValue) {
-                return .gathering(resourceType: dataType)
-            }
-            return .idle
-        case .gatheringResource(let resourcePoint):
-            // Would need resource point ID mapping
-            return .idle
-        case .hunting(let resourcePoint):
-            return .idle
-        case .repairing(let building):
-            return .repairing(buildingID: building.data.id)
-        case .moving(let coord):
-            return .moving(targetCoordinate: coord)
-        case .upgrading(let building):
-            return .upgrading(buildingID: building.data.id)
-        case .demolishing(let building):
-            return .demolishing(buildingID: building.data.id)
-        }
     }
 
     /// Update VillagerGroup from VillagerGroupData
@@ -195,60 +161,57 @@ class ResourceSystemAdapter {
 // MARK: - Player State Adapter
 
 /// Bridges Player (visual) with PlayerState (pure data)
+/// Note: Player now holds a PlayerState directly, so this adapter is simpler.
+/// The main role is to sync entity ownership IDs from the visual layer to the data layer.
 class PlayerStateAdapter {
 
-    /// Convert Player to PlayerState
+    /// Get PlayerState from Player, syncing entity ownership IDs
     static func convertToPlayerState(_ player: Player) -> PlayerState {
-        // Convert color to hex string
-        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-        player.color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        let colorHex = String(format: "#%02X%02X%02X", Int(red * 255), Int(green * 255), Int(blue * 255))
+        let state = player.state
 
-        let state = PlayerState(id: player.id, name: player.name, colorHex: colorHex)
-
-        // Copy resources
-        for resourceType in ResourceType.allCases {
-            if let dataType = ResourceTypeData(rawValue: resourceType.rawValue) {
-                state.setResource(dataType, amount: player.getResource(resourceType))
-                state.setCollectionRate(dataType, rate: player.getCollectionRate(resourceType))
-            }
-        }
-
-        // Copy entity ownership
-        for building in player.buildings {
-            state.addOwnedBuilding(building.data.id)
-        }
-
-        for army in player.armies {
-            state.addOwnedArmy(army.id)
-        }
-
-        for group in player.getVillagerGroups() {
-            state.addOwnedVillagerGroup(group.id)
-        }
-
-        for commander in player.commanders {
-            state.addOwnedCommander(commander.id)
-        }
-
-        // Copy diplomacy
-        for (playerID, status) in player.diplomacyRelations {
-            if let dataStatus = DiplomacyStatusData(rawValue: status.rawValue) {
-                state.setDiplomacyStatus(with: playerID, status: dataStatus)
-            }
-        }
+        // Sync entity ownership IDs from visual layer to data layer
+        // Clear and rebuild to ensure consistency
+        syncEntityOwnership(player: player, state: state)
 
         return state
     }
 
-    /// Update Player from PlayerState
+    /// Sync entity ownership IDs from Player's visual objects to PlayerState
+    static func syncEntityOwnership(player: Player, state: PlayerState) {
+        // Sync building IDs
+        for building in player.buildings {
+            state.addOwnedBuilding(building.data.id)
+        }
+
+        // Sync army IDs
+        for army in player.armies {
+            state.addOwnedArmy(army.id)
+        }
+
+        // Sync villager group IDs
+        for group in player.getVillagerGroups() {
+            state.addOwnedVillagerGroup(group.id)
+        }
+
+        // Sync commander IDs
+        for commander in player.commanders {
+            state.addOwnedCommander(commander.id)
+        }
+    }
+
+    /// Update Player from a different PlayerState (e.g., when loading saves)
+    /// This replaces Player's internal state with the loaded one
     static func updatePlayer(_ player: Player, from state: PlayerState) {
-        // Update resources
-        for dataType in ResourceTypeData.allCases {
-            if let resourceType = ResourceType(rawValue: dataType.rawValue) {
-                player.setResource(resourceType, amount: state.getResource(dataType))
-                player.setCollectionRate(resourceType, rate: state.getCollectionRate(dataType))
-            }
+        // Resources and rates are now managed by player.state
+        // If we need to load from a different state, copy the values
+        for resourceType in ResourceType.allCases {
+            player.state.setResource(resourceType, amount: state.getResource(resourceType))
+            player.state.setCollectionRate(resourceType, rate: state.getCollectionRate(resourceType))
+        }
+
+        // Copy diplomacy relations
+        for (playerID, status) in state.diplomacyRelations {
+            player.state.setDiplomacyStatus(with: playerID, status: status)
         }
     }
 }
@@ -262,16 +225,14 @@ class MapDataAdapter {
     static func convertToMapData(_ hexMap: HexMap) -> MapData {
         let mapData = MapData(width: hexMap.width, height: hexMap.height)
 
-        // Convert tiles
+        // Types are now unified, copy directly
         for (coord, tile) in hexMap.tiles {
-            if let terrainData = TerrainData(rawValue: tile.terrain.rawValue) {
-                let tileData = TileData(
-                    coordinate: coord,
-                    terrain: terrainData,
-                    elevation: tile.elevation
-                )
-                mapData.setTile(tileData)
-            }
+            let tileData = TileData(
+                coordinate: coord,
+                terrain: tile.terrain,
+                elevation: tile.elevation
+            )
+            mapData.setTile(tileData)
         }
 
         return mapData
@@ -295,11 +256,6 @@ class MapDataAdapter {
             } else if let villagerGroup = entity.entity as? VillagerGroup {
                 mapData.registerVillagerGroup(id: villagerGroup.id, at: entity.coordinate)
             }
-        }
-
-        // Sync resource point positions
-        for resource in hexMap.resourcePoints {
-            // Would need ID mapping for resource points
         }
     }
 }

@@ -293,14 +293,15 @@ class MenuCoordinator {
         // -------------------------
         // MARK: - Movement Action
         // -------------------------
-        if visibility == .visible || visibility == .explored {
+        if visibility == .visible || visibility == .explored || visibility == .unexplored {
             let hasHostileEntities = entitiesAtTile.contains { entity in
                 let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
                 return diplomacyStatus == .neutral || diplomacyStatus == .enemy
             }
 
             if !hasHostileEntities {
-                actions.append(AlertAction(title: "🚶 Move Unit Here", style: .default) { [weak self] in
+                let moveTitle = visibility == .unexplored ? "🔭 Scout This Location" : "🚶 Move Unit Here"
+                actions.append(AlertAction(title: moveTitle, style: .default) { [weak self] in
                     self?.gameScene?.initiateMove(to: coordinate)
                 })
             } else {
@@ -321,7 +322,38 @@ class MenuCoordinator {
             }
         )
     }
-    
+
+    // MARK: - Unexplored Tile Menu
+
+    /// Shows a simplified menu for unexplored tiles with only move/scout option
+    func showUnexploredTileMenu(for coordinate: HexCoordinate) {
+        guard let vc = viewController,
+              let hexMap = hexMap else { return }
+
+        var title = "Unexplored Area"
+        var message = "🌫️ This area has not been explored.\n\nSend a unit to reveal what lies here."
+
+        // Check terrain if available
+        if let tile = hexMap.getTile(at: coordinate) {
+            message = "🗺️ \(tile.terrain.displayName)\n\n🌫️ This area has not been explored.\n\nSend a unit to reveal what lies here."
+        }
+
+        var actions: [AlertAction] = []
+
+        actions.append(AlertAction(title: "🔭 Scout This Location", style: .default) { [weak self] in
+            self?.gameScene?.initiateMove(to: coordinate)
+        })
+
+        vc.showActionSheet(
+            title: title,
+            message: message,
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+
     // MARK: - Entity Selection Menus
 
     func showEntityActionMenu(for entity: EntityNode, at coordinate: HexCoordinate) {
@@ -419,10 +451,15 @@ class MenuCoordinator {
             e1.coordinate.distance(to: coordinate) < e2.coordinate.distance(to: coordinate)
         }
 
+        // Check if destination is unexplored
+        let visibility = player.getVisibilityLevel(at: coordinate)
+        let isUnexplored = (visibility == .unexplored)
+
         // Present the MoveEntityPanelViewController
         let panelVC = MoveEntityPanelViewController()
         panelVC.destinationCoordinate = coordinate
         panelVC.availableEntities = sortedEntities
+        panelVC.isDestinationUnexplored = isUnexplored
         panelVC.hexMap = hexMap
         panelVC.gameScene = gameScene
         panelVC.player = player
@@ -1726,13 +1763,8 @@ class MenuCoordinator {
                     if gameScene.isEngineEnabled {
                         // Create resource point data in engine state
                         if let engineState = gameScene.engineGameState {
-                            // Add carcass to engine state
-                            let carcassData = ResourcePointData(
-                                coordinate: carcass.coordinate,
-                                resourceType: ResourcePointTypeData(rawValue: carcass.resourceType.rawValue) ?? .deerCarcass
-                            )
-                            carcassData.setRemainingAmount(carcass.remainingAmount)
-                            engineState.addResourcePoint(carcassData)
+                            // Add carcass to engine state using its existing data (preserves ID)
+                            engineState.addResourcePoint(carcass.data)
 
                             // Ensure villager group exists in engine state (may have been created after init)
                             if engineState.getVillagerGroup(id: villagerGroup.id) == nil {
@@ -1747,11 +1779,17 @@ class MenuCoordinator {
                                 print("➕ Added VillagerGroupData to engine for \(villagerGroup.name)")
                             }
 
-                            // Start gathering in engine
+                            // Start gathering in engine using carcass's ID (matches visual layer)
                             GameEngine.shared.resourceEngine.startGathering(
                                 villagerGroupID: villagerGroup.id,
-                                resourcePointID: carcassData.id
+                                resourcePointID: carcass.id
                             )
+
+                            // Sync villager task state to engine's data layer
+                            if let groupData = engineState.getVillagerGroup(id: villagerGroup.id) {
+                                groupData.currentTask = .gatheringResource(resourcePointID: carcass.id)
+                                print("🔄 Synced VillagerGroupData task to gathering carcass \(carcass.id)")
+                            }
                         }
                     }
 

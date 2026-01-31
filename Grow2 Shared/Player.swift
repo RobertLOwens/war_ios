@@ -1,25 +1,19 @@
 import Foundation
 import UIKit
 
-// MARK: - Resource Type
+// MARK: - UIColor Hex Extension
 
-enum ResourceType: String, CaseIterable {
-    case wood
-    case food
-    case stone
-    case ore
-    
-    var displayName: String {
-        return rawValue.capitalized
-    }
-    
-    var icon: String {
-        switch self {
-        case .wood: return "🪵"
-        case .food: return "🌾"
-        case .stone: return "🪨"
-        case .ore: return "⛏️"
-        }
+extension UIColor {
+    func toHexString() -> String {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+
+        getRed(&r, green: &g, blue: &b, alpha: &a)
+
+        let rgb = (Int)(r * 255) << 16 | (Int)(g * 255) << 8 | (Int)(b * 255)
+        return String(format: "#%06x", rgb)
     }
 }
 
@@ -29,54 +23,40 @@ class Player {
     let id: UUID
     var name: String
     var color: UIColor
+
+    // MARK: - Data Layer (Single Source of Truth for State)
+    let state: PlayerState
+
+    // MARK: - Visual Layer Only
     private(set) var commanders: [Commander] = []
-    var diplomacyRelations: [UUID: DiplomacyStatus] = [:]
     var fogOfWar: FogOfWarManager?
 
-    
-    // Resource totals
-    private(set) var resources: [ResourceType: Int] = [
-        .wood: 1000,
-        .food: 1000,
-        .stone: 1000,
-        .ore: 1000
-    ]
-    
-    // Resource collection rates (per second)
-    private(set) var collectionRates: [ResourceType: Double] = [
-        .wood: 0,
-        .food: 0,
-        .stone: 0,
-        .ore: 0
-    ]
-    
     // Entities owned by this player (armies and villager groups)
     private(set) var entities: [MapEntity] = []
-    
+
     // Buildings owned by this player
     private(set) var buildings: [BuildingNode] = []
-    
-    // Resource accumulator for fractional amounts
-    private var resourceAccumulators: [ResourceType: Double] = [
-        .wood: 0.0,
-        .food: 0.0,
-        .stone: 0.0,
-        .ore: 0.0
-    ]
-    
-    // Last update time for resource generation
-    private var lastUpdateTime: TimeInterval?
+
     private(set) var armies: [Army] = []
-    
+
+    // Food consumption tracking (visual layer handles the tick-based consumption)
     private var foodConsumptionAccumulator: Double = 0.0
+    private var lastFoodUpdateTime: TimeInterval?
     static let foodConsumptionPerPop: Double = 0.1
 
     // MARK: - Initialization
-    
-    init(id: UUID = UUID(), name: String, color: UIColor) {
+
+    init(id: UUID = UUID(), name: String, color: UIColor, state: PlayerState? = nil) {
         self.id = id
         self.name = name
         self.color = color
+
+        // Use provided state or create new one
+        if let existingState = state {
+            self.state = existingState
+        } else {
+            self.state = PlayerState(id: id, name: name, colorHex: color.toHexString())
+        }
     }
 
 
@@ -101,48 +81,33 @@ class Player {
         return fogOfWar?.getVisibilityLevel(at: coord) ?? .unexplored
     }
     
-    // MARK: - Resource Management
-    
+    // MARK: - Resource Management (Delegates to PlayerState)
+
     func getResource(_ type: ResourceType) -> Int {
-        return resources[type] ?? 0
+        return state.getResource(type)
     }
-    
+
     func getCollectionRate(_ type: ResourceType) -> Double {
-        return collectionRates[type] ?? 0.0
+        return state.getCollectionRate(type)
     }
-    
+
     func addResource(_ type: ResourceType, amount: Int) {
-        let current = resources[type] ?? 0
         let capacity = getStorageCapacity(for: type)
-        
-        // Calculate how much space is available for this resource
-        let availableSpace = max(0, capacity - current)
-        
-        // Only add up to the available space
-        let actualAmount = min(amount, availableSpace)
-        
-        if actualAmount > 0 {
-            resources[type] = current + actualAmount
-        }
-        
+        let added = state.addResource(type, amount: amount, storageCapacity: capacity)
+
         // Log when resources are capped
-        if actualAmount < amount {
-            print("⚠️ \(type.displayName) storage full! Only added \(actualAmount)/\(amount). Cap: \(capacity)")
+        if added < amount {
+            print("⚠️ \(type.displayName) storage full! Only added \(added)/\(amount). Cap: \(capacity)")
         }
     }
-    
+
     @discardableResult
     func removeResource(_ type: ResourceType, amount: Int) -> Bool {
-        let current = resources[type] ?? 0
-        if current >= amount {
-            resources[type] = current - amount
-            return true
-        }
-        return false
+        return state.removeResource(type, amount: amount)
     }
-    
+
     func hasResource(_ type: ResourceType, amount: Int) -> Bool {
-        return getResource(type) >= amount
+        return state.hasResource(type, amount: amount)
     }
     
     func canAfford(_ buildingType: BuildingType) -> Bool {
@@ -185,58 +150,45 @@ class Player {
     }
     
     func modifyCollectionRate(_ type: ResourceType, multiplier: Double) {
-           let current = collectionRates[type] ?? 0.0
-           collectionRates[type] = max(0, current * multiplier)
-       }
-       
-   func multiplyCollectionRate(_ type: ResourceType, multiplier: Double) {
-       let current = collectionRates[type] ?? 0.0
-       let newRate = current * multiplier
-       collectionRates[type] = max(0, newRate)
-       print("🔨 \(type.displayName) rate: \(current)/s × \(multiplier) = \(newRate)/s")
-   }
-   
-   func increaseCollectionRate(_ type: ResourceType, amount: Double) {
-       let current = collectionRates[type] ?? 0.0
-       collectionRates[type] = max(0, current + amount)
-   }
+        let current = state.getCollectionRate(type)
+        state.setCollectionRate(type, rate: current * multiplier)
+    }
+
+    func multiplyCollectionRate(_ type: ResourceType, multiplier: Double) {
+        let current = state.getCollectionRate(type)
+        let newRate = current * multiplier
+        state.setCollectionRate(type, rate: newRate)
+        print("🔨 \(type.displayName) rate: \(current)/s × \(multiplier) = \(newRate)/s")
+    }
+
+    func increaseCollectionRate(_ type: ResourceType, amount: Double) {
+        state.increaseCollectionRate(type, amount: amount)
+    }
     
     func updateResources(currentTime: TimeInterval) {
-        guard let lastTime = lastUpdateTime else {
-            lastUpdateTime = currentTime
+        // Delegate resource generation to state
+        _ = state.updateResources(currentTime: currentTime) { [weak self] type in
+            return self?.getStorageCapacity(for: type) ?? 200
+        }
+
+        // Handle food consumption (visual layer manages the population-based calculation)
+        guard let lastTime = lastFoodUpdateTime else {
+            lastFoodUpdateTime = currentTime
             return
         }
-        
+
         let deltaTime = currentTime - lastTime
-        
-        // Generate resources based on rates
-        for type in ResourceType.allCases {
-            let rate = collectionRates[type] ?? 0.0
-            let generated = rate * deltaTime
-            
-            // Add to accumulator
-            resourceAccumulators[type] = (resourceAccumulators[type] ?? 0.0) + generated
-            
-            // Convert whole numbers to resources
-            let wholeAmount = Int(resourceAccumulators[type] ?? 0.0)
-            if wholeAmount > 0 {
-                addResource(type, amount: wholeAmount)
-                resourceAccumulators[type] = (resourceAccumulators[type] ?? 0.0) - Double(wholeAmount)
-            }
-        }
-        
         let foodConsumptionRate = getFoodConsumptionRate()
         let foodConsumed = foodConsumptionRate * deltaTime
-        
+
         foodConsumptionAccumulator += foodConsumed
         let wholeConsumption = Int(foodConsumptionAccumulator)
         if wholeConsumption > 0 {
-            let currentFood = resources[.food] ?? 0
-            resources[.food] = max(0, currentFood - wholeConsumption)
+            _ = state.removeResource(.food, amount: wholeConsumption)
             foodConsumptionAccumulator -= Double(wholeConsumption)
         }
-        
-        lastUpdateTime = currentTime
+
+        lastFoodUpdateTime = currentTime
     }
     
     // MARK: - Entity Management
@@ -374,33 +326,26 @@ class Player {
     
     func getDiplomacyStatus(with otherPlayer: Player?) -> DiplomacyStatus {
         guard let otherPlayer = otherPlayer else { return .neutral }
-        
-        // Check if this is the same player
-        if otherPlayer.id == self.id {
-            return .me
-        }
-        
-        // Check stored relations
-        return diplomacyRelations[otherPlayer.id] ?? .neutral
+        return state.getDiplomacyStatus(with: otherPlayer.id)
     }
 
     func setDiplomacyStatus(with otherPlayer: Player, status: DiplomacyStatus) {
-        diplomacyRelations[otherPlayer.id] = status
+        state.setDiplomacyStatus(with: otherPlayer.id, status: status)
     }
-    
+
     func decreaseCollectionRate(_ type: ResourceType, amount: Double) {
-        let current = collectionRates[type] ?? 0.0
-        collectionRates[type] = max(0, current - amount)
-        print("📉 \(type.displayName) rate: \(current)/s → \(collectionRates[type] ?? 0)/s")
+        let current = state.getCollectionRate(type)
+        state.decreaseCollectionRate(type, amount: amount)
+        print("📉 \(type.displayName) rate: \(current)/s → \(state.getCollectionRate(type))/s")
     }
-    
+
     func setResource(_ type: ResourceType, amount: Int) {
-        resources[type] = max(0, amount)
+        state.setResource(type, amount: amount)
     }
 
     /// Directly sets a collection rate (used for loading saves)
     func setCollectionRate(_ type: ResourceType, rate: Double) {
-        collectionRates[type] = max(0, rate)
+        state.setCollectionRate(type, rate: rate)
     }
     
     func getPopulationCapacity() -> Int {
@@ -610,21 +555,10 @@ class Player {
     
     @discardableResult
     func addResourceWithOverflow(_ type: ResourceType, amount: Int) -> (added: Int, overflow: Int) {
-        let current = resources[type] ?? 0
         let capacity = getStorageCapacity(for: type)
-        
-        // Calculate how much space is available for this resource
-        let availableSpace = max(0, capacity - current)
-        
-        // Only add up to the available space
-        let actualAmount = min(amount, availableSpace)
-        let overflow = amount - actualAmount
-        
-        if actualAmount > 0 {
-            resources[type] = current + actualAmount
-        }
-        
-        return (added: actualAmount, overflow: overflow)
+        let added = state.addResource(type, amount: amount, storageCapacity: capacity)
+        let overflow = amount - added
+        return (added: added, overflow: overflow)
     }
 
 }

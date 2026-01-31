@@ -146,7 +146,7 @@ class TrainingEngine {
         }
 
         // Check if building can train this unit type
-        if unitTypeData.trainingBuilding != building.buildingType.rawValue {
+        if unitTypeData.trainingBuilding != building.buildingType {
             return (false, "This building cannot train \(unitType.displayName)")
         }
 

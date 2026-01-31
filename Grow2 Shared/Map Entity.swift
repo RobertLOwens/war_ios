@@ -58,38 +58,88 @@ struct PendingReinforcement: Codable {
 
 // MARK: - Army
 class Army: MapEntity {
-    var coordinate: HexCoordinate
-    var commander: Commander?  // ✅ CHANGED: Made optional for now (until commander system fully implemented)
+    // MARK: - Data Layer (Single Source of Truth)
+    let data: ArmyData
 
-    private(set) var militaryComposition: [MilitaryUnitType: Int] = [:]
+    // MARK: - Visual Layer Only
+    var commander: Commander?  // Visual reference (data.commanderID holds the ID)
 
-    /// Reinforcements currently marching to this army
-    private(set) var pendingReinforcements: [PendingReinforcement] = []
-
-    /// Whether this army has reinforcements en route
-    var isAwaitingReinforcements: Bool {
-        return !pendingReinforcements.isEmpty
+    // MARK: - Delegated Properties
+    var coordinate: HexCoordinate {
+        get { data.coordinate }
+        set { data.coordinate = newValue }
     }
 
-    // MARK: - Home Base System
+    var militaryComposition: [MilitaryUnitType: Int] {
+        get {
+            // Convert from Data types to Visual types (they're aliased, so direct cast works)
+            var result: [MilitaryUnitType: Int] = [:]
+            for (unitType, count) in data.militaryComposition {
+                result[unitType] = count
+            }
+            return result
+        }
+    }
 
-    /// Reference to this army's home base building (City Center, Wooden Fort, or Castle)
-    var homeBaseID: UUID?
+    var homeBaseID: UUID? {
+        get { data.homeBaseID }
+        set { data.homeBaseID = newValue }
+    }
 
-    /// Whether this army is currently retreating (grants 10% speed bonus)
-    var isRetreating: Bool = false
+    var isRetreating: Bool {
+        get { data.isRetreating }
+        set { data.isRetreating = newValue }
+    }
 
-    /// Building types that can serve as a home base
+    var isAwaitingReinforcements: Bool {
+        return data.isAwaitingReinforcements
+    }
+
+    /// Pending reinforcements (converted from data layer)
+    var pendingReinforcements: [PendingReinforcement] {
+        return data.pendingReinforcements.map { dataReinforcement in
+            var units: [MilitaryUnitType: Int] = [:]
+            for (unitType, count) in dataReinforcement.unitComposition {
+                units[unitType] = count
+            }
+            return PendingReinforcement(
+                reinforcementID: dataReinforcement.reinforcementID,
+                units: units,
+                estimatedArrival: dataReinforcement.estimatedArrivalTime,
+                source: dataReinforcement.sourceCoordinate
+            )
+        }
+    }
+
+    // MARK: - Static Properties
     static let validHomeBaseTypes: Set<BuildingType> = [.cityCenter, .woodenFort, .castle]
 
-    /// Check if a building type can be used as a home base
     static func canBeHomeBase(_ buildingType: BuildingType) -> Bool {
         return validHomeBaseTypes.contains(buildingType)
     }
 
+    // MARK: - Initialization
+
+    init(id: UUID = UUID(), name: String = "Army", coordinate: HexCoordinate, commander: Commander? = nil, owner: Player? = nil, data: ArmyData? = nil) {
+        // Use provided data or create new
+        if let existingData = data {
+            self.data = existingData
+        } else {
+            self.data = ArmyData(id: id, name: name, coordinate: coordinate, ownerID: owner?.id)
+        }
+        self.commander = commander
+        super.init(id: self.data.id, name: self.data.name, entityType: .army)
+        self.owner = owner
+
+        // Sync commander ID to data
+        if let cmd = commander {
+            self.data.commanderID = cmd.id
+        }
+    }
+
     /// Updates the army's home base
     func setHomeBase(_ buildingID: UUID?) {
-        homeBaseID = buildingID
+        data.homeBaseID = buildingID
         if let id = buildingID {
             print("🏠 Army \(name) home base set to building \(id)")
         } else {
@@ -97,52 +147,61 @@ class Army: MapEntity {
         }
     }
 
-    init(id: UUID = UUID(), name: String = "Army", coordinate: HexCoordinate, commander: Commander? = nil, owner: Player? = nil) {
-        self.coordinate = coordinate
-        self.commander = commander
-        super.init(id: id, name: name, entityType: .army)
-        self.owner = owner
-    }
-
     // MARK: - Pending Reinforcement Management
 
     /// Adds a pending reinforcement to track
     func addPendingReinforcement(_ reinforcement: PendingReinforcement) {
-        pendingReinforcements.append(reinforcement)
+        // Convert to data type
+        var dataUnits: [MilitaryUnitTypeData: Int] = [:]
+        for (unitType, count) in reinforcement.getUnits() {
+            dataUnits[unitType] = count
+        }
+        let dataReinforcement = PendingReinforcementData(
+            reinforcementID: reinforcement.reinforcementID,
+            units: dataUnits,
+            estimatedArrival: reinforcement.estimatedArrivalTime,
+            source: reinforcement.sourceCoordinate,
+            path: []  // Path would need to be provided
+        )
+        data.addPendingReinforcement(dataReinforcement)
         print("🚶 Army \(name) now awaiting \(reinforcement.getTotalUnits()) reinforcements")
     }
 
     /// Removes a pending reinforcement by ID
     func removePendingReinforcement(id: UUID) {
-        pendingReinforcements.removeAll { $0.reinforcementID == id }
+        data.removePendingReinforcement(id: id)
     }
 
     /// Receives arriving reinforcements and adds them to the army
     func receiveReinforcement(_ units: [MilitaryUnitType: Int]) {
+        var dataUnits: [MilitaryUnitTypeData: Int] = [:]
         for (unitType, count) in units {
-            addMilitaryUnits(unitType, count: count)
+            dataUnits[unitType] = count
         }
+        data.receiveReinforcement(dataUnits)
         let total = units.values.reduce(0, +)
         print("✅ Army \(name) received \(total) reinforcement units!")
     }
 
     /// Gets total pending reinforcement units
     func getTotalPendingUnits() -> Int {
-        return pendingReinforcements.reduce(0) { $0 + $1.getTotalUnits() }
+        return data.getTotalPendingUnits()
     }
+
     func addMilitaryUnits(_ unitType: MilitaryUnitType, count: Int) {
-        militaryComposition[unitType, default: 0] += count
+        data.addMilitaryUnits(unitType, count: count)
     }
-    
+
     func setCommander(_ newCommander: Commander?) {
         // Clear old commander's reference
         if let oldCommander = commander {
             oldCommander.assignedArmy = nil
         }
-        
+
         // Set new commander
         commander = newCommander
-        
+        data.commanderID = newCommander?.id
+
         // Update new commander's reference
         if let newCommander = newCommander {
             // Remove from their old army if any
@@ -152,34 +211,22 @@ class Army: MapEntity {
             newCommander.assignedArmy = self
         }
     }
-    
+
     func removeMilitaryUnits(_ unitType: MilitaryUnitType, count: Int) -> Int {
-        let current = militaryComposition[unitType] ?? 0
-        let toRemove = min(current, count)
-        
-        if toRemove > 0 {
-            let remaining = current - toRemove
-            if remaining > 0 {
-                militaryComposition[unitType] = remaining
-            } else {
-                militaryComposition.removeValue(forKey: unitType)
-            }
-        }
-        
-        return toRemove
+        return data.removeMilitaryUnits(unitType, count: count)
     }
     
-    // ✅ UPDATED: Handle optional commander
+    // MARK: - Capacity
     func getMaxArmySize() -> Int {
         return commander?.rank.maxArmySize ?? 200  // Default 200 if no commander
     }
-        
+
     func isAtCapacity() -> Bool {
         return getTotalUnits() >= getMaxArmySize()
     }
-    
+
     func getTotalUnits() -> Int {
-        return getTotalMilitaryUnits()
+        return data.getTotalUnits()
     }
     
     // ✅ UPDATED: Handle optional commander with category-based specialty bonuses using combatStats
@@ -251,63 +298,57 @@ class Army: MapEntity {
      }
     
     func getMilitaryUnitCount(ofType type: MilitaryUnitType) -> Int {
-        return militaryComposition[type] ?? 0
+        return data.getUnitCount(ofType: type)
     }
-    
+
     func getTotalMilitaryUnits() -> Int {
-        return militaryComposition.values.reduce(0, +)
+        return data.getTotalUnits()
     }
-    
+
     func hasMilitaryUnits() -> Bool {
-        return getTotalMilitaryUnits() > 0
+        return data.hasMilitaryUnits()
     }
-    
+
     // MARK: - Combat Stats
 
     /// Aggregates combat stats for all units in this army
     func getAggregatedCombatStats() -> UnitCombatStats {
-        var allStats: [UnitCombatStats] = []
-
-        for (unitType, count) in militaryComposition {
-            for _ in 0..<count {
-                allStats.append(unitType.combatStats)
-            }
-        }
-
-        return UnitCombatStats.aggregate(allStats)
+        // Delegate to data and convert result
+        let dataStats = data.getAggregatedCombatStats()
+        return UnitCombatStats(
+            meleeDamage: dataStats.meleeDamage,
+            pierceDamage: dataStats.pierceDamage,
+            bludgeonDamage: dataStats.bludgeonDamage,
+            meleeArmor: dataStats.meleeArmor,
+            pierceArmor: dataStats.pierceArmor,
+            bludgeonArmor: dataStats.bludgeonArmor,
+            bonusVsInfantry: dataStats.bonusVsInfantry,
+            bonusVsCavalry: dataStats.bonusVsCavalry,
+            bonusVsRanged: dataStats.bonusVsRanged,
+            bonusVsSiege: dataStats.bonusVsSiege,
+            bonusVsBuildings: dataStats.bonusVsBuildings
+        )
     }
 
     /// Gets the primary unit category of this army (based on majority unit count)
     func getPrimaryCategory() -> UnitCategory? {
-        var categoryCounts: [UnitCategory: Int] = [:]
-
-        for (unitType, count) in militaryComposition {
-            categoryCounts[unitType.category, default: 0] += count
-        }
-
-        return categoryCounts.max(by: { $0.value < $1.value })?.key
+        return data.getPrimaryCategory()
     }
 
     /// Gets count of units in a specific category
     func getUnitCountByCategory(_ category: UnitCategory) -> Int {
-        var count = 0
-        for (unitType, unitCount) in militaryComposition {
-            if unitType.category == category {
-                count += unitCount
-            }
-        }
-        return count
+        return data.getUnitCountByCategory(category)
     }
 
     /// Total damage output of the army (sum of all damage types across all units)
     func getTotalStrength() -> Double {
-        let stats = getAggregatedCombatStats()
+        let stats = data.getAggregatedCombatStats()
         return stats.meleeDamage + stats.pierceDamage + stats.bludgeonDamage
     }
 
     /// Average defense of the army (average armor across all units)
     func getTotalDefense() -> Double {
-        let stats = getAggregatedCombatStats()
+        let stats = data.getAggregatedCombatStats()
         let totalUnits = getTotalUnits()
         guard totalUnits > 0 else { return 0 }
         return (stats.meleeArmor + stats.pierceArmor + stats.bludgeonArmor) / 3.0 * Double(totalUnits)
@@ -315,20 +356,13 @@ class Army: MapEntity {
 
     /// Total HP of all units in the army
     func getTotalHP() -> Double {
-        var totalHP = 0.0
-        for (unitType, count) in militaryComposition {
-            totalHP += unitType.hp * Double(count)
-        }
-        return totalHP
+        return data.getTotalHP()
     }
-    
+
     // MARK: - Merging Armies
-    
+
     func merge(with otherArmy: Army) {
-        // Merge new military unit system
-        for (unitType, count) in otherArmy.militaryComposition {
-            addMilitaryUnits(unitType, count: count)
-        }
+        data.merge(with: otherArmy.data)
     }
 
 }
@@ -336,97 +370,121 @@ class Army: MapEntity {
 // MARK: - VillagerGroup
 
 class VillagerGroup: MapEntity {
-    var coordinate: HexCoordinate
-    
-    private(set) var villagerCount: Int = 0
-    
-    var currentTask: VillagerTask = .idle
-    var taskTarget: HexCoordinate?
-    
-    init(name: String = "Villagers", coordinate: HexCoordinate, villagerCount: Int = 0, owner: Player? = nil) {
-        self.coordinate = coordinate
-        self.villagerCount = max(0, villagerCount)
-        super.init(id: UUID(), name: name, entityType: .villagerGroup)  // ✅ No units parameter
+    // MARK: - Data Layer (Single Source of Truth)
+    let data: VillagerGroupData
+
+    // MARK: - Visual Layer Only
+    /// Visual task representation (holds visual node references)
+    /// The data layer holds task as VillagerTaskData (with UUIDs instead of references)
+    var currentTask: VillagerTaskVisual = .idle
+
+    // MARK: - Delegated Properties
+    var coordinate: HexCoordinate {
+        get { data.coordinate }
+        set { data.coordinate = newValue }
+    }
+
+    var villagerCount: Int {
+        get { data.villagerCount }
+    }
+
+    var taskTarget: HexCoordinate? {
+        get { data.taskTargetCoordinate }
+        set { data.taskTargetCoordinate = newValue }
+    }
+
+    // MARK: - Initialization
+
+    init(name: String = "Villagers", coordinate: HexCoordinate, villagerCount: Int = 0, owner: Player? = nil, data: VillagerGroupData? = nil) {
+        // Use provided data or create new
+        if let existingData = data {
+            self.data = existingData
+        } else {
+            self.data = VillagerGroupData(name: name, coordinate: coordinate, villagerCount: villagerCount, ownerID: owner?.id)
+        }
+        super.init(id: self.data.id, name: self.data.name, entityType: .villagerGroup)
         self.owner = owner
     }
-    
+
     // MARK: - Villager Management
-    
+
     func addVillagers(count: Int) {
-        villagerCount += count
+        data.addVillagers(count: count)
     }
-    
+
     func removeVillagers(count: Int) -> Int {
-        let toRemove = min(villagerCount, count)
-        villagerCount -= toRemove
-        return toRemove
+        return data.removeVillagers(count: count)
     }
-    
+
     func getUnitCount() -> Int {
-        return villagerCount
+        return data.villagerCount
     }
-    
+
     func hasVillagers() -> Bool {
-        return villagerCount > 0
+        return data.hasVillagers()
     }
-    
+
     func getDescription() -> String {
         guard hasVillagers() else { return "\(name) (Empty)" }
-        
+
         let taskDesc = currentTask == .idle ? "Idle" : "Working: \(currentTask.displayName)"
         return "\(name) (\(villagerCount) villagers)\n\(taskDesc)"
     }
-    
+
     // MARK: - Task Management
-    
-    func assignTask(_ task: VillagerTask, target: HexCoordinate? = nil) {
+
+    func assignTask(_ task: VillagerTaskVisual, target: HexCoordinate? = nil) {
         currentTask = task
-        taskTarget = target
+        data.taskTargetCoordinate = target
+
+        // Also update data layer task
+        data.currentTask = task.toTaskData()
     }
-    
+
     func clearTask() {
         currentTask = .idle
-        taskTarget = nil
+        data.clearTask()
     }
-    
+
     // MARK: - Merging Groups
-    
+
     func merge(with otherGroup: VillagerGroup) {
-        addVillagers(count: otherGroup.villagerCount)
+        data.merge(with: otherGroup.data)
     }
-    
+
     // MARK: - Splitting Groups
-    
+
     func split(count: Int, name: String? = nil) -> VillagerGroup? {
-        guard count > 0 && count < villagerCount else {
+        guard let newData = data.split(count: count, newName: name ?? "\(self.name) (Split)") else {
             return nil
         }
-        
+
         let newGroup = VillagerGroup(
-            name: name ?? "\(self.name) (Split)",
-            coordinate: coordinate,
-            villagerCount: count,
-            owner: owner
+            name: newData.name,
+            coordinate: newData.coordinate,
+            villagerCount: newData.villagerCount,
+            owner: owner,
+            data: newData
         )
-        
-        removeVillagers(count: count)
-        
+
         return newGroup
     }
 }
 
-enum VillagerTask: Equatable {
+/// Visual layer villager task enum with associated visual types (BuildingNode, ResourcePointNode)
+/// For data layer, use VillagerTaskData instead which uses UUIDs
+enum VillagerTaskVisual: Equatable {
 
     case idle
     case building(BuildingNode)
     case gathering(ResourceType)
     case gatheringResource(ResourcePointNode)
-    case hunting(ResourcePointNode)  // ✅ NEW: Hunting an animal
+    case hunting(ResourcePointNode)
     case repairing(BuildingNode)
     case moving(HexCoordinate)
     case upgrading(BuildingNode)
     case demolishing(BuildingNode)
-    
+
     var displayName: String {
         switch self {
         case .idle:
@@ -450,7 +508,33 @@ enum VillagerTask: Equatable {
         }
     }
 
-    static func == (lhs: VillagerTask, rhs: VillagerTask) -> Bool {
+    /// Convert to data layer task (loses visual references, uses IDs instead)
+    func toTaskData() -> VillagerTaskData {
+        switch self {
+        case .idle:
+            return .idle
+        case .building(let building):
+            return .building(buildingID: building.data.id)
+        case .gathering(let resourceType):
+            return .gathering(resourceType: resourceType)
+        case .gatheringResource:
+            // Would need resource point ID, return idle for now
+            return .idle
+        case .hunting:
+            // Would need resource point ID, return idle for now
+            return .idle
+        case .repairing(let building):
+            return .repairing(buildingID: building.data.id)
+        case .moving(let coord):
+            return .moving(targetCoordinate: coord)
+        case .upgrading(let building):
+            return .upgrading(buildingID: building.data.id)
+        case .demolishing(let building):
+            return .demolishing(buildingID: building.data.id)
+        }
+    }
+
+    static func == (lhs: VillagerTaskVisual, rhs: VillagerTaskVisual) -> Bool {
         switch (lhs, rhs) {
         case (.idle, .idle):
             return true

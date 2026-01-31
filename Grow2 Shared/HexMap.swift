@@ -1,63 +1,27 @@
 // ============================================================================
 // FILE: HexMap.swift
+// PURPOSE: Visual layer for hex map (SpriteKit-based)
+// NOTE: TerrainType is now defined in Data/MapData.swift and accessed via TypeAliases.swift
 // ============================================================================
 
 import UIKit
 import SpriteKit
 
-// MARK: - Terrain Type
+// MARK: - Terrain Visual Extensions
 
-enum TerrainType: String, Codable {
-    case plains      // Renamed from grass - environment-neutral naming
-    case water
-    case mountain
-    case desert
-    case hill        // Trees spawn here as resources, not terrain
-
+extension TerrainData {
+    /// UIColor computed from colorHex (visual layer)
     var color: UIColor {
-        switch self {
-        case .plains: return UIColor(red: 0.2, green: 0.7, blue: 0.2, alpha: 1.0)
-        case .water: return UIColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1.0)
-        case .mountain: return UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
-        case .desert: return UIColor(red: 0.9, green: 0.8, blue: 0.4, alpha: 1.0)
-        case .hill: return UIColor(red: 0.6, green: 0.5, blue: 0.4, alpha: 1.0)
-        }
+        return UIColor(hex: colorHex) ?? UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
     }
 
-    var isWalkable: Bool {
-        switch self {
-        case .plains, .desert, .hill, .mountain: return true
-        case .water: return false
-        }
-    }
-
-    var displayName: String {
-        switch self {
-        case .plains: return "Plains"
-        case .water: return "Water"
-        case .mountain: return "Mountain"
-        case .desert: return "Desert"
-        case .hill: return "Hill"
-        }
-    }
-
-    var movementCost: Int {
-        switch self {
-        case .plains, .desert: return 3
-        case .hill: return 4
-        case .mountain: return 5  // ~67% slower than plains
-        case .water: return Int.max
-        }
-    }
-
+    /// Combat modifier struct for this terrain
     var combatModifier: TerrainCombatModifier {
-        switch self {
-        case .plains: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.0, attackerAttackPenalty: 0.0)
-        case .hill: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.15, attackerAttackPenalty: 0.0)
-        case .mountain: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.25, attackerAttackPenalty: 0.10)
-        case .desert: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: -0.05, attackerAttackPenalty: 0.0)
-        case .water: return TerrainCombatModifier(terrain: self, defenderDefenseBonus: 0.0, attackerAttackPenalty: 0.0)
-        }
+        return TerrainCombatModifier(
+            terrain: self,
+            defenderDefenseBonus: defenderDefenseBonus,
+            attackerAttackPenalty: attackerAttackPenalty
+        )
     }
 }
 
@@ -82,6 +46,24 @@ struct TerrainCombatModifier {
             parts.append("Attacker -\(Int(attackerAttackPenalty * 100))% attack")
         }
         return parts.isEmpty ? "No terrain effects" : parts.joined(separator: ", ")
+    }
+}
+
+// MARK: - UIColor Hex Extension
+
+extension UIColor {
+    convenience init?(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+
+        var rgb: UInt64 = 0
+        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
+
+        let r = CGFloat((rgb & 0xFF0000) >> 16) / 255.0
+        let g = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
+        let b = CGFloat(rgb & 0x0000FF) / 255.0
+
+        self.init(red: r, green: g, blue: b, alpha: 1.0)
     }
 }
 
@@ -418,21 +400,21 @@ class HexMap {
     }
     
     func hasCampCoverage(at coordinate: HexCoordinate, forResourceType resourceType: ResourcePointType) -> Bool {
-        guard let requiredCamp = resourceType.requiredCampType else {
+        guard let requiredCampString = resourceType.requiredCampType else {
             return true  // No camp required for this resource type
         }
-        
+
         // Check the tile itself and all neighbors within 1 tile
         let tilesToCheck = [coordinate] + coordinate.neighbors()
-        
+
         for coord in tilesToCheck {
             if let building = getBuilding(at: coord),
-               building.buildingType == requiredCamp,
+               building.buildingType.rawValue == requiredCampString,
                building.state == .completed {
                 return true
             }
         }
-        
+
         return false
     }
     
@@ -829,13 +811,13 @@ class HexMap {
     /// Checks if a coordinate can be reached by a matching camp via roads
     /// This allows resources to be gathered even if they're far from the camp
     func hasExtendedCampCoverage(at coordinate: HexCoordinate, forResourceType resourceType: ResourcePointType) -> Bool {
-        guard let requiredCamp = resourceType.requiredCampType else {
+        guard let requiredCampString = resourceType.requiredCampType else {
             return true  // No camp required for this resource type
         }
 
         // Find all camps of the required type
         let matchingCamps = buildings.filter {
-            $0.buildingType == requiredCamp && $0.state == .completed
+            $0.buildingType.rawValue == requiredCampString && $0.state == .completed
         }
 
         // Check if any camp can reach this coordinate via roads

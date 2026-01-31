@@ -474,7 +474,7 @@ class GameSaveManager {
         }
         
         var diplomacy: [String: String] = [:]
-        for (playerID, status) in player.diplomacyRelations {
+        for (playerID, status) in player.state.diplomacyRelations {
             diplomacy[playerID.uuidString] = status.rawValue
         }
         

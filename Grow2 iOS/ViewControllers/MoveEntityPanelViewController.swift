@@ -14,6 +14,7 @@ class MoveEntityPanelViewController: SidePanelViewController {
 
     var destinationCoordinate: HexCoordinate!
     var availableEntities: [EntityNode] = []
+    var isDestinationUnexplored: Bool = false
 
     var onConfirm: ((EntityNode) -> Void)?
 
@@ -26,7 +27,10 @@ class MoveEntityPanelViewController: SidePanelViewController {
     }
 
     override var panelSubtitle: String {
-        "Destination: (\(destinationCoordinate.q), \(destinationCoordinate.r))"
+        if isDestinationUnexplored {
+            return "Scout: (\(destinationCoordinate.q), \(destinationCoordinate.r)) 🌫️"
+        }
+        return "Destination: (\(destinationCoordinate.q), \(destinationCoordinate.r))"
     }
 
     override var confirmButtonTitle: String {
@@ -78,8 +82,10 @@ class MoveEntityPanelViewController: SidePanelViewController {
         // Update travel time
         updateTravelTime(for: entity, to: destinationCoordinate)
 
-        // Update warning for busy villagers
-        if let villagers = entity.entity as? VillagerGroup {
+        // Update warning for busy villagers or unexplored destination
+        if isDestinationUnexplored {
+            updateUnexploredWarningLabel()
+        } else if let villagers = entity.entity as? VillagerGroup {
             updateMoveWarningLabel(for: villagers)
         } else {
             clearWarningLabel()
@@ -87,6 +93,14 @@ class MoveEntityPanelViewController: SidePanelViewController {
 
         // Enable confirm button
         enableConfirmButton()
+    }
+
+    /// Updates the warning label for unexplored destination
+    private func updateUnexploredWarningLabel() {
+        updateWarningLabel(
+            text: "🌫️ This area is unexplored. Your unit will reveal fog of war as it travels.",
+            color: UIColor(red: 0.3, green: 0.6, blue: 0.9, alpha: 1.0)
+        )
     }
 }
 

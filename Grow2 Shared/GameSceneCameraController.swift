@@ -94,6 +94,11 @@ class GameSceneCameraController {
             cameraVelocity = .zero
             lastPanTranslation = .zero
 
+            // Cancel any in-progress entity drag
+            if let gameScene = scene as? GameScene {
+                gameScene.cancelDrag()
+            }
+
         case .changed:
             // Calculate delta from last translation
             let delta = CGPoint(

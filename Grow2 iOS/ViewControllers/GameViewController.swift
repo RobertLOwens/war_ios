@@ -989,6 +989,7 @@ class GameViewController: UIViewController {
         gameScene.hexMap = loadedData.hexMap
         gameScene.updateBuildingPlacementControllerReferences()  // Update building placement controller
         gameScene.updateReinforcementManagerReferences()  // Update reinforcement manager
+        gameScene.updateVillagerJoinManagerReferences()  // Update villager join manager
         gameScene.allGamePlayers = loadedData.allPlayers
 
         // Rebuild the scene
@@ -1877,7 +1878,11 @@ extension GameViewController: GameSceneDelegate {
     func gameScene(_ scene: GameScene, didRequestMenuForTile coordinate: HexCoordinate) {
         menuCoordinator.showTileActionMenu(for: coordinate)
     }
-    
+
+    func gameScene(_ scene: GameScene, didRequestUnexploredTileMenu coordinate: HexCoordinate) {
+        menuCoordinator.showUnexploredTileMenu(for: coordinate)
+    }
+
     func gameScene(_ scene: GameScene, didRequestMoveSelection destination: HexCoordinate, availableEntities: [EntityNode]) {
         menuCoordinator.showMoveSelectionMenu(to: destination, from: availableEntities)
     }
