@@ -288,10 +288,24 @@ class EntityNode: SKSpriteNode {
                         if let gameScene = self.scene as? GameScene {
                             gameScene.villagerArrivedForHunt(villagerGroup: villagers, target: target, entityNode: self)
                         }
+                    } else if case .upgrading = villagers.currentTask {
+                        print("🔨 Villagers arrived at building for upgrade!")
+                        if let gameScene = self.scene as? GameScene {
+                            gameScene.checkPendingUpgradeArrival(entity: self)
+                        }
                     }
                 }
             }
-            self.isMoving = false
+
+            // Only set isMoving to false if not transitioned to a gathering task
+            // (e.g., after a successful hunt, villagers start gathering from carcass)
+            if let villagers = self.entity as? VillagerGroup,
+               case .gatheringResource = villagers.currentTask {
+                // Keep isMoving = true since villagers are now gathering
+                print("🥩 Villagers transitioned to gathering, staying busy")
+            } else {
+                self.isMoving = false
+            }
             self.movementPath = []
             self.removeMovementTimer()
             completion()
@@ -479,11 +493,10 @@ class EntityNode: SKSpriteNode {
         let currentHP: Double
         let maxHP: Double
 
-        if let combat = CombatSystem.shared.getActiveCombat(for: army) {
-            let isAttacker = combat.attackerArmy === army
-            let state = isAttacker ? combat.attackerState : combat.defenderState
-            currentHP = Double(state.totalUnits)
-            maxHP = Double(state.initialUnitCount)
+        if let combat = GameEngine.shared.combatEngine.getCombat(involving: army.id) {
+            // In active combat, use unit count as HP approximation
+            currentHP = Double(totalUnits)
+            maxHP = Double(totalUnits)  // Approximation since we don't track initial count in engine
         } else {
             currentHP = Double(totalUnits)
             maxHP = Double(totalUnits)

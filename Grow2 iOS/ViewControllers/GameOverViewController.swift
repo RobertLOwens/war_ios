@@ -258,7 +258,7 @@ class GameOverViewController: UIViewController {
         _ = GameSaveManager.shared.deleteSave()
 
         // Clear combat history
-        CombatSystem.shared.clearCombatHistory()
+        GameEngine.shared.combatEngine.clearCombatHistory()
 
         // Dismiss all presented view controllers and return to main menu
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -296,8 +296,8 @@ struct GameStatistics {
         // Calculate time played
         stats.totalTimePlayed = Date().timeIntervalSince1970 - gameStartTime
 
-        // Combat statistics from CombatSystem
-        let combatHistory = CombatSystem.shared.getCombatHistory()
+        // Combat statistics from CombatEngine
+        let combatHistory = GameEngine.shared.combatEngine.getCombatHistory()
         for record in combatHistory {
             // Match by owner name since CombatRecord uses names
             if record.attacker.ownerName == player.name {

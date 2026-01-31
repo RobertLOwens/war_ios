@@ -82,11 +82,11 @@ struct AttackCommand: GameCommand {
                 // Initiate combat when army arrives
                 // Use the already-captured defenderArmy (not re-lookup, which would find the attacker)
                 print("⚔️ \(attackerArmy.name) arrived - initiating combat!")
-                _ = CombatSystem.shared.startPhasedCombat(
-                    attacker: attackerArmy,
-                    defender: defenderArmy,
-                    location: targetCoord,
-                    terrainType: terrainType
+                let currentTime = Date().timeIntervalSince1970
+                _ = GameEngine.shared.combatEngine.startCombat(
+                    attackerArmyID: attackerArmy.id,
+                    defenderArmyID: defenderArmy.id,
+                    currentTime: currentTime
                 )
             }
         }

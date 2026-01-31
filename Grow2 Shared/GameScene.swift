@@ -3,7 +3,7 @@ import SpriteKit
 
 // MARK: - Game Scene
 
-class GameScene: SKScene, CombatSystemDelegate {
+class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegate, VillagerJoinManagerDelegate {
     
     var hexMap: HexMap!
     var mapNode: SKNode!
@@ -18,64 +18,100 @@ class GameScene: SKScene, CombatSystemDelegate {
     var player: Player?
     var enemyPlayer: Player?
 
-    // Camera control properties
-    var cameraScale: CGFloat = 1.0
-    private let minCameraScale: CGFloat = 0.5   // Zoomed in (closer)
-    private let maxCameraScale: CGFloat = 2.5   // Zoomed out (further)
-    var lastTouchPosition: CGPoint?
-    var isPanning = false
-    private var cameraVelocity: CGPoint = .zero
-    private var panGestureRecognizer: UIPanGestureRecognizer?
-    private var pinchGestureRecognizer: UIPinchGestureRecognizer?
-    private var lastPanTranslation: CGPoint = .zero
-    private var mapBounds: CGRect = .zero
+    // Camera controller
+    var cameraController: GameSceneCameraController!
+
+    // Resource gathering is now handled by ResourceEngine (see GameSceneEngineIntegration)
+
+    // Building placement controller
+    var buildingPlacementController: BuildingPlacementController!
+
+    // Reinforcement manager
+    var reinforcementManager: ReinforcementManager!
+
+    // Villager join manager
+    var villagerJoinManager: VillagerJoinManager!
+
+    // Camera state passthrough properties for external access
+    var cameraScale: CGFloat {
+        get { cameraController?.cameraScale ?? 1.0 }
+        set { cameraController?.cameraScale = newValue }
+    }
+    var lastTouchPosition: CGPoint? {
+        get { cameraController?.lastTouchPosition }
+        set { cameraController?.lastTouchPosition = newValue }
+    }
+    var isPanning: Bool {
+        get { cameraController?.isPanning ?? false }
+        set { cameraController?.isPanning = newValue }
+    }
+
     var allGamePlayers: [Player] = []
     var mapSize: Int = 20
     var resourceDensity: Double = 1.0
-    var movementPathLine: SKShapeNode?
+    var movementPathRenderer: MovementPathRenderer!
     var showMergeOption: ((EntityNode, EntityNode) -> Void)?
     weak var gameDelegate: GameSceneDelegate?
     var lastUpdateTime: TimeInterval?
     var skipInitialSetup: Bool = false
     var isLoading: Bool = false
-    private var gatherAccumulators: [HexCoordinate: Double] = [:]
-    private var lastGatherUpdateTime: TimeInterval?
-    
+
     private var lastVisionUpdateTime: TimeInterval = 0
     private var lastBuildingTimerUpdateTime: TimeInterval = 0
     private var lastTrainingUpdateTime: TimeInterval = 0
     private var lastCombatUpdateTime: TimeInterval = 0
     private var lastGarrisonDefenseUpdateTime: TimeInterval = 0
     private var lastStaminaUpdateTime: TimeInterval = 0
+    private var lastGatheringDepletionTime: TimeInterval = 0
 
     // Update intervals (in seconds) - tune these based on gameplay feel
     private let visionUpdateInterval: TimeInterval = 0.25       // Fog/vision: 4x per second
     private let buildingTimerUpdateInterval: TimeInterval = 0.5 // Building UI: 2x per second
     private let trainingUpdateInterval: TimeInterval = 1.0      // Training queues: 1x per second
     private let gatheringUpdateInterval: TimeInterval = 0.5
+    private let gatheringDepletionInterval: TimeInterval = 1.0  // Resource depletion: 1x per second
     private let combatUpdateInterval: TimeInterval = 1.0        // Combat ticks: 1x per second
     private let garrisonDefenseUpdateInterval: TimeInterval = 1.0  // Garrison defense: 1x per second
     private let staminaUpdateInterval: TimeInterval = 1.0       // Stamina regen: 1x per second
 
-    // Building placement mode
-    var isInBuildingPlacementMode: Bool = false
-    var placementBuildingType: BuildingType?
-    var placementVillagerGroup: VillagerGroup?
-    private var highlightedTiles: [SKShapeNode] = []
-    private var validPlacementCoordinates: [HexCoordinate] = []
+    // Building placement passthrough properties
+    var isInBuildingPlacementMode: Bool {
+        get { buildingPlacementController?.isInBuildingPlacementMode ?? false }
+    }
+    var placementBuildingType: BuildingType? {
+        get { buildingPlacementController?.placementBuildingType }
+    }
+    var placementVillagerGroup: VillagerGroup? {
+        get { buildingPlacementController?.placementVillagerGroup }
+    }
     var onBuildingPlacementSelected: ((HexCoordinate) -> Void)?
 
-    // Rotation preview mode for multi-tile buildings
-    var isInRotationPreviewMode: Bool = false
-    var rotationPreviewAnchor: HexCoordinate?
-    var rotationPreviewType: BuildingType?
-    var rotationPreviewRotation: Int = 0
-    private var rotationPreviewHighlights: [SKShapeNode] = []
+    // Rotation preview passthrough properties
+    var isInRotationPreviewMode: Bool {
+        get { buildingPlacementController?.isInRotationPreviewMode ?? false }
+    }
+    var rotationPreviewAnchor: HexCoordinate? {
+        get { buildingPlacementController?.rotationPreviewAnchor }
+    }
+    var rotationPreviewType: BuildingType? {
+        get { buildingPlacementController?.rotationPreviewType }
+    }
+    var rotationPreviewRotation: Int {
+        get { buildingPlacementController?.rotationPreviewRotation ?? 0 }
+    }
     var onRotationConfirmed: ((HexCoordinate, Int) -> Void)?
 
-    // Reinforcement management
-    var reinforcementNodes: [ReinforcementNode] = []
+    // Reinforcement passthrough
+    var reinforcementNodes: [ReinforcementNode] {
+        get { reinforcementManager?.reinforcementNodes ?? [] }
+    }
     private var reinforcementsNode: SKNode?
+
+    // Marching villagers passthrough
+    var marchingVillagerNodes: [MarchingVillagerNode] {
+        get { villagerJoinManager?.marchingNodes ?? [] }
+    }
+    private var marchingVillagersNode: SKNode?
 
     // End game / starvation tracking
     var gameStartTime: TimeInterval = 0
@@ -90,8 +126,7 @@ class GameScene: SKScene, CombatSystemDelegate {
         setupScene()
         setupCamera()
 
-        // Set up combat system delegate
-        CombatSystem.shared.delegate = self
+        // Combat is now handled by GameEngine.shared.combatEngine
 
         // Register notification observers
         NotificationCenter.default.addObserver(
@@ -127,6 +162,7 @@ class GameScene: SKScene, CombatSystemDelegate {
         buildingsNode?.removeFromParent()
         entitiesNode?.removeFromParent()
         reinforcementsNode?.removeFromParent()
+        marchingVillagersNode?.removeFromParent()
 
         mapNode = SKNode()
         mapNode.name = "mapNode"
@@ -148,6 +184,10 @@ class GameScene: SKScene, CombatSystemDelegate {
         reinforcementsNode?.name = "reinforcementsNode"
         addChild(reinforcementsNode!)
 
+        marchingVillagersNode = SKNode()
+        marchingVillagersNode?.name = "marchingVillagersNode"
+        addChild(marchingVillagersNode!)
+
         unitsNode = SKNode()
         unitsNode.name = "unitsNode"
         addChild(unitsNode)
@@ -158,10 +198,41 @@ class GameScene: SKScene, CombatSystemDelegate {
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
-    
+
+    /// Updates building placement controller references (call after hexMap/player are set)
+    func updateBuildingPlacementControllerReferences() {
+        buildingPlacementController?.hexMap = hexMap
+        buildingPlacementController?.player = player
+    }
+
+    /// Updates reinforcement manager references (call after hexMap/player/reinforcementsNode are set)
+    func updateReinforcementManagerReferences() {
+        reinforcementManager?.updateReferences(hexMap: hexMap, player: player, reinforcementsNode: reinforcementsNode)
+    }
+
+    /// Updates villager join manager references (call after hexMap/player/marchingVillagersNode are set)
+    func updateVillagerJoinManagerReferences() {
+        villagerJoinManager?.updateReferences(hexMap: hexMap, player: player, marchingVillagersNode: marchingVillagersNode)
+    }
+
     func setupScene() {
         backgroundColor = UIColor(red: 0.15, green: 0.2, blue: 0.15, alpha: 1.0)
         scaleMode = .resizeFill
+
+        // Initialize movement path renderer
+        movementPathRenderer = MovementPathRenderer(scene: self)
+
+        // Initialize building placement controller (will be updated when hexMap/player are set)
+        buildingPlacementController = BuildingPlacementController(scene: self, hexMap: nil, player: nil)
+        buildingPlacementController.delegate = self
+
+        // Initialize reinforcement manager (will be updated when hexMap/player are set)
+        reinforcementManager = ReinforcementManager(hexMap: nil, player: nil, reinforcementsNode: nil)
+        reinforcementManager.delegate = self
+
+        // Initialize villager join manager (will be updated when hexMap/player are set)
+        villagerJoinManager = VillagerJoinManager(hexMap: nil, player: nil, marchingVillagersNode: nil)
+        villagerJoinManager.delegate = self
     }
     
     func setupCamera() {
@@ -169,225 +240,23 @@ class GameScene: SKScene, CombatSystemDelegate {
         camera = cameraNode
         addChild(cameraNode)
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+
+        // Initialize camera controller
+        cameraController = GameSceneCameraController(scene: self, cameraNode: cameraNode)
         cameraNode.setScale(cameraScale)
     }
 
     func setupGestureRecognizers() {
-        guard let view = self.view else { return }
-
-        // Remove existing gesture recognizers if any
-        if let panGR = panGestureRecognizer {
-            view.removeGestureRecognizer(panGR)
-        }
-        if let pinchGR = pinchGestureRecognizer {
-            view.removeGestureRecognizer(pinchGR)
-        }
-
-        // Pan gesture for smooth scrolling
-        let panGR = UIPanGestureRecognizer(target: self, action: #selector(handlePanGesture(_:)))
-        panGR.minimumNumberOfTouches = 1
-        panGR.maximumNumberOfTouches = 1
-        view.addGestureRecognizer(panGR)
-        panGestureRecognizer = panGR
-
-        // Pinch gesture for zooming
-        let pinchGR = UIPinchGestureRecognizer(target: self, action: #selector(handlePinchGesture(_:)))
-        view.addGestureRecognizer(pinchGR)
-        pinchGestureRecognizer = pinchGR
+        cameraController.setupGestureRecognizers()
     }
 
     func calculateMapBounds() {
-        // Calculate the bounds of the map in scene coordinates
-        guard hexMap != nil else { return }
-
-        let hexRadius = HexTileNode.hexRadius
-
-        // Use hexMap dimensions (handles both new and loaded games)
-        let width = hexMap.width
-        let height = hexMap.height
-
-        // Get corner positions
-        let minPos = HexMap.hexToPixel(q: 0, r: 0)
-        let maxPos = HexMap.hexToPixel(q: width - 1, r: height - 1)
-
-        // Add padding for hex size
-        let padding = hexRadius * 2
-        mapBounds = CGRect(
-            x: minPos.x - padding,
-            y: minPos.y - padding,
-            width: (maxPos.x - minPos.x) + padding * 2,
-            height: (maxPos.y - minPos.y) + padding * 2
-        )
-    }
-
-    @objc func handlePanGesture(_ gesture: UIPanGestureRecognizer) {
-        guard let view = self.view else { return }
-
-        let translation = gesture.translation(in: view)
-        let velocity = gesture.velocity(in: view)
-
-        switch gesture.state {
-        case .began:
-            isPanning = true
-            cameraVelocity = .zero
-            lastPanTranslation = .zero
-
-        case .changed:
-            // Calculate delta from last translation
-            let delta = CGPoint(
-                x: translation.x - lastPanTranslation.x,
-                y: translation.y - lastPanTranslation.y
-            )
-            lastPanTranslation = translation
-
-            // Apply movement (inverted and scaled)
-            let scaledDelta = CGPoint(
-                x: -delta.x * cameraScale,
-                y: delta.y * cameraScale  // Inverted Y for SpriteKit coordinate system
-            )
-            cameraNode.position.x += scaledDelta.x
-            cameraNode.position.y += scaledDelta.y
-
-            // Constrain camera position
-            constrainCameraPosition()
-
-        case .ended, .cancelled:
-            // Apply momentum based on velocity
-            cameraVelocity = CGPoint(
-                x: -velocity.x * cameraScale * 0.1,
-                y: velocity.y * cameraScale * 0.1
-            )
-
-            // Limit maximum velocity
-            let maxVelocity: CGFloat = 1500
-            let speed = sqrt(cameraVelocity.x * cameraVelocity.x + cameraVelocity.y * cameraVelocity.y)
-            if speed > maxVelocity {
-                let scale = maxVelocity / speed
-                cameraVelocity.x *= scale
-                cameraVelocity.y *= scale
-            }
-
-            isPanning = false
-
-        default:
-            break
-        }
-    }
-
-    @objc func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
-        guard let view = self.view else { return }
-
-        switch gesture.state {
-        case .began, .changed:
-            // Get the pinch center in scene coordinates
-            let pinchCenter = gesture.location(in: view)
-            let scenePoint = convertPoint(fromView: pinchCenter)
-
-            // Calculate new scale
-            let newScale = cameraScale / gesture.scale
-            let clampedScale = min(max(newScale, minCameraScale), maxCameraScale)
-
-            // Only apply if scale actually changed
-            if clampedScale != cameraScale {
-                // Calculate the offset to zoom towards the pinch point
-                let scaleDiff = clampedScale / cameraScale
-                let offsetX = (scenePoint.x - cameraNode.position.x) * (1 - scaleDiff)
-                let offsetY = (scenePoint.y - cameraNode.position.y) * (1 - scaleDiff)
-
-                cameraScale = clampedScale
-                cameraNode.setScale(cameraScale)
-
-                // Adjust camera position to zoom towards pinch point
-                cameraNode.position.x += offsetX
-                cameraNode.position.y += offsetY
-
-                // Constrain camera position
-                constrainCameraPosition()
-            }
-
-            // Reset gesture scale to 1 to get incremental changes
-            gesture.scale = 1.0
-
-        case .ended, .cancelled:
-            break
-
-        default:
-            break
-        }
-    }
-
-    func constrainCameraPosition() {
-        guard mapBounds != .zero else { return }
-
-        // Calculate the visible area based on current scale
-        let visibleWidth = size.width * cameraScale
-        let visibleHeight = size.height * cameraScale
-
-        // Calculate allowed camera position range
-        // Add vertical padding for better north/south edge visibility
-        let verticalPadding: CGFloat = 200
-        let minX = mapBounds.minX + visibleWidth / 2
-        let maxX = mapBounds.maxX - visibleWidth / 2
-        let minY = mapBounds.minY + visibleHeight / 2 - verticalPadding
-        let maxY = mapBounds.maxY - visibleHeight / 2 + verticalPadding
-
-        // If the map is smaller than the view, center it
-        if minX > maxX {
-            cameraNode.position.x = mapBounds.midX
-        } else {
-            cameraNode.position.x = min(max(cameraNode.position.x, minX), maxX)
-        }
-
-        if minY > maxY {
-            cameraNode.position.y = mapBounds.midY
-        } else {
-            cameraNode.position.y = min(max(cameraNode.position.y, minY), maxY)
-        }
-    }
-
-    func applyCameraMomentum() {
-        // Apply velocity with friction
-        let friction: CGFloat = 0.92
-
-        if abs(cameraVelocity.x) > 0.5 || abs(cameraVelocity.y) > 0.5 {
-            cameraNode.position.x += cameraVelocity.x * 0.016  // Approximate frame time
-            cameraNode.position.y += cameraVelocity.y * 0.016
-
-            cameraVelocity.x *= friction
-            cameraVelocity.y *= friction
-
-            // Constrain after momentum
-            constrainCameraPosition()
-        } else {
-            cameraVelocity = .zero
-        }
+        cameraController.calculateMapBounds(hexMap: hexMap)
     }
 
     /// Centers and zooms the camera to a specific coordinate
     func focusCamera(on coordinate: HexCoordinate, zoom: CGFloat? = nil, animated: Bool = true) {
-        let targetPosition = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
-
-        if animated {
-            let moveAction = SKAction.move(to: targetPosition, duration: 0.3)
-            moveAction.timingMode = .easeInEaseOut
-            cameraNode.run(moveAction)
-
-            if let targetZoom = zoom {
-                let zoomAction = SKAction.scale(to: targetZoom, duration: 0.3)
-                zoomAction.timingMode = .easeInEaseOut
-                cameraNode.run(zoomAction) { [weak self] in
-                    self?.cameraScale = targetZoom
-                }
-            }
-        } else {
-            cameraNode.position = targetPosition
-            if let targetZoom = zoom {
-                cameraScale = targetZoom
-                cameraNode.setScale(cameraScale)
-            }
-        }
-
-        constrainCameraPosition()
+        cameraController.focusCamera(on: coordinate, zoom: zoom, animated: animated)
     }
     
     func setupMap() {
@@ -417,6 +286,10 @@ class GameScene: SKScene, CombatSystemDelegate {
         reinforcementsNode?.name = "reinforcementsNode"
         addChild(reinforcementsNode!)
 
+        marchingVillagersNode = SKNode()
+        marchingVillagersNode?.name = "marchingVillagersNode"
+        addChild(marchingVillagersNode!)
+
         unitsNode = SKNode()
         unitsNode.name = "unitsNode"
         addChild(unitsNode)
@@ -424,7 +297,7 @@ class GameScene: SKScene, CombatSystemDelegate {
         // Create map with configured size
         hexMap = HexMap(width: mapSize, height: mapSize)
         hexMap.generateVariedTerrain()
-        
+
         for (coord, tile) in hexMap.tiles {
             let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
             tile.position = position
@@ -443,6 +316,11 @@ class GameScene: SKScene, CombatSystemDelegate {
 
         // Initialize adjacency bonus manager
         AdjacencyBonusManager.shared.setup(hexMap: hexMap)
+
+        // Update building placement controller references
+        updateBuildingPlacementControllerReferences()
+        updateReinforcementManagerReferences()
+        updateVillagerJoinManagerReferences()
     }
 
     // MARK: - Map Generator Setup
@@ -577,7 +455,11 @@ class GameScene: SKScene, CombatSystemDelegate {
         // Initialize adjacency bonus manager
         AdjacencyBonusManager.shared.setup(hexMap: hexMap)
 
-        print("✅ Arabia map generated!")
+        // Update building placement controller references
+        updateBuildingPlacementControllerReferences()
+        updateReinforcementManagerReferences()
+
+        print("Arabia map generated!")
         print("   Map size: \(generator.width)x\(generator.height)")
         print("   Total tiles: \(hexMap.tiles.count)")
         print("   Total resources: \(hexMap.resourcePoints.count)")
@@ -738,6 +620,10 @@ class GameScene: SKScene, CombatSystemDelegate {
         cameraScale = 0.8
         cameraNode.setScale(cameraScale)
 
+        // Update building placement controller references
+        updateBuildingPlacementControllerReferences()
+        updateReinforcementManagerReferences()
+
         print("Arena map generated!")
         print("   Map size: \(generator.width)x\(generator.height)")
         print("   Total tiles: \(hexMap.tiles.count)")
@@ -861,206 +747,6 @@ class GameScene: SKScene, CombatSystemDelegate {
         print("  💎 Resource Density: \(resourceDensity)x")
     }
     
-    
-    
-    //    func spawnTestEntities() {
-    //        guard let player = player else { return }
-    //
-    //        // Create villager group - OWNED BY PLAYER
-    //        let villagerGroup = VillagerGroup(
-    //            name: "Villager Group 1",
-    //            coordinate: HexCoordinate(q: 10, r: 10),
-    //            villagerCount: 5,
-    //            owner: player
-    //        )
-    //
-    //        // ✅ Pass the VillagerGroup directly as the entity
-    //        let villagerNode = EntityNode(
-    //            coordinate: HexCoordinate(q: 10, r: 10),
-    //            entityType: .villagerGroup,
-    //            entity: villagerGroup,  // ✅ Direct reference
-    //            currentPlayer: player
-    //        )
-    //        let position = HexMap.hexToPixel(q: 10, r: 10)
-    //        villagerNode.position = position
-    //
-    //        hexMap.addEntity(villagerNode)
-    //        entitiesNode.addChild(villagerNode)
-    //        player.addEntity(villagerGroup)
-    //
-    //        // Create starter army - OWNED BY PLAYER
-    //        let starterArmy = Army(
-    //            name: "1st Army",
-    //            coordinate: HexCoordinate(q: 8, r: 8),
-    //            commander: Commander(name: "Rob", specialty: .infantry),
-    //            owner: player
-    //        )
-    //
-    //        starterArmy.addMilitaryUnits(.swordsman, count: 10)
-    //        starterArmy.addMilitaryUnits(.archer, count: 5)
-    //
-    //        // ✅ Pass the Army directly as the entity
-    //        let armyNode = EntityNode(
-    //            coordinate: HexCoordinate(q: 8, r: 8),
-    //            entityType: .army,
-    //            entity: starterArmy,  // ✅ Direct reference
-    //            currentPlayer: player
-    //        )
-    //        let armyPosition = HexMap.hexToPixel(q: 8, r: 8)
-    //        armyNode.position = armyPosition
-    //
-    //        hexMap.addEntity(armyNode)
-    //        entitiesNode.addChild(armyNode)
-    //        player.addEntity(starterArmy)
-    //        player.addArmy(starterArmy)
-    //
-    //        // 🔴 CREATE ENEMY PLAYER AND ARMY
-    //        let enemyPlayer = Player(name: "Enemy AI", color: .red)
-    //        player.setDiplomacyStatus(with: enemyPlayer, status: .enemy)
-    //
-    //        let enemyArmy = Army(
-    //            name: "Enemy Raiders",
-    //            coordinate: HexCoordinate(q: 15, r: 15),
-    //            commander: Commander(name: "Blackfang", specialty: .cavalry),
-    //            owner: enemyPlayer
-    //        )
-    //
-    //        enemyArmy.addMilitaryUnits(.swordsman, count: 8)
-    //        enemyArmy.addMilitaryUnits(.knight, count: 3)
-    //
-    //        let enemyArmyNode = EntityNode(
-    //            coordinate: HexCoordinate(q: 15, r: 15),
-    //            entityType: .army,
-    //            entity: enemyArmy,  // ✅ Direct reference
-    //            currentPlayer: player
-    //        )
-    //        let enemyPosition = HexMap.hexToPixel(q: 15, r: 15)
-    //        enemyArmyNode.position = enemyPosition
-    //
-    //        hexMap.addEntity(enemyArmyNode)
-    //        entitiesNode.addChild(enemyArmyNode)
-    //        enemyPlayer.addEntity(enemyArmy)
-    //        enemyPlayer.addArmy(enemyArmy)
-    //
-    //        // 🟣 CREATE GUILD PLAYER AND ARMY
-    //        let guildPlayer = Player(name: "Guild Ally", color: .purple)
-    //        player.setDiplomacyStatus(with: guildPlayer, status: .guild)
-    //
-    //        let guildArmy = Army(
-    //            name: "Guild Defenders",
-    //            coordinate: HexCoordinate(q: 5, r: 15),
-    //            commander: Commander(name: "Guildmaster Thorne", specialty: .defensive),
-    //            owner: guildPlayer
-    //        )
-    //        guildArmy.addMilitaryUnits(.swordsman, count: 12)
-    //        guildArmy.addMilitaryUnits(.pikeman, count: 6)
-    //
-    //        let guildArmyNode = EntityNode(
-    //            coordinate: HexCoordinate(q: 5, r: 15),
-    //            entityType: .army,
-    //            entity: guildArmy,  // ✅ Direct reference
-    //            currentPlayer: player
-    //        )
-    //        guildArmyNode.position = HexMap.hexToPixel(q: 5, r: 15)
-    //
-    //        hexMap.addEntity(guildArmyNode)
-    //        entitiesNode.addChild(guildArmyNode)
-    //        guildPlayer.addEntity(guildArmy)
-    //        guildPlayer.addArmy(guildArmy)
-    //
-    //        // 🟢 CREATE ALLY PLAYER AND ARMY
-    //        let allyPlayer = Player(name: "Allied Forces", color: .green)
-    //        player.setDiplomacyStatus(with: allyPlayer, status: .ally)
-    //
-    //        let allyArmy = Army(
-    //            name: "Allied Knights",
-    //            coordinate: HexCoordinate(q: 15, r: 5),
-    //            commander: Commander(name: "Sir Galahad", specialty: .cavalry),
-    //            owner: allyPlayer
-    //        )
-    //        allyArmy.addMilitaryUnits(.knight, count: 8)
-    //        allyArmy.addMilitaryUnits(.archer, count: 4)
-    //
-    //        let allyArmyNode = EntityNode(
-    //            coordinate: HexCoordinate(q: 15, r: 5),
-    //            entityType: .army,
-    //            entity: allyArmy,  // ✅ Direct reference
-    //            currentPlayer: player
-    //        )
-    //        allyArmyNode.position = HexMap.hexToPixel(q: 15, r: 5)
-    //
-    //        hexMap.addEntity(allyArmyNode)
-    //        entitiesNode.addChild(allyArmyNode)
-    //        allyPlayer.addEntity(allyArmy)
-    //        allyPlayer.addArmy(allyArmy)
-    //
-    //        // 🟠 CREATE NEUTRAL PLAYER AND ARMY
-    //        let neutralPlayer = Player(name: "Neutral Traders", color: .orange)
-    //        player.setDiplomacyStatus(with: neutralPlayer, status: .neutral)
-    //
-    //        let neutralArmy = Army(
-    //            name: "Merchant Caravan",
-    //            coordinate: HexCoordinate(q: 5, r: 5),
-    //            commander: Commander(name: "Merchant Prince", specialty: .logistics),
-    //            owner: neutralPlayer
-    //        )
-    //        neutralArmy.addMilitaryUnits(.swordsman, count: 5)
-    //
-    //        let neutralArmyNode = EntityNode(
-    //            coordinate: HexCoordinate(q: 5, r: 5),
-    //            entityType: .army,
-    //            entity: neutralArmy,  // ✅ Direct reference
-    //            currentPlayer: player
-    //        )
-    //
-    //        neutralArmyNode.position = HexMap.hexToPixel(q: 5, r: 5)
-    //
-    //        hexMap.addEntity(neutralArmyNode)
-    //        entitiesNode.addChild(neutralArmyNode)
-    //        neutralPlayer.addEntity(neutralArmy)
-    //        neutralPlayer.addArmy(neutralArmy)
-    //
-    //        print("✅ Spawned all test entities with diplomacy:")
-    //          print("  🔵 Player Army at (8, 8)")
-    //          print("  🔵 Player Villagers at (10, 10)")
-    //          print("  🔴 Enemy Army at (15, 15)")
-    //          print("  🟣 Guild Army at (5, 15)")
-    //          print("  🟢 Ally Army at (15, 5)")
-    //          print("  🟠 Neutral Army at (5, 5)")
-    //
-    //          self.enemyPlayer = enemyPlayer
-    //          self.allGamePlayers = [player, enemyPlayer, guildPlayer, allyPlayer, neutralPlayer]
-    //
-    //          // ✅ NOW initialize fog of war AFTER entities exist
-    //          let fogNode = SKNode()
-    //          fogNode.name = "fogNode"
-    //          fogNode.zPosition = 100
-    //          addChild(fogNode)
-    //
-    //          hexMap.setupFogOverlays(in: fogNode)
-    //          player.initializeFogOfWar(hexMap: hexMap)
-    //
-    //          // ✅ Update vision with all players (this reveals tiles around entities)
-    //          player.updateVision(allPlayers: allGamePlayers)
-    //
-    //          // ✅ Apply the fog overlays based on vision
-    //          hexMap.updateFogOverlays(for: player)
-    //
-    //          // Update visibility for all entities
-    //          for entity in hexMap.entities {
-    //              entity.updateVisibility(for: player)
-    //          }
-    //
-    //          // Update building visibility
-    //          for building in hexMap.buildings {
-    //              let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
-    //              building.updateVisibility(displayMode: displayMode)
-    //          }
-    //
-    //          print("👁️ Fog of War initialized and updated")
-    //
-    //    }
-    
     func selectEntity(_ entity: EntityNode) {
         // ✅ FIX: Check if entity is actually visible
         guard let player = player else { return }
@@ -1100,14 +786,19 @@ class GameScene: SKScene, CombatSystemDelegate {
     override func update(_ currentTime: TimeInterval) {
         // Skip updates while loading or if map isn't ready
         guard !isLoading, hexMap != nil, !isGameOver else { return }
-        
+
         let realWorldTime = Date().timeIntervalSince1970
-        
+
+        // =========================================================================
+        // ENGINE UPDATE: Process authoritative game state (if enabled)
+        // =========================================================================
+        updateEngine(currentTime: currentTime)
+
         // =========================================================================
         // EVERY FRAME: Critical updates only
         // =========================================================================
         // Apply camera momentum for smooth panning
-        applyCameraMomentum()
+        cameraController.applyCameraMomentum()
 
         // =========================================================================
         // FAST UPDATES (4x per second): Vision & Fog - needs to feel responsive
@@ -1148,20 +839,14 @@ class GameScene: SKScene, CombatSystemDelegate {
         }
 
         // =========================================================================
-        // COMBAT UPDATES (1x per second): Phased combat simulation
+        // COMBAT UPDATES: Now handled by GameEngine.shared.combatEngine
         // =========================================================================
-        if currentTime - lastCombatUpdateTime >= combatUpdateInterval {
-            CombatSystem.shared.updateCombats(deltaTime: combatUpdateInterval)
-            lastCombatUpdateTime = currentTime
-        }
+        // Combat updates are processed by the engine in updateEngine()
 
         // =========================================================================
-        // GARRISON DEFENSE UPDATES (1x per second): Buildings attack nearby enemies
+        // GARRISON DEFENSE UPDATES: Now handled by GameEngine.shared.combatEngine
         // =========================================================================
-        if currentTime - lastGarrisonDefenseUpdateTime >= garrisonDefenseUpdateInterval {
-            updateGarrisonDefense()
-            lastGarrisonDefenseUpdateTime = currentTime
-        }
+        // Garrison defense is processed by CombatEngine.processGarrisonDefense()
 
         // =========================================================================
         // STAMINA REGENERATION (1x per second): Commanders regain stamina over time
@@ -1172,9 +857,14 @@ class GameScene: SKScene, CombatSystemDelegate {
         }
 
         // =========================================================================
-        // GATHERING UPDATES (2x per second): Resource gathering with accumulators
+        // GATHERING UPDATES: Process resource depletion for active gatherers
         // =========================================================================
-        updateResourceGathering(realWorldTime: realWorldTime)
+        if currentTime - lastGatheringDepletionTime >= gatheringDepletionInterval {
+            if !isEngineEnabled {
+                processGatheringDepletion()
+            }
+            lastGatheringDepletionTime = currentTime
+        }
 
         // =========================================================================
         // STARVATION CHECK (1x per second): Check if player has been at 0 food
@@ -1209,68 +899,8 @@ class GameScene: SKScene, CombatSystemDelegate {
         }
     }
 
-    /// Updates garrison defense - buildings with ranged/siege garrison attack nearby enemies
-    private func updateGarrisonDefense() {
-        // Process garrison defense for all players
-        for gamePlayer in allGamePlayers {
-            updateGarrisonDefenseForPlayer(gamePlayer)
-        }
-    }
-
-    /// Processes garrison defense for a specific player's buildings
-    private func updateGarrisonDefenseForPlayer(_ gamePlayer: Player) {
-        // Get all buildings owned by this player
-        let playerBuildings = hexMap.buildings.filter { $0.owner?.id == gamePlayer.id }
-
-        for building in playerBuildings {
-            // Only process defensive buildings with ranged/siege garrison
-            guard building.data.hasDefensiveGarrison() else { continue }
-
-            // Find enemy armies within range
-            let range = building.data.garrisonDefenseRange
-            let enemyArmies = hexMap.getEnemyArmiesInRange(of: building, range: range, for: gamePlayer)
-
-            guard !enemyArmies.isEmpty else { continue }
-
-            // Process garrison attack
-            let results = CombatSystem.shared.processGarrisonDefense(
-                building: building.data,
-                targetArmies: enemyArmies
-            )
-
-            // Handle results - remove destroyed armies and log combat
-            for result in results {
-                if result.armyDestroyed {
-                    // Find and remove the destroyed army's entity
-                    if let entityToRemove = hexMap.entities.first(where: { $0.armyReference?.id == result.targetArmyID }) {
-                        removeDestroyedArmy(entity: entityToRemove, fromPlayer: entityToRemove.armyReference?.owner)
-                    }
-                }
-
-                // Log garrison attack (only if damage was dealt)
-                if result.totalDamageDealt > 0 {
-                    let casualtyCount = result.casualtiesInflicted.values.reduce(0, +)
-                    if casualtyCount > 0 {
-                        print("🏰 \(result.buildingName) garrison fired at \(result.targetArmyName): \(casualtyCount) casualties")
-                    }
-                }
-            }
-        }
-    }
-
-    /// Removes a destroyed army from the game
-    private func removeDestroyedArmy(entity: EntityNode, fromPlayer armyOwner: Player?) {
-        // Remove from owner's army list
-        if let owner = armyOwner, let army = entity.armyReference {
-            owner.removeArmy(army)
-        }
-
-        // Remove entity from map
-        hexMap.removeEntity(entity)
-        entity.removeFromParent()
-
-        print("💀 Army destroyed by garrison fire!")
-    }
+    // Garrison defense is now handled by CombatEngine.processGarrisonDefense()
+    // This legacy code has been removed
 
     /// Updates commander stamina regeneration for all players - runs 1x per second
     private func updateCommanderStamina(currentTime: TimeInterval) {
@@ -1279,6 +909,38 @@ class GameScene: SKScene, CombatSystemDelegate {
                 if let commander = army.commander {
                     commander.regenerateStamina(currentTime: currentTime)
                 }
+            }
+        }
+    }
+
+    /// Process resource depletion for all actively gathering villagers
+    private func processGatheringDepletion() {
+        guard let player = player else { return }
+
+        for entity in hexMap.entities {
+            guard let villagers = entity.entity as? VillagerGroup,
+                  case .gatheringResource(let resource) = villagers.currentTask else {
+                continue
+            }
+
+            // Calculate gather amount (base rate per villager)
+            let gatherAmount = villagers.villagerCount  // 1 per villager per tick
+
+            // Deplete the resource
+            _ = resource.gather(amount: gatherAmount)
+
+            // Check if resource is depleted
+            if resource.isDepleted() {
+                // Stop gathering and clear task
+                resource.stopGathering(by: villagers)
+                villagers.clearTask()
+                entity.isMoving = false
+
+                // Update collection rate
+                let rateContribution = 0.2 * Double(villagers.villagerCount)
+                player.decreaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
+
+                print("🏁 Resource depleted - \(villagers.name) now idle")
             }
         }
     }
@@ -1373,264 +1035,6 @@ class GameScene: SKScene, CombatSystemDelegate {
         }
     }
     
-    /// Updates resource gathering with time-based accumulators - runs ~2x per second
-    private func updateResourceGathering(realWorldTime: TimeInterval) {
-        guard let player = player else { return }
-
-        // Calculate time delta for accurate timing
-        let gatherDeltaTime: TimeInterval
-        if let lastGather = lastGatherUpdateTime {
-            gatherDeltaTime = realWorldTime - lastGather
-        } else {
-            lastGatherUpdateTime = realWorldTime
-            return  // Skip first frame to establish baseline
-        }
-
-        // Only update every 0.5 seconds (2x per second)
-        // Skip if delta is too large (app was backgrounded)
-        guard gatherDeltaTime >= 0.5 else { return }
-        guard gatherDeltaTime < 2.0 else {
-            // Reset baseline if app was backgrounded
-            lastGatherUpdateTime = realWorldTime
-            return
-        }
-
-        // Update last gather time AFTER the guard succeeds
-        lastGatherUpdateTime = realWorldTime
-        
-        // Process all resource points that are being gathered
-        for resourcePoint in hexMap.resourcePoints where resourcePoint.isBeingGathered {
-            processResourceGathering(
-                resourcePoint: resourcePoint,
-                player: player,
-                deltaTime: gatherDeltaTime
-            )
-        }
-    }
-    
-    /// Processes gathering for a single resource point
-    private func processResourceGathering(resourcePoint: ResourcePointNode, player: Player, deltaTime: TimeInterval) {
-        
-        // Handle farmland wood cost
-        if resourcePoint.resourceType == .farmland {
-            if !processFarmlandWoodCost(resourcePoint: resourcePoint, player: player, deltaTime: deltaTime) {
-                return  // Farm stopped due to no wood
-            }
-        }
-        
-        // Check if depleted
-        if resourcePoint.isDepleted() {
-            handleDepletedResource(resourcePoint: resourcePoint, player: player)
-            return
-        }
-        
-        // Calculate gather rate from all villagers ON the tile
-        var gatherRatePerSecond = 0.0
-        for villagerGroup in resourcePoint.assignedVillagerGroups {
-            // Only gather if villagers have arrived at the resource
-            if villagerGroup.coordinate == resourcePoint.coordinate {
-                var baseRate = 0.2 * Double(villagerGroup.villagerCount)
-
-                // Apply research bonus
-                let resourceYield = resourcePoint.resourceType.resourceYield
-                switch resourceYield {
-                case .wood:
-                    baseRate *= ResearchManager.shared.getWoodGatheringMultiplier()
-                case .food:
-                    baseRate *= ResearchManager.shared.getFoodGatheringMultiplier()
-                case .stone:
-                    baseRate *= ResearchManager.shared.getStoneGatheringMultiplier()
-                case .ore:
-                    baseRate *= ResearchManager.shared.getOreGatheringMultiplier()
-                }
-
-                // Apply adjacency bonus from mills/warehouses
-                let adjacencyBonus = getAdjacencyBonusForResource(resourcePoint: resourcePoint)
-                baseRate *= (1.0 + adjacencyBonus)
-
-                gatherRatePerSecond += baseRate
-            }
-        }
-        
-        // Skip if no villagers are actually gathering
-        guard gatherRatePerSecond > 0 else { return }
-        
-        // Calculate amount gathered this frame
-        let gatherThisFrame = gatherRatePerSecond * deltaTime
-        
-        // Get/create accumulator
-        let currentAccumulator = gatherAccumulators[resourcePoint.coordinate] ?? 0
-        let newAccumulator = currentAccumulator + gatherThisFrame
-        
-        // Only deplete whole numbers
-        let wholeAmount = Int(newAccumulator)
-        if wholeAmount > 0 {
-            // ✅ FIX: Directly update remaining amount and call updateLabel
-            let actualGathered = min(wholeAmount, resourcePoint.remainingAmount)
-            resourcePoint.setRemainingAmount(resourcePoint.remainingAmount - actualGathered)
-            
-            // Keep the fractional remainder
-            gatherAccumulators[resourcePoint.coordinate] = newAccumulator - Double(wholeAmount)
-            
-            // Occasional logging
-            if actualGathered > 0 && Int.random(in: 0...60) == 0 {
-                print("⛏️ Depleted \(actualGathered) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
-            }
-        } else {
-            gatherAccumulators[resourcePoint.coordinate] = newAccumulator
-        }
-    }
-    
-    /// Calculates gather rate for a villager group with research bonuses
-    private func calculateGatherRate(villagerGroup: VillagerGroup, resourceType: ResourcePointType) -> Double {
-        var baseRate = 0.2 * Double(villagerGroup.villagerCount)
-        
-        // Apply research bonus based on resource type
-        switch resourceType.resourceYield {
-        case .wood:
-            baseRate *= ResearchManager.shared.getWoodGatheringMultiplier()
-        case .food:
-            baseRate *= ResearchManager.shared.getFoodGatheringMultiplier()
-        case .stone:
-            baseRate *= ResearchManager.shared.getStoneGatheringMultiplier()
-        case .ore:
-            baseRate *= ResearchManager.shared.getOreGatheringMultiplier()
-        default:
-            break
-        }
-        
-        return baseRate
-    }
-
-    /// Gets the adjacency bonus for a resource point based on nearby buildings
-    private func getAdjacencyBonusForResource(resourcePoint: ResourcePointNode) -> Double {
-        // For farmland, the bonus comes from the farm building at the same coordinate
-        if resourcePoint.resourceType == .farmland {
-            if let farm = hexMap.getBuilding(at: resourcePoint.coordinate),
-               farm.buildingType == .farm,
-               farm.state == .completed {
-                return AdjacencyBonusManager.shared.getGatherRateBonus(for: farm.data.id)
-            }
-        }
-
-        // For trees, the bonus comes from the lumber camp covering this resource
-        if resourcePoint.resourceType == .trees {
-            // Find the lumber camp that covers this resource
-            for building in hexMap.buildings {
-                if building.buildingType == .lumberCamp && building.state == .completed {
-                    // Check if this camp covers the resource (direct adjacency or via roads)
-                    let reachable = hexMap.getExtendedCampReach(from: building.coordinate)
-                    if reachable.contains(resourcePoint.coordinate) {
-                        return AdjacencyBonusManager.shared.getGatherRateBonus(for: building.data.id)
-                    }
-                }
-            }
-        }
-
-        // For ore/stone, the bonus comes from the mining camp covering this resource
-        if resourcePoint.resourceType == .oreMine || resourcePoint.resourceType == .stoneQuarry {
-            // Find the mining camp that covers this resource
-            for building in hexMap.buildings {
-                if building.buildingType == .miningCamp && building.state == .completed {
-                    // Check if this camp covers the resource (direct adjacency or via roads)
-                    let reachable = hexMap.getExtendedCampReach(from: building.coordinate)
-                    if reachable.contains(resourcePoint.coordinate) {
-                        return AdjacencyBonusManager.shared.getGatherRateBonus(for: building.data.id)
-                    }
-                }
-            }
-        }
-
-        return 0.0
-    }
-
-    /// Applies gathering to a resource point using accumulator for fractional amounts
-    private func applyGathering(resourcePoint: ResourcePointNode, rate: Double, deltaTime: TimeInterval) {
-        let gatherThisFrame = rate * deltaTime
-        let currentAccumulator = gatherAccumulators[resourcePoint.coordinate] ?? 0
-        let newAccumulator = currentAccumulator + gatherThisFrame
-        
-        // Only deplete whole numbers
-        let wholeAmount = Int(newAccumulator)
-        if wholeAmount > 0 {
-            let gathered = resourcePoint.gather(amount: wholeAmount)
-            
-            // Keep the fractional remainder
-            gatherAccumulators[resourcePoint.coordinate] = newAccumulator - Double(wholeAmount)
-            
-            // Occasional logging to reduce spam
-            if gathered > 0 && Int.random(in: 0...60) == 0 {
-                print("⛏️ Depleted \(gathered) from \(resourcePoint.resourceType.displayName) (\(resourcePoint.remainingAmount) remaining)")
-            }
-        } else {
-            gatherAccumulators[resourcePoint.coordinate] = newAccumulator
-        }
-    }
-    
-    /// Processes wood cost for farmland, returns false if farm should stop
-    private func processFarmlandWoodCost(resourcePoint: ResourcePointNode, player: Player, deltaTime: TimeInterval) -> Bool {
-        let woodCostPerSecond = 0.1
-        let woodCostThisFrame = woodCostPerSecond * deltaTime
-        
-        // Use a separate key for wood cost accumulator
-        let farmWoodKey = HexCoordinate(q: resourcePoint.coordinate.q + 10000, r: resourcePoint.coordinate.r + 10000)
-        let currentAcc = gatherAccumulators[farmWoodKey] ?? 0.0
-        let newAcc = currentAcc + woodCostThisFrame
-        let wholeAmount = Int(newAcc)
-        
-        if wholeAmount > 0 {
-            let currentWood = player.getResource(.wood)
-            if currentWood >= wholeAmount {
-                player.removeResource(.wood, amount: wholeAmount)
-                gatherAccumulators[farmWoodKey] = newAcc - Double(wholeAmount)
-            } else {
-                // No wood - stop all villagers on this farm
-                print("⚠️ Farm stopped at (\(resourcePoint.coordinate.q), \(resourcePoint.coordinate.r)) - out of wood!")
-                stopVillagersAtResource(resourcePoint: resourcePoint, player: player, resourceYield: .food)
-                gatherAccumulators.removeValue(forKey: farmWoodKey)
-                return false
-            }
-        } else {
-            gatherAccumulators[farmWoodKey] = newAcc
-        }
-        
-        return true
-    }
-    
-    /// Handles a depleted resource - clears villagers and cleans up
-    private func handleDepletedResource(resourcePoint: ResourcePointNode, player: Player) {
-        stopVillagersAtResource(resourcePoint: resourcePoint, player: player, resourceYield: resourcePoint.resourceType.resourceYield)
-        gatherAccumulators.removeValue(forKey: resourcePoint.coordinate)
-
-        // Remove the resource node from the map and scene
-        hexMap?.removeResourcePoint(resourcePoint)
-        let fadeOut = SKAction.fadeOut(withDuration: 0.5)
-        resourcePoint.run(fadeOut) { [weak resourcePoint] in
-            resourcePoint?.removeFromParent()
-        }
-
-        print("✅ Resource depleted and removed, all villagers now idle")
-    }
-    
-    /// Stops all villagers gathering at a resource point
-    private func stopVillagersAtResource(resourcePoint: ResourcePointNode, player: Player, resourceYield: ResourceType) {
-        for villagerGroup in resourcePoint.assignedVillagerGroups {
-            // Revert collection rate
-            let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
-            player.decreaseCollectionRate(resourceYield, amount: rateContribution)
-            
-            villagerGroup.clearTask()
-            
-            // Unlock the entity
-            if let entityNode = hexMap.entities.first(where: {
-                ($0.entity as? VillagerGroup)?.id == villagerGroup.id
-            }) {
-                entityNode.isMoving = false
-            }
-        }
-        resourcePoint.stopGathering()
-    }
-
     // MARK: - Entity Lookup Helpers
 
     /// Finds the EntityNode for a given Army by matching armyReference identity
@@ -1676,114 +1080,9 @@ class GameScene: SKScene, CombatSystemDelegate {
         }
     }
 
-    // MARK: - CombatSystemDelegate
-
-    func combatSystem(_ system: CombatSystem, didStartPhasedCombat combat: ActiveCombat) {
-        gameDelegate?.gameScene(self, didStartPhasedCombat: combat)
-        NotificationCenter.default.post(name: .phasedCombatStarted, object: combat)
-
-        // Debug logging for HP bar positioning
-        print("🔍 Combat started - searching for EntityNodes...")
-        print("   Attacker army: \(combat.attackerArmy?.name ?? "nil")")
-        print("   Defender army: \(combat.defenderArmy?.name ?? "nil")")
-        print("   Total entities in hexMap: \(hexMap?.entities.count ?? 0)")
-
-        // Position HP bars for combat visualization: attacker on top, defender on bottom
-        // Note: setupHealthBar() is NOT called here - bars are already created at entity spawn
-        if let attackerArmy = combat.attackerArmy,
-           let attackerNode = findEntityNode(for: attackerArmy) {
-            print("   ✅ Found attacker node - setting to TOP")
-            attackerNode.updateHealthBarCombatPosition(isAttacker: true)
-        } else {
-            print("   ❌ Attacker node NOT FOUND")
-            if let attackerArmy = combat.attackerArmy {
-                print("      Looking for army with id: \(attackerArmy.id)")
-                for (index, entity) in (hexMap?.entities ?? []).enumerated() {
-                    if let armyRef = entity.armyReference {
-                        print("      Entity[\(index)] armyRef id: \(armyRef.id), name: \(armyRef.name)")
-                    }
-                }
-            }
-        }
-        if let defenderArmy = combat.defenderArmy,
-           let defenderNode = findEntityNode(for: defenderArmy) {
-            print("   ✅ Found defender node - setting to BOTTOM")
-            defenderNode.updateHealthBarCombatPosition(isAttacker: false)
-        } else {
-            print("   ❌ Defender node NOT FOUND")
-            if let defenderArmy = combat.defenderArmy {
-                print("      Looking for army with id: \(defenderArmy.id)")
-                for (index, entity) in (hexMap?.entities ?? []).enumerated() {
-                    if let armyRef = entity.armyReference {
-                        print("      Entity[\(index)] armyRef id: \(armyRef.id), name: \(armyRef.name)")
-                    }
-                }
-            }
-        }
-    }
-
-    func combatSystem(_ system: CombatSystem, didUpdateCombat combat: ActiveCombat) {
-        gameDelegate?.gameScene(self, didUpdatePhasedCombat: combat)
-        NotificationCenter.default.post(name: .phasedCombatUpdated, object: combat)
-
-        // Update HP bars during combat
-        if let attackerArmy = combat.attackerArmy,
-           let attackerNode = findEntityNode(for: attackerArmy) {
-            attackerNode.updateHealthBar()
-        }
-        if let defenderArmy = combat.defenderArmy,
-           let defenderNode = findEntityNode(for: defenderArmy) {
-            defenderNode.updateHealthBar()
-        }
-    }
-
-    func combatSystem(_ system: CombatSystem, didEndCombat combat: ActiveCombat, result: CombatResult) {
-        gameDelegate?.gameScene(self, didEndPhasedCombat: combat, result: result)
-        NotificationCenter.default.post(name: .phasedCombatEnded, object: combat, userInfo: ["result": result])
-
-        // Reset HP bar positions after combat ends
-        if let attackerArmy = combat.attackerArmy,
-           let attackerNode = findEntityNode(for: attackerArmy) {
-            attackerNode.resetHealthBarPosition()
-        }
-        if let defenderArmy = combat.defenderArmy,
-           let defenderNode = findEntityNode(for: defenderArmy) {
-            defenderNode.resetHealthBarPosition()
-        }
-
-        // Only show notification if player is involved
-        guard let player = self.player,
-              combat.attackerArmy?.owner?.id == player.id ||
-              combat.defenderArmy?.owner?.id == player.id else { return }
-
-        let isPlayerAttacker = combat.attackerArmy?.owner?.id == player.id
-        let playerWon = (isPlayerAttacker && result == .attackerVictory) ||
-                        (!isPlayerAttacker && result == .defenderVictory)
-
-        // Calculate stats
-        let playerCasualties: Int
-        let enemyCasualties: Int
-        if isPlayerAttacker {
-            playerCasualties = combat.attackerState.initialUnitCount - combat.attackerState.totalUnits
-            enemyCasualties = combat.defenderState.initialUnitCount - combat.defenderState.totalUnits
-        } else {
-            playerCasualties = combat.defenderState.initialUnitCount - combat.defenderState.totalUnits
-            enemyCasualties = combat.attackerState.initialUnitCount - combat.attackerState.totalUnits
-        }
-
-        // Notify delegate to show alert
-        let title = playerWon ? "Victory!" : "Defeat"
-        let message = """
-        Units Lost: \(playerCasualties)
-        Enemy Casualties: \(enemyCasualties)
-        """
-
-        gameDelegate?.showBattleEndNotification(
-            title: title,
-            message: message,
-            isVictory: playerWon
-        )
-    }
+    // MARK: - Combat Handling
+    // Combat is now handled by GameEngine.shared.combatEngine
+    // Visual updates for combat are handled through StateChanges processed by GameVisualLayer
 
     // MARK: - End Game / Starvation
 
@@ -1925,370 +1224,73 @@ class GameScene: SKScene, CombatSystemDelegate {
 
     /// Enters building placement mode and highlights valid tiles
     func enterBuildingPlacementMode(buildingType: BuildingType, villagerGroup: VillagerGroup?) {
-        isInBuildingPlacementMode = true
-        placementBuildingType = buildingType
-        placementVillagerGroup = villagerGroup
-
-        // Find all valid placement coordinates
-        validPlacementCoordinates = findValidBuildingLocations(for: buildingType)
-
-        // Highlight valid tiles
-        highlightValidPlacementTiles()
-
-        print("🏗️ Entered building placement mode for \(buildingType.displayName)")
-        print("   Found \(validPlacementCoordinates.count) valid locations")
+        buildingPlacementController.enterBuildingPlacementMode(buildingType: buildingType, villagerGroup: villagerGroup)
     }
 
     /// Exits building placement mode and clears highlights
     func exitBuildingPlacementMode() {
-        isInBuildingPlacementMode = false
-        placementBuildingType = nil
-        placementVillagerGroup = nil
-        validPlacementCoordinates = []
-        clearPlacementHighlights()
-
-        print("🏗️ Exited building placement mode")
-    }
-
-    /// Finds all valid locations for a building type
-    private func findValidBuildingLocations(for buildingType: BuildingType) -> [HexCoordinate] {
-        guard let player = player else { return [] }
-
-        var validCoordinates: [HexCoordinate] = []
-
-        for (coord, tile) in hexMap.tiles {
-            // Check visibility
-            let visibility = player.getVisibilityLevel(at: coord)
-            guard visibility == .visible else { continue }
-
-            // Check if building can be placed (basic terrain check)
-            guard hexMap.canPlaceBuilding(at: coord, buildingType: buildingType) else { continue }
-
-            // For multi-tile buildings, we need to check all rotations
-            if buildingType.requiresRotation {
-                // For now, just check if ANY rotation works
-                for rotation in 0..<6 {
-                    let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coord, rotation: rotation)
-                    let allValid = occupiedCoords.allSatisfy { occupied in
-                        hexMap.canPlaceBuildingOnTile(at: occupied)
-                    }
-                    if allValid {
-                        validCoordinates.append(coord)
-                        break
-                    }
-                }
-            } else {
-                validCoordinates.append(coord)
-            }
-        }
-
-        return validCoordinates
-    }
-
-    /// Highlights valid placement tiles with a green stroke
-    private func highlightValidPlacementTiles() {
-        clearPlacementHighlights()
-
-        for coord in validPlacementCoordinates {
-            let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
-
-            // Create a hexagon highlight shape
-            let highlight = createHexHighlight(at: position, color: UIColor(red: 0.3, green: 0.9, blue: 0.3, alpha: 0.8))
-            highlight.name = "placementHighlight_\(coord.q)_\(coord.r)"
-            highlight.zPosition = 50
-
-            addChild(highlight)
-            highlightedTiles.append(highlight)
-
-            // Add pulsing animation
-            let pulse = SKAction.sequence([
-                SKAction.fadeAlpha(to: 0.4, duration: 0.5),
-                SKAction.fadeAlpha(to: 0.8, duration: 0.5)
-            ])
-            highlight.run(SKAction.repeatForever(pulse))
-        }
-    }
-
-    /// Creates a hexagon-shaped highlight node
-    private func createHexHighlight(at position: CGPoint, color: UIColor) -> SKShapeNode {
-        let radius: CGFloat = HexTileNode.hexRadius - 2
-        let path = UIBezierPath()
-
-        for i in 0..<6 {
-            let angle = CGFloat(i) * CGFloat.pi / 3 - CGFloat.pi / 6
-            let x = radius * cos(angle)
-            let y = radius * sin(angle)
-
-            if i == 0 {
-                path.move(to: CGPoint(x: x, y: y))
-            } else {
-                path.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-        path.close()
-
-        let shape = SKShapeNode(path: path.cgPath)
-        shape.position = position
-        shape.strokeColor = color
-        shape.lineWidth = 4
-        shape.fillColor = color.withAlphaComponent(0.2)
-        shape.glowWidth = 2
-
-        return shape
-    }
-
-    /// Clears all placement highlight nodes
-    private func clearPlacementHighlights() {
-        for highlight in highlightedTiles {
-            highlight.removeFromParent()
-        }
-        highlightedTiles.removeAll()
+        buildingPlacementController.exitBuildingPlacementMode()
     }
 
     /// Handles touch during building placement mode
     private func handleBuildingPlacementTouch(at location: CGPoint, nodesAtPoint: [SKNode]) {
-        // Find the hex coordinate at this location
-        let hexCoord = HexMap.pixelToHex(point: location)
-
-        // Check if this is a valid placement location
-        if validPlacementCoordinates.contains(hexCoord) {
-            print("✅ Valid placement location selected: (\(hexCoord.q), \(hexCoord.r))")
-
-            // Notify callback with selected coordinate
-            onBuildingPlacementSelected?(hexCoord)
-
-            // Exit placement mode
-            exitBuildingPlacementMode()
-        } else {
-            print("❌ Invalid placement location: (\(hexCoord.q), \(hexCoord.r))")
-            // Optionally show feedback that this isn't valid
-        }
+        buildingPlacementController.handleBuildingPlacementTouch(at: location, nodesAtPoint: nodesAtPoint)
     }
 
     // MARK: - Rotation Preview Mode for Multi-Tile Buildings
 
     /// Enters rotation preview mode for multi-tile buildings (Castle, Fort)
     func enterRotationPreviewMode(buildingType: BuildingType, anchor: HexCoordinate) {
-        // Exit any existing placement mode
-        exitBuildingPlacementMode()
-
-        isInRotationPreviewMode = true
-        rotationPreviewAnchor = anchor
-        rotationPreviewType = buildingType
-        rotationPreviewRotation = 0
-
-        // Show initial preview at rotation 0
-        updateRotationPreview()
-
-        // Notify delegate to show UI buttons
-        gameDelegate?.gameScene(self, didEnterRotationPreviewForBuilding: buildingType, at: anchor)
-
-        print("🔄 Entered rotation preview mode for \(buildingType.displayName) at (\(anchor.q), \(anchor.r))")
+        buildingPlacementController.enterRotationPreviewMode(buildingType: buildingType, anchor: anchor)
     }
 
     /// Updates the rotation preview highlights to show current rotation
     func updateRotationPreview() {
-        // Remove previous highlights
-        clearRotationPreviewHighlights()
-
-        guard let anchor = rotationPreviewAnchor,
-              let buildingType = rotationPreviewType else { return }
-
-        // Get the coordinates this rotation would occupy
-        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: anchor, rotation: rotationPreviewRotation)
-
-        // Check if all tiles are valid (use single-tile check, not multi-tile recalculation)
-        let allValid = occupiedCoords.allSatisfy { coord in
-            hexMap.canPlaceBuildingOnTile(at: coord)
-        }
-
-        // Create highlight for each tile
-        for (index, coord) in occupiedCoords.enumerated() {
-            let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
-            let isValid = hexMap.canPlaceBuildingOnTile(at: coord)
-
-            // Color based on validity
-            let highlightColor: UIColor
-            if isValid {
-                if buildingType == .castle {
-                    highlightColor = UIColor(red: 0.5, green: 0.5, blue: 0.6, alpha: 0.8)  // Gray for castle
-                } else {
-                    highlightColor = UIColor(red: 0.6, green: 0.45, blue: 0.3, alpha: 0.8)  // Brown for fort
-                }
-            } else {
-                highlightColor = UIColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 0.8)  // Red for blocked
-            }
-
-            let highlight = createHexFillShape(at: position, fillColor: highlightColor, isAnchor: index == 0)
-            highlight.name = "rotationPreview_\(coord.q)_\(coord.r)"
-            highlight.zPosition = 50
-
-            addChild(highlight)
-            rotationPreviewHighlights.append(highlight)
-        }
-
-        // Add direction arrow on anchor tile to show rotation orientation
-        if let anchorPosition = occupiedCoords.first.map({ HexMap.hexToPixel(q: $0.q, r: $0.r) }) {
-            let arrow = createRotationArrow(at: anchorPosition, rotation: rotationPreviewRotation)
-            arrow.name = "rotationArrow"
-            arrow.zPosition = 55
-            addChild(arrow)
-            rotationPreviewHighlights.append(arrow)
-        }
-
-        // Add pulsing animation to all highlights
-        for highlight in rotationPreviewHighlights {
-            let pulse = SKAction.sequence([
-                SKAction.fadeAlpha(to: 0.5, duration: 0.4),
-                SKAction.fadeAlpha(to: 1.0, duration: 0.4)
-            ])
-            highlight.run(SKAction.repeatForever(pulse))
-        }
-    }
-
-    /// Creates a filled hexagon shape for rotation preview
-    private func createHexFillShape(at position: CGPoint, fillColor: UIColor, isAnchor: Bool) -> SKShapeNode {
-        let radius: CGFloat = HexTileNode.hexRadius - 2
-        let path = CGMutablePath()
-
-        for i in 0..<6 {
-            let angle = CGFloat(i) * CGFloat.pi / 3 - CGFloat.pi / 6
-            let x = radius * cos(angle)
-            let y = radius * sin(angle)
-
-            if i == 0 {
-                path.move(to: CGPoint(x: x, y: y))
-            } else {
-                path.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-        path.closeSubpath()
-
-        let shape = SKShapeNode(path: path)
-        shape.position = position
-        shape.fillColor = fillColor
-        shape.strokeColor = isAnchor ? .white : fillColor.withAlphaComponent(0.5)
-        shape.lineWidth = isAnchor ? 3 : 2
-        shape.glowWidth = isAnchor ? 2 : 0
-
-        // Add label on anchor tile
-        if isAnchor, let buildingType = rotationPreviewType {
-            let label = SKLabelNode(fontNamed: "Helvetica-Bold")
-            label.text = buildingType == .castle ? "CASTLE" : "FORT"
-            label.fontSize = 10
-            label.fontColor = .white
-            label.verticalAlignmentMode = .center
-            label.horizontalAlignmentMode = .center
-            label.zPosition = 5
-            shape.addChild(label)
-        }
-
-        return shape
-    }
-
-    /// Creates an arrow showing the rotation direction
-    private func createRotationArrow(at position: CGPoint, rotation: Int) -> SKShapeNode {
-        let arrowPath = CGMutablePath()
-        let arrowLength: CGFloat = 15
-        let arrowWidth: CGFloat = 8
-
-        // Arrow points in the rotation direction
-        arrowPath.move(to: CGPoint(x: 0, y: arrowLength))
-        arrowPath.addLine(to: CGPoint(x: -arrowWidth, y: 0))
-        arrowPath.addLine(to: CGPoint(x: arrowWidth, y: 0))
-        arrowPath.closeSubpath()
-
-        let arrow = SKShapeNode(path: arrowPath)
-        arrow.position = position
-        arrow.fillColor = .white
-        arrow.strokeColor = .black
-        arrow.lineWidth = 1
-
-        // Rotate arrow based on rotation value (0-5 maps to 60-degree increments)
-        // Direction 0 = East, 1 = Northeast, etc.
-        let angles: [CGFloat] = [0, CGFloat.pi / 3, 2 * CGFloat.pi / 3, CGFloat.pi, -2 * CGFloat.pi / 3, -CGFloat.pi / 3]
-        arrow.zRotation = angles[rotation % 6] - CGFloat.pi / 2  // Adjust for arrow pointing up
-
-        return arrow
+        buildingPlacementController.updateRotationPreview()
     }
 
     /// Cycles to the next rotation (0-5)
     func cycleRotationPreview() {
-        guard isInRotationPreviewMode else { return }
-
-        rotationPreviewRotation = (rotationPreviewRotation + 1) % 6
-        updateRotationPreview()
-
-        let directions = ["East", "Southeast", "Southwest", "West", "Northwest", "Northeast"]
-        print("🔄 Rotation changed to \(directions[rotationPreviewRotation]) (\(rotationPreviewRotation))")
+        buildingPlacementController.cycleRotationPreview()
     }
 
     /// Confirms the current rotation and executes the build
     func confirmRotationPreview() -> Bool {
-        guard isInRotationPreviewMode,
-              let anchor = rotationPreviewAnchor,
-              let buildingType = rotationPreviewType else {
-            return false
-        }
-
-        // Validate all tiles are clear (use single-tile check, not multi-tile recalculation)
-        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: anchor, rotation: rotationPreviewRotation)
-        let allValid = occupiedCoords.allSatisfy { coord in
-            hexMap.canPlaceBuildingOnTile(at: coord)
-        }
-
-        guard allValid else {
-            print("❌ Cannot build - some tiles are blocked")
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Build", message: "Some tiles in this rotation are blocked. Rotate to find a valid position.")
-            return false
-        }
-
-        // Call the confirmation callback
-        onRotationConfirmed?(anchor, rotationPreviewRotation)
-
-        // Exit preview mode
-        exitRotationPreviewMode()
-
-        return true
+        return buildingPlacementController.confirmRotationPreview()
     }
 
     /// Exits rotation preview mode and cleans up
     func exitRotationPreviewMode() {
-        isInRotationPreviewMode = false
-        rotationPreviewAnchor = nil
-        rotationPreviewType = nil
-        rotationPreviewRotation = 0
-        onRotationConfirmed = nil
-
-        clearRotationPreviewHighlights()
-
-        // Notify delegate to hide UI
-        gameDelegate?.gameSceneDidExitRotationPreview(self)
-
-        print("🔄 Exited rotation preview mode")
-    }
-
-    /// Clears all rotation preview highlight nodes
-    private func clearRotationPreviewHighlights() {
-        for highlight in rotationPreviewHighlights {
-            highlight.removeFromParent()
-        }
-        rotationPreviewHighlights.removeAll()
+        buildingPlacementController.exitRotationPreviewMode()
     }
 
     /// Returns whether the current rotation preview is valid for building
     func isCurrentRotationValid() -> Bool {
-        guard let anchor = rotationPreviewAnchor,
-              let buildingType = rotationPreviewType else {
-            return false
-        }
-
-        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: anchor, rotation: rotationPreviewRotation)
-        return occupiedCoords.allSatisfy { coord in
-            hexMap.canPlaceBuildingOnTile(at: coord)
-        }
+        return buildingPlacementController.isCurrentRotationValid()
     }
-    
+
+    // MARK: - BuildingPlacementDelegate
+
+    func buildingPlacementController(_ controller: BuildingPlacementController, didSelectLocation coordinate: HexCoordinate) {
+        onBuildingPlacementSelected?(coordinate)
+    }
+
+    func buildingPlacementController(_ controller: BuildingPlacementController, didEnterRotationPreviewFor buildingType: BuildingType, at coordinate: HexCoordinate) {
+        gameDelegate?.gameScene(self, didEnterRotationPreviewForBuilding: buildingType, at: coordinate)
+    }
+
+    func buildingPlacementControllerDidExitRotationPreview(_ controller: BuildingPlacementController) {
+        gameDelegate?.gameSceneDidExitRotationPreview(self)
+    }
+
+    func buildingPlacementController(_ controller: BuildingPlacementController, showAlertWithTitle title: String, message: String) {
+        gameDelegate?.gameScene(self, showAlertWithTitle: title, message: message)
+    }
+
+    func buildingPlacementController(_ controller: BuildingPlacementController, didConfirmRotation coordinate: HexCoordinate, rotation: Int) {
+        onRotationConfirmed?(coordinate, rotation)
+    }
+
     func selectTile(_ tile: HexTileNode) {
         // Check if we're in attack mode
         if let attacker = attackingArmy,
@@ -2338,14 +1340,12 @@ class GameScene: SKScene, CombatSystemDelegate {
             // Must be owned by player
             guard entity.entity.owner?.id == player?.id else { return false }
 
-            // If it's a villager group, must be idle
-            if let villagers = entity.entity as? VillagerGroup {
-                return villagers.currentTask == .idle
-            }
+            // Villagers are included even if busy (panel will show warning)
+            // The MenuCoordinator/MoveEntityPanel handles task cancellation
 
-            // If it's an army, must not be in combat
+            // If it's an army, must not be in active combat
             if let army = entity.armyReference {
-                guard !CombatSystem.shared.isInCombat(army) else { return false }
+                guard !GameEngine.shared.combatEngine.isInCombat(armyID: army.id) else { return false }
             }
 
             return true
@@ -2412,28 +1412,28 @@ class GameScene: SKScene, CombatSystemDelegate {
     
     func startCombat(attacker: Army, target: Any, location: HexCoordinate) {
         print("⚔️ COMBAT STARTED!")
-        
-        // Calculate combat
-        let record = CombatSystem.shared.calculateCombat(
-            attacker: attacker,
-            defender: target,
-            defenderCoordinate: location
-        )
-        
-        // Show combat timer
-        gameDelegate?.gameScene(self, didStartCombat: record) { [weak self] in
-            // Apply results after timer completes
-            CombatSystem.shared.applyCombatResults(
-                record: record,
-                attacker: attacker,
-                defender: target
+
+        let currentTime = Date().timeIntervalSince1970
+
+        // Use CombatEngine for combat
+        if let defenderArmy = target as? Army {
+            // Army vs Army combat
+            _ = GameEngine.shared.combatEngine.startCombat(
+                attackerArmyID: attacker.id,
+                defenderArmyID: defenderArmy.id,
+                currentTime: currentTime
             )
-            
-            // Clean up destroyed entities
-            self?.cleanupAfterCombat(attacker: attacker, defender: target)
-            
-            print("✅ Combat completed: \(record.winner.displayName)")
+        } else if let building = target as? BuildingNode {
+            // Army vs Building combat
+            _ = GameEngine.shared.combatEngine.startBuildingCombat(
+                attackerArmyID: attacker.id,
+                buildingID: building.data.id,
+                currentTime: currentTime
+            )
         }
+
+        // Combat results will be processed by CombatEngine's update loop
+        // and visual updates will be handled through StateChanges
     }
     
     func cleanupAfterCombat(attacker: Army, defender: Any) {
@@ -2611,130 +1611,15 @@ class GameScene: SKScene, CombatSystemDelegate {
     }
     
     func drawStaticMovementPath(from start: HexCoordinate, path: [HexCoordinate]) {
-        // Remove old path line
-        movementPathLine?.removeFromParent()
-        
-        guard !path.isEmpty else { return }
-        
-        // Create path in world coordinates
-        let bezierPath = UIBezierPath()
-        
-        // Start from entity's current position
-        let startPos = HexMap.hexToPixel(q: start.q, r: start.r)
-        bezierPath.move(to: startPos)
-        
-        // Draw line through each waypoint
-        for coord in path {
-            let worldPos = HexMap.hexToPixel(q: coord.q, r: coord.r)
-            bezierPath.addLine(to: worldPos)
-        }
-        
-        // Create shape node
-        movementPathLine = SKShapeNode(path: bezierPath.cgPath)
-        movementPathLine?.strokeColor = UIColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 0.7)
-        movementPathLine?.lineWidth = 3
-        movementPathLine?.lineCap = .round
-        movementPathLine?.lineJoin = .round
-        movementPathLine?.zPosition = 8 // Between tiles and entities
-        
-        // Add arrow at the end
-        if let lastCoord = path.last {
-            let endPos = HexMap.hexToPixel(q: lastCoord.q, r: lastCoord.r)
-            
-            // Calculate arrow direction from second-to-last point
-            let previousCoord = path.count > 1 ? path[path.count - 2] : start
-            let prevPos = HexMap.hexToPixel(q: previousCoord.q, r: previousCoord.r)
-            
-            let dx = endPos.x - prevPos.x
-            let dy = endPos.y - prevPos.y
-            let angle = atan2(dy, dx)
-            
-            // Create arrow head
-            let arrowSize: CGFloat = 12
-            let arrowPath = UIBezierPath()
-            arrowPath.move(to: endPos)
-            arrowPath.addLine(to: CGPoint(
-                x: endPos.x - arrowSize * cos(angle - .pi / 6),
-                y: endPos.y - arrowSize * sin(angle - .pi / 6)
-            ))
-            arrowPath.move(to: endPos)
-            arrowPath.addLine(to: CGPoint(
-                x: endPos.x - arrowSize * cos(angle + .pi / 6),
-                y: endPos.y - arrowSize * sin(angle + .pi / 6)
-            ))
-            
-            let arrowHead = SKShapeNode(path: arrowPath.cgPath)
-            arrowHead.strokeColor = UIColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 0.7)
-            arrowHead.lineWidth = 3
-            arrowHead.lineCap = .round
-            movementPathLine?.addChild(arrowHead)
-        }
-        
-        addChild(movementPathLine!)
+        movementPathRenderer.drawStaticMovementPath(from: start, path: path)
     }
-    
+
     func clearMovementPath() {
-        movementPathLine?.removeFromParent()
-        movementPathLine = nil
+        movementPathRenderer.clearMovementPath()
     }
-    
+
     func updateMovementPath(from currentPos: HexCoordinate, remainingPath: [HexCoordinate]) {
-        // Remove old path
-        movementPathLine?.removeFromParent()
-        
-        guard !remainingPath.isEmpty else { return }
-        
-        // Draw path from current position to remaining waypoints
-        let bezierPath = UIBezierPath()
-        let startPos = HexMap.hexToPixel(q: currentPos.q, r: currentPos.r)
-        bezierPath.move(to: startPos)
-        
-        for coord in remainingPath {
-            let worldPos = HexMap.hexToPixel(q: coord.q, r: coord.r)
-            bezierPath.addLine(to: worldPos)
-        }
-        
-        // Create new path line
-        movementPathLine = SKShapeNode(path: bezierPath.cgPath)
-        movementPathLine?.strokeColor = UIColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 0.7)
-        movementPathLine?.lineWidth = 3
-        movementPathLine?.lineCap = .round
-        movementPathLine?.lineJoin = .round
-        movementPathLine?.zPosition = 8
-        movementPathLine?.name = "movementPath"
-        
-        // Add arrow at the end
-        if let lastCoord = remainingPath.last {
-            let endPos = HexMap.hexToPixel(q: lastCoord.q, r: lastCoord.r)
-            
-            let previousCoord = remainingPath.count > 1 ? remainingPath[remainingPath.count - 2] : currentPos
-            let prevPos = HexMap.hexToPixel(q: previousCoord.q, r: previousCoord.r)
-            
-            let dx = endPos.x - prevPos.x
-            let dy = endPos.y - prevPos.y
-            let angle = atan2(dy, dx)
-            
-            let arrowSize: CGFloat = 12
-            let arrowPath = UIBezierPath()
-            arrowPath.move(to: endPos)
-            arrowPath.addLine(to: CGPoint(
-                x: endPos.x - arrowSize * cos(angle - .pi / 6),
-                y: endPos.y - arrowSize * sin(angle - .pi / 6)
-            ))
-            arrowPath.move(to: endPos)
-            arrowPath.addLine(to: CGPoint(
-                x: endPos.x - arrowSize * cos(angle + .pi / 6),
-                y: endPos.y - arrowSize * sin(angle + .pi / 6)
-            ))
-            
-            let arrowHead = SKShapeNode(path: arrowPath.cgPath)
-            arrowHead.strokeColor = UIColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 0.7)
-            arrowHead.lineWidth = 3
-            arrowHead.lineCap = .round
-            movementPathLine?.addChild(arrowHead)
-        }
-        
-        addChild(movementPathLine!)
+        movementPathRenderer.updateMovementPath(from: currentPos, remainingPath: remainingPath)
     }
     
     func checkAndOfferMerge(at coordinate: HexCoordinate) {
@@ -2893,229 +1778,59 @@ class GameScene: SKScene, CombatSystemDelegate {
         path: [HexCoordinate],
         completion: @escaping (Bool) -> Void
     ) {
-        let node = ReinforcementNode(reinforcement: reinforcement, currentPlayer: player)
-        let startPos = HexMap.hexToPixel(q: reinforcement.coordinate.q, r: reinforcement.coordinate.r)
-        node.position = startPos
-
-        reinforcementNodes.append(node)
-        reinforcementsNode?.addChild(node)
-
-        // Register pending reinforcement on the target army
-        if let targetArmy = reinforcement.targetArmy {
-            let travelTime = node.calculateTravelTime(path: path, hexMap: hexMap)
-            let pendingReinforcement = PendingReinforcement(
-                reinforcementID: reinforcement.id,
-                units: reinforcement.unitComposition,
-                estimatedArrival: Date().timeIntervalSince1970 + travelTime,
-                source: reinforcement.sourceCoordinate
-            )
-            targetArmy.addPendingReinforcement(pendingReinforcement)
-        }
-
-        // Set up interception check callback
-        node.onTileEntered = { [weak self, weak node] coord in
-            guard let self = self, let node = node else { return true }
-            return self.checkReinforcementInterception(node, at: coord)
-        }
-
-        // Start movement
-        node.moveTo(path: path, hexMap: hexMap) { [weak self] in
-            self?.handleReinforcementArrival(node, success: true)
-            completion(true)
-        }
-
-        print("🚶 Spawned reinforcement with \(reinforcement.getTotalUnits()) units")
-    }
-
-    /// Handles reinforcement arrival at the target army
-    func handleReinforcementArrival(_ node: ReinforcementNode, success: Bool) {
-        let reinforcement = node.reinforcement
-
-        if success, let targetArmy = reinforcement.targetArmy {
-            // Add units to army
-            targetArmy.receiveReinforcement(reinforcement.unitComposition)
-
-            // Remove pending entry
-            targetArmy.removePendingReinforcement(id: reinforcement.id)
-
-            // Notify UI
-            showAlert?("Reinforcements Arrived", "\(reinforcement.getTotalUnits()) units joined \(targetArmy.name)")
-        }
-
-        // Cleanup node
-        node.cleanup()
-        reinforcementNodes.removeAll { $0 === node }
-    }
-
-    /// Handles reinforcement return to source building (when cancelled or army destroyed)
-    func returnReinforcementToSource(_ node: ReinforcementNode) {
-        let reinforcement = node.reinforcement
-
-        // Find path back to source
-        guard let path = hexMap.findPath(from: reinforcement.coordinate, to: reinforcement.sourceCoordinate) else {
-            print("❌ No path back to source for reinforcement")
-            // Just add units back to building garrison directly
-            if let building = reinforcement.sourceBuilding {
-                for (unitType, count) in reinforcement.unitComposition {
-                    building.addToGarrison(unitType: unitType, quantity: count)
-                }
-            }
-            node.cleanup()
-            reinforcementNodes.removeAll { $0 === node }
-            return
-        }
-
-        reinforcement.isCancelled = true
-
-        // Remove from army's pending list
-        if let targetArmy = reinforcement.targetArmy {
-            targetArmy.removePendingReinforcement(id: reinforcement.id)
-        }
-
-        // Move back to source
-        node.moveTo(path: path, hexMap: hexMap) { [weak self] in
-            // Add units back to building garrison
-            if let building = reinforcement.sourceBuilding {
-                for (unitType, count) in reinforcement.unitComposition {
-                    building.addToGarrison(unitType: unitType, quantity: count)
-                }
-                print("✅ Reinforcements returned to \(building.buildingType.displayName)")
-            }
-
-            node.cleanup()
-            self?.reinforcementNodes.removeAll { $0 === node }
-        }
+        reinforcementManager.spawnReinforcementNode(reinforcement: reinforcement, path: path, completion: completion)
     }
 
     /// Gets the reinforcement node for a given reinforcement ID
     func getReinforcementNode(id: UUID) -> ReinforcementNode? {
-        return reinforcementNodes.first { $0.reinforcement.id == id }
+        return reinforcementManager.getReinforcementNode(id: id)
     }
 
     /// Cancels a reinforcement and returns it to source
     func cancelReinforcement(id: UUID) {
-        guard let node = getReinforcementNode(id: id) else {
-            print("❌ Reinforcement not found: \(id)")
-            return
-        }
-
-        // Stop current movement
-        node.removeAllActions()
-        node.isMoving = false
-
-        // Return to source
-        returnReinforcementToSource(node)
+        reinforcementManager.cancelReinforcement(id: id)
     }
 
     /// Handles when an army is destroyed while reinforcements are en route
     func handleArmyDestroyed(_ army: Army) {
-        // Find all reinforcements targeting this army
-        let targetingNodes = reinforcementNodes.filter { $0.reinforcement.targetArmyID == army.id }
-
-        for node in targetingNodes {
-            print("⚠️ Army destroyed - returning reinforcement to source")
-            returnReinforcementToSource(node)
-        }
+        reinforcementManager.handleArmyDestroyed(army)
     }
 
-    /// Checks if reinforcements are intercepted by enemy army at this coordinate
-    /// Returns true to continue movement, false to stop (combat/interception occurred)
-    func checkReinforcementInterception(_ node: ReinforcementNode, at coord: HexCoordinate) -> Bool {
-        let reinforcement = node.reinforcement
+    // MARK: - ReinforcementManagerDelegate
 
-        // Check for enemy armies at this tile
-        for entityNode in hexMap.entities {
-            guard let army = entityNode.entity as? Army else { continue }
-
-            // Skip if same owner
-            guard army.owner?.id != reinforcement.owner?.id else { continue }
-
-            // Check if on same tile
-            guard army.coordinate == coord else { continue }
-
-            // Check diplomacy - only intercept if enemy
-            let diplomacy = reinforcement.owner?.getDiplomacyStatus(with: army.owner) ?? .neutral
-            guard diplomacy == .enemy else { continue }
-
-            // Interception triggered!
-            print("⚔️ Reinforcements intercepted by \(army.name) at (\(coord.q), \(coord.r))!")
-
-            // Stop reinforcement movement
-            node.removeAllActions()
-            node.isMoving = false
-
-            // Combat at reduced effectiveness (no commander bonus)
-            handleReinforcementCombat(node, interceptingArmy: army)
-
-            return false  // Stop movement
-        }
-
-        return true  // Continue movement
+    func reinforcementManager(_ manager: ReinforcementManager, showAlert title: String, message: String) {
+        showAlert?(title, message)
     }
 
-    /// Handles combat when reinforcements are intercepted
-    func handleReinforcementCombat(_ node: ReinforcementNode, interceptingArmy: Army) {
-        let reinforcement = node.reinforcement
+    // MARK: - Marching Villager Management
 
-        // Calculate reinforcement combat strength (no commander bonus)
-        var reinforcementStrength = 0.0
-        for (unitType, count) in reinforcement.unitComposition {
-            reinforcementStrength += unitType.attackPower * Double(count)
-        }
-
-        // Get army strength (with commander bonus if present)
-        let armyStrength = interceptingArmy.getModifiedStrength()
-
-        // Simple combat resolution - side with higher strength wins
-        // Reinforcements fight at 75% effectiveness due to no commander
-        let effectiveReinforcementStrength = reinforcementStrength * 0.75
-
-        if effectiveReinforcementStrength > armyStrength {
-            // Reinforcements win but take losses
-            let lossRatio = armyStrength / effectiveReinforcementStrength
-            applyReinforcementLosses(reinforcement, lossRatio: lossRatio)
-
-            // Army is destroyed
-            print("✅ Reinforcements defeated intercepting army (took \(Int(lossRatio * 100))% losses)")
-            showAlert?("Interception Repelled", "Reinforcements defeated enemy but took losses")
-
-            // Continue to destination (will need to restart movement)
-            if let targetCoord = reinforcement.getTargetCoordinate(),
-               let path = hexMap.findPath(from: reinforcement.coordinate, to: targetCoord) {
-                node.moveTo(path: path, hexMap: hexMap) { [weak self] in
-                    self?.handleReinforcementArrival(node, success: true)
-                }
-            }
-        } else {
-            // Army wins - reinforcements are destroyed
-            print("❌ Reinforcements destroyed by intercepting army")
-            showAlert?("Reinforcements Lost", "\(reinforcement.getTotalUnits()) units lost to enemy interception")
-
-            // Remove pending from target army
-            if let targetArmy = reinforcement.targetArmy {
-                targetArmy.removePendingReinforcement(id: reinforcement.id)
-            }
-
-            // Cleanup
-            node.cleanup()
-            reinforcementNodes.removeAll { $0 === node }
-
-            // Apply some losses to the intercepting army
-            let armyLossRatio = effectiveReinforcementStrength / armyStrength * 0.5
-            // Note: Would need to implement army loss application
-        }
+    /// Spawns a marching villager node and starts its movement to the target villager group
+    func spawnMarchingVillagerNode(
+        marchingGroup: MarchingVillagerGroup,
+        path: [HexCoordinate],
+        completion: @escaping (Bool) -> Void
+    ) {
+        villagerJoinManager.spawnMarchingVillagerNode(marchingGroup: marchingGroup, path: path, completion: completion)
     }
 
-    /// Applies losses to reinforcement group based on combat
-    private func applyReinforcementLosses(_ reinforcement: ReinforcementGroup, lossRatio: Double) {
-        var newComposition: [MilitaryUnitType: Int] = [:]
-        for (unitType, count) in reinforcement.unitComposition {
-            let survivingCount = Int(Double(count) * (1.0 - lossRatio))
-            if survivingCount > 0 {
-                newComposition[unitType] = survivingCount
-            }
-        }
-        // Note: Would need to add a method to update reinforcement composition
-        // For now, losses are tracked conceptually
+    /// Gets the marching villager node for a given ID
+    func getMarchingVillagerNode(id: UUID) -> MarchingVillagerNode? {
+        return villagerJoinManager.getMarchingVillagerNode(id: id)
+    }
+
+    /// Cancels marching villagers and returns them to source
+    func cancelMarchingVillagers(id: UUID) {
+        villagerJoinManager.cancelMarchingVillagers(id: id)
+    }
+
+    /// Handles when a villager group is destroyed while marching villagers are en route
+    func handleVillagerGroupDestroyed(_ group: VillagerGroup) {
+        villagerJoinManager.handleVillagerGroupDestroyed(group)
+    }
+
+    // MARK: - VillagerJoinManagerDelegate
+
+    func villagerJoinManager(_ manager: VillagerJoinManager, showAlert title: String, message: String) {
+        showAlert?(title, message)
     }
 }

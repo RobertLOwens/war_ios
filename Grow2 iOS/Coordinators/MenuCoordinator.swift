@@ -144,9 +144,9 @@ class MenuCoordinator {
 
                 // Check if camp is required
                 if resourcePoint.resourceType.requiresCamp {
-                    if let camp = buildingAtLocation,
-                       (camp.buildingType == .miningCamp || camp.buildingType == .lumberCamp) {
-                        // Camp exists - can gather
+                    // Check if camp coverage exists (adjacent OR via roads)
+                    if hexMap.hasExtendedCampCoverage(at: coordinate, forResourceType: resourcePoint.resourceType) {
+                        // Camp in range - can gather
                         if resourcePoint.getRemainingCapacity() > 0 {
                             let actionVerb = resourcePoint.resourceType == .farmland ? "Work" : "Gather"
                             actions.append(AlertAction(title: "⛏️ \(actionVerb) \(resourcePoint.resourceType.displayName)") { [weak self] in
@@ -156,9 +156,9 @@ class MenuCoordinator {
                             message += "\n\n⚠️ Max villagers reached (\(ResourcePointNode.maxVillagersPerTile))"
                         }
                     } else {
-                        // No camp - show what's needed
+                        // No camp in range - show what's needed
                         let campName = resourcePoint.resourceType == .trees ? "Lumber Camp" : "Mining Camp"
-                        message += "\n\n⚠️ Build a \(campName) here first"
+                        message += "\n\n⚠️ Build a \(campName) adjacent or connect with roads"
                     }
                 } else {
                     // No camp required (berries, carcasses, farmland)
@@ -385,57 +385,59 @@ class MenuCoordinator {
     }
     
     // MARK: - Move Selection
-    
+
     func showMoveSelectionMenu(to coordinate: HexCoordinate, from entities: [EntityNode]) {
         guard let player = player,
-              let vc = viewController else { return }
+              let vc = viewController,
+              let hexMap = hexMap,
+              let gameScene = gameScene else { return }
 
+        // Filter entities:
+        // - Must be owned by player
+        // - Must not be currently moving
+        // - Armies: exclude only if isInCombat == true
+        // - Villagers: INCLUDE all (even busy ones - panel shows warning)
         let playerEntities = entities.filter { entity in
             guard entity.entity.owner?.id == player.id else { return false }
+            guard !entity.isMoving else { return false }
 
-            if let villagers = entity.entity as? VillagerGroup {
-                return villagers.currentTask == .idle
-            }
-
-            // If it's an army, must not be in combat
+            // If it's an army, must not be in active combat
             if let army = entity.armyReference {
-                guard !CombatSystem.shared.isInCombat(army) else { return false }
+                guard !GameEngine.shared.combatEngine.isInCombat(armyID: army.id) else { return false }
             }
 
             return true
         }
-        
+
         guard !playerEntities.isEmpty else {
             vc.showAlert(title: "No Units Available", message: "You don't have any units that can move.")
             return
         }
-        
-        var actions: [AlertAction] = []
-        
-        for entity in playerEntities {
-            let distance = entity.coordinate.distance(to: coordinate)
-            var title = "\(entity.entityType.icon) "
-            
-            if entity.entityType == .army, let army = entity.entity as? Army {
-                let totalUnits = army.getTotalMilitaryUnits()
-                title += "\(army.name) (\(totalUnits) units) - Distance: \(distance)"
-            } else if entity.entityType == .villagerGroup, let villagers = entity.entity as? VillagerGroup {
-                title += "\(villagers.name) (\(villagers.villagerCount) villagers) - Distance: \(distance)"
-            }
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.executeMoveCommand(entity: entity, to: coordinate)
-            })
+
+        // Sort entities by distance to destination
+        let sortedEntities = playerEntities.sorted { e1, e2 in
+            e1.coordinate.distance(to: coordinate) < e2.coordinate.distance(to: coordinate)
         }
-        
-        vc.showActionSheet(
-            title: "Select Entity to Move",
-            message: "Choose which entity to move to (\(coordinate.q), \(coordinate.r))",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+
+        // Present the MoveEntityPanelViewController
+        let panelVC = MoveEntityPanelViewController()
+        panelVC.destinationCoordinate = coordinate
+        panelVC.availableEntities = sortedEntities
+        panelVC.hexMap = hexMap
+        panelVC.gameScene = gameScene
+        panelVC.player = player
+        panelVC.modalPresentationStyle = .overFullScreen
+        panelVC.modalTransitionStyle = .crossDissolve
+
+        panelVC.onConfirm = { [weak self] selectedEntity in
+            self?.executeMoveCommand(entity: selectedEntity, to: coordinate)
+        }
+
+        panelVC.onCancel = { [weak self] in
+            self?.delegate?.deselectAll()
+        }
+
+        vc.present(panelVC, animated: false)
     }
     
     // MARK: - Villager Menu
@@ -879,11 +881,12 @@ class MenuCoordinator {
         vc.present(alert, animated: true)
     }
 
-    /// Shows a list of idle villager groups to select for building
+    /// Shows a slide-out panel for selecting villager groups to build
     func showIdleVillagerSelectionForBuilding(buildingType: BuildingType, at coordinate: HexCoordinate, rotation: Int = 0) {
         guard let player = player,
               let hexMap = hexMap,
-              let vc = viewController else { return }
+              let vc = viewController,
+              let gameScene = gameScene else { return }
 
         // For multi-tile buildings, use rotation preview mode instead of text menu
         if buildingType.requiresRotation && rotation == 0 {
@@ -891,61 +894,55 @@ class MenuCoordinator {
             return
         }
 
-        // Find all idle villager groups owned by player
-        let idleVillagerGroups = hexMap.entities.filter { entity in
+        // Find ALL villager groups owned by player (not just idle - panel shows warnings)
+        let allVillagerGroups = hexMap.entities.filter { entity in
             guard entity.entity.owner?.id == player.id,
                   entity.entityType == .villagerGroup,
-                  let villagers = entity.entity as? VillagerGroup else {
+                  entity.entity is VillagerGroup else {
                 return false
             }
-            return villagers.currentTask == .idle
+            return true
         }
 
-        if idleVillagerGroups.isEmpty {
+        if allVillagerGroups.isEmpty {
             vc.showAlert(
-                title: "No Idle Villagers",
-                message: "You need idle villagers to construct buildings. All your villager groups are currently busy."
+                title: "No Villagers",
+                message: "You don't have any villager groups to construct buildings."
             )
             return
         }
 
-        var actions: [AlertAction] = []
-
         // Sort by distance to build site
-        let sortedVillagers = idleVillagerGroups.sorted { e1, e2 in
+        let sortedVillagers = allVillagerGroups.sorted { e1, e2 in
             e1.coordinate.distance(to: coordinate) < e2.coordinate.distance(to: coordinate)
         }
 
-        for entityNode in sortedVillagers {
-            guard let villagers = entityNode.entity as? VillagerGroup else { continue }
+        // Present the BuildEntityPanelViewController
+        let panelVC = BuildEntityPanelViewController()
+        panelVC.buildingType = buildingType
+        panelVC.buildCoordinate = coordinate
+        panelVC.rotation = rotation
+        panelVC.availableVillagers = sortedVillagers
+        panelVC.hexMap = hexMap
+        panelVC.gameScene = gameScene
+        panelVC.player = player
+        panelVC.modalPresentationStyle = .overFullScreen
+        panelVC.modalTransitionStyle = .crossDissolve
 
-            let distance = entityNode.coordinate.distance(to: coordinate)
-            let title = "👷 \(villagers.name) (\(villagers.villagerCount)) - \(distance) tiles away"
-
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.assignVillagerToBuild(
-                    villagerEntity: entityNode,
-                    buildingType: buildingType,
-                    at: coordinate,
-                    rotation: rotation
-                )
-            })
+        panelVC.onConfirm = { [weak self] selectedEntity in
+            self?.assignVillagerToBuild(
+                villagerEntity: selectedEntity,
+                buildingType: buildingType,
+                at: coordinate,
+                rotation: rotation
+            )
         }
 
-        // Build cost string for the message
-        var costString = ""
-        for (resourceType, amount) in buildingType.buildCost {
-            costString += "\(resourceType.icon)\(amount) "
+        panelVC.onCancel = { [weak self] in
+            self?.delegate?.deselectAll()
         }
 
-        vc.showActionSheet(
-            title: "👷 Select Builder",
-            message: "Select a villager group to build \(buildingType.icon) \(buildingType.displayName)\n\nCost: \(costString)",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+        vc.present(panelVC, animated: false)
     }
 
     /// Shows rotation options for multi-tile buildings (DEPRECATED - use interactive rotation preview instead)
@@ -996,74 +993,10 @@ class MenuCoordinator {
         )
     }
 
-    /// Shows villager selection after rotation has been chosen
+    /// Shows villager selection after rotation has been chosen (uses slide-out panel)
     func showIdleVillagerSelectionForBuildingWithRotation(buildingType: BuildingType, at coordinate: HexCoordinate, rotation: Int) {
-        guard let player = player,
-              let hexMap = hexMap,
-              let vc = viewController else { return }
-
-        // Find all idle villager groups owned by player
-        let idleVillagerGroups = hexMap.entities.filter { entity in
-            guard entity.entity.owner?.id == player.id,
-                  entity.entityType == .villagerGroup,
-                  let villagers = entity.entity as? VillagerGroup else {
-                return false
-            }
-            return villagers.currentTask == .idle
-        }
-
-        if idleVillagerGroups.isEmpty {
-            vc.showAlert(
-                title: "No Idle Villagers",
-                message: "You need idle villagers to construct buildings. All your villager groups are currently busy."
-            )
-            return
-        }
-
-        var actions: [AlertAction] = []
-
-        // Sort by distance to build site
-        let sortedVillagers = idleVillagerGroups.sorted { e1, e2 in
-            e1.coordinate.distance(to: coordinate) < e2.coordinate.distance(to: coordinate)
-        }
-
-        for entityNode in sortedVillagers {
-            guard let villagers = entityNode.entity as? VillagerGroup else { continue }
-
-            let distance = entityNode.coordinate.distance(to: coordinate)
-            let title = "👷 \(villagers.name) (\(villagers.villagerCount)) - \(distance) tiles away"
-
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.assignVillagerToBuild(
-                    villagerEntity: entityNode,
-                    buildingType: buildingType,
-                    at: coordinate,
-                    rotation: rotation
-                )
-            })
-        }
-
-        // Build cost string for the message
-        var costString = ""
-        for (resourceType, amount) in buildingType.buildCost {
-            costString += "\(resourceType.icon)\(amount) "
-        }
-
-        // Show which tiles will be occupied
-        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
-        var tilesMessage = "Tiles: "
-        for coord in occupiedCoords {
-            tilesMessage += "(\(coord.q),\(coord.r)) "
-        }
-
-        vc.showActionSheet(
-            title: "👷 Select Builder",
-            message: "Select a villager group to build \(buildingType.icon) \(buildingType.displayName)\n\nCost: \(costString)\n\(tilesMessage)",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+        // Delegate to the main method which now uses the panel
+        showIdleVillagerSelectionForBuilding(buildingType: buildingType, at: coordinate, rotation: rotation)
     }
 
     /// Assigns a villager to build at the target location
@@ -1273,83 +1206,93 @@ class MenuCoordinator {
     }
     
     // MARK: - Villager Selection for Gathering
-    
+
     func showVillagerSelectionForGathering(resourcePoint: ResourcePointNode) {
         guard let player = player,
-              let vc = viewController else { return }
-        
-        let availableVillagers = player.getVillagerGroups().filter {
-            $0.currentTask == .idle && $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
+              let vc = viewController,
+              let hexMap = hexMap,
+              let gameScene = gameScene else { return }
+
+        // Include ALL player villagers (not just idle), sorted by distance
+        let allVillagers = player.getVillagerGroups().sorted { v1, v2 in
+            v1.coordinate.distance(to: resourcePoint.coordinate) < v2.coordinate.distance(to: resourcePoint.coordinate)
         }
-        
-        guard !availableVillagers.isEmpty else {
-            vc.showAlert(title: "No Villagers", message: "No idle villagers available nearby to gather resources.")
+
+        guard !allVillagers.isEmpty else {
+            vc.showAlert(title: "No Villagers", message: "You don't have any villager groups.")
             return
         }
-        
-        var actions: [AlertAction] = []
-        
-        for villagerGroup in availableVillagers {
-            let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
-            let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.executeGatherCommand(villagerGroup: villagerGroup, resourcePoint: resourcePoint)
-            })
+
+        // Present the GatherEntityPanelViewController
+        let panelVC = GatherEntityPanelViewController()
+        panelVC.resourcePoint = resourcePoint
+        panelVC.availableVillagers = allVillagers
+        panelVC.mode = .gather
+        panelVC.hexMap = hexMap
+        panelVC.gameScene = gameScene
+        panelVC.player = player
+        panelVC.modalPresentationStyle = .overFullScreen
+        panelVC.modalTransitionStyle = .crossDissolve
+
+        panelVC.onConfirm = { [weak self] selectedVillagers in
+            self?.executeGatherCommand(villagerGroup: selectedVillagers, resourcePoint: resourcePoint)
         }
-        
-        vc.showActionSheet(
-            title: "👷 Select Villagers",
-            message: "Choose which villager group to gather \(resourcePoint.resourceType.displayName)\n\nRemaining: \(resourcePoint.remainingAmount)\nCapacity: \(resourcePoint.getTotalVillagersGathering())/\(ResourcePointNode.maxVillagersPerTile)",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+
+        panelVC.onCancel = { [weak self] in
+            self?.delegate?.deselectAll()
+        }
+
+        vc.present(panelVC, animated: false)
     }
     
     // MARK: - Villager Selection for Hunt
-    
+
     func showVillagerSelectionForHunt(resourcePoint: ResourcePointNode) {
         guard let player = player,
-              let vc = viewController else { return }
-        
-        let availableVillagers = player.getVillagerGroups().filter {
-            $0.currentTask == .idle && $0.coordinate.distance(to: resourcePoint.coordinate) <= 10
+              let vc = viewController,
+              let hexMap = hexMap,
+              let gameScene = gameScene else { return }
+
+        // Include ALL player villagers (not just idle), sorted by distance
+        let allVillagers = player.getVillagerGroups().sorted { v1, v2 in
+            v1.coordinate.distance(to: resourcePoint.coordinate) < v2.coordinate.distance(to: resourcePoint.coordinate)
         }
-        
-        guard !availableVillagers.isEmpty else {
-            vc.showAlert(title: "No Villagers", message: "No idle villagers available nearby to hunt.")
+
+        guard !allVillagers.isEmpty else {
+            vc.showAlert(title: "No Villagers", message: "You don't have any villager groups.")
             return
         }
-        
-        var actions: [AlertAction] = []
-        
-        for villagerGroup in availableVillagers {
-            let distance = villagerGroup.coordinate.distance(to: resourcePoint.coordinate)
-            let title = "👷 \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) - Distance: \(distance)"
-            
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.startHunt(villagerGroup: villagerGroup, target: resourcePoint)
-            })
+
+        // Present the GatherEntityPanelViewController in hunt mode
+        let panelVC = GatherEntityPanelViewController()
+        panelVC.resourcePoint = resourcePoint
+        panelVC.availableVillagers = allVillagers
+        panelVC.mode = .hunt
+        panelVC.hexMap = hexMap
+        panelVC.gameScene = gameScene
+        panelVC.player = player
+        panelVC.modalPresentationStyle = .overFullScreen
+        panelVC.modalTransitionStyle = .crossDissolve
+
+        panelVC.onConfirm = { [weak self] selectedVillagers in
+            self?.startHunt(villagerGroup: selectedVillagers, target: resourcePoint)
         }
-        
-        vc.showActionSheet(
-            title: "🏹 Select Villagers to Hunt",
-            message: "Choose which villager group to hunt \(resourcePoint.resourceType.displayName)\n\nHealth: \(Int(resourcePoint.currentHealth))/\(Int(resourcePoint.resourceType.health))",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+
+        panelVC.onCancel = { [weak self] in
+            self?.delegate?.deselectAll()
+        }
+
+        vc.present(panelVC, animated: false)
     }
     
     // MARK: - Attack Selection
 
-    /// Shows a list of player's armies to select for attacking enemies at a tile
+    /// Shows a slide-out panel for selecting player's armies to attack enemies at a tile
     func showAttackerSelectionForTile(enemies: [EntityNode], at coordinate: HexCoordinate) {
         guard let player = player,
-              let vc = viewController else { return }
+              let vc = viewController,
+              let hexMap = hexMap,
+              let gameScene = gameScene else { return }
 
         let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
 
@@ -1361,43 +1304,31 @@ class MenuCoordinator {
             return
         }
 
-        // Build target description
-        var targetDescription = ""
-        for enemy in enemies {
-            if let army = enemy.entity as? Army {
-                let unitCount = army.getTotalMilitaryUnits()
-                targetDescription += "🛡️ \(army.name) (\(unitCount) units)\n"
-            } else if let villagers = enemy.entity as? VillagerGroup {
-                targetDescription += "👷 \(villagers.name) (\(villagers.villagerCount) villagers)\n"
-            }
-        }
-
-        var actions: [AlertAction] = []
-
         // Sort armies by distance to target
         let sortedArmies = playerArmies.sorted { a1, a2 in
             a1.coordinate.distance(to: coordinate) < a2.coordinate.distance(to: coordinate)
         }
 
-        for army in sortedArmies {
-            let distance = army.coordinate.distance(to: coordinate)
-            let unitCount = army.getTotalMilitaryUnits()
-            let commanderInfo = army.commander?.name ?? "No Commander"
-            let title = "🛡️ \(army.name) (\(unitCount) units) - \(commanderInfo) - \(distance) tiles"
+        // Present the AttackEntityPanelViewController
+        let panelVC = AttackEntityPanelViewController()
+        panelVC.targetCoordinate = coordinate
+        panelVC.enemies = enemies
+        panelVC.availableArmies = sortedArmies
+        panelVC.hexMap = hexMap
+        panelVC.gameScene = gameScene
+        panelVC.player = player
+        panelVC.modalPresentationStyle = .overFullScreen
+        panelVC.modalTransitionStyle = .crossDissolve
 
-            actions.append(AlertAction(title: title) { [weak self] in
-                self?.executeAttackCommand(attacker: army, targetCoordinate: coordinate)
-            })
+        panelVC.onConfirm = { [weak self] selectedArmy in
+            self?.executeAttackCommand(attacker: selectedArmy, targetCoordinate: coordinate)
         }
 
-        vc.showActionSheet(
-            title: "⚔️ Select Attacking Army",
-            message: "Target at (\(coordinate.q), \(coordinate.r)):\n\(targetDescription)",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
+        panelVC.onCancel = { [weak self] in
+            self?.delegate?.deselectAll()
+        }
+
+        vc.present(panelVC, animated: false)
     }
 
     /// Executes an AttackCommand
@@ -1791,6 +1722,39 @@ class MenuCoordinator {
                     let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
                     player.increaseCollectionRate(.food, amount: rateContribution)
 
+                    // If engine is enabled, also register with ResourceEngine
+                    if gameScene.isEngineEnabled {
+                        // Create resource point data in engine state
+                        if let engineState = gameScene.engineGameState {
+                            // Add carcass to engine state
+                            let carcassData = ResourcePointData(
+                                coordinate: carcass.coordinate,
+                                resourceType: ResourcePointTypeData(rawValue: carcass.resourceType.rawValue) ?? .deerCarcass
+                            )
+                            carcassData.setRemainingAmount(carcass.remainingAmount)
+                            engineState.addResourcePoint(carcassData)
+
+                            // Ensure villager group exists in engine state (may have been created after init)
+                            if engineState.getVillagerGroup(id: villagerGroup.id) == nil {
+                                let groupData = VillagerGroupData(
+                                    id: villagerGroup.id,
+                                    name: villagerGroup.name,
+                                    coordinate: villagerGroup.coordinate,
+                                    villagerCount: villagerGroup.villagerCount,
+                                    ownerID: player.id
+                                )
+                                engineState.addVillagerGroup(groupData)
+                                print("➕ Added VillagerGroupData to engine for \(villagerGroup.name)")
+                            }
+
+                            // Start gathering in engine
+                            GameEngine.shared.resourceEngine.startGathering(
+                                villagerGroupID: villagerGroup.id,
+                                resourcePointID: carcassData.id
+                            )
+                        }
+                    }
+
                     var message = "\(villagerGroup.name) killed the \(target.resourceType.displayName)!\n\n🥩 Now gathering from \(carcass.resourceType.displayName) (\(carcass.remainingAmount) food)."
 
                     if villagersLost > 0 {
@@ -1951,5 +1915,28 @@ class MenuCoordinator {
         let minutes = Int(seconds) / 60
         let secs = Int(seconds) % 60
         return String(format: "%d:%02d", minutes, secs)
+    }
+
+    // MARK: - Resource Overview
+
+    func presentResourceOverview() {
+        guard let vc = viewController as? GameViewController,
+              let player = player,
+              let hexMap = hexMap,
+              let gameScene = gameScene else { return }
+
+        let resourceVC = ResourceOverviewViewController()
+        resourceVC.player = player
+        resourceVC.hexMap = hexMap
+        resourceVC.gameScene = gameScene
+        resourceVC.gameViewController = vc
+        resourceVC.modalPresentationStyle = .pageSheet
+
+        if let sheet = resourceVC.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+
+        vc.present(resourceVC, animated: true)
     }
 }

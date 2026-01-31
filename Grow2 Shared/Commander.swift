@@ -313,9 +313,21 @@ class Commander {
     /// Returns a random commander name
     static func randomName() -> String {
         let randomNames = [
-            "Alexander", "Caesar", "Napoleon", "Hannibal", "Genghis",
+            // Ancient/Classical
+            "Alexander", "Caesar", "Hannibal", "Scipio", "Leonidas",
+            "Themistocles", "Pyrrhus", "Spartacus", "Marcus Aurelius", "Trajan",
+            // Medieval
+            "Charlemagne", "Richard", "Saladin", "Genghis", "Tamerlane",
+            "El Cid", "William", "Harald", "Vlad", "Baibars",
+            // Early Modern
+            "Napoleon", "Frederick", "Gustavus", "Cromwell", "Marlborough",
+            "Wellington", "Nelson", "Suvorov", "Turenne", "Eugene",
+            // Women Warriors
             "Joan", "Boudicca", "Cleopatra", "Tomyris", "Zenobia",
-            "Sun Tzu", "Khalid", "Saladin", "Richard", "Frederick"
+            "Artemisia", "Theodora", "Matilda", "Isabella", "Rani Lakshmibai",
+            // Eastern
+            "Sun Tzu", "Khalid", "Zhuge Liang", "Yi Sun-sin", "Oda Nobunaga",
+            "Tokugawa", "Shaka", "Cao Cao", "Bai Qi", "Takeda"
         ]
         return randomNames.randomElement()!
     }

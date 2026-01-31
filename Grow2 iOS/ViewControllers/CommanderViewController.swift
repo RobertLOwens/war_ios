@@ -346,7 +346,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         
         for specialty in CommanderSpecialty.allCases {
             actions.append(AlertAction(title: "\(specialty.icon) \(specialty.displayName) - \(specialty.description)") { [weak self] in
-                self?.showNameInput(specialty: specialty, recruitmentCost: recruitmentCost)
+                self?.recruitCommander(specialty: specialty)
             })
         }
         
@@ -357,22 +357,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         )
     }
 
-    func showNameInput(specialty: CommanderSpecialty, recruitmentCost: [ResourceType: Int]) {
-        showTextInput(
-            title: "👤 Name Your Commander",
-            message: "Enter a name for your new \(specialty.displayName) commander:",
-            placeholder: "Commander Name",
-            onSubmit: { [weak self] name in
-                guard !name.isEmpty else {
-                    self?.showError(message: "Please enter a valid name.")
-                    return
-                }
-                self?.recruitCommander(name: name, specialty: specialty)
-            }
-        )
-    }
-    
-    func recruitCommander(name: String, specialty: CommanderSpecialty) {
+    func recruitCommander(specialty: CommanderSpecialty) {
         guard let player = player else {
             showError(message: "No player reference")
             return
@@ -380,18 +365,18 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         
         let command = RecruitCommanderCommand(
             playerID: player.id,
-            commanderName: name,
             specialty: specialty
         )
-        
+
         let result = CommandExecutor.shared.execute(command)
-        
+
         if result.succeeded {
             // Refresh the selected commander reference
             selectedCommander = player.commanders.last
             tableView.reloadData()
             updateDetailView()
-            showSuccess(message: "✅ Commander \(name) recruited!\n\nDeployed at your City Center.")
+            let commanderName = player.commanders.last?.name ?? "Commander"
+            showSuccess(message: "✅ Commander \(commanderName) recruited!\n\nDeployed at your City Center with home base set.")
         } else if let reason = result.failureReason {
             showError(message: reason)
         }

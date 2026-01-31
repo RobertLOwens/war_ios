@@ -96,8 +96,8 @@ struct RetreatCommand: GameCommand {
         }
 
         // If army is in combat, disengage immediately
-        if CombatSystem.shared.isInCombat(army) {
-            CombatSystem.shared.retreatFromCombat(army: army)
+        if GameEngine.shared.combatEngine.isInCombat(armyID: army.id) {
+            GameEngine.shared.combatEngine.retreatFromCombat(armyID: army.id)
             print("⚔️➡️🏃 Army \(army.name) disengaging from combat to retreat!")
         }
 

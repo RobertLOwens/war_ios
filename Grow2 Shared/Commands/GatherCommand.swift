@@ -28,23 +28,31 @@ struct GatherCommand: GameCommand {
               let villagers = entity.entity as? VillagerGroup else {
             return .failure(reason: "Villager group not found")
         }
-        
+
         guard villagers.owner?.id == playerID else {
             return .failure(reason: "You don't own these villagers")
         }
-        
+
         guard villagers.currentTask == .idle else {
             return .failure(reason: "Villagers are busy with another task")
         }
-        
+
         guard let resource = context.hexMap.getResourcePoint(at: resourceCoordinate) else {
             return .failure(reason: "No resource at this location")
         }
-        
+
         guard resource.resourceType.isGatherable && !resource.isDepleted() else {
             return .failure(reason: "This resource cannot be gathered")
         }
-        
+
+        // Check if resource requires a camp and if there's camp coverage
+        if resource.resourceType.requiresCamp {
+            guard context.hexMap.hasExtendedCampCoverage(at: resourceCoordinate, forResourceType: resource.resourceType) else {
+                let campName = resource.resourceType.requiredCampType?.displayName ?? "Camp"
+                return .failure(reason: "No \(campName) in range. Build a \(campName) nearby or connect with roads.")
+            }
+        }
+
         return .success
     }
     

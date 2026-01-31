@@ -24,6 +24,41 @@ struct UnitCombatStats: Codable {
     var bonusVsCavalry: Double = 0
     var bonusVsBuildings: Double = 0
 
+    /// Total raw damage output (sum of all damage types)
+    var totalDamage: Double {
+        return meleeDamage + pierceDamage + bludgeonDamage
+    }
+
+    /// Average armor across all types
+    var averageArmor: Double {
+        return (meleeArmor + pierceArmor + bludgeonArmor) / 3.0
+    }
+
+    /// Calculates effective damage against a target's armor, applying per-damage-type reduction
+    func calculateEffectiveDamage(against targetArmor: UnitCombatStats, targetCategory: UnitCategory?) -> Double {
+        // Apply armor reduction per damage type
+        let effectiveMelee = max(0, meleeDamage - targetArmor.meleeArmor)
+        let effectivePierce = max(0, pierceDamage - targetArmor.pierceArmor)
+        let effectiveBludgeon = max(0, bludgeonDamage - targetArmor.bludgeonArmor)
+
+        var total = effectiveMelee + effectivePierce + effectiveBludgeon
+
+        // Apply category bonuses
+        if let category = targetCategory {
+            switch category {
+            case .cavalry:
+                total += bonusVsCavalry
+            case .infantry, .ranged, .siege:
+                break  // No bonus vs these categories in the base stats
+            }
+        }
+
+        // Apply bonus vs buildings (if target has this property)
+        // Note: This is handled separately in building combat
+
+        return total
+    }
+
     /// Combines stats from multiple units (for army aggregation)
     static func aggregate(_ stats: [UnitCombatStats]) -> UnitCombatStats {
         var result = UnitCombatStats()
@@ -268,18 +303,6 @@ enum MilitaryUnitType: String, CaseIterable, Codable {
         case .mangonel:   return 150  // Siege - tanky but slow
         case .trebuchet:  return 180  // Heavy siege
         }
-    }
-
-    /// Legacy attack power (sum of all damage types for backward compatibility)
-    var attackPower: Double {
-        let stats = combatStats
-        return stats.meleeDamage + stats.pierceDamage + stats.bludgeonDamage
-    }
-
-    /// Legacy defense power (average of armor types for backward compatibility)
-    var defensePower: Double {
-        let stats = combatStats
-        return (stats.meleeArmor + stats.pierceArmor + stats.bludgeonArmor) / 3.0
     }
 
     var moveSpeed: TimeInterval {

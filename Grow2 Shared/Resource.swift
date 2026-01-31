@@ -415,11 +415,21 @@ class ResourcePointNode: SKSpriteNode {
     func stopGathering(by villagerGroup: VillagerGroup? = nil) {
         if let group = villagerGroup {
             assignedVillagerGroups.removeAll { $0.id == group.id }
+            // Clear the villager's task when they stop gathering
+            if case .gatheringResource = group.currentTask {
+                group.clearTask()
+            }
             print("✅ Removed \(group.name) from gathering")
         } else {
+            // Clear all assigned villagers' tasks
+            for group in assignedVillagerGroups {
+                if case .gatheringResource = group.currentTask {
+                    group.clearTask()
+                }
+            }
             assignedVillagerGroups.removeAll()
         }
-        
+
         isBeingGathered = !assignedVillagerGroups.isEmpty
         updateLabel()
     }

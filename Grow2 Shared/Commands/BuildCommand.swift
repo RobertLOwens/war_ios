@@ -132,9 +132,9 @@ struct BuildCommand: GameCommand {
             building.builderEntity = builderEntity
             villagers.assignTask(.building(building), target: coordinate)
 
-            // Check if villager is already at or adjacent to the build site
+            // Check if villager is already at the build site (must be ON the tile, not adjacent)
             let distance = builderEntity.coordinate.distance(to: coordinate)
-            if distance <= 1 {
+            if distance == 0 {
                 builderAtLocation = true
                 builderEntity.isMoving = false
             } else {

@@ -140,7 +140,7 @@ class MainMenuViewController: UIViewController {
         _ = GameSaveManager.shared.deleteSave()
 
         // Clear combat history from previous games
-        CombatSystem.shared.clearCombatHistory()
+        GameEngine.shared.combatEngine.clearCombatHistory()
 
         // Show game setup screen to allow configuration
         let setupVC = GameSetupViewController()

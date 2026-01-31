@@ -91,7 +91,7 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
 
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         if section == 0 {
-            let count = CombatSystem.shared.activeCombats.count
+            let count = GameEngine.shared.combatEngine.activeCombats.count
             return count > 0 ? "ACTIVE BATTLES (\(count))" : nil
         }
         return "BATTLE HISTORY"
@@ -106,23 +106,27 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if section == 0 {
-            return CombatSystem.shared.activeCombats.count
+            return GameEngine.shared.combatEngine.activeCombats.count
         }
-        return CombatSystem.shared.combatHistory.count
+        return GameEngine.shared.combatEngine.getCombatHistory().count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         if indexPath.section == 0 {
             // Active combat cell
             let cell = tableView.dequeueReusableCell(withIdentifier: "ActiveCombatCell", for: indexPath) as! ActiveCombatCell
-            let combat = CombatSystem.shared.activeCombats[indexPath.row]
-            cell.configure(with: combat)
+            let combats = Array(GameEngine.shared.combatEngine.activeCombats.values)
+            if indexPath.row < combats.count {
+                cell.configure(with: combats[indexPath.row])
+            }
             return cell
         } else {
             // History cell
             let cell = tableView.dequeueReusableCell(withIdentifier: "CombatHistoryCell", for: indexPath) as! CombatHistoryCell
-            let record = CombatSystem.shared.combatHistory[indexPath.row]
-            cell.configure(with: record)
+            let history = GameEngine.shared.combatEngine.getCombatHistory()
+            if indexPath.row < history.count {
+                cell.configure(with: history[indexPath.row])
+            }
             return cell
         }
     }
@@ -131,16 +135,16 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
         tableView.deselectRow(at: indexPath, animated: true)
 
         if indexPath.section == 0 {
-            // Tapped on active combat - show live combat viewer
-            let combat = CombatSystem.shared.activeCombats[indexPath.row]
-            showLiveCombatViewer(for: combat)
+            // Tapped on active combat - show basic info (no live viewer with new engine)
+            let combats = Array(GameEngine.shared.combatEngine.activeCombats.values)
+            if indexPath.row < combats.count {
+                showActiveCombatInfo(combats[indexPath.row])
+            }
         } else {
-            // Tapped on history - show detailed report
-            if let detailedRecord = CombatSystem.shared.getDetailedCombatRecord(at: indexPath.row) {
-                showDetailedCombatReport(detailedRecord)
-            } else {
-                let record = CombatSystem.shared.combatHistory[indexPath.row]
-                showBasicRecord(record)
+            // Tapped on history - show basic record
+            let history = GameEngine.shared.combatEngine.getCombatHistory()
+            if indexPath.row < history.count {
+                showBasicRecord(history[indexPath.row])
             }
         }
     }
@@ -151,30 +155,27 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
 
     // MARK: - Combat Detail Views
 
-    func showLiveCombatViewer(for combat: ActiveCombat) {
-        let liveVC = LiveCombatViewController()
-        liveVC.combat = combat
-        liveVC.modalPresentationStyle = .pageSheet
+    func showActiveCombatInfo(_ combat: ActiveCombatData) {
+        let currentTime = Date().timeIntervalSince1970
+        let elapsed = currentTime - combat.startTime
 
-        if let sheet = liveVC.sheetPresentationController {
-            sheet.detents = [.medium(), .large()]
-            sheet.prefersGrabberVisible = true
-        }
+        var message = "📍 Location: (\(combat.coordinate.q), \(combat.coordinate.r))\n\n"
+        message += "⏱️ Duration: \(formatTime(elapsed))\n"
+        message += "📊 Phase: \(combat.currentPhase)\n"
 
-        present(liveVC, animated: true)
+        let alert = UIAlertController(
+            title: "⚔️ Active Combat",
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Close", style: .default))
+        present(alert, animated: true)
     }
 
-    func showDetailedCombatReport(_ detailedRecord: DetailedCombatRecord) {
-        let detailVC = CombatDetailViewController()
-        detailVC.detailedRecord = detailedRecord
-        detailVC.modalPresentationStyle = .pageSheet
-
-        if let sheet = detailVC.sheetPresentationController {
-            sheet.detents = [.large()]
-            sheet.prefersGrabberVisible = true
-        }
-
-        present(detailVC, animated: true)
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        let mins = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", mins, secs)
     }
 
     func showBasicRecord(_ record: CombatRecord) {
@@ -280,19 +281,18 @@ class ActiveCombatCell: UITableViewCell {
         })
     }
 
-    func configure(with combat: ActiveCombat) {
-        let attackerName = combat.attackerArmy?.name ?? "Unknown"
-        let defenderName = combat.defenderArmy?.name ?? "Unknown"
+    func configure(with combat: ActiveCombatData) {
+        participantsLabel.text = "Combat in progress"
 
-        participantsLabel.text = "\(attackerName) vs \(defenderName)"
-
-        let mins = Int(combat.elapsedTime) / 60
-        let secs = Int(combat.elapsedTime) % 60
+        let currentTime = Date().timeIntervalSince1970
+        let elapsed = currentTime - combat.startTime
+        let mins = Int(elapsed) / 60
+        let secs = Int(elapsed) % 60
         timerLabel.text = String(format: "%d:%02d", mins, secs)
 
-        unitsLabel.text = "⚔️ \(combat.attackerState.totalUnits) units vs 🛡️ \(combat.defenderState.totalUnits) units"
+        unitsLabel.text = "📍 Location: (\(combat.coordinate.q), \(combat.coordinate.r))"
 
-        phaseLabel.text = "Phase: \(combat.phase.displayName)"
+        phaseLabel.text = "Phase: \(combat.currentPhase)"
     }
 
     override func layoutSubviews() {

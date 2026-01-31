@@ -468,6 +468,10 @@ class GameSaveManager {
         
         let armies = player.armies.map { createArmySaveData(from: $0) }
         let commanders = player.commanders.map { createCommanderSaveData(from: $0) }
+        print("💾 SAVE: Player \(player.name) has \(commanders.count) commanders to save")
+        for cmd in player.commanders {
+            print("   💾 Commander: \(cmd.name) (rank: \(cmd.rank.rawValue), specialty: \(cmd.specialty.rawValue))")
+        }
         
         var diplomacy: [String: String] = [:]
         for (playerID, status) in player.diplomacyRelations {
@@ -687,11 +691,17 @@ class GameSaveManager {
         }
         
         // Restore commanders
+        print("📂 LOAD: Found \(data.commanders.count) commanders to restore for player \(data.name)")
         for commanderData in data.commanders {
+            print("   📂 Loading commander: \(commanderData.name) (rank: \(commanderData.rank), specialty: \(commanderData.specialty))")
             if let commander = reconstructCommander(from: commanderData) {
                 player.addCommander(commander)
+                print("   ✅ Commander \(commander.name) restored successfully")
+            } else {
+                print("   ❌ Failed to reconstruct commander \(commanderData.name)")
             }
         }
+        print("📂 LOAD: Player now has \(player.commanders.count) commanders")
         
         // Restore armies
         for armyData in data.armies {

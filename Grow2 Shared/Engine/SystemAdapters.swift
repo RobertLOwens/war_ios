@@ -1,0 +1,351 @@
+// ============================================================================
+// FILE: Grow2 Shared/Engine/SystemAdapters.swift
+// PURPOSE: Adapters that bridge existing systems with the new engine architecture
+// ============================================================================
+
+import Foundation
+
+// MARK: - Combat Data Adapter
+
+/// Bridges visual Army/BuildingNode objects with CombatEngine data types
+class CombatDataAdapter {
+
+    // MARK: - References
+    weak var combatEngine: CombatEngine?
+    weak var gameState: GameState?
+
+    // MARK: - Initialization
+
+    init(combatEngine: CombatEngine, gameState: GameState) {
+        self.combatEngine = combatEngine
+        self.gameState = gameState
+    }
+
+    // MARK: - Data Conversion
+
+    /// Convert an Army (visual) to ArmyData (pure data)
+    func convertToArmyData(_ army: Army) -> ArmyData {
+        let armyData = ArmyData(
+            id: army.id,
+            name: army.name,
+            coordinate: army.coordinate,
+            ownerID: army.owner?.id
+        )
+
+        // Copy composition
+        for (unitType, count) in army.militaryComposition {
+            if let dataType = MilitaryUnitTypeData(rawValue: unitType.rawValue) {
+                armyData.addMilitaryUnits(dataType, count: count)
+            }
+        }
+
+        armyData.isRetreating = army.isRetreating
+        armyData.homeBaseID = army.homeBaseID
+        armyData.commanderID = army.commander?.id
+
+        return armyData
+    }
+
+    /// Convert ArmyData (pure data) back to update an Army (visual)
+    func updateArmy(_ army: Army, from armyData: ArmyData) {
+        // Update composition
+        for unitType in MilitaryUnitType.allCases {
+            let current = army.getMilitaryUnitCount(ofType: unitType)
+            if current > 0 {
+                _ = army.removeMilitaryUnits(unitType, count: current)
+            }
+        }
+
+        for (dataType, count) in armyData.militaryComposition {
+            if let unitType = MilitaryUnitType(rawValue: dataType.rawValue) {
+                army.addMilitaryUnits(unitType, count: count)
+            }
+        }
+
+        army.isRetreating = armyData.isRetreating
+        army.coordinate = armyData.coordinate
+    }
+
+    /// Convert BuildingData to visual building data updates
+    func updateBuilding(_ building: BuildingNode, from buildingData: BuildingData) {
+        building.data.health = buildingData.health
+        building.data.state = buildingData.state
+        building.data.garrison = buildingData.garrison
+        building.data.villagerGarrison = buildingData.villagerGarrison
+        building.updateAppearance()
+    }
+
+    // MARK: - Combat Synchronization
+
+    /// Sync combat results from engine to visual layer
+    func syncCombatResult(_ result: CombatResultData, attackerNode: EntityNode?, defenderNode: EntityNode?) {
+        // Update visual nodes to reflect casualties
+        attackerNode?.updateTexture()
+        defenderNode?.updateTexture()
+    }
+}
+
+// MARK: - Resource System Adapter
+
+/// Adapter for converting between visual ResourcePointNode and data ResourcePointData
+class ResourceSystemAdapter {
+
+    // MARK: - References
+    weak var resourceEngine: ResourceEngine?
+    weak var gameState: GameState?
+
+    // MARK: - Initialization
+
+    init(resourceEngine: ResourceEngine, gameState: GameState) {
+        self.resourceEngine = resourceEngine
+        self.gameState = gameState
+    }
+
+    // MARK: - Data Conversion
+
+    /// Convert ResourcePointNode (visual) to ResourcePointData (pure data)
+    func convertToResourcePointData(_ node: ResourcePointNode) -> ResourcePointData {
+        guard let dataType = ResourcePointTypeData(rawValue: node.resourceType.rawValue) else {
+            // Fallback
+            return ResourcePointData(coordinate: node.coordinate, resourceType: .trees)
+        }
+
+        let data = ResourcePointData(
+            id: UUID(),  // Generate new ID since nodes don't have IDs currently
+            coordinate: node.coordinate,
+            resourceType: dataType
+        )
+        data.setRemainingAmount(node.remainingAmount)
+        data.setCurrentHealth(node.currentHealth)
+
+        // Copy villager assignments
+        for group in node.assignedVillagerGroups {
+            _ = data.assignVillagerGroup(group.id, villagerCount: group.villagerCount)
+        }
+
+        return data
+    }
+
+    /// Update ResourcePointNode from ResourcePointData
+    func updateResourceNode(_ node: ResourcePointNode, from data: ResourcePointData) {
+        node.setRemainingAmount(data.remainingAmount)
+        node.setCurrentHealth(data.currentHealth)
+        node.updateLabel()
+    }
+
+    /// Convert VillagerGroup (visual) to VillagerGroupData (pure data)
+    func convertToVillagerGroupData(_ group: VillagerGroup) -> VillagerGroupData {
+        let data = VillagerGroupData(
+            id: group.id,
+            name: group.name,
+            coordinate: group.coordinate,
+            villagerCount: group.villagerCount,
+            ownerID: group.owner?.id
+        )
+
+        // Convert task
+        data.currentTask = convertTask(group.currentTask)
+        data.taskTargetCoordinate = group.taskTarget
+
+        return data
+    }
+
+    /// Convert VillagerTask to VillagerTaskData
+    func convertTask(_ task: VillagerTask) -> VillagerTaskData {
+        switch task {
+        case .idle:
+            return .idle
+        case .building(let building):
+            return .building(buildingID: building.data.id)
+        case .gathering(let resourceType):
+            if let dataType = ResourceTypeData(rawValue: resourceType.rawValue) {
+                return .gathering(resourceType: dataType)
+            }
+            return .idle
+        case .gatheringResource(let resourcePoint):
+            // Would need resource point ID mapping
+            return .idle
+        case .hunting(let resourcePoint):
+            return .idle
+        case .repairing(let building):
+            return .repairing(buildingID: building.data.id)
+        case .moving(let coord):
+            return .moving(targetCoordinate: coord)
+        case .upgrading(let building):
+            return .upgrading(buildingID: building.data.id)
+        case .demolishing(let building):
+            return .demolishing(buildingID: building.data.id)
+        }
+    }
+
+    /// Update VillagerGroup from VillagerGroupData
+    func updateVillagerGroup(_ group: VillagerGroup, from data: VillagerGroupData) {
+        // Update villager count
+        let currentCount = group.villagerCount
+        if currentCount > data.villagerCount {
+            _ = group.removeVillagers(count: currentCount - data.villagerCount)
+        } else if currentCount < data.villagerCount {
+            group.addVillagers(count: data.villagerCount - currentCount)
+        }
+
+        group.coordinate = data.coordinate
+    }
+}
+
+// MARK: - Player State Adapter
+
+/// Bridges Player (visual) with PlayerState (pure data)
+class PlayerStateAdapter {
+
+    /// Convert Player to PlayerState
+    static func convertToPlayerState(_ player: Player) -> PlayerState {
+        // Convert color to hex string
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        player.color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        let colorHex = String(format: "#%02X%02X%02X", Int(red * 255), Int(green * 255), Int(blue * 255))
+
+        let state = PlayerState(id: player.id, name: player.name, colorHex: colorHex)
+
+        // Copy resources
+        for resourceType in ResourceType.allCases {
+            if let dataType = ResourceTypeData(rawValue: resourceType.rawValue) {
+                state.setResource(dataType, amount: player.getResource(resourceType))
+                state.setCollectionRate(dataType, rate: player.getCollectionRate(resourceType))
+            }
+        }
+
+        // Copy entity ownership
+        for building in player.buildings {
+            state.addOwnedBuilding(building.data.id)
+        }
+
+        for army in player.armies {
+            state.addOwnedArmy(army.id)
+        }
+
+        for group in player.getVillagerGroups() {
+            state.addOwnedVillagerGroup(group.id)
+        }
+
+        for commander in player.commanders {
+            state.addOwnedCommander(commander.id)
+        }
+
+        // Copy diplomacy
+        for (playerID, status) in player.diplomacyRelations {
+            if let dataStatus = DiplomacyStatusData(rawValue: status.rawValue) {
+                state.setDiplomacyStatus(with: playerID, status: dataStatus)
+            }
+        }
+
+        return state
+    }
+
+    /// Update Player from PlayerState
+    static func updatePlayer(_ player: Player, from state: PlayerState) {
+        // Update resources
+        for dataType in ResourceTypeData.allCases {
+            if let resourceType = ResourceType(rawValue: dataType.rawValue) {
+                player.setResource(resourceType, amount: state.getResource(dataType))
+                player.setCollectionRate(resourceType, rate: state.getCollectionRate(dataType))
+            }
+        }
+    }
+}
+
+// MARK: - Map Data Adapter
+
+/// Bridges HexMap (visual) with MapData (pure data)
+class MapDataAdapter {
+
+    /// Convert HexMap to MapData
+    static func convertToMapData(_ hexMap: HexMap) -> MapData {
+        let mapData = MapData(width: hexMap.width, height: hexMap.height)
+
+        // Convert tiles
+        for (coord, tile) in hexMap.tiles {
+            if let terrainData = TerrainData(rawValue: tile.terrain.rawValue) {
+                let tileData = TileData(
+                    coordinate: coord,
+                    terrain: terrainData,
+                    elevation: tile.elevation
+                )
+                mapData.setTile(tileData)
+            }
+        }
+
+        return mapData
+    }
+
+    /// Sync positions from visual nodes to map data
+    static func syncPositions(from hexMap: HexMap, to mapData: MapData) {
+        // Sync building positions
+        for building in hexMap.buildings {
+            mapData.registerBuilding(
+                id: building.data.id,
+                at: building.coordinate,
+                occupiedCoords: building.data.occupiedCoordinates
+            )
+        }
+
+        // Sync entity positions
+        for entity in hexMap.entities {
+            if let army = entity.entity as? Army {
+                mapData.registerArmy(id: army.id, at: entity.coordinate)
+            } else if let villagerGroup = entity.entity as? VillagerGroup {
+                mapData.registerVillagerGroup(id: villagerGroup.id, at: entity.coordinate)
+            }
+        }
+
+        // Sync resource point positions
+        for resource in hexMap.resourcePoints {
+            // Would need ID mapping for resource points
+        }
+    }
+}
+
+// MARK: - Full State Sync
+
+/// Utility for syncing between visual and data layers
+class GameStateSynchronizer {
+
+    /// Create a full GameState from existing visual objects
+    static func createGameState(from hexMap: HexMap, players: [Player], mapWidth: Int, mapHeight: Int) -> GameState {
+        let gameState = GameState(mapWidth: mapWidth, mapHeight: mapHeight)
+
+        // Convert map
+        let mapData = MapDataAdapter.convertToMapData(hexMap)
+        // Note: GameState owns its mapData, would need to copy tiles
+
+        // Add players
+        for player in players {
+            let playerState = PlayerStateAdapter.convertToPlayerState(player)
+            gameState.addPlayer(playerState)
+        }
+
+        // Add buildings
+        for building in hexMap.buildings {
+            gameState.addBuilding(building.data)
+        }
+
+        // Add entities
+        for entity in hexMap.entities {
+            if let army = entity.entity as? Army {
+                let combatAdapter = CombatDataAdapter(combatEngine: GameEngine.shared.combatEngine, gameState: gameState)
+                let armyData = combatAdapter.convertToArmyData(army)
+                gameState.addArmy(armyData)
+            } else if let villagerGroup = entity.entity as? VillagerGroup {
+                let resourceAdapter = ResourceSystemAdapter(resourceEngine: GameEngine.shared.resourceEngine, gameState: gameState)
+                let groupData = resourceAdapter.convertToVillagerGroupData(villagerGroup)
+                gameState.addVillagerGroup(groupData)
+            }
+        }
+
+        return gameState
+    }
+
+    /// Sync visual layer from GameState changes
+    static func applyStateChanges(_ changes: StateChangeBatch, visualLayer: GameVisualLayer) {
+        visualLayer.applyChanges(changes)
+    }
+}

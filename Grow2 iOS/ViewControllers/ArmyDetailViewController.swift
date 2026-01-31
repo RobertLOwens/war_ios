@@ -531,7 +531,7 @@ class ArmyDetailViewController: UIViewController {
             currentY += 90
 
             // Retreat button - check if in combat for different styling/text
-            let isInCombat = CombatSystem.shared.isInCombat(army)
+            let isInCombat = GameEngine.shared.combatEngine.isInCombat(armyID: army.id)
             let retreatTitle = isInCombat ?
                 "⚔️🏃 Disengage & Retreat to Home Base" :
                 "🏃 Retreat to Home Base (10% faster)"
@@ -549,6 +549,7 @@ class ArmyDetailViewController: UIViewController {
             )
             contentView.addSubview(retreatButton)
             currentY += 65
+
         } else {
             // No home base
             let noHomeBaseCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 70))
@@ -575,6 +576,19 @@ class ArmyDetailViewController: UIViewController {
 
             currentY += 80
         }
+
+        // Reinforce button - request reinforcements from buildings with garrisons
+        // This appears for all armies regardless of home base status
+        let reinforceButton = createActionButton(
+            title: "🔄 Request Reinforcements",
+            y: currentY,
+            width: contentWidth,
+            leftMargin: leftMargin,
+            color: UIColor(red: 0.2, green: 0.5, blue: 0.6, alpha: 1.0),
+            action: #selector(reinforceTapped)
+        )
+        contentView.addSubview(reinforceButton)
+        currentY += 65
 
         return currentY
     }
@@ -605,6 +619,102 @@ class ArmyDetailViewController: UIViewController {
         } else {
             let alert = UIAlertController(
                 title: "Retreat Failed",
+                message: result.failureReason ?? "Unknown error",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
+    }
+
+    @objc func reinforceTapped() {
+        guard let player = player else { return }
+
+        // Find all buildings with garrisons that belong to this player
+        let buildingsWithGarrison = hexMap.buildings.filter { building in
+            building.owner?.id == player.id &&
+            building.isOperational &&
+            building.getTotalGarrisonedUnits() > 0
+        }
+
+        if buildingsWithGarrison.isEmpty {
+            let alert = UIAlertController(
+                title: "No Reinforcements Available",
+                message: "No buildings have garrisoned units to send.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        // Present the reinforcement panel
+        let reinforcePanel = ReinforcePanelViewController()
+        reinforcePanel.targetArmy = army
+        reinforcePanel.availableBuildings = buildingsWithGarrison
+        reinforcePanel.hexMap = hexMap
+        reinforcePanel.gameScene = gameScene
+        reinforcePanel.player = player
+        reinforcePanel.modalPresentationStyle = .overCurrentContext
+        reinforcePanel.modalTransitionStyle = .crossDissolve
+
+        reinforcePanel.onConfirm = { [weak self] building, units in
+            self?.executeReinforcement(from: building, units: units)
+        }
+
+        reinforcePanel.onCancel = { [weak self] in
+            // Panel was cancelled, nothing to do
+        }
+
+        present(reinforcePanel, animated: false)
+    }
+
+    private func executeReinforcement(from building: BuildingNode, units: [MilitaryUnitType: Int]) {
+        guard let player = player else { return }
+
+        // Create and execute the reinforce command
+        let command = ReinforceArmyCommand(
+            playerID: player.id,
+            buildingID: building.data.id,
+            armyID: army.id,
+            units: units
+        )
+
+        let context = CommandContext(
+            hexMap: hexMap,
+            player: player,
+            allPlayers: gameScene.allGamePlayers,
+            gameScene: gameScene
+        )
+
+        let validationResult = command.validate(in: context)
+        if !validationResult.succeeded {
+            let alert = UIAlertController(
+                title: "Cannot Send Reinforcements",
+                message: validationResult.failureReason ?? "Unknown error",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        let result = command.execute(in: context)
+        if result.succeeded {
+            // Show success and dismiss
+            let totalUnits = units.values.reduce(0, +)
+            let alert = UIAlertController(
+                title: "Reinforcements Dispatched",
+                message: "\(totalUnits) units are marching to \(army.name).",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
+                self?.dismiss(animated: true)
+            })
+            present(alert, animated: true)
+        } else {
+            let alert = UIAlertController(
+                title: "Reinforcement Failed",
                 message: result.failureReason ?? "Unknown error",
                 preferredStyle: .alert
             )

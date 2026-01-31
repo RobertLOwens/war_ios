@@ -182,28 +182,36 @@ class Army: MapEntity {
         return getTotalMilitaryUnits()
     }
     
-    // ✅ UPDATED: Handle optional commander with category-based specialty bonuses
+    // ✅ UPDATED: Handle optional commander with category-based specialty bonuses using combatStats
     func getModifiedStrength() -> Double {
+        let aggregatedStats = getAggregatedCombatStats()
+        let baseStrength = aggregatedStats.meleeDamage + aggregatedStats.pierceDamage + aggregatedStats.bludgeonDamage
+
         guard let commander = commander else {
-            return getTotalStrength()
+            return baseStrength
         }
 
         var totalStrength = 0.0
 
         // Apply specialty bonuses per unit category
         for (unitType, count) in militaryComposition {
-            let baseStrength = unitType.attackPower * Double(count)
+            let stats = unitType.combatStats
+            let unitDamage = stats.meleeDamage + stats.pierceDamage + stats.bludgeonDamage
+            let baseDamage = unitDamage * Double(count)
             let categoryBonus = commander.getAttackBonus(for: unitType.category)
-            totalStrength += baseStrength * (1.0 + categoryBonus)
+            totalStrength += baseDamage * (1.0 + categoryBonus)
         }
 
         return totalStrength
     }
-    
-    // ✅ UPDATED: Handle optional commander with category-based specialty bonuses
+
+    // ✅ UPDATED: Handle optional commander with category-based specialty bonuses using combatStats
     func getModifiedDefense() -> Double {
+        let aggregatedStats = getAggregatedCombatStats()
+        let baseDefense = aggregatedStats.averageArmor * Double(getTotalUnits())
+
         guard let commander = commander else {
-            return getTotalDefense()
+            return baseDefense
         }
 
         var totalDefense = 0.0
@@ -211,12 +219,15 @@ class Army: MapEntity {
 
         // Apply defense bonuses per unit
         for (unitType, count) in militaryComposition {
-            let baseDefense = unitType.defensePower * Double(count)
-            totalDefense += baseDefense * (1.0 + defenseBonus)
+            let stats = unitType.combatStats
+            let unitArmor = (stats.meleeArmor + stats.pierceArmor + stats.bludgeonArmor) / 3.0
+            let baseArmor = unitArmor * Double(count)
+            totalDefense += baseArmor * (1.0 + defenseBonus)
         }
 
         return totalDefense
     }
+
     
     // ✅ UPDATED: Handle optional commander
     func getDescription() -> String {
@@ -288,27 +299,28 @@ class Army: MapEntity {
         return count
     }
 
+    /// Total damage output of the army (sum of all damage types across all units)
     func getTotalStrength() -> Double {
-        var strength = 0.0
+        let stats = getAggregatedCombatStats()
+        return stats.meleeDamage + stats.pierceDamage + stats.bludgeonDamage
+    }
 
-         // New military unit system
-         for (unitType, count) in militaryComposition {
-         strength += unitType.attackPower * Double(count)
-         }
-
-         return strength
-     }
-
+    /// Average defense of the army (average armor across all units)
     func getTotalDefense() -> Double {
-         var defense = 0.0
+        let stats = getAggregatedCombatStats()
+        let totalUnits = getTotalUnits()
+        guard totalUnits > 0 else { return 0 }
+        return (stats.meleeArmor + stats.pierceArmor + stats.bludgeonArmor) / 3.0 * Double(totalUnits)
+    }
 
-         // New military unit system
-         for (unitType, count) in militaryComposition {
-             defense += unitType.defensePower * Double(count)
-         }
-
-         return defense
-     }
+    /// Total HP of all units in the army
+    func getTotalHP() -> Double {
+        var totalHP = 0.0
+        for (unitType, count) in militaryComposition {
+            totalHP += unitType.hp * Double(count)
+        }
+        return totalHP
+    }
     
     // MARK: - Merging Armies
     

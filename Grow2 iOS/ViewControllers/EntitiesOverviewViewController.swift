@@ -331,21 +331,10 @@ class EntityOverviewCell: UITableViewCell {
         }
 
         // Check if army is in combat
-        if CombatSystem.shared.isInCombat(army) {
-            if let combat = CombatSystem.shared.getActiveCombat(for: army) {
-                let isAttacker = combat.attackerArmy === army
-                let opponent = isAttacker ? combat.defenderArmy?.name ?? "Enemy" : combat.attackerArmy?.name ?? "Enemy"
-                taskLabel.text = "⚔️ Fighting \(opponent)"
-                taskLabel.textColor = .systemRed
-
-                let elapsed = Int(combat.elapsedTime)
-                timerLabel.text = formatTime(TimeInterval(elapsed))
-                timerLabel.textColor = .systemRed
-            } else {
-                taskLabel.text = "⚔️ In Combat"
-                taskLabel.textColor = .systemRed
-                timerLabel.text = ""
-            }
+        if GameEngine.shared.combatEngine.isInCombat(armyID: army.id) {
+            taskLabel.text = "⚔️ In Combat"
+            taskLabel.textColor = .systemRed
+            timerLabel.text = ""
         } else {
             taskLabel.text = "⚔️ Ready for combat"
             taskLabel.textColor = UIColor(red: 0.8, green: 0.6, blue: 0.3, alpha: 1.0)

@@ -32,7 +32,7 @@ class GameViewController: UIViewController {
     private var entitiesButton: UIButton?
     private var entitiesBadgeView: UIView?
     private var entitiesBadgeLabel: UILabel?
-    
+
     private struct AssociatedKeys {
         static var unitLabels: UInt8 = 0
         static var garrisonData: UInt8 = 1
@@ -287,19 +287,21 @@ class GameViewController: UIViewController {
             showSimpleAlert(title: "Invalid Target", message: "Target is not an army or no longer exists.")
             return
         }
-        
-        // Calculate combat outcome
-        let attackerStrength = attacker.getModifiedStrength()
-        let defenderStrength = targetEntity.getModifiedDefense()
-        
+
+        // Calculate combat outcome using new combat stats
+        let attackerStats = attacker.getAggregatedCombatStats()
+        let defenderStats = targetEntity.getAggregatedCombatStats()
+        let effectiveDamage = attackerStats.calculateEffectiveDamage(against: defenderStats, targetCategory: targetEntity.getPrimaryCategory())
+        let defenderEffectiveDamage = defenderStats.calculateEffectiveDamage(against: attackerStats, targetCategory: attacker.getPrimaryCategory())
+
         var resultMessage = "⚔️ Battle Report\n\n"
         resultMessage += "Attacker: \(attacker.name)\n"
-        resultMessage += "Attack Power: \(attackerStrength)\n\n"
+        resultMessage += "Effective Damage: \(Int(effectiveDamage))\n\n"
         resultMessage += "Defender: \(targetEntity.name)\n"
-        resultMessage += "Defense Power: \(defenderStrength)\n\n"
+        resultMessage += "Effective Damage: \(Int(defenderEffectiveDamage))\n\n"
         
-        // Simple combat calculation
-        if attackerStrength > defenderStrength {
+        // Simple combat calculation using effective damage
+        if effectiveDamage > defenderEffectiveDamage {
             let casualties = calculateCasualties(army: attacker, lossPercent: 0.2)
             let defenderCasualties = calculateCasualties(army: targetEntity, lossPercent: 0.8)
             
@@ -376,12 +378,12 @@ class GameViewController: UIViewController {
 
     func formatArmyComposition(_ army: Army) -> String {
         var message = ""
-        
+
         // Get total counts
         let totalUnits = army.getTotalMilitaryUnits()
-        
+
         message += "Total Units: \(totalUnits)\n\n"
-        
+
         if totalUnits > 0 {
             message += "⚔️ Military Units:\n"
             for (unitType, count) in army.militaryComposition.sorted(by: { $0.key.displayName < $1.key.displayName }) {
@@ -390,12 +392,14 @@ class GameViewController: UIViewController {
             }
             message += "\n"
         }
-        
-        // Show combat stats
+
+        // Show combat stats using new system
+        let stats = army.getAggregatedCombatStats()
         message += "💪 Combat Stats:\n"
-        message += "⚔️ Total Attack: \(army.getTotalStrength())\n"
-        message += "🛡️ Total Defense: \(army.getTotalDefense())"
-        
+        message += "⚔️ Damage: M:\(Int(stats.meleeDamage)) P:\(Int(stats.pierceDamage)) B:\(Int(stats.bludgeonDamage))\n"
+        message += "🛡️ Armor: M:\(Int(stats.meleeArmor)) P:\(Int(stats.pierceArmor)) B:\(Int(stats.bludgeonArmor))\n"
+        message += "❤️ Total HP: \(Int(army.getTotalHP()))"
+
         return message
     }
     
@@ -563,6 +567,7 @@ class GameViewController: UIViewController {
             ("Research", #selector(showResearchScreen), UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)),
             ("Training", #selector(showTrainingOverview), UIColor(red: 0.5, green: 0.5, blue: 0.3, alpha: 1.0)),
             ("Buildings", #selector(showBuildingsOverview), UIColor(red: 0.5, green: 0.4, blue: 0.6, alpha: 1.0)),
+            ("Resources", #selector(showResourcesOverview), UIColor(red: 0.6, green: 0.5, blue: 0.2, alpha: 1.0)),
             ("Entities", #selector(showEntitiesOverview), UIColor(red: 0.3, green: 0.5, blue: 0.5, alpha: 1.0))
         ]
 
@@ -670,7 +675,24 @@ class GameViewController: UIViewController {
         present(entitiesVC, animated: true)
         print("👥 Opening Entities Overview screen")
     }
-    
+
+    @objc func showResourcesOverview() {
+        let resourceVC = ResourceOverviewViewController()
+        resourceVC.player = player
+        resourceVC.hexMap = gameScene.hexMap
+        resourceVC.gameScene = gameScene
+        resourceVC.gameViewController = self
+        resourceVC.modalPresentationStyle = .pageSheet
+
+        if let sheet = resourceVC.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+
+        present(resourceVC, animated: true)
+        print("📦 Opening Resources Overview screen")
+    }
+
     @objc func showGameMenu() {
         showActionSheet(
             title: "⚙️ Game Menu",
@@ -965,6 +987,8 @@ class GameViewController: UIViewController {
         gameScene.player = loadedData.player
         ResearchManager.shared.setup(player: loadedData.player)
         gameScene.hexMap = loadedData.hexMap
+        gameScene.updateBuildingPlacementControllerReferences()  // Update building placement controller
+        gameScene.updateReinforcementManagerReferences()  // Update reinforcement manager
         gameScene.allGamePlayers = loadedData.allPlayers
 
         // Rebuild the scene

@@ -51,7 +51,7 @@ struct MoveCommand: GameCommand {
 
         // Check if army is in combat or awaiting reinforcements
         if let army = entity.entity as? Army {
-            if CombatSystem.shared.isInCombat(army) {
+            if GameEngine.shared.combatEngine.isInCombat(armyID: army.id) {
                 return .failure(reason: "Cannot move while in combat")
             }
             if army.isAwaitingReinforcements {

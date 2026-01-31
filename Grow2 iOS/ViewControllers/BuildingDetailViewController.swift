@@ -260,8 +260,22 @@ class BuildingDetailViewController: UIViewController {
             garrisonDetailLabel.sizeToFit()
             contentView.addSubview(garrisonDetailLabel)
             yOffset += garrisonDetailLabel.frame.height + 20
+
+            // Add "Send Reinforcements" button if there are military units in garrison
+            if building.getTotalGarrisonedUnits() > 0 {
+                let reinforceButton = createActionButton(
+                    title: "🔄 Send Reinforcements to Army",
+                    y: yOffset,
+                    width: contentWidth,
+                    leftMargin: leftMargin,
+                    color: UIColor(red: 0.3, green: 0.5, blue: 0.7, alpha: 1.0),
+                    action: #selector(reinforceArmyTapped)
+                )
+                contentView.addSubview(reinforceButton)
+                yOffset += 60
+            }
         }
-        
+
         // ✅ FIX 6: Upgrade section with proper debug logging
         print("🔧 DEBUG - Upgrade section check:")
         print("   state: \(building.state)")
@@ -836,54 +850,68 @@ class BuildingDetailViewController: UIViewController {
     
     @objc func deployVillagersTapped() {
         let villagerCount = building.villagerGarrison
-        
+
         guard villagerCount > 0 else {
             showAlert(title: "No Villagers", message: "No villagers in garrison to deploy.")
             return
         }
-        
-        guard let spawnCoord = hexMap.findNearestWalkable(to: building.coordinate, maxDistance: 3) else {
-            showAlert(title: "Cannot Deploy", message: "No walkable location nearby.")
-            return
+
+        // Present the new villager deployment panel
+        let panelVC = VillagerDeploymentPanelViewController()
+        panelVC.building = building
+        panelVC.hexMap = hexMap
+        panelVC.gameScene = gameScene
+        panelVC.player = player
+        panelVC.modalPresentationStyle = .overFullScreen
+        panelVC.modalTransitionStyle = .crossDissolve
+
+        // Handle deploy new action
+        panelVC.onDeployNew = { [weak self] count in
+            guard let self = self else { return }
+
+            // Find spawn location
+            guard let spawnCoord = self.hexMap.findNearestWalkable(to: self.building.coordinate, maxDistance: 3) else {
+                self.showAlert(title: "Cannot Deploy", message: "No walkable location nearby.")
+                return
+            }
+
+            self.executeDeployVillagersCommand(count: count, at: spawnCoord)
         }
-        
-        let alert = UIAlertController(
-            title: "👷 Deploy Villagers",
-            message: "Select how many villagers to deploy\n\nAvailable: \(villagerCount)",
-            preferredStyle: .alert
+
+        // Handle join existing action
+        panelVC.onJoinExisting = { [weak self] targetGroup, count in
+            guard let self = self else { return }
+            self.executeJoinVillagerGroupCommand(targetGroup: targetGroup, count: count)
+        }
+
+        panelVC.onCancel = {
+            // Nothing to do on cancel
+        }
+
+        present(panelVC, animated: false)
+    }
+
+    /// Executes join villager group command
+    func executeJoinVillagerGroupCommand(targetGroup: VillagerGroup, count: Int) {
+        let command = JoinVillagerGroupCommand(
+            playerID: player.id,
+            buildingID: building.data.id,
+            targetVillagerGroupID: targetGroup.id,
+            count: count
         )
-        
-        let containerVC = UIViewController()
-        containerVC.preferredContentSize = CGSize(width: 270, height: 100)
-        
-        let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 270, height: 100))
-        
-        let slider = UISlider(frame: CGRect(x: 20, y: 20, width: 230, height: 30))
-        slider.minimumValue = 1
-        slider.maximumValue = Float(villagerCount)
-        slider.value = Float(min(5, villagerCount))
-        containerView.addSubview(slider)
-        
-        let countLabel = UILabel(frame: CGRect(x: 20, y: 55, width: 230, height: 30))
-        countLabel.text = "\(Int(slider.value)) villagers"
-        countLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
-        countLabel.textAlignment = .center
-        containerView.addSubview(countLabel)
-        
-        slider.addTarget(self, action: #selector(deploySliderChanged(_:)), for: .valueChanged)
-        objc_setAssociatedObject(self, &AssociatedKeys.villagerCountLabel, countLabel, .OBJC_ASSOCIATION_RETAIN)
-        
-        containerVC.view.addSubview(containerView)
-        alert.setValue(containerVC, forKey: "contentViewController")
-        
-        alert.addAction(UIAlertAction(title: "Deploy", style: .default) { [weak self] _ in
-            let count = Int(slider.value)
-            self?.executeDeployVillagersCommand(count: count, at: spawnCoord)
-        })
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        present(alert, animated: true)
+
+        let result = CommandExecutor.shared.execute(command)
+
+        if result.succeeded {
+            // Show alert from parent before dismissing to ensure it's displayed
+            gameViewController?.showAlert(
+                title: "Villagers Dispatched",
+                message: "\(count) villagers marching to join \(targetGroup.name)"
+            )
+            dismiss(animated: true)
+        } else if let reason = result.failureReason {
+            showAlert(title: "Send Failed", message: reason)
+        }
     }
     
     @objc func deploySliderChanged(_ slider: UISlider) {

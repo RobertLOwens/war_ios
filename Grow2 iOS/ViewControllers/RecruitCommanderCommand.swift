@@ -14,17 +14,15 @@ struct RecruitCommanderCommand: GameCommand {
     let id: UUID
     let timestamp: TimeInterval
     let playerID: UUID
-    
-    let commanderName: String
+
     let specialty: CommanderSpecialty
-    
+
     static var commandType: CommandType { .recruitCommander }
-    
-    init(playerID: UUID, commanderName: String, specialty: CommanderSpecialty) {
+
+    init(playerID: UUID, specialty: CommanderSpecialty) {
         self.id = UUID()
         self.timestamp = Date().timeIntervalSince1970
         self.playerID = playerID
-        self.commanderName = commanderName
         self.specialty = specialty
     }
     
@@ -38,10 +36,10 @@ struct RecruitCommanderCommand: GameCommand {
             return .failure(reason: error)
         }
 
-        // Check for completed city center
+        // Check for operational city center (completed or upgrading)
         let cityCenters = player.buildings.filter {
             $0.buildingType == .cityCenter &&
-            $0.state == .completed
+            ($0.state == .completed || $0.state == .upgrading)
         }
 
         guard let cityCenter = cityCenters.first else {
@@ -62,9 +60,9 @@ struct RecruitCommanderCommand: GameCommand {
             return .failure(reason: "Player not found")
         }
         
-        // Find city center
+        // Find city center (completed or upgrading)
         guard let cityCenter = player.buildings.first(where: {
-            $0.buildingType == .cityCenter && $0.state == .completed
+            $0.buildingType == .cityCenter && ($0.state == .completed || $0.state == .upgrading)
         }) else {
             return .failure(reason: "No City Center found")
         }
@@ -79,7 +77,8 @@ struct RecruitCommanderCommand: GameCommand {
             alpha: 1.0
         )
         
-        // Create new commander
+        // Create new commander with random name
+        let commanderName = Commander.randomName()
         let newCommander = Commander(
             name: commanderName,
             rank: .recruit,
@@ -102,6 +101,9 @@ struct RecruitCommanderCommand: GameCommand {
         
         // Link commander to army
         newCommander.assignToArmy(army)
+
+        // Set the city center as the army's home base
+        army.setHomeBase(cityCenter.data.id)
         
         // Create entity node
         let entityNode = EntityNode(
