@@ -19,6 +19,11 @@ struct ActiveCombatData {
     var lastPhaseTime: TimeInterval
     var isComplete: Bool = false
     var result: CombatResultData?
+
+    // Building damage tracking
+    var buildingType: String?
+    var buildingHealthBefore: Double = 0
+    var totalBuildingDamage: Double = 0
 }
 
 /// Data for army vs villager combat (quick massacre - villagers don't fight back)
@@ -272,7 +277,7 @@ class CombatEngine {
         }
 
         let combatID = UUID()
-        let combat = ActiveCombatData(
+        var combat = ActiveCombatData(
             id: combatID,
             attackerArmyID: attackerArmyID,
             defenderArmyID: nil,
@@ -281,6 +286,10 @@ class CombatEngine {
             startTime: currentTime,
             lastPhaseTime: currentTime
         )
+
+        // Track building info for damage reporting
+        combat.buildingType = building.buildingType.displayName
+        combat.buildingHealthBefore = building.health
 
         buildingCombats[combatID] = combat
 
@@ -696,6 +705,29 @@ class CombatEngine {
 
                 if combat.isComplete {
                     completedCombats.append(combatID)
+
+                    // Emit combatEnded with building damage result
+                    if let result = combat.result, let buildingID = combat.defenderBuildingID {
+                        changes.append(.combatEnded(
+                            attackerID: combat.attackerArmyID,
+                            defenderID: buildingID,
+                            result: result
+                        ))
+
+                        // Notify UI of building combat end
+                        let combatInfo: [String: Any] = [
+                            "attackerArmyID": combat.attackerArmyID,
+                            "buildingID": buildingID,
+                            "result": result
+                        ]
+                        DispatchQueue.main.async {
+                            NotificationCenter.default.post(
+                                name: .buildingCombatEnded,
+                                object: nil,
+                                userInfo: combatInfo
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -728,6 +760,9 @@ class CombatEngine {
             damage *= 1.5  // 50% bonus for having siege units
         }
 
+        // Track damage for reporting
+        combat.totalBuildingDamage += damage
+
         // Apply damage to building
         building.takeDamage(damage)
 
@@ -747,6 +782,26 @@ class CombatEngine {
         // Check for building destruction
         if building.health <= 0 {
             combat.isComplete = true
+
+            // Create building damage record
+            let buildingDamageRecord = BuildingDamageRecord(
+                buildingID: buildingID,
+                buildingType: combat.buildingType ?? building.buildingType.displayName,
+                damageDealt: combat.totalBuildingDamage,
+                healthBefore: combat.buildingHealthBefore,
+                healthAfter: 0,
+                wasDestroyed: true
+            )
+
+            // Set combat result with building damage info
+            combat.result = CombatResultData(
+                winnerID: combat.attackerArmyID,
+                loserID: nil,
+                attackerCasualties: [:],
+                defenderCasualties: [:],
+                combatDuration: 0,
+                buildingDamage: buildingDamageRecord
+            )
 
             changes.append(.buildingDestroyed(
                 buildingID: buildingID,
@@ -772,11 +827,11 @@ class CombatEngine {
         guard let buildingOwnerID = building.ownerID else { return }
 
         // Find armies at any of the building's occupied coordinates
+        // Include empty armies (commanders with 0 units) so they retreat when their home is destroyed
         let buildingCoords = building.occupiedCoordinates
         let defendingArmies = state.armies.values.filter { army in
             army.ownerID == buildingOwnerID &&
-            buildingCoords.contains(army.coordinate) &&
-            !army.isEmpty()
+            buildingCoords.contains(army.coordinate)
         }
 
         guard !defendingArmies.isEmpty else { return }

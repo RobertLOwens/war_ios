@@ -498,6 +498,213 @@ class GameState: Codable {
         return protectors
     }
 
+    // MARK: - AI Helper Methods
+
+    /// Get all AI players
+    func getAIPlayers() -> [PlayerState] {
+        return players.values.filter { $0.isAI }
+    }
+
+    /// Get the nearest enemy army to a coordinate for a player
+    func getNearestEnemyArmy(from coordinate: HexCoordinate, forPlayer playerID: UUID) -> ArmyData? {
+        var nearestArmy: ArmyData?
+        var nearestDistance = Int.max
+
+        for army in armies.values {
+            guard let armyOwnerID = army.ownerID, armyOwnerID != playerID else { continue }
+
+            // Check if this army belongs to an enemy
+            let status = getDiplomacyStatus(playerID: playerID, otherPlayerID: armyOwnerID)
+            guard status == .enemy else { continue }
+
+            let distance = coordinate.distance(to: army.coordinate)
+            if distance < nearestDistance {
+                nearestDistance = distance
+                nearestArmy = army
+            }
+        }
+
+        return nearestArmy
+    }
+
+    /// Get all enemy armies within a range of a coordinate for a player
+    func getEnemyArmies(near coordinate: HexCoordinate, range: Int, forPlayer playerID: UUID) -> [ArmyData] {
+        var enemyArmies: [ArmyData] = []
+
+        for army in armies.values {
+            guard let armyOwnerID = army.ownerID, armyOwnerID != playerID else { continue }
+
+            let status = getDiplomacyStatus(playerID: playerID, otherPlayerID: armyOwnerID)
+            guard status == .enemy else { continue }
+
+            if army.coordinate.distance(to: coordinate) <= range {
+                enemyArmies.append(army)
+            }
+        }
+
+        return enemyArmies
+    }
+
+    /// Get undefended buildings (not protected by defensive structures) for a player
+    func getUndefendedBuildings(forPlayer playerID: UUID) -> [BuildingData] {
+        return getBuildingsForPlayer(id: playerID).filter { building in
+            !isBuildingProtected(building.id) && building.isOperational
+        }
+    }
+
+    /// Calculate threat level at a coordinate for a player (0.0 = no threat, 1.0+ = high threat)
+    func getThreatLevel(at coordinate: HexCoordinate, forPlayer playerID: UUID, sightRange: Int = 10) -> Double {
+        var threatLevel = 0.0
+
+        // Get nearby enemy armies
+        let nearbyEnemies = getEnemyArmies(near: coordinate, range: sightRange, forPlayer: playerID)
+
+        for enemy in nearbyEnemies {
+            let distance = max(1, coordinate.distance(to: enemy.coordinate))
+            let armyStrength = Double(enemy.getTotalUnits())
+
+            // Closer armies contribute more to threat
+            threatLevel += armyStrength / Double(distance)
+        }
+
+        return threatLevel
+    }
+
+    /// Get the total military strength of a player
+    func getMilitaryStrength(forPlayer playerID: UUID) -> Int {
+        var strength = 0
+
+        // Count army units
+        for army in getArmiesForPlayer(id: playerID) {
+            strength += army.getTotalUnits()
+        }
+
+        // Count garrisoned units
+        for building in getBuildingsForPlayer(id: playerID) {
+            strength += building.getTotalGarrisonedUnits()
+        }
+
+        return strength
+    }
+
+    /// Get the total villager count for a player
+    func getVillagerCount(forPlayer playerID: UUID) -> Int {
+        var count = 0
+
+        for group in getVillagerGroupsForPlayer(id: playerID) {
+            count += group.villagerCount
+        }
+
+        // Also count garrisoned villagers
+        for building in getBuildingsForPlayer(id: playerID) {
+            count += building.villagerGarrison
+        }
+
+        return count
+    }
+
+    /// Get all enemy buildings visible to a player
+    func getVisibleEnemyBuildings(forPlayer playerID: UUID) -> [BuildingData] {
+        guard let player = getPlayer(id: playerID) else { return [] }
+
+        var enemyBuildings: [BuildingData] = []
+
+        for building in buildings.values {
+            guard let ownerID = building.ownerID, ownerID != playerID else { continue }
+
+            let status = getDiplomacyStatus(playerID: playerID, otherPlayerID: ownerID)
+            guard status == .enemy else { continue }
+
+            // Check if any of the building's coordinates are visible
+            let isVisible = building.occupiedCoordinates.contains { coord in
+                player.isVisible(coord)
+            }
+
+            if isVisible {
+                enemyBuildings.append(building)
+            }
+        }
+
+        return enemyBuildings
+    }
+
+    /// Get the city center for a player
+    func getCityCenter(forPlayer playerID: UUID) -> BuildingData? {
+        return getBuildingsForPlayer(id: playerID).first {
+            $0.buildingType == .cityCenter && $0.isOperational
+        }
+    }
+
+    /// Get available resource points near a coordinate that don't have camps built on them
+    func getAvailableResourcePoints(near coordinate: HexCoordinate, range: Int, forPlayer playerID: UUID) -> [ResourcePointData] {
+        return resourcePoints.values.filter { resourcePoint in
+            guard resourcePoint.coordinate.distance(to: coordinate) <= range else { return false }
+            guard resourcePoint.remainingAmount > 0 else { return false }
+
+            // Check if there's already a camp built here
+            if let buildingID = mapData.getBuildingID(at: resourcePoint.coordinate),
+               let building = getBuilding(id: buildingID),
+               building.ownerID == playerID {
+                return false  // Already have a camp here
+            }
+
+            return true
+        }
+    }
+
+    /// Check if a coordinate has a building of a specific type for a player
+    func hasBuilding(ofType type: BuildingType, at coordinate: HexCoordinate, forPlayer playerID: UUID) -> Bool {
+        guard let buildingID = mapData.getBuildingID(at: coordinate),
+              let building = getBuilding(id: buildingID) else { return false }
+        return building.buildingType == type && building.ownerID == playerID
+    }
+
+    /// Get count of buildings of a specific type for a player
+    func getBuildingCount(ofType type: BuildingType, forPlayer playerID: UUID) -> Int {
+        return getBuildingsForPlayer(id: playerID).filter {
+            $0.buildingType == type && $0.isOperational
+        }.count
+    }
+
+    /// Find a good location to build near a target coordinate
+    func findBuildLocation(near target: HexCoordinate, maxDistance: Int = 5, forPlayer playerID: UUID) -> HexCoordinate? {
+        // Try the target first
+        if canBuildAt(target, forPlayer: playerID) {
+            return target
+        }
+
+        // Search in expanding rings
+        for distance in 1...maxDistance {
+            let candidates = target.coordinatesInRing(distance: distance)
+            let validCandidates = candidates.filter { canBuildAt($0, forPlayer: playerID) }
+
+            if !validCandidates.isEmpty {
+                // Return the closest valid candidate to target
+                return validCandidates.min(by: { $0.distance(to: target) < $1.distance(to: target) })
+            }
+        }
+
+        return nil
+    }
+
+    /// Check if a coordinate is valid for building placement
+    func canBuildAt(_ coordinate: HexCoordinate, forPlayer playerID: UUID) -> Bool {
+        // Must be valid coordinate
+        guard mapData.isValidCoordinate(coordinate) else { return false }
+
+        // Must be walkable terrain
+        guard mapData.isWalkable(coordinate) else { return false }
+
+        // Must not have existing building
+        guard mapData.getBuildingID(at: coordinate) == nil else { return false }
+
+        // Must not have army or villager group
+        guard mapData.getArmyID(at: coordinate) == nil else { return false }
+        guard mapData.getVillagerGroupID(at: coordinate) == nil else { return false }
+
+        return true
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {

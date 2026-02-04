@@ -78,6 +78,7 @@ class PlayerState: Codable {
     let id: UUID
     var name: String
     var colorHex: String  // Store color as hex string for serialization
+    var isAI: Bool  // Whether this player is controlled by AI
 
     // MARK: - Resources
     private(set) var resources: [ResourceTypeData: Int] = [
@@ -123,10 +124,11 @@ class PlayerState: Codable {
 
     // MARK: - Initialization
 
-    init(id: UUID = UUID(), name: String, colorHex: String) {
+    init(id: UUID = UUID(), name: String, colorHex: String, isAI: Bool = false) {
         self.id = id
         self.name = name
         self.colorHex = colorHex
+        self.isAI = isAI
     }
 
     // MARK: - Resource Management
@@ -302,7 +304,7 @@ class PlayerState: Codable {
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
-        case id, name, colorHex
+        case id, name, colorHex, isAI
         case resources, collectionRates, resourceAccumulators
         case ownedBuildingIDs, ownedArmyIDs, ownedVillagerGroupIDs, ownedCommanderIDs
         case diplomacyRelations
@@ -324,7 +326,7 @@ enum VisibilityLevelData: String, Codable {
 extension PlayerState {
     /// Creates a copy of the player state
     func copy() -> PlayerState {
-        let copy = PlayerState(id: id, name: name, colorHex: colorHex)
+        let copy = PlayerState(id: id, name: name, colorHex: colorHex, isAI: isAI)
         copy.resources = resources
         copy.collectionRates = collectionRates
         copy.resourceAccumulators = resourceAccumulators

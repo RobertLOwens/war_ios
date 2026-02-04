@@ -54,6 +54,7 @@ class GameEngine {
     let constructionEngine: ConstructionEngine
     let trainingEngine: TrainingEngine
     let visionEngine: VisionEngine
+    let aiController: AIController
 
     // MARK: - Delegate
     weak var delegate: GameEngineDelegate?
@@ -69,6 +70,7 @@ class GameEngine {
     private var lastCombatUpdate: TimeInterval = 0
     private var lastResourceUpdate: TimeInterval = 0
     private var lastMovementUpdate: TimeInterval = 0
+    private var lastAIUpdate: TimeInterval = 0
 
     private let visionUpdateInterval: TimeInterval = 0.25  // 4x per second
     private let buildingUpdateInterval: TimeInterval = 0.5  // 2x per second
@@ -76,6 +78,7 @@ class GameEngine {
     private let combatUpdateInterval: TimeInterval = 1.0    // 1x per second
     private let resourceUpdateInterval: TimeInterval = 0.5  // 2x per second
     private let movementUpdateInterval: TimeInterval = 0.1  // 10x per second
+    private let aiUpdateInterval: TimeInterval = 0.5        // AI decisions 2x per second
 
     // MARK: - Initialization
 
@@ -86,6 +89,7 @@ class GameEngine {
         self.constructionEngine = ConstructionEngine()
         self.trainingEngine = TrainingEngine()
         self.visionEngine = VisionEngine()
+        self.aiController = AIController.shared
     }
 
     // MARK: - Setup
@@ -101,8 +105,10 @@ class GameEngine {
         constructionEngine.setup(gameState: gameState)
         trainingEngine.setup(gameState: gameState)
         visionEngine.setup(gameState: gameState)
+        aiController.setup(gameState: gameState)
 
-        print("GameEngine initialized with \(gameState.players.count) players")
+        let aiCount = gameState.getAIPlayers().count
+        print("GameEngine initialized with \(gameState.players.count) players (\(aiCount) AI)")
     }
 
     func reset() {
@@ -114,6 +120,8 @@ class GameEngine {
         lastCombatUpdate = 0
         lastResourceUpdate = 0
         lastMovementUpdate = 0
+        lastAIUpdate = 0
+        aiController.reset()
     }
 
     // MARK: - Game Loop
@@ -167,6 +175,24 @@ class GameEngine {
             let combatChanges = combatEngine.update(currentTime: adjustedTime)
             allChanges.append(contentsOf: combatChanges)
             lastCombatUpdate = adjustedTime
+        }
+
+        // AI updates (2x per second)
+        if adjustedTime - lastAIUpdate >= aiUpdateInterval {
+            let aiCommands = aiController.update(currentTime: adjustedTime)
+            for command in aiCommands {
+                let result = executeCommand(command)
+                if !result.succeeded {
+                    // AI command failed - this is expected sometimes (e.g., not enough resources)
+                    // Just log it at debug level
+                    if let reason = result.failureReason {
+                        print("🤖 AI command failed: \(reason)")
+                    }
+                } else {
+                    allChanges.append(contentsOf: result.changes)
+                }
+            }
+            lastAIUpdate = adjustedTime
         }
 
         // Notify delegate if there are changes

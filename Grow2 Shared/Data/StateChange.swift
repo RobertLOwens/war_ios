@@ -101,6 +101,27 @@ enum StateChange: Codable {
     case gameOver(reason: String, winnerID: UUID?)
 }
 
+// MARK: - Building Damage Record
+
+/// Records damage dealt to a building during combat
+struct BuildingDamageRecord: Codable {
+    let buildingID: UUID
+    let buildingType: String
+    let damageDealt: Double
+    let healthBefore: Double
+    let healthAfter: Double
+    let wasDestroyed: Bool
+
+    init(buildingID: UUID, buildingType: String, damageDealt: Double, healthBefore: Double, healthAfter: Double, wasDestroyed: Bool) {
+        self.buildingID = buildingID
+        self.buildingType = buildingType
+        self.damageDealt = damageDealt
+        self.healthBefore = healthBefore
+        self.healthAfter = healthAfter
+        self.wasDestroyed = wasDestroyed
+    }
+}
+
 // MARK: - Combat Result Data
 
 struct CombatResultData: Codable {
@@ -109,13 +130,15 @@ struct CombatResultData: Codable {
     let attackerCasualties: [String: Int]
     let defenderCasualties: [String: Int]
     let combatDuration: TimeInterval
+    let buildingDamage: BuildingDamageRecord?
 
-    init(winnerID: UUID? = nil, loserID: UUID? = nil, attackerCasualties: [String: Int] = [:], defenderCasualties: [String: Int] = [:], combatDuration: TimeInterval = 0) {
+    init(winnerID: UUID? = nil, loserID: UUID? = nil, attackerCasualties: [String: Int] = [:], defenderCasualties: [String: Int] = [:], combatDuration: TimeInterval = 0, buildingDamage: BuildingDamageRecord? = nil) {
         self.winnerID = winnerID
         self.loserID = loserID
         self.attackerCasualties = attackerCasualties
         self.defenderCasualties = defenderCasualties
         self.combatDuration = combatDuration
+        self.buildingDamage = buildingDamage
     }
 }
 

@@ -70,6 +70,7 @@
 		3FEBD2072EF3B10200341AEE /* Diplomacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2062EF3B10200341AEE /* Diplomacy.swift */; };
 		3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2082F006EE800341AEE /* FogOfWar.swift */; };
 		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
+		3FENGN0001000000000AICNT /* AIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AICNT /* AIController.swift */; };
 		3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CMENG /* CombatEngine.swift */; };
 		3FENGN0001000000000CNENG /* ConstructionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CNENG /* ConstructionEngine.swift */; };
 		3FENGN0001000000000GMENG /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GMENG /* GameEngine.swift */; };
@@ -184,6 +185,7 @@
 		3FEBD2062EF3B10200341AEE /* Diplomacy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diplomacy.swift; sourceTree = "<group>"; };
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000AICNT /* AIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIController.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CMENG /* CombatEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CNENG /* ConstructionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstructionEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GMENG /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
@@ -371,6 +373,7 @@
 		3FENGN0003000000000ENGGP /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				3FENGN0002000000000AICNT /* AIController.swift */,
 				3FENGN0002000000000CMENG /* CombatEngine.swift */,
 				3FENGN0002000000000CNENG /* ConstructionEngine.swift */,
 				3FENGN0002000000000GMENG /* GameEngine.swift */,
@@ -636,6 +639,7 @@
 				3FDATA0001000000000RSPNT /* ResourcePointData.swift in Sources */,
 				3FDATA0001000000000GMEST /* GameState.swift in Sources */,
 				3FENGN0001000000000GMENG /* GameEngine.swift in Sources */,
+				3FENGN0001000000000AICNT /* AIController.swift in Sources */,
 				3FENGN0001000000000MVENG /* MovementEngine.swift in Sources */,
 				3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */,
 				3FENGN0001000000000RSENG /* ResourceEngine.swift in Sources */,

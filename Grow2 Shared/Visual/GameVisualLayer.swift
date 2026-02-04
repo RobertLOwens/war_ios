@@ -70,6 +70,8 @@ class GameVisualLayer {
         // Sync building nodes
         for building in hexMap.buildings {
             buildingNodes[building.data.id] = building
+            // Show HP bar for all buildings (always-visible HP bars)
+            building.setupHealthBar()
         }
 
         // Sync entity nodes
@@ -232,6 +234,9 @@ class GameVisualLayer {
         hexMap.addBuilding(buildingNode)
         buildingNodes[buildingID] = buildingNode
 
+        // Show HP bar if building is damaged (e.g., loaded from save)
+        buildingNode.showHealthBarIfDamaged()
+
         delegate?.visualLayer(self, didCreateNode: buildingNode, forChange: .buildingPlaced(buildingID: buildingID, buildingType: buildingType, coordinate: coordinate, ownerID: ownerID, rotation: rotation))
     }
 
@@ -297,6 +302,9 @@ class GameVisualLayer {
     private func handleBuildingDamaged(buildingID: UUID, currentHealth: Double, maxHealth: Double) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
         buildingNode.updateAppearance()
+
+        // Ensure HP bar is set up (will be a no-op if already exists)
+        buildingNode.setupHealthBar()
         buildingNode.updateHealthBar()
 
         // Visual damage effect

@@ -852,40 +852,118 @@ class BuildingNode: SKSpriteNode {
 
     // MARK: - Health Bar (for Combat)
 
+    // Container node for health bar (allows rotation)
+    private var healthBarContainer: SKNode?
+    // Additional health bar containers for multi-tile buildings
+    private var additionalHealthBarContainers: [SKNode] = []
+    private var additionalHealthBarFills: [SKShapeNode] = []
+
     /// Sets up the health bar for combat visualization
+    /// Positioned along the bottom-right edge of the hex tile, spanning full edge length
+    /// For multi-tile buildings (castle, fort), creates health bars on all tiles
     func setupHealthBar() {
         // Guard against duplicate health bars
         if healthBarBackground != nil && healthBarFill != nil {
             return
         }
 
-        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
-        // Wider bars for better visibility
-        let barWidth: CGFloat = isMultiTile ? 40 : 32
-        let barHeight: CGFloat = 5
+        let barHeight: CGFloat = 3  // Thinner bar
 
-        // Position on top-right hex edge to avoid overlap with army HP bars
-        // Army HP bars appear at the bottom of entities, so we place building bars on the edge
+        // Calculate position along bottom-right hex edge
+        // Hex vertices (pointy-top with iso compression):
+        // Vertex 5 (bottom): angle = -π/2, pos = (0, -radius * isoRatio)
+        // Vertex 0 (bottom-right): angle = -π/6, pos = (radius * √3/2, -radius * 0.5 * isoRatio)
         let hexRadius: CGFloat = HexTileNode.hexRadius
         let isoRatio = HexTileNode.isoRatio
-        let edgeX: CGFloat = hexRadius * 0.4  // Offset toward right edge
-        let edgeY: CGFloat = hexRadius * isoRatio * 0.5  // Offset toward top (with iso compression)
 
-        // Background (dark)
-        let bgRect = CGRect(x: edgeX - barWidth/2, y: edgeY, width: barWidth, height: barHeight)
-        healthBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 2)
+        // Bottom vertex (vertex 5)
+        let bottomX: CGFloat = 0
+        let bottomY: CGFloat = -hexRadius * isoRatio
+
+        // Bottom-right vertex (vertex 0)
+        let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)  // ≈ radius * 0.866
+        let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio  // ≈ -radius * 0.5 * isoRatio
+
+        // Calculate full edge length
+        let edgeDx = bottomRightX - bottomX
+        let edgeDy = bottomRightY - bottomY
+        let barWidth: CGFloat = sqrt(edgeDx * edgeDx + edgeDy * edgeDy)
+
+        // Midpoint of bottom-right edge
+        let edgeMidX = (bottomX + bottomRightX) / 2
+        let edgeMidY = (bottomY + bottomRightY) / 2
+
+        // Offset inward towards center of tile
+        let inwardOffset: CGFloat = 5
+        let distToCenter = sqrt(edgeMidX * edgeMidX + edgeMidY * edgeMidY)
+        let midX = edgeMidX - (edgeMidX / distToCenter) * inwardOffset
+        let midY = edgeMidY - (edgeMidY / distToCenter) * inwardOffset
+
+        // Calculate angle of the edge for rotation
+        let edgeAngle = atan2(bottomRightY - bottomY, bottomRightX - bottomX)
+
+        // Create container node for rotation (anchor tile)
+        healthBarContainer = SKNode()
+        healthBarContainer?.position = CGPoint(x: midX, y: midY)
+        healthBarContainer?.zRotation = edgeAngle
+        healthBarContainer?.zPosition = 1
+        addChild(healthBarContainer!)
+
+        // Background (dark) - centered at origin of container, with white outline
+        let bgRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
+        healthBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 1)
         healthBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
-        healthBarBackground?.strokeColor = UIColor(white: 0.4, alpha: 0.8)
-        healthBarBackground?.lineWidth = 0.5
-        healthBarBackground?.zPosition = 15
-        addChild(healthBarBackground!)
+        healthBarBackground?.strokeColor = .white
+        healthBarBackground?.lineWidth = 1
+        healthBarBackground?.zPosition = 1
+        healthBarContainer?.addChild(healthBarBackground!)
 
-        // Fill (starts green, changes with health)
-        healthBarFill = SKShapeNode(rect: bgRect, cornerRadius: 2)
+        // Fill (starts green, changes with health) - left-aligned within bar
+        let fillRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
+        healthBarFill = SKShapeNode(rect: fillRect, cornerRadius: 1)
         healthBarFill?.fillColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0)
         healthBarFill?.strokeColor = .clear
-        healthBarFill?.zPosition = 16
-        addChild(healthBarFill!)
+        healthBarFill?.zPosition = 2
+        healthBarContainer?.addChild(healthBarFill!)
+
+        // For multi-tile buildings, create health bars on additional tiles
+        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
+        if isMultiTile {
+            let occupiedCoords = getOccupiedCoordinates()
+            let anchorPixelPos = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+
+            // Skip the first coordinate (anchor tile - already has a health bar)
+            for tileCoord in occupiedCoords.dropFirst() {
+                let tilePixelPos = HexMap.hexToPixel(q: tileCoord.q, r: tileCoord.r)
+                // Calculate offset from anchor to this tile
+                let offsetX = tilePixelPos.x - anchorPixelPos.x
+                let offsetY = tilePixelPos.y - anchorPixelPos.y
+
+                // Create container at the offset position + health bar edge offset
+                let container = SKNode()
+                container.position = CGPoint(x: offsetX + midX, y: offsetY + midY)
+                container.zRotation = edgeAngle
+                container.zPosition = 1
+                addChild(container)
+                additionalHealthBarContainers.append(container)
+
+                // Background with white outline
+                let bg = SKShapeNode(rect: bgRect, cornerRadius: 1)
+                bg.fillColor = UIColor(white: 0.2, alpha: 0.8)
+                bg.strokeColor = .white
+                bg.lineWidth = 1
+                bg.zPosition = 1
+                container.addChild(bg)
+
+                // Fill
+                let fill = SKShapeNode(rect: fillRect, cornerRadius: 1)
+                fill.fillColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0)
+                fill.strokeColor = .clear
+                fill.zPosition = 2
+                container.addChild(fill)
+                additionalHealthBarFills.append(fill)
+            }
+        }
 
         isInCombat = true
         updateHealthBar()
@@ -893,47 +971,82 @@ class BuildingNode: SKSpriteNode {
 
     /// Updates the health bar fill based on current health
     func updateHealthBar() {
-        guard isInCombat, let fill = healthBarFill else { return }
+        guard let fill = healthBarFill else { return }
 
         let percentage = CGFloat(health / max(maxHealth, 1))
-        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
-        // Match setupHealthBar dimensions
-        let fullWidth: CGFloat = isMultiTile ? 40 : 32
-        let barHeight: CGFloat = 5
-
-        // Position on top-right hex edge (same as setupHealthBar)
         let hexRadius: CGFloat = HexTileNode.hexRadius
         let isoRatio = HexTileNode.isoRatio
-        let edgeX: CGFloat = hexRadius * 0.4
-        let edgeY: CGFloat = hexRadius * isoRatio * 0.5
 
+        // Match setupHealthBar dimensions - full edge length
+        let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)
+        let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio
+        let bottomY: CGFloat = -hexRadius * isoRatio
+        let edgeDx = bottomRightX
+        let edgeDy = bottomRightY - bottomY
+        let fullWidth: CGFloat = sqrt(edgeDx * edgeDx + edgeDy * edgeDy)
+        let barHeight: CGFloat = 3
+
+        // Update fill width based on health percentage (left-aligned)
         let barWidth = fullWidth * max(0, min(1, percentage))
-        let newRect = CGRect(x: edgeX - fullWidth/2, y: edgeY, width: barWidth, height: barHeight)
-        fill.path = CGPath(roundedRect: newRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
+        let fillRect = CGRect(x: -fullWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
+        fill.path = CGPath(roundedRect: fillRect, cornerWidth: 1, cornerHeight: 1, transform: nil)
 
-        // Change color based on health percentage
+        // Determine fill color based on health percentage
+        let fillColor: UIColor
         if percentage > 0.6 {
-            fill.fillColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0) // Green
+            fillColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0) // Green
         } else if percentage > 0.3 {
-            fill.fillColor = UIColor(red: 0.9, green: 0.7, blue: 0.2, alpha: 1.0) // Yellow/Orange
+            fillColor = UIColor(red: 0.9, green: 0.7, blue: 0.2, alpha: 1.0) // Yellow/Orange
         } else {
-            fill.fillColor = UIColor(red: 0.9, green: 0.3, blue: 0.2, alpha: 1.0) // Red
+            fillColor = UIColor(red: 0.9, green: 0.3, blue: 0.2, alpha: 1.0) // Red
+        }
+        fill.fillColor = fillColor
+
+        // Update additional health bars for multi-tile buildings
+        for additionalFill in additionalHealthBarFills {
+            additionalFill.path = CGPath(roundedRect: fillRect, cornerWidth: 1, cornerHeight: 1, transform: nil)
+            additionalFill.fillColor = fillColor
         }
     }
 
-    /// Removes the health bar when combat ends
+    /// Marks combat as ended but keeps health bar visible (always-visible HP bars)
     func removeHealthBar() {
-        healthBarBackground?.removeFromParent()
-        healthBarBackground = nil
-        healthBarFill?.removeFromParent()
-        healthBarFill = nil
+        // Health bars are now always visible - just mark combat as ended
         isInCombat = false
+    }
+
+    /// Forces removal of health bar regardless of health state
+    func forceRemoveHealthBar() {
+        healthBarContainer?.removeFromParent()
+        healthBarContainer = nil
+        healthBarBackground = nil
+        healthBarFill = nil
+
+        // Remove additional health bars for multi-tile buildings
+        for container in additionalHealthBarContainers {
+            container.removeFromParent()
+        }
+        additionalHealthBarContainers.removeAll()
+        additionalHealthBarFills.removeAll()
+
+        isInCombat = false
+    }
+
+    /// Returns true if the building has taken damage and is not at full health
+    var isDamaged: Bool {
+        return health < maxHealth
+    }
+
+    /// Shows the health bar if the building is damaged
+    func showHealthBarIfDamaged() {
+        if isDamaged {
+            setupHealthBar()
+        }
     }
 
     /// Shows or hides the health bar
     func setHealthBarVisible(_ visible: Bool) {
-        healthBarBackground?.isHidden = !visible
-        healthBarFill?.isHidden = !visible
+        healthBarContainer?.isHidden = !visible
     }
     
     // ... Keep all the visual/UI methods unchanged:

@@ -806,7 +806,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         
         // ===== AI OPPONENT SETUP =====
 
-        let aiPlayer = Player(name: "Enemy", color: .red)
+        let aiPlayer = Player(name: "Enemy", color: .red, isAI: true)
         player.setDiplomacyStatus(with: aiPlayer, status: .enemy)
         
         // AI City Center
@@ -839,7 +839,17 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         hexMap.addEntity(aiVillagerNode)
         entitiesNode.addChild(aiVillagerNode)
         aiPlayer.addEntity(aiVillagers)
-        
+
+        // AI Barracks (for military training)
+        let aiBarracksSpawn = HexCoordinate(q: aiSpawn.q + 1, r: aiSpawn.r)
+        let aiBarracks = BuildingNode(coordinate: aiBarracksSpawn, buildingType: .barracks, owner: aiPlayer)
+        aiBarracks.state = .completed
+        let aiBarracksPos = HexMap.hexToPixel(q: aiBarracksSpawn.q, r: aiBarracksSpawn.r)
+        aiBarracks.position = aiBarracksPos
+        hexMap.addBuilding(aiBarracks)
+        buildingsNode.addChild(aiBarracks)
+        aiPlayer.addBuilding(aiBarracks)
+
         // Store enemy player reference
         self.enemyPlayer = aiPlayer
         

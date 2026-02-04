@@ -110,12 +110,100 @@ class GameViewController: UIViewController {
             name: .appWillSaveGame,
             object: nil
         )
-        
+
+        // Listen for combat end notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePhasedCombatEnded),
+            name: .phasedCombatEnded,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleBuildingCombatEnded),
+            name: .buildingCombatEnded,
+            object: nil
+        )
+
     }
     
     @objc func handleAppWillEnterForeground() {
         print("📱 App returning to foreground - processing background time")
         processBackgroundTime()
+    }
+
+    @objc func handlePhasedCombatEnded(_ notification: Notification) {
+        guard let combat = notification.object as? ActiveCombat else { return }
+
+        // Check if player was involved
+        let playerID = player?.id
+
+        // Get owner IDs from the army state (which was captured when combat started)
+        var attackerOwnerID: UUID?
+        var defenderOwnerID: UUID?
+
+        if let attackerArmyID = combat.attackerArmies.first?.armyID {
+            attackerOwnerID = GameEngine.shared.gameState?.getArmy(id: attackerArmyID)?.ownerID
+        }
+        if let defenderArmyID = combat.defenderArmies.first?.armyID {
+            defenderOwnerID = GameEngine.shared.gameState?.getArmy(id: defenderArmyID)?.ownerID
+        }
+
+        let playerWasAttacker = attackerOwnerID == playerID
+        let playerWasDefender = defenderOwnerID == playerID
+
+        // Only show notification if player was involved
+        guard playerWasAttacker || playerWasDefender else { return }
+
+        // Determine if player won
+        let isVictory: Bool
+        switch combat.winner {
+        case .attackerVictory:
+            isVictory = playerWasAttacker
+        case .defenderVictory:
+            isVictory = playerWasDefender
+        case .draw:
+            isVictory = false
+        }
+
+        // Build message
+        let attackerName = combat.attackerArmies.first?.armyName ?? "Unknown"
+        let defenderName = combat.defenderArmies.first?.armyName ?? "Unknown"
+        let attackerCasualties = combat.attackerState.initialUnitCount - combat.attackerState.totalUnits
+        let defenderCasualties = combat.defenderState.initialUnitCount - combat.defenderState.totalUnits
+
+        var message = "\(attackerName) vs \(defenderName)"
+        message += "\n\nYour casualties: \(playerWasAttacker ? attackerCasualties : defenderCasualties)"
+        message += "\nEnemy casualties: \(playerWasAttacker ? defenderCasualties : attackerCasualties)"
+
+        let title = isVictory ? "Battle Won!" : "Battle Lost"
+
+        showBattleEndNotification(title: title, message: message, isVictory: isVictory, buildingDamage: nil)
+    }
+
+    @objc func handleBuildingCombatEnded(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let attackerArmyID = userInfo["attackerArmyID"] as? UUID,
+              let result = userInfo["result"] as? CombatResultData else { return }
+
+        // Check if player was the attacker
+        let playerID = player?.id
+        let attackerOwnerID = GameEngine.shared.gameState?.getArmy(id: attackerArmyID)?.ownerID
+
+        let playerWasAttacker = attackerOwnerID == playerID
+
+        // Only show notification if player was the attacker (buildings don't attack)
+        guard playerWasAttacker else { return }
+
+        // Player attacking a building is always a "victory" if they dealt damage
+        let isVictory = true
+
+        let message = "Building assault complete!"
+
+        let title = result.buildingDamage?.wasDestroyed == true ? "Building Destroyed!" : "Building Damaged"
+
+        showBattleEndNotification(title: title, message: message, isVictory: isVictory, buildingDamage: result.buildingDamage)
     }
     
     deinit {
@@ -165,7 +253,7 @@ class GameViewController: UIViewController {
         player = Player(name: "Rob", color: .blue)
 
         // Create AI opponent
-        let aiPlayer = Player(name: "Enemy", color: .red)
+        let aiPlayer = Player(name: "Enemy", color: .red, isAI: true)
         player.setDiplomacyStatus(with: aiPlayer, status: .enemy)
         
         // Store for later use in game setup
@@ -217,7 +305,7 @@ class GameViewController: UIViewController {
             skView.presentScene(gameScene)
 
             // Create AI opponent
-            let aiPlayer = Player(name: "Enemy", color: .red)
+            let aiPlayer = Player(name: "Enemy", color: .red, isAI: true)
 
             // Setup map with Arabia generator
             let generator = ArabiaMapGenerator()
@@ -234,7 +322,7 @@ class GameViewController: UIViewController {
             skView.presentScene(gameScene)
 
             // Create AI opponent
-            let aiPlayer = Player(name: "Enemy", color: .red)
+            let aiPlayer = Player(name: "Enemy", color: .red, isAI: true)
 
             // Setup arena with ArenaMapGenerator
             let generator = ArenaMapGenerator()
@@ -2165,11 +2253,25 @@ extension GameViewController: GameSceneDelegate {
         hideRotationPreviewUI()
     }
 
-    func showBattleEndNotification(title: String, message: String, isVictory: Bool) {
+    func showBattleEndNotification(title: String, message: String, isVictory: Bool, buildingDamage: BuildingDamageRecord?) {
         let icon = isVictory ? "🏆" : "💀"
+
+        // Build the full message, including building damage if present
+        var fullMessage = message
+        if let damage = buildingDamage {
+            fullMessage += "\n\n🏰 Building Damage:"
+            fullMessage += "\n\(damage.buildingType): \(Int(damage.damageDealt)) damage dealt"
+            if damage.wasDestroyed {
+                fullMessage += "\n💥 Building Destroyed!"
+            } else {
+                let healthPercent = Int((damage.healthAfter / damage.healthBefore) * 100)
+                fullMessage += "\nRemaining HP: \(healthPercent)%"
+            }
+        }
+
         let alert = UIAlertController(
             title: "\(icon) \(title)",
-            message: message,
+            message: fullMessage,
             preferredStyle: .alert
         )
 

@@ -46,7 +46,7 @@ class Player {
 
     // MARK: - Initialization
 
-    init(id: UUID = UUID(), name: String, color: UIColor, state: PlayerState? = nil) {
+    init(id: UUID = UUID(), name: String, color: UIColor, isAI: Bool = false, state: PlayerState? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -55,8 +55,14 @@ class Player {
         if let existingState = state {
             self.state = existingState
         } else {
-            self.state = PlayerState(id: id, name: name, colorHex: color.toHexString())
+            self.state = PlayerState(id: id, name: name, colorHex: color.toHexString(), isAI: isAI)
         }
+    }
+
+    /// Convenience property to check if this player is AI-controlled
+    var isAI: Bool {
+        get { state.isAI }
+        set { state.isAI = newValue }
     }
 
 

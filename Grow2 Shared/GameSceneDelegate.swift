@@ -77,7 +77,7 @@ protocol GameSceneDelegate: AnyObject {
     // MARK: - Battle Notifications
 
     /// Called when a battle ends and a notification should be shown to the player
-    func showBattleEndNotification(title: String, message: String, isVictory: Bool)
+    func showBattleEndNotification(title: String, message: String, isVictory: Bool, buildingDamage: BuildingDamageRecord?)
 }
 
 // MARK: - Optional Methods Extension
@@ -122,7 +122,7 @@ extension GameSceneDelegate {
         // Default: no-op
     }
 
-    func showBattleEndNotification(title: String, message: String, isVictory: Bool) {
+    func showBattleEndNotification(title: String, message: String, isVictory: Bool, buildingDamage: BuildingDamageRecord?) {
         // Default: no-op
     }
 
@@ -144,4 +144,5 @@ extension Notification.Name {
     static let phasedCombatStarted = Notification.Name("PhasedCombatStarted")
     static let phasedCombatUpdated = Notification.Name("PhasedCombatUpdated")
     static let phasedCombatEnded = Notification.Name("PhasedCombatEnded")
+    static let buildingCombatEnded = Notification.Name("BuildingCombatEnded")
 }

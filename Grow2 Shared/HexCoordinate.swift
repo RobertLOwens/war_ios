@@ -58,4 +58,38 @@ struct HexCoordinate: Hashable, Codable {
         return allNeighbors[normalizedDir]
     }
 
+    /// Returns all coordinates at exactly the given distance (a ring around this coordinate)
+    func coordinatesInRing(distance: Int) -> [HexCoordinate] {
+        guard distance > 0 else { return [self] }
+
+        var results: [HexCoordinate] = []
+
+        // Start at the "west" position at the given distance
+        var current = self
+        for _ in 0..<distance {
+            current = current.neighbor(inDirection: 3)  // West
+        }
+
+        // Walk around the ring in all 6 directions
+        for direction in 0..<6 {
+            for _ in 0..<distance {
+                results.append(current)
+                current = current.neighbor(inDirection: direction)
+            }
+        }
+
+        return results
+    }
+
+    /// Returns all coordinates within the given distance (filled circle)
+    func coordinatesWithinRange(range: Int) -> [HexCoordinate] {
+        var results: [HexCoordinate] = [self]
+
+        for distance in 1...range {
+            results.append(contentsOf: coordinatesInRing(distance: distance))
+        }
+
+        return results
+    }
+
 }
