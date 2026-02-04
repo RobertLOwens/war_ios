@@ -173,6 +173,96 @@ class ResourceOverviewViewController: UIViewController {
         card.addSubview(villagersLabel)
         cardHeight += 24
 
+        // Gathering Entities section (per-group breakdown)
+        let gatherDetails = getVillagerGroupGatherDetails(for: resourceType)
+        if !gatherDetails.isEmpty {
+            // Separator before gathering entities
+            let separatorGather = UIView()
+            separatorGather.backgroundColor = UIColor(white: 0.35, alpha: 1.0)
+            separatorGather.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 1)
+            card.addSubview(separatorGather)
+            cardHeight += 12
+
+            let gatherEntitiesTitle = UILabel()
+            gatherEntitiesTitle.text = "Gathering Entities"
+            gatherEntitiesTitle.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+            gatherEntitiesTitle.textColor = UIColor(white: 0.7, alpha: 1.0)
+            gatherEntitiesTitle.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
+            card.addSubview(gatherEntitiesTitle)
+            cardHeight += 22
+
+            for detail in gatherDetails {
+                // Group name and villager count (White)
+                let groupNameLabel = UILabel()
+                groupNameLabel.text = "\(detail.group.name) (\(detail.group.villagerCount) villagers)"
+                groupNameLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+                groupNameLabel.textColor = .white
+                groupNameLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
+                card.addSubview(groupNameLabel)
+                cardHeight += 20
+
+                // Base Rate (Gray)
+                let baseRateLabel = UILabel()
+                baseRateLabel.text = "   Base Rate: \(String(format: "%.2f", detail.baseRate))/s"
+                baseRateLabel.font = UIFont.systemFont(ofSize: 13)
+                baseRateLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
+                baseRateLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 16)
+                card.addSubview(baseRateLabel)
+                cardHeight += 18
+
+                // Adjacency bonus (Yellow) - if applicable
+                if detail.adjacencyMultiplier > 1.0 {
+                    let adjacencyPercent = Int((detail.adjacencyMultiplier - 1.0) * 100)
+                    let adjacencyLabel = UILabel()
+                    adjacencyLabel.text = "   Adjacency: +\(adjacencyPercent)%"
+                    adjacencyLabel.font = UIFont.systemFont(ofSize: 13)
+                    adjacencyLabel.textColor = .systemYellow
+                    adjacencyLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 16)
+                    card.addSubview(adjacencyLabel)
+                    cardHeight += 18
+
+                    // List adjacency sources
+                    for source in detail.adjacencySources {
+                        let sourceLabel = UILabel()
+                        sourceLabel.text = "      - \(source)"
+                        sourceLabel.font = UIFont.systemFont(ofSize: 12)
+                        sourceLabel.textColor = UIColor.systemYellow.withAlphaComponent(0.8)
+                        sourceLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 15)
+                        card.addSubview(sourceLabel)
+                        cardHeight += 16
+                    }
+                }
+
+                // Research bonus (Cyan) - if applicable
+                if detail.researchMultiplier > 1.0 {
+                    let researchPercent = Int((detail.researchMultiplier - 1.0) * 100)
+                    let researchLabel = UILabel()
+                    researchLabel.text = "   Research: +\(researchPercent)%"
+                    researchLabel.font = UIFont.systemFont(ofSize: 13)
+                    researchLabel.textColor = .systemCyan
+                    researchLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 16)
+                    card.addSubview(researchLabel)
+                    cardHeight += 18
+                }
+
+                // Final Rate (Green)
+                let finalRateLabel = UILabel()
+                finalRateLabel.text = "   Final Rate: \(String(format: "%.2f", detail.finalRate))/s"
+                finalRateLabel.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+                finalRateLabel.textColor = .systemGreen
+                finalRateLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 16)
+                card.addSubview(finalRateLabel)
+                cardHeight += 18
+
+                // Separator line between groups
+                let groupSeparator = UIView()
+                groupSeparator.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+                groupSeparator.frame = CGRect(x: 24, y: cardHeight, width: cardWidth - 48, height: 1)
+                card.addSubview(groupSeparator)
+                cardHeight += 8
+            }
+        }
+
         // Separator
         let separator2 = UIView()
         separator2.backgroundColor = UIColor(white: 0.35, alpha: 1.0)
@@ -244,6 +334,16 @@ class ResourceOverviewViewController: UIViewController {
     struct GatheringData {
         var groupCount: Int = 0
         var totalVillagers: Int = 0
+    }
+
+    struct VillagerGroupGatherDetails {
+        let group: VillagerGroup
+        let resourcePoint: ResourcePointNode
+        let baseRate: Double              // resourceType.baseGatherRate + (villagerCount * 0.2)
+        let adjacencyMultiplier: Double   // 1.0 + sum of adjacency bonuses
+        let researchMultiplier: Double    // from ResearchManager
+        let finalRate: Double             // baseRate * adjacencyMultiplier * researchMultiplier
+        let adjacencySources: [String]    // e.g., "Warehouse at (3,4): +25%"
     }
 
     func getGatheringData(for resourceType: ResourceType) -> GatheringData {
@@ -323,6 +423,104 @@ class ResourceOverviewViewController: UIViewController {
         }
 
         return bonuses
+    }
+
+    // MARK: - Villager Group Gather Details
+
+    func getVillagerGroupGatherDetails(for resourceType: ResourceType) -> [VillagerGroupGatherDetails] {
+        var details: [VillagerGroupGatherDetails] = []
+
+        for group in player.getVillagerGroups() {
+            // Check if the group is gathering a resource point that yields this resource type
+            if case .gatheringResource(let resourcePoint) = group.currentTask {
+                if resourcePoint.resourceType.resourceYield == resourceType {
+                    let detail = calculateGatherDetails(for: group, at: resourcePoint)
+                    details.append(detail)
+                }
+            }
+        }
+
+        return details
+    }
+
+    func calculateGatherDetails(for group: VillagerGroup, at resourcePoint: ResourcePointNode) -> VillagerGroupGatherDetails {
+        let baseGatherRatePerVillager = 0.2
+        let adjacencyBonusPercent = 0.25
+
+        // Base rate = resourceType.baseGatherRate + (villagerCount * 0.2)
+        let baseRate = resourcePoint.resourceType.baseGatherRate + (Double(group.villagerCount) * baseGatherRatePerVillager)
+
+        // Calculate adjacency bonus for the resource point
+        let (adjacencyMultiplier, adjacencySources) = calculateResourcePointAdjacency(
+            resourcePoint: resourcePoint,
+            bonusPercent: adjacencyBonusPercent
+        )
+
+        // Get research multiplier based on resource type
+        let researchMultiplier = getResearchMultiplier(for: resourcePoint.resourceType)
+
+        // Final rate = baseRate * adjacencyMultiplier * researchMultiplier
+        let finalRate = baseRate * adjacencyMultiplier * researchMultiplier
+
+        return VillagerGroupGatherDetails(
+            group: group,
+            resourcePoint: resourcePoint,
+            baseRate: baseRate,
+            adjacencyMultiplier: adjacencyMultiplier,
+            researchMultiplier: researchMultiplier,
+            finalRate: finalRate,
+            adjacencySources: adjacencySources
+        )
+    }
+
+    func calculateResourcePointAdjacency(resourcePoint: ResourcePointNode, bonusPercent: Double) -> (multiplier: Double, sources: [String]) {
+        var multiplier = 1.0
+        var sources: [String] = []
+
+        let neighbors = resourcePoint.coordinate.neighbors()
+
+        for neighborCoord in neighbors {
+            // Check if there's a building at this neighbor coordinate
+            if let building = hexMap.buildings.first(where: { $0.coordinate == neighborCoord && $0.isOperational }) {
+                // Match logic from ResourceEngine.calculateAdjacencyBonus()
+                switch resourcePoint.resourceType {
+                case .farmland:
+                    if building.buildingType == .mill {
+                        multiplier += bonusPercent
+                        sources.append("Mill at (\(neighborCoord.q),\(neighborCoord.r)): +25%")
+                    }
+                case .trees:
+                    if building.buildingType == .warehouse {
+                        multiplier += bonusPercent
+                        sources.append("Warehouse at (\(neighborCoord.q),\(neighborCoord.r)): +25%")
+                    }
+                case .oreMine, .stoneQuarry:
+                    if building.buildingType == .warehouse {
+                        multiplier += bonusPercent
+                        sources.append("Warehouse at (\(neighborCoord.q),\(neighborCoord.r)): +25%")
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
+        return (multiplier, sources)
+    }
+
+    func getResearchMultiplier(for resourcePointType: ResourcePointType) -> Double {
+        let researchManager = ResearchManager.shared
+
+        switch resourcePointType {
+        case .farmland:
+            return researchManager.getFarmGatheringMultiplier()
+        case .trees:
+            return researchManager.getLumberCampGatheringMultiplier()
+        case .oreMine, .stoneQuarry:
+            return researchManager.getMiningCampGatheringMultiplier()
+        default:
+            return 1.0
+        }
     }
 
     @objc func closeScreen() {

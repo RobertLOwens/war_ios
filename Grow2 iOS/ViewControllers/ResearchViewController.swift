@@ -14,18 +14,19 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
     // UI Elements
     private var tableView: UITableView!
     private var headerView: UIView!
+    private var segmentedControl: UISegmentedControl!
     private var activeResearchView: UIView!
     private var activeResearchLabel: UILabel!
     private var activeProgressBar: UIView!
     private var activeProgressFill: UIView!
     private var activeTimeLabel: UILabel!
     private var cancelButton: UIButton!
-    
+
     private var updateTimer: Timer?
-    
+
     // Group research by category
     private var researchByCategory: [ResearchCategory: [ResearchType]] = [:]
-    private var sortedCategories: [ResearchCategory] = []
+    private var selectedCategory: ResearchCategory = .economic
     
     // MARK: - Lifecycle
     
@@ -69,13 +70,6 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
                 return r1.displayName < r2.displayName
             }
         }
-
-        // Sort categories (Economic first, then Military)
-        sortedCategories = researchByCategory.keys.sorted { c1, c2 in
-            if c1 == .economic { return true }
-            if c2 == .economic { return false }
-            return c1.rawValue < c2.rawValue
-        }
     }
     
     private func setupUI() {
@@ -103,12 +97,15 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
         closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
         headerView.addSubview(closeButton)
         
+        // Segmented Control for tabs
+        setupSegmentedControl()
+
         // Active Research Panel
         setupActiveResearchPanel()
-        
+
         // Table View
         let tableY = activeResearchView.frame.maxY + 10
-        tableView = UITableView(frame: CGRect(x: 0, y: tableY, width: view.bounds.width, height: view.bounds.height - tableY), style: .grouped)
+        tableView = UITableView(frame: CGRect(x: 0, y: tableY, width: view.bounds.width, height: view.bounds.height - tableY), style: .plain)
         tableView.delegate = self
         tableView.dataSource = self
         tableView.backgroundColor = .clear
@@ -117,8 +114,27 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
         view.addSubview(tableView)
     }
     
+    private func setupSegmentedControl() {
+        let economicTitle = "\(ResearchCategory.economic.icon) Economic"
+        let militaryTitle = "\(ResearchCategory.military.icon) Military"
+        segmentedControl = UISegmentedControl(items: [economicTitle, militaryTitle])
+        segmentedControl.frame = CGRect(x: 15, y: 70, width: view.bounds.width - 30, height: 36)
+        segmentedControl.selectedSegmentIndex = 0
+        segmentedControl.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+        segmentedControl.selectedSegmentTintColor = UIColor(red: 0.3, green: 0.5, blue: 0.7, alpha: 1.0)
+        segmentedControl.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .normal)
+        segmentedControl.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+        segmentedControl.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
+        view.addSubview(segmentedControl)
+    }
+
+    @objc private func segmentChanged() {
+        selectedCategory = segmentedControl.selectedSegmentIndex == 0 ? .economic : .military
+        tableView.reloadData()
+    }
+
     private func setupActiveResearchPanel() {
-        activeResearchView = UIView(frame: CGRect(x: 15, y: 70, width: view.bounds.width - 30, height: 100))
+        activeResearchView = UIView(frame: CGRect(x: 15, y: 116, width: view.bounds.width - 30, height: 100))
         activeResearchView.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
         activeResearchView.layer.cornerRadius = 12
         view.addSubview(activeResearchView)
@@ -290,36 +306,22 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
     }
     
     // MARK: - TableView DataSource
-    
+
     func numberOfSections(in tableView: UITableView) -> Int {
-        return sortedCategories.count
+        return 1
     }
-    
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        let category = sortedCategories[section]
-        return researchByCategory[category]?.count ?? 0
+        return researchByCategory[selectedCategory]?.count ?? 0
     }
-    
-    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        let category = sortedCategories[section]
-        return "\(category.icon) \(category.displayName)"
-    }
-    
-    func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-        if let header = view as? UITableViewHeaderFooterView {
-            header.textLabel?.textColor = .white
-            header.textLabel?.font = UIFont.boldSystemFont(ofSize: 16)
-        }
-    }
-    
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "ResearchCell", for: indexPath) as! ResearchCell
-        
-        let category = sortedCategories[indexPath.section]
-        if let research = researchByCategory[category]?[indexPath.row] {
+
+        if let research = researchByCategory[selectedCategory]?[indexPath.row] {
             cell.configure(with: research, player: player)
         }
-        
+
         return cell
     }
     
@@ -328,14 +330,13 @@ class ResearchViewController: UIViewController, UITableViewDelegate, UITableView
     }
     
     // MARK: - TableView Delegate
-    
+
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        
-        let category = sortedCategories[indexPath.section]
-        if let research = researchByCategory[category]?[indexPath.row] {
+
+        if let research = researchByCategory[selectedCategory]?[indexPath.row] {
             let manager = ResearchManager.shared
-            
+
             if manager.isResearched(research) {
                 showAlert(title: "Already Researched", message: "\(research.displayName) has already been completed.\n\n\(research.bonusString)")
             } else if manager.isResearching(research) {

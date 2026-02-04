@@ -53,9 +53,13 @@ protocol GameSceneDelegate: AnyObject {
     func gameScene(_ scene: GameScene, didEndPhasedCombat combat: ActiveCombat, result: CombatResult)
     
     // MARK: - Alerts & Notifications
-    
+
     /// Called when an alert should be shown to the user
     func gameScene(_ scene: GameScene, showAlertWithTitle title: String, message: String)
+
+    /// Called when a confirmation dialog should be shown to the user
+    func gameScene(_ scene: GameScene, showConfirmation title: String, message: String,
+                   confirmTitle: String, onConfirm: @escaping () -> Void)
     
     // MARK: - Resource Updates
 
@@ -120,6 +124,12 @@ extension GameSceneDelegate {
 
     func showBattleEndNotification(title: String, message: String, isVictory: Bool) {
         // Default: no-op
+    }
+
+    func gameScene(_ scene: GameScene, showConfirmation title: String, message: String,
+                   confirmTitle: String, onConfirm: @escaping () -> Void) {
+        // Default: auto-confirm (for testing/headless scenarios)
+        onConfirm()
     }
 }
 

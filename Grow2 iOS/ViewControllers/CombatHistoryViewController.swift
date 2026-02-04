@@ -106,7 +106,7 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if section == 0 {
-            return GameEngine.shared.combatEngine.activeCombats.count
+            return GameEngine.shared.combatEngine.getActiveCombatData().count
         }
         return GameEngine.shared.combatEngine.getCombatHistory().count
     }
@@ -115,7 +115,7 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
         if indexPath.section == 0 {
             // Active combat cell
             let cell = tableView.dequeueReusableCell(withIdentifier: "ActiveCombatCell", for: indexPath) as! ActiveCombatCell
-            let combats = Array(GameEngine.shared.combatEngine.activeCombats.values)
+            let combats = GameEngine.shared.combatEngine.getActiveCombatData()
             if indexPath.row < combats.count {
                 cell.configure(with: combats[indexPath.row])
             }
@@ -136,7 +136,7 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
 
         if indexPath.section == 0 {
             // Tapped on active combat - show basic info (no live viewer with new engine)
-            let combats = Array(GameEngine.shared.combatEngine.activeCombats.values)
+            let combats = GameEngine.shared.combatEngine.getActiveCombatData()
             if indexPath.row < combats.count {
                 showActiveCombatInfo(combats[indexPath.row])
             }
@@ -155,21 +155,30 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
 
     // MARK: - Combat Detail Views
 
-    func showActiveCombatInfo(_ combat: ActiveCombatData) {
-        let currentTime = Date().timeIntervalSince1970
-        let elapsed = currentTime - combat.startTime
+    func showActiveCombatInfo(_ combatData: ActiveCombatData) {
+        // Try to get the full ActiveCombat for LiveCombatViewController
+        guard let combat = GameEngine.shared.combatEngine.getActiveCombat(id: combatData.id) else {
+            // Fallback to basic info alert if combat not found
+            let currentTime = GameEngine.shared.gameState?.currentTime ?? 0
+            let elapsed = currentTime - combatData.startTime
 
-        var message = "📍 Location: (\(combat.coordinate.q), \(combat.coordinate.r))\n\n"
-        message += "⏱️ Duration: \(formatTime(elapsed))\n"
-        message += "📊 Phase: \(combat.currentPhase)\n"
+            var message = "📍 Location: (\(combatData.coordinate.q), \(combatData.coordinate.r))\n\n"
+            message += "⏱️ Duration: \(formatTime(elapsed))\n"
+            message += "📊 Phase: \(combatData.currentPhase)\n"
 
-        let alert = UIAlertController(
-            title: "⚔️ Active Combat",
-            message: message,
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "Close", style: .default))
-        present(alert, animated: true)
+            let alert = UIAlertController(
+                title: "⚔️ Active Combat",
+                message: message,
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Close", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        let liveVC = LiveCombatViewController()
+        liveVC.combat = combat
+        present(liveVC, animated: true)
     }
 
     private func formatTime(_ seconds: TimeInterval) -> String {
@@ -179,19 +188,28 @@ class CombatHistoryViewController: UIViewController, UITableViewDelegate, UITabl
     }
 
     func showBasicRecord(_ record: CombatRecord) {
+        // Try to find the detailed record for this combat
+        if let detailedRecord = GameEngine.shared.combatEngine.getDetailedRecord(for: record) {
+            let detailVC = CombatDetailViewController()
+            detailVC.detailedRecord = detailedRecord
+            present(detailVC, animated: true)
+            return
+        }
+
+        // Fallback to basic alert if no detailed record found
         var message = "\(record.getFormattedDate()) at \(record.getFormattedTime())\n\n"
         message += "📍 Location: (\(record.location.q), \(record.location.r))\n\n"
         message += "⚔️ \(record.attacker.name) (\(record.attacker.ownerName))\n"
         if let commander = record.attacker.commanderName {
             message += "   Commander: \(commander)\n"
         }
-        message += "   Initial: \(record.attackerInitialStrength) → Final: \(record.attackerFinalStrength)\n"
+        message += "   Initial: \(Int(record.attackerInitialStrength)) → Final: \(Int(record.attackerFinalStrength))\n"
         message += "   Casualties: \(record.attackerCasualties)\n\n"
         message += "🛡️ \(record.defender.name) (\(record.defender.ownerName))\n"
         if let commander = record.defender.commanderName {
             message += "   Commander: \(commander)\n"
         }
-        message += "   Initial: \(record.defenderInitialStrength) → Final: \(record.defenderFinalStrength)\n"
+        message += "   Initial: \(Int(record.defenderInitialStrength)) → Final: \(Int(record.defenderFinalStrength))\n"
         message += "   Casualties: \(record.defenderCasualties)\n\n"
         message += "🏆 Result: \(record.winner.displayName)"
 
@@ -284,7 +302,7 @@ class ActiveCombatCell: UITableViewCell {
     func configure(with combat: ActiveCombatData) {
         participantsLabel.text = "Combat in progress"
 
-        let currentTime = Date().timeIntervalSince1970
+        let currentTime = GameEngine.shared.gameState?.currentTime ?? 0
         let elapsed = currentTime - combat.startTime
         let mins = Int(elapsed) / 60
         let secs = Int(elapsed) % 60

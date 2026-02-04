@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>10</integer>
+	<key>logs</key>
+	<dict>
+		<key>29CE48B7-5B0E-4770-B2D3-99F6EBF75040</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>29CE48B7-5B0E-4770-B2D3-99F6EBF75040.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>1</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Grow2 project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Grow2 iOS</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Grow2 with scheme Grow2 iOS and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>791580795.61380696</real>
+			<key>timeStoppedRecording</key>
+			<real>791580797.38761699</real>
+			<key>title</key>
+			<string>Building project Grow2 with scheme Grow2 iOS and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>29CE48B7-5B0E-4770-B2D3-99F6EBF75040</string>
+		</dict>
+		<key>39DE3F38-D0E1-4D8E-8D3B-88C3E326FB0A</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>39DE3F38-D0E1-4D8E-8D3B-88C3E326FB0A.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>1</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Grow2 project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Grow2 iOS</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Grow2 with scheme Grow2 iOS and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>791580836.651299</real>
+			<key>timeStoppedRecording</key>
+			<real>791580838.55358505</real>
+			<key>title</key>
+			<string>Building project Grow2 with scheme Grow2 iOS and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>39DE3F38-D0E1-4D8E-8D3B-88C3E326FB0A</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

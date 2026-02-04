@@ -84,6 +84,24 @@ class VillagerJoinManager {
             // Add villagers to target group
             targetGroup.addVillagers(count: marchingGroup.villagerCount)
 
+            // If the target group is gathering resources, update resource collection
+            if case .gatheringResource(let resourcePoint) = targetGroup.currentTask {
+                // Update the resource point's data layer with new villager count
+                _ = resourcePoint.data.assignVillagerGroup(
+                    targetGroup.data.id,
+                    villagerCount: targetGroup.villagerCount
+                )
+                resourcePoint.updateLabel()
+
+                // Update collection rates for the player (use engine for accurate rates with adjacency)
+                if let owner = targetGroup.owner {
+                    // Recalculate collection rates to include adjacency bonuses
+                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: owner.id)
+                }
+
+                print("📈 Updated resource collection: +\(marchingGroup.villagerCount) villagers gathering \(resourcePoint.resourceType.displayName)")
+            }
+
             // Notify UI
             delegate?.villagerJoinManager(
                 self,

@@ -517,12 +517,10 @@ enum VillagerTaskVisual: Equatable {
             return .building(buildingID: building.data.id)
         case .gathering(let resourceType):
             return .gathering(resourceType: resourceType)
-        case .gatheringResource:
-            // Would need resource point ID, return idle for now
-            return .idle
-        case .hunting:
-            // Would need resource point ID, return idle for now
-            return .idle
+        case .gatheringResource(let resourcePoint):
+            return .gatheringResource(resourcePointID: resourcePoint.id)
+        case .hunting(let resourcePoint):
+            return .hunting(resourcePointID: resourcePoint.id)
         case .repairing(let building):
             return .repairing(buildingID: building.data.id)
         case .moving(let coord):

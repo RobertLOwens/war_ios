@@ -20,6 +20,7 @@ class LiveCombatViewController: UIViewController {
     var vsLabel: UILabel!
     var closeButton: UIButton!
     var locationLabel: UILabel!
+    var terrainLabel: UILabel!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -81,6 +82,14 @@ class LiveCombatViewController: UIViewController {
         locationLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(locationLabel)
 
+        // Terrain info
+        terrainLabel = UILabel()
+        terrainLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        terrainLabel.textColor = .systemYellow
+        terrainLabel.textAlignment = .center
+        terrainLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(terrainLabel)
+
         // Attacker side view
         attackerView = CombatSideView(isAttacker: true)
         attackerView.translatesAutoresizingMaskIntoConstraints = false
@@ -125,8 +134,12 @@ class LiveCombatViewController: UIViewController {
             locationLabel.topAnchor.constraint(equalTo: phaseLabel.bottomAnchor, constant: 5),
             locationLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
+            // Terrain
+            terrainLabel.topAnchor.constraint(equalTo: locationLabel.bottomAnchor, constant: 3),
+            terrainLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
             // Attacker view
-            attackerView.topAnchor.constraint(equalTo: locationLabel.bottomAnchor, constant: 20),
+            attackerView.topAnchor.constraint(equalTo: terrainLabel.bottomAnchor, constant: 15),
             attackerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 15),
             attackerView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -15),
             attackerView.heightAnchor.constraint(equalToConstant: 180),
@@ -199,6 +212,23 @@ class LiveCombatViewController: UIViewController {
 
         // Location
         locationLabel.text = "Location: (\(combat.location.q), \(combat.location.r))"
+
+        // Terrain info
+        var terrainText = "\(combat.terrainType.displayName)"
+        var modifiers: [String] = []
+        if combat.terrainDefenseBonus > 0 {
+            modifiers.append("Defender +\(Int(combat.terrainDefenseBonus * 100))%")
+        }
+        if combat.terrainAttackPenalty > 0 {
+            modifiers.append("Attacker -\(Int(combat.terrainAttackPenalty * 100))%")
+        }
+        if !modifiers.isEmpty {
+            terrainText += " (\(modifiers.joined(separator: ", ")))"
+            terrainLabel.textColor = .systemYellow
+        } else {
+            terrainLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+        }
+        terrainLabel.text = terrainText
 
         // Update side views
         attackerView.configure(
@@ -328,23 +358,15 @@ class CombatSideView: UIView {
         hpBarFillWidthConstraint = hpBarFill.widthAnchor.constraint(equalTo: hpBarBackground.widthAnchor, multiplier: 1.0)
 
         NSLayoutConstraint.activate([
-            // Name
-            nameLabel.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
-
-            // Commander
-            commanderLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
-            commanderLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
-
-            // Total units
-            totalUnitsLabel.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            // Total units at top right
+            totalUnitsLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
             totalUnitsLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
 
-            // HP bar background
-            hpBarBackground.topAnchor.constraint(equalTo: commanderLabel.bottomAnchor, constant: 12),
+            // HP bar at top (most prominent, leaving room for unit count)
+            hpBarBackground.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             hpBarBackground.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
-            hpBarBackground.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
-            hpBarBackground.heightAnchor.constraint(equalToConstant: 12),
+            hpBarBackground.trailingAnchor.constraint(equalTo: totalUnitsLabel.leadingAnchor, constant: -12),
+            hpBarBackground.heightAnchor.constraint(equalToConstant: 14),
 
             // HP bar fill
             hpBarFill.topAnchor.constraint(equalTo: hpBarBackground.topAnchor),
@@ -352,12 +374,20 @@ class CombatSideView: UIView {
             hpBarFill.leadingAnchor.constraint(equalTo: hpBarBackground.leadingAnchor),
             hpBarFillWidthConstraint!,
 
-            // Unit breakdown
-            unitBreakdownLabel.topAnchor.constraint(equalTo: hpBarBackground.bottomAnchor, constant: 10),
+            // Name below HP bar
+            nameLabel.topAnchor.constraint(equalTo: hpBarBackground.bottomAnchor, constant: 10),
+            nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
+
+            // Commander below name
+            commanderLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
+            commanderLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
+
+            // Unit breakdown below commander
+            unitBreakdownLabel.topAnchor.constraint(equalTo: commanderLabel.bottomAnchor, constant: 8),
             unitBreakdownLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
             unitBreakdownLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
 
-            // Damage
+            // Damage at bottom
             damageLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
             damageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
         ])

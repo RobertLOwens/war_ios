@@ -351,11 +351,11 @@ class SidePanelViewController: UIViewController {
     }
 
     /// Shows a route preview using findPath with player parameter
-    func showRoutePreview(from startCoordinate: HexCoordinate, to destinationCoordinate: HexCoordinate, for player: Player?) {
+    func showRoutePreview(from startCoordinate: HexCoordinate, to destinationCoordinate: HexCoordinate, for player: Player?, allowImpassableDestination: Bool = false) {
         guard let hexMap = hexMap,
               let gameScene = gameScene else { return }
 
-        if let path = hexMap.findPath(from: startCoordinate, to: destinationCoordinate, for: player) {
+        if let path = hexMap.findPath(from: startCoordinate, to: destinationCoordinate, for: player, allowImpassableDestination: allowImpassableDestination) {
             gameScene.movementPathRenderer.drawStaticMovementPath(from: startCoordinate, path: path)
         }
     }
@@ -368,13 +368,13 @@ class SidePanelViewController: UIViewController {
     // MARK: - Travel Time
 
     /// Updates the travel time label for the given entity and destination
-    func updateTravelTime(for entity: EntityNode, to destination: HexCoordinate) {
+    func updateTravelTime(for entity: EntityNode, to destination: HexCoordinate, allowImpassableDestination: Bool = false) {
         guard let hexMap = hexMap else {
             travelTimeLabel.text = "Unable to calculate"
             return
         }
 
-        if let path = hexMap.findPath(from: entity.coordinate, to: destination) {
+        if let path = hexMap.findPath(from: entity.coordinate, to: destination, for: entity.entity.owner, allowImpassableDestination: allowImpassableDestination) {
             let travelTime = entity.calculateTravelTime(from: entity.coordinate, path: path, hexMap: hexMap)
             travelTimeLabel.text = "Travel time: \(formatTravelTime(travelTime))"
             travelTimeLabel.textColor = theme.primaryTextColor

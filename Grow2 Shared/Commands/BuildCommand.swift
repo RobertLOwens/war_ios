@@ -184,6 +184,11 @@ struct BuildCommand: GameCommand {
         context.hexMap.addBuilding(building)
         player.addBuilding(building)
 
+        // Sync to engine's game state for ResourceEngine camp coverage checks
+        if let gameState = GameEngine.shared.gameState {
+            gameState.addBuilding(building.data)
+        }
+
         // Remove resources on all occupied tiles (except for camps and roads)
         if buildingType != .miningCamp && buildingType != .lumberCamp && !buildingType.isRoad {
             let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)

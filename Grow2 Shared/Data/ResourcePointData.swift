@@ -99,8 +99,8 @@ enum ResourcePointTypeData: String, Codable, CaseIterable {
 
     var requiredCampType: String? {
         switch self {
-        case .trees: return "lumberCamp"
-        case .oreMine, .stoneQuarry: return "miningCamp"
+        case .trees: return "Lumber Camp"
+        case .oreMine, .stoneQuarry: return "Mining Camp"
         default: return nil
         }
     }

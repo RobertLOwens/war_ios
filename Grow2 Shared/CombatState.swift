@@ -88,6 +88,24 @@ struct SideCombatState: Codable {
         }
     }
 
+    /// Initialize from ArmyData (for CombatEngine use)
+    init(armyData: ArmyData) {
+        self.army = nil
+        self.unitCounts = armyData.militaryComposition
+        self.damageAccumulators = [:]
+        self.initialUnitCount = armyData.getTotalUnits()
+
+        // Snapshot initial composition for battle reports
+        self.initialComposition = armyData.militaryComposition
+
+        // Initialize tracking dictionaries for all unit types present
+        for unitType in unitCounts.keys {
+            damageAccumulators[unitType] = 0.0
+            damageDealtByType[unitType] = 0.0
+            damageReceivedByType[unitType] = 0.0
+        }
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
@@ -252,6 +270,33 @@ struct ArmyCombatState: Codable {
         }
     }
 
+    /// Initialize from ArmyData (for CombatEngine use)
+    init(armyData: ArmyData, joinTime: TimeInterval, isReinforcement: Bool) {
+        self.armyID = armyData.id
+        self.armyName = armyData.name
+        self.ownerName = "Unknown"  // ArmyData doesn't hold owner reference
+        self.commanderName = nil    // ArmyData doesn't hold commander reference
+        self.army = nil
+        self.joinTime = joinTime
+        self.initialComposition = armyData.militaryComposition
+        self.currentUnits = armyData.militaryComposition
+
+        // Initialize tracking dictionaries
+        for unitType in armyData.militaryComposition.keys {
+            damageDealtByType[unitType] = 0.0
+            casualtiesByType[unitType] = 0
+        }
+
+        // Reinforcements get special bonus windows
+        if isReinforcement {
+            self.chargePhaseEndTime = joinTime + 3.0
+            self.rangedPhaseEndTime = joinTime + 3.0
+        } else {
+            self.chargePhaseEndTime = nil
+            self.rangedPhaseEndTime = nil
+        }
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
@@ -366,6 +411,9 @@ class ActiveCombat: Codable {
     let location: HexCoordinate
     let startTime: Date
 
+    /// Game time when combat started (for elapsed time calculation)
+    var gameStartTime: TimeInterval = 0
+
     /// Terrain at combat location
     let terrainType: TerrainType
     let terrainDefenseBonus: Double
@@ -406,7 +454,7 @@ class ActiveCombat: Codable {
     /// Per-army tracking for defender side
     var defenderArmies: [ArmyCombatState] = []
 
-    init(attacker: Army, defender: Army, location: HexCoordinate, terrainType: TerrainType = .plains) {
+    init(attacker: Army, defender: Army, location: HexCoordinate, terrainType: TerrainType = .plains, gameStartTime: TimeInterval = 0) {
         self.id = UUID()
         self.attackerState = SideCombatState(army: attacker)
         self.defenderState = SideCombatState(army: defender)
@@ -414,6 +462,7 @@ class ActiveCombat: Codable {
         self.elapsedTime = 0
         self.location = location
         self.startTime = Date()
+        self.gameStartTime = gameStartTime
         self.terrainType = terrainType
         self.terrainDefenseBonus = terrainType.combatModifier.defenderDefenseBonus
         self.terrainAttackPenalty = terrainType.combatModifier.attackerAttackPenalty
@@ -426,10 +475,33 @@ class ActiveCombat: Codable {
         self.defenderArmies = [ArmyCombatState(army: defender, joinTime: 0, isReinforcement: false)]
     }
 
+    /// Initialize from ArmyData (for CombatEngine use)
+    init(attackerData: ArmyData, defenderData: ArmyData, location: HexCoordinate, terrainType: TerrainType = .plains, gameStartTime: TimeInterval = 0) {
+        self.id = UUID()
+        self.attackerState = SideCombatState(armyData: attackerData)
+        self.defenderState = SideCombatState(armyData: defenderData)
+        self.phase = .rangedExchange
+        self.elapsedTime = 0
+        self.location = location
+        self.startTime = Date()
+        self.gameStartTime = gameStartTime
+        self.terrainType = terrainType
+        self.terrainDefenseBonus = terrainType.combatModifier.defenderDefenseBonus
+        self.terrainAttackPenalty = terrainType.combatModifier.attackerAttackPenalty
+        self.attackerArmy = nil
+        self.defenderArmy = nil
+        self.phaseStartTime = 0
+
+        // Initialize army tracking arrays (first armies are not reinforcements)
+        self.attackerArmies = [ArmyCombatState(armyData: attackerData, joinTime: 0, isReinforcement: false)]
+        self.defenderArmies = [ArmyCombatState(armyData: defenderData, joinTime: 0, isReinforcement: false)]
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
         case id, attackerState, defenderState, phase, elapsedTime, location, startTime
+        case gameStartTime
         case terrainType, terrainDefenseBonus, terrainAttackPenalty
         case phaseRecords, phaseStartTime, phaseAttackerDamage, phaseDefenderDamage
         case phaseAttackerCasualties, phaseDefenderCasualties
@@ -445,6 +517,7 @@ class ActiveCombat: Codable {
         elapsedTime = try container.decode(TimeInterval.self, forKey: .elapsedTime)
         location = try container.decode(HexCoordinate.self, forKey: .location)
         startTime = try container.decode(Date.self, forKey: .startTime)
+        gameStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .gameStartTime) ?? 0
         terrainType = try container.decodeIfPresent(TerrainType.self, forKey: .terrainType) ?? .plains
         terrainDefenseBonus = try container.decodeIfPresent(Double.self, forKey: .terrainDefenseBonus) ?? 0.0
         terrainAttackPenalty = try container.decodeIfPresent(Double.self, forKey: .terrainAttackPenalty) ?? 0.0
@@ -469,6 +542,7 @@ class ActiveCombat: Codable {
         try container.encode(elapsedTime, forKey: .elapsedTime)
         try container.encode(location, forKey: .location)
         try container.encode(startTime, forKey: .startTime)
+        try container.encode(gameStartTime, forKey: .gameStartTime)
         try container.encode(terrainType, forKey: .terrainType)
         try container.encode(terrainDefenseBonus, forKey: .terrainDefenseBonus)
         try container.encode(terrainAttackPenalty, forKey: .terrainAttackPenalty)

@@ -27,9 +27,9 @@ enum EntityType {
 
     var moveSpeed: TimeInterval {
         switch self {
-        case .army: return 0.4
-        case .villagerGroup: return 0.5
-        case .reinforcement: return 0.35  // Slightly faster than armies
+        case .army: return 1.6
+        case .villagerGroup: return 2.0
+        case .reinforcement: return 1.4  // Slightly faster than armies
         }
     }
 }
@@ -79,9 +79,10 @@ class EntityNode: SKSpriteNode {
         }
 
         let texture = EntityNode.createEntityTexture(for: entityType, entity: entity, currentPlayer: currentPlayer)
-        super.init(texture: texture, color: .clear, size: CGSize(width: 36, height: 36))
-        
-        self.zPosition = 10
+        super.init(texture: texture, color: .clear, size: CGSize(width: 24, height: 24))
+
+        // Set isometric z-position for depth sorting
+        self.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: HexTileNode.ZLayer.entity)
 
         self.name = "entity"
     }
@@ -91,7 +92,7 @@ class EntityNode: SKSpriteNode {
     }
     
     static func createEntityTexture(for type: EntityType, entity: MapEntity, currentPlayer: Player?) -> SKTexture {
-        let size = CGSize(width: 36, height: 36)
+        let size = CGSize(width: 24, height: 24)
         let renderer = UIGraphicsImageRenderer(size: size)
         
         let image = renderer.image { context in
@@ -121,7 +122,7 @@ class EntityNode: SKSpriteNode {
             // Draw icon
             let icon = type.icon
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 18),
+                .font: UIFont.systemFont(ofSize: 12),
                 .foregroundColor: UIColor.white
             ]
             let iconString = NSAttributedString(string: icon, attributes: attributes)
@@ -152,10 +153,11 @@ class EntityNode: SKSpriteNode {
         movementPath = path
 
         // Get HexMap from GameScene for road checking
-        let hexMap = (self.scene as? GameScene)?.hexMap
+        // Capture strongly to avoid bad access during movement
+        let map = (self.scene as? GameScene)?.hexMap
 
         // Start movement timer
-        startMovementTimer(path: path, hexMap: hexMap)
+        startMovementTimer(path: path, hexMap: map)
 
         // Calculate segment distances
         var segmentDistances: [CGFloat] = []
@@ -173,6 +175,11 @@ class EntityNode: SKSpriteNode {
 
         // Base move speed with research bonus
         var baseMoveSpeed = entityType.moveSpeed
+
+        // For armies, use the slowest unit in the composition
+        if entityType == .army, let army = armyReference {
+            baseMoveSpeed = army.data.slowestUnitMoveSpeed
+        }
 
         // Apply villager speed research bonus (lower moveSpeed = faster movement)
         if entityType == .villagerGroup {
@@ -204,7 +211,7 @@ class EntityNode: SKSpriteNode {
             let segmentDistance = segmentDistances[index]
 
             // Check if destination tile has a road
-            let hasRoad = hexMap?.hasRoad(at: coord) ?? false
+            let hasRoad = map?.hasRoad(at: coord) ?? false
 
             // Calculate segment duration
             // Roads are faster: base speed * road bonus (1.5x faster on roads, plus research)
@@ -219,11 +226,14 @@ class EntityNode: SKSpriteNode {
             let moveAction = SKAction.move(to: position, duration: segmentDuration)
             moveAction.timingMode = .linear
             actions.append(moveAction)
-            
+
             // ✅ Update coordinate and path visualization after reaching each waypoint
             let updateAction = SKAction.run { [weak self] in
                 guard let self = self else { return }
                 self.coordinate = coord
+
+                // Update isometric z-position for correct depth sorting during movement
+                self.zPosition = HexTileNode.isometricZPosition(q: coord.q, r: coord.r, baseLayer: HexTileNode.ZLayer.entity)
 
                 // Update the underlying entity's coordinate
                 if let army = self.entity as? Army {
@@ -241,8 +251,8 @@ class EntityNode: SKSpriteNode {
                         scene.clearMovementPath()
                     }
 
-                    // Update movement timer with remaining path
-                    self.updateMovementTimer(remainingPath: remainingPath, hexMap: scene.hexMap)
+                    // Update movement timer with remaining path (use captured map)
+                    self.updateMovementTimer(remainingPath: remainingPath, hexMap: map)
                 }
 
                 // Trigger fog of war update
@@ -287,6 +297,8 @@ class EntityNode: SKSpriteNode {
                         // Notify the scene to execute the hunt
                         if let gameScene = self.scene as? GameScene {
                             gameScene.villagerArrivedForHunt(villagerGroup: villagers, target: target, entityNode: self)
+                        } else {
+                            print("❌ ERROR: Could not get GameScene for hunt execution (scene: \(String(describing: self.scene)))")
                         }
                     } else if case .upgrading = villagers.currentTask {
                         print("🔨 Villagers arrived at building for upgrade!")
@@ -417,11 +429,11 @@ class EntityNode: SKSpriteNode {
             return
         }
 
-        let barWidth: CGFloat = 32
-        let barHeight: CGFloat = 4
+        let barWidth: CGFloat = 20
+        let barHeight: CGFloat = 3
 
         // Default all HP bars to bottom position
-        let yOffset: CGFloat = -22
+        let yOffset: CGFloat = -14
         combatPositionIsTop = false
 
         // Background (dark)
@@ -446,9 +458,9 @@ class EntityNode: SKSpriteNode {
     func updateHealthBarCombatPosition(isAttacker: Bool) {
         combatPositionIsTop = isAttacker
 
-        let barWidth: CGFloat = 32
-        let barHeight: CGFloat = 4
-        let yOffset: CGFloat = isAttacker ? 22 : -22
+        let barWidth: CGFloat = 20
+        let barHeight: CGFloat = 3
+        let yOffset: CGFloat = isAttacker ? 14 : -14
 
         // Update background position
         let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
@@ -462,9 +474,9 @@ class EntityNode: SKSpriteNode {
     func resetHealthBarPosition() {
         combatPositionIsTop = false
 
-        let barWidth: CGFloat = 32
-        let barHeight: CGFloat = 4
-        let yOffset: CGFloat = -22
+        let barWidth: CGFloat = 20
+        let barHeight: CGFloat = 3
+        let yOffset: CGFloat = -14
 
         let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
         healthBarBackground?.path = CGPath(roundedRect: bgRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
@@ -504,10 +516,10 @@ class EntityNode: SKSpriteNode {
 
         let percentage = CGFloat(currentHP / max(maxHP, 1))
         // Use combat position tracking instead of player ownership
-        let yOffset: CGFloat = combatPositionIsTop ? 22 : -22
+        let yOffset: CGFloat = combatPositionIsTop ? 14 : -14
 
-        let barWidth: CGFloat = 32 * max(0, min(1, percentage))
-        let newRect = CGRect(x: -16, y: yOffset, width: barWidth, height: 4)
+        let barWidth: CGFloat = 20 * max(0, min(1, percentage))
+        let newRect = CGRect(x: -10, y: yOffset, width: barWidth, height: 3)
         fill.path = CGPath(roundedRect: newRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
     }
 
@@ -522,6 +534,11 @@ class EntityNode: SKSpriteNode {
 
         // Base move speed with research bonus
         var baseMoveSpeed = entityType.moveSpeed
+
+        // For armies, use the slowest unit in the composition
+        if entityType == .army, let army = armyReference {
+            baseMoveSpeed = army.data.slowestUnitMoveSpeed
+        }
 
         // Apply villager speed research bonus (lower moveSpeed = faster movement)
         if entityType == .villagerGroup {
@@ -576,9 +593,9 @@ class EntityNode: SKSpriteNode {
         guard movementTimerLabel == nil else { return }
 
         movementTimerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        movementTimerLabel?.fontSize = 11
+        movementTimerLabel?.fontSize = 8
         movementTimerLabel?.fontColor = .yellow
-        movementTimerLabel?.position = CGPoint(x: 0, y: -30)
+        movementTimerLabel?.position = CGPoint(x: 0, y: -18)
         movementTimerLabel?.zPosition = 15
         movementTimerLabel?.name = "movementTimerLabel"
         addChild(movementTimerLabel!)

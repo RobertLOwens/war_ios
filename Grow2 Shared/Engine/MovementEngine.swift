@@ -14,7 +14,7 @@ class MovementEngine {
     private weak var gameState: GameState?
 
     // MARK: - Movement Constants
-    private let baseMovementSpeed: Double = 3.0  // Hexes per second on roads
+    private let baseMovementSpeed: Double = 0.75  // Hexes per second on roads
     private let terrainSpeedMultiplier: Double = 0.33  // Off-road speed penalty
     private let retreatSpeedBonus: Double = 1.1  // 10% faster when retreating
 
@@ -63,13 +63,17 @@ class MovementEngine {
         var changes: [StateChange] = []
         let targetCoord = path[army.pathIndex]
 
-        // Calculate movement speed
-        var speed = baseMovementSpeed
+        // Calculate movement speed based on slowest unit in army
+        let slowestUnitSpeed = army.slowestUnitMoveSpeed
+        // Normalize: default army speed (1.6) = base speed, slower units reduce speed proportionally
+        let speedMultiplier = 1.6 / slowestUnitSpeed
+
+        var speed = baseMovementSpeed * speedMultiplier
         if state.mapData.getBuildingID(at: targetCoord) != nil {
             // On road
-            speed = baseMovementSpeed
+            speed = baseMovementSpeed * speedMultiplier
         } else {
-            speed = baseMovementSpeed * terrainSpeedMultiplier
+            speed = baseMovementSpeed * speedMultiplier * terrainSpeedMultiplier
         }
 
         if army.isRetreating {

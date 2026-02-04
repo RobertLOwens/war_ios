@@ -10,6 +10,7 @@ class GameViewController: UIViewController {
     var mapSize: MapSize = .medium
     var resourceDensity: ResourceDensity = .normal
     var visibilityMode: VisibilityMode = .normal
+    var arenaArmyConfig: ArenaArmyConfiguration?
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
@@ -32,6 +33,10 @@ class GameViewController: UIViewController {
     private var entitiesButton: UIButton?
     private var entitiesBadgeView: UIView?
     private var entitiesBadgeLabel: UILabel?
+
+    // Starvation countdown UI
+    private var starvationCountdownLabel: UILabel?
+    private var starvationCountdownTimer: Timer?
 
     private struct AssociatedKeys {
         static var unitLabels: UInt8 = 0
@@ -67,18 +72,18 @@ class GameViewController: UIViewController {
         // ✅ FIX: Only setup a new scene if NOT loading a saved game
         if shouldLoadGame {
             // Create an empty scene shell - loadGame() will populate it
-            setupEmptyScene()
+            // Use completion-based flow instead of hardcoded delays
+            setupEmptyScene { [weak self] in
+                guard let self = self else { return }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.loadGame()
+                self.loadGame()
 
                 // Setup CommandExecutor AFTER game is loaded (hexMap is now available)
-                if let self = self {
-                    self.setupCommandExecutor()
-                }
+                self.setupCommandExecutor()
 
                 // Process background time AFTER loading
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                // Use a small delay to ensure all visual updates are complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                     self?.processBackgroundTime()
                 }
             }
@@ -115,6 +120,8 @@ class GameViewController: UIViewController {
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+        starvationCountdownTimer?.invalidate()
+        starvationCountdownTimer = nil
     }
     
     @objc func handleAppWillSave() {
@@ -122,15 +129,34 @@ class GameViewController: UIViewController {
         autoSaveGame()
     }
     
-    func setupEmptyScene() {
+    func setupEmptyScene(completion: @escaping () -> Void) {
         gameScene = GameScene(size: skView.bounds.size)
         gameScene.scaleMode = .resizeFill
         gameScene.player = player
         gameScene.gameDelegate = self
-    
+
         // ✅ Set a flag to tell GameScene NOT to generate a new map
         gameScene.skipInitialSetup = true
-    
+
+        // ✅ FIX: Set up completion callback BEFORE presenting scene
+        gameScene.onSceneReady = { [weak self] in
+            guard let self = self else { return }
+            // Verify all critical nodes are initialized
+            guard self.gameScene.isSceneReady,
+                  self.gameScene.mapNode != nil,
+                  self.gameScene.buildingsNode != nil,
+                  self.gameScene.entitiesNode != nil else {
+                print("⚠️ Scene not fully ready, waiting...")
+                // Retry after a short delay if nodes aren't ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.gameScene.onSceneReady?()
+                }
+                return
+            }
+            print("✅ Scene ready - proceeding with game load")
+            completion()
+        }
+
         skView.presentScene(gameScene)
     }
     
@@ -212,7 +238,7 @@ class GameViewController: UIViewController {
 
             // Setup arena with ArenaMapGenerator
             let generator = ArenaMapGenerator()
-            gameScene.setupArenaWithGenerator(generator, players: [player, aiPlayer])
+            gameScene.setupArenaWithGenerator(generator, players: [player, aiPlayer], armyConfig: arenaArmyConfig)
 
             // Always fully visible for testing
             gameScene.initializeFogOfWar(fullyVisible: true)
@@ -236,6 +262,10 @@ class GameViewController: UIViewController {
                 self?.handleGameOver(isVictory: isVictory, reason: reason)
             }
         }
+
+        // Initialize the engine architecture for state management
+        // This must be called after the map is set up and players are configured
+        gameScene.initializeEngineArchitecture()
     }
     
     // MARK: - Combat System
@@ -471,11 +501,14 @@ class GameViewController: UIViewController {
 
         // Update idle villager badge
         updateEntitiesBadge()
+
+        // Check starvation countdown status
+        updateStarvationStatus()
     }
     
     func setupUI() {
-        // Resource Panel (Top) - Full width
-        resourcePanel = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 70))
+        // Resource Panel (Top) - Full width (expanded to fit starvation countdown)
+        resourcePanel = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 94))
         resourcePanel.backgroundColor = UIColor(white: 0.1, alpha: 0.9)
         resourcePanel.autoresizingMask = [.flexibleWidth]
 
@@ -537,6 +570,24 @@ class GameViewController: UIViewController {
             bottomStack.addArrangedSubview(storageLabel)
         }
 
+        // Starvation countdown label (appears below bottom stack when food is 0)
+        let starvationLabel = UILabel()
+        starvationLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 16, weight: .bold)
+        starvationLabel.textColor = .systemRed
+        starvationLabel.textAlignment = .center
+        starvationLabel.text = ""
+        starvationLabel.isHidden = true
+        starvationLabel.translatesAutoresizingMaskIntoConstraints = false
+        resourcePanel.addSubview(starvationLabel)
+
+        NSLayoutConstraint.activate([
+            starvationLabel.leadingAnchor.constraint(equalTo: resourcePanel.leadingAnchor, constant: 12),
+            starvationLabel.trailingAnchor.constraint(equalTo: resourcePanel.trailingAnchor, constant: -12),
+            starvationLabel.topAnchor.constraint(equalTo: bottomStack.bottomAnchor, constant: 4),
+            starvationLabel.heightAnchor.constraint(equalToConstant: 20)
+        ])
+        starvationCountdownLabel = starvationLabel
+
         view.addSubview(resourcePanel)
 
         // Bottom Button Bar
@@ -566,6 +617,7 @@ class GameViewController: UIViewController {
             ("Battles", #selector(showCombatHistoryScreen), UIColor(red: 0.8, green: 0.3, blue: 0.3, alpha: 1.0)),
             ("Research", #selector(showResearchScreen), UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)),
             ("Training", #selector(showTrainingOverview), UIColor(red: 0.5, green: 0.5, blue: 0.3, alpha: 1.0)),
+            ("Military", #selector(showMilitaryOverview), UIColor(red: 0.7, green: 0.3, blue: 0.3, alpha: 1.0)),
             ("Buildings", #selector(showBuildingsOverview), UIColor(red: 0.5, green: 0.4, blue: 0.6, alpha: 1.0)),
             ("Resources", #selector(showResourcesOverview), UIColor(red: 0.6, green: 0.5, blue: 0.2, alpha: 1.0)),
             ("Entities", #selector(showEntitiesOverview), UIColor(red: 0.3, green: 0.5, blue: 0.5, alpha: 1.0))
@@ -646,6 +698,76 @@ class GameViewController: UIViewController {
         }
     }
 
+    // MARK: - Starvation Countdown
+
+    /// Starts the starvation countdown timer when food reaches 0
+    func startStarvationCountdown() {
+        // Avoid duplicate timers
+        guard starvationCountdownTimer == nil else { return }
+
+        starvationCountdownLabel?.isHidden = false
+        updateStarvationCountdownLabel()
+
+        starvationCountdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateStarvationCountdownLabel()
+        }
+
+        print("⚠️ Starvation countdown started")
+    }
+
+    /// Stops the starvation countdown timer when food is restored
+    func stopStarvationCountdown() {
+        starvationCountdownTimer?.invalidate()
+        starvationCountdownTimer = nil
+        starvationCountdownLabel?.isHidden = true
+        starvationCountdownLabel?.text = ""
+
+        print("✅ Starvation countdown stopped - food restored")
+    }
+
+    /// Updates the starvation countdown label with remaining time
+    @objc func updateStarvationCountdownLabel() {
+        guard let gameScene = gameScene,
+              let remaining = gameScene.getStarvationTimeRemaining() else {
+            // No starvation in progress, stop the timer
+            stopStarvationCountdown()
+            return
+        }
+
+        let seconds = Int(remaining)
+        starvationCountdownLabel?.text = "☠️ STARVATION IN \(seconds)s - GATHER FOOD!"
+
+        // Pulse effect for urgency when time is low
+        if seconds <= 10 {
+            UIView.animate(withDuration: 0.3, animations: {
+                self.starvationCountdownLabel?.alpha = 0.5
+            }) { _ in
+                UIView.animate(withDuration: 0.3) {
+                    self.starvationCountdownLabel?.alpha = 1.0
+                }
+            }
+        }
+    }
+
+    /// Checks if starvation countdown should be running and starts/stops accordingly
+    func updateStarvationStatus() {
+        guard let player = player else { return }
+
+        let currentFood = player.getResource(.food)
+
+        if currentFood <= 0 {
+            // Food is at 0, ensure countdown is running
+            if starvationCountdownTimer == nil {
+                startStarvationCountdown()
+            }
+        } else {
+            // Food is above 0, stop countdown if running
+            if starvationCountdownTimer != nil {
+                stopStarvationCountdown()
+            }
+        }
+    }
+
     @objc func showResearchScreen() {
         let researchVC = ResearchViewController()
         researchVC.player = player
@@ -699,7 +821,8 @@ class GameViewController: UIViewController {
             actions: [
                 AlertAction(title: "💾 Save Game") { [weak self] in self?.manualSave() },
                 AlertAction(title: "📂 Load Game") { [weak self] in self?.confirmLoad() },
-                AlertAction(title: "🏠 Main Menu") { [weak self] in self?.returnToMainMenu() }
+                AlertAction(title: "🏠 Main Menu") { [weak self] in self?.returnToMainMenu() },
+                AlertAction(title: "🏳️ Resign", style: .destructive) { [weak self] in self?.confirmResign() }
             ],
             sourceRect: CGRect(x: view.bounds.width - 70, y: 50, width: 0, height: 0)
         )
@@ -712,6 +835,17 @@ class GameViewController: UIViewController {
         trainingVC.modalPresentationStyle = .fullScreen
         present(trainingVC, animated: true)
         print("🎓 Opening Training Overview screen")
+    }
+
+    @objc func showMilitaryOverview() {
+        let militaryVC = MilitaryOverviewViewController()
+        militaryVC.player = player
+        militaryVC.hexMap = gameScene.hexMap
+        militaryVC.gameScene = gameScene
+        militaryVC.gameViewController = self
+        militaryVC.modalPresentationStyle = .fullScreen
+        present(militaryVC, animated: true)
+        print("⚔️ Opening Military Overview screen")
     }
 
     func confirmLoad() {
@@ -973,9 +1107,30 @@ class GameViewController: UIViewController {
     }
 
     func loadGame() {
+        // ✅ FIX: Ensure we're on the main thread for SpriteKit operations
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.loadGame()
+            }
+            return
+        }
+
+        // ✅ FIX: Verify scene is ready before loading
+        guard gameScene != nil else {
+            print("❌ Cannot load game - gameScene is nil")
+            showSimpleAlert(title: "Load Error", message: "Game scene not initialized.")
+            return
+        }
+
+        guard gameScene.isSceneReady else {
+            print("❌ Cannot load game - scene not ready")
+            showSimpleAlert(title: "Load Error", message: "Please wait for scene to initialize.")
+            return
+        }
+
         // ✅ FIX: Set loading flag to pause update() loop
         gameScene.isLoading = true
-        
+
         guard let loadedData = GameSaveManager.shared.loadGame() else {
             gameScene.isLoading = false
             showSimpleAlert(title: "❌ Load Failed", message: "Could not load the saved game.")
@@ -1031,14 +1186,44 @@ class GameViewController: UIViewController {
             }
         }
 
+        // Initialize the engine architecture for state management
+        // This must be called after the map is rebuilt and players are configured
+        gameScene.initializeEngineArchitecture()
+
         print("✅ Game loaded successfully")
         showSimpleAlert(title: "✅ Game Loaded", message: "Your saved game has been restored.")
     }
 
     func rebuildSceneWithLoadedData(hexMap: HexMap, player: Player, allPlayers: [Player]) {
+        // ✅ FIX: Ensure we're on the main thread for SpriteKit operations
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.rebuildSceneWithLoadedData(hexMap: hexMap, player: player, allPlayers: allPlayers)
+            }
+            return
+        }
+
+        // ✅ Guard: Ensure scene and critical nodes are ready
+        guard gameScene != nil else {
+            print("❌ Cannot rebuild scene - gameScene is nil")
+            showSimpleAlert(title: "Load Error", message: "Game scene not ready. Please try again.")
+            return
+        }
+
+        guard gameScene.mapNode != nil,
+              gameScene.buildingsNode != nil,
+              gameScene.entitiesNode != nil else {
+            print("❌ Cannot rebuild scene - critical nodes are nil")
+            print("   mapNode: \(gameScene.mapNode != nil)")
+            print("   buildingsNode: \(gameScene.buildingsNode != nil)")
+            print("   entitiesNode: \(gameScene.entitiesNode != nil)")
+            showSimpleAlert(title: "Load Error", message: "Scene not fully initialized. Please try again.")
+            return
+        }
+
         // ✅ Ensure hexMap is assigned to scene first
         gameScene.hexMap = hexMap
-        
+
         // Clear existing scene
         gameScene.mapNode.removeAllChildren()
         gameScene.buildingsNode.removeAllChildren()
@@ -1117,24 +1302,37 @@ class GameViewController: UIViewController {
             }
         }
 
-        // ✅ FIX: Reconnect villager gathering tasks to resource points
+        // ✅ FIX: Reconnect villager tasks to resource points (handles both gathering AND hunting)
         print("🔗 Reconnecting villager tasks to resources...")
         for entity in hexMap.entities {
             if let villagerGroup = entity.entity as? VillagerGroup,
                let targetCoord = villagerGroup.taskTarget {
-                
+
                 // Find resource at the target coordinate
                 if let resourcePoint = hexMap.resourcePoints.first(where: {
                     $0.coordinate == targetCoord
                 }) {
-                    // Re-establish the gathering relationship
-                    resourcePoint.startGathering(by: villagerGroup)
-                    villagerGroup.currentTask = .gatheringResource(resourcePoint)
-                    villagerGroup.taskTarget = nil  // Clear temporary storage
-                    entity.isMoving = true  // Mark as busy
-                
-                    
-                    print("✅ Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to \(resourcePoint.resourceType.displayName)")
+                    // Check if the resource is huntable vs gatherable
+                    if resourcePoint.resourceType.isHuntable {
+                        // Re-establish hunting task
+                        villagerGroup.currentTask = .hunting(resourcePoint)
+                        villagerGroup.taskTarget = nil
+                        entity.isMoving = true
+                        print("🏹 Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to hunt \(resourcePoint.resourceType.displayName)")
+                    } else if resourcePoint.resourceType.isGatherable {
+                        // Re-establish the gathering relationship
+                        resourcePoint.startGathering(by: villagerGroup)
+                        villagerGroup.currentTask = .gatheringResource(resourcePoint)
+                        villagerGroup.taskTarget = nil
+                        entity.isMoving = true
+                        print("⛏️ Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourcePoint.resourceType.displayName)")
+                    } else {
+                        // Resource can't be gathered or hunted (shouldn't happen)
+                        villagerGroup.currentTask = .idle
+                        villagerGroup.taskTarget = nil
+                        entity.isMoving = false
+                        print("⚠️ Resource at (\(targetCoord.q), \(targetCoord.r)) cannot be gathered or hunted, \(villagerGroup.name) is now idle")
+                    }
                 } else {
                     // Resource no longer exists (depleted), clear the task
                     villagerGroup.currentTask = .idle
@@ -1239,14 +1437,18 @@ class GameViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        
+
         // Stop auto-save timer
         autoSaveTimer?.invalidate()
         autoSaveTimer = nil
-        
+
+        // Stop starvation countdown timer
+        starvationCountdownTimer?.invalidate()
+        starvationCountdownTimer = nil
+
         // Final save before leaving
         autoSaveGame()
-        
+
         // Save background time
         BackgroundTimeManager.shared.saveExitTime()
         NotificationCenter.default.removeObserver(self, name: .appWillSaveGame, object: nil)
@@ -1932,7 +2134,17 @@ extension GameViewController: GameSceneDelegate {
     func gameScene(_ scene: GameScene, showAlertWithTitle title: String, message: String) {
         showSimpleAlert(title: title, message: message)
     }
-    
+
+    func gameScene(_ scene: GameScene, showConfirmation title: String, message: String,
+                   confirmTitle: String, onConfirm: @escaping () -> Void) {
+        showConfirmation(
+            title: title,
+            message: message,
+            confirmTitle: confirmTitle,
+            onConfirm: onConfirm
+        )
+    }
+
     func gameSceneDidUpdateResources(_ scene: GameScene) {
         updateResourceDisplay()
     }

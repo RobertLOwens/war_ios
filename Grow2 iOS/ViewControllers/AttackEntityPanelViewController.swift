@@ -14,6 +14,7 @@ class AttackEntityPanelViewController: SidePanelViewController {
 
     var targetCoordinate: HexCoordinate!
     var enemies: [EntityNode] = []
+    var targetBuilding: BuildingNode?  // For attacking buildings
     var availableArmies: [Army] = []
 
     var onConfirm: ((Army) -> Void)?
@@ -75,7 +76,7 @@ class AttackEntityPanelViewController: SidePanelViewController {
             width: PanelLayoutConstants.contentWidth,
             height: 18
         ))
-        targetLabel.text = "Enemies at Target:"
+        targetLabel.text = targetBuilding != nil ? "Target Building:" : "Enemies at Target:"
         targetLabel.font = UIFont.systemFont(ofSize: 13, weight: .medium)
         targetLabel.textColor = theme.errorTextColor
         targetInfoView.addSubview(targetLabel)
@@ -112,6 +113,13 @@ class AttackEntityPanelViewController: SidePanelViewController {
     }
 
     private func buildEnemyDescription() -> String {
+        // If targeting a building, show building info
+        if let building = targetBuilding {
+            let healthPercent = Int((building.health / building.maxHealth) * 100)
+            return "\(building.buildingType.icon) \(building.buildingType.displayName) - HP: \(healthPercent)%"
+        }
+
+        // Otherwise show enemy entities
         var parts: [String] = []
         for enemy in enemies {
             if let army = enemy.entity as? Army {
@@ -139,8 +147,11 @@ class AttackEntityPanelViewController: SidePanelViewController {
         handleSelection(at: indexPath)
         selectedArmy = army
 
+        // When attacking a building, allow pathing to impassable destination
+        let attackingBuilding = targetBuilding != nil
+
         // Show route preview
-        showRoutePreview(from: army.coordinate, to: targetCoordinate)
+        showRoutePreview(from: army.coordinate, to: targetCoordinate, for: army.owner, allowImpassableDestination: attackingBuilding)
 
         // Update travel time
         updateTravelTimeForArmy(army)
@@ -166,7 +177,9 @@ class AttackEntityPanelViewController: SidePanelViewController {
             return
         }
 
-        updateTravelTime(for: entityNode, to: targetCoordinate)
+        // When attacking a building, allow pathing to impassable destination
+        let attackingBuilding = targetBuilding != nil
+        updateTravelTime(for: entityNode, to: targetCoordinate, allowImpassableDestination: attackingBuilding)
     }
 
     private func updateCombatInfo(for army: Army) {

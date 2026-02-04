@@ -34,13 +34,19 @@ class ArenaMapGenerator: MapGenerator {
             }
         }
 
+        // Set hill terrain at player 2's position for testing terrain bonuses
+        // Hill gives defender +15% defense bonus
+        let player2Pos = HexCoordinate(q: 3, r: 2)
+        terrain[player2Pos] = (terrain: .hill, elevation: 1)
+
         return terrain
     }
 
     func getStartingPositions() -> [PlayerStartPosition] {
-        // Player 1 spawns on left side, Player 2 on right side
+        // Player 1 spawns on left side
+        // Player 2 spawns on their wooden fort
         let player1Pos = HexCoordinate(q: 1, r: 2)
-        let player2Pos = HexCoordinate(q: 3, r: 2)
+        let player2Pos = HexCoordinate(q: 3, r: 3)  // Same as player 2's wooden fort
 
         return [
             PlayerStartPosition(coordinate: player1Pos, playerIndex: 0),

@@ -63,11 +63,11 @@ struct GatherCommand: GameCommand {
               let player = context.getPlayer(by: playerID) else {
             return .failure(reason: "Required objects not found")
         }
-        
+
         // Assign gathering task
         villagers.assignTask(.gatheringResource(resource), target: resourceCoordinate)
         entity.isMoving = true
-        
+
         if villagers.coordinate != resourceCoordinate {
             let moveCommand = MoveCommand(
                 playerID: playerID,
@@ -77,18 +77,64 @@ struct GatherCommand: GameCommand {
             let _ = moveCommand.execute(in: context)
             print("🚶 Moving \(villagers.name) to resource at (\(resourceCoordinate.q), \(resourceCoordinate.r))")
         }
-        
+
         // Add villagers to resource's assigned list
         resource.startGathering(by: villagers)
-        
+
         // Update collection rate
         let rateContribution = 0.2 * Double(villagers.villagerCount)
         player.increaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
-        
+
+        // ✅ FIX: Register with ResourceEngine for depletion processing when engine is enabled
+        if let gameScene = context.gameScene, gameScene.isEngineEnabled {
+            // Ensure resource point exists in engine state
+            if let engineState = gameScene.engineGameState {
+                // Add resource point data if not already present
+                if engineState.getResourcePoint(id: resource.id) == nil {
+                    engineState.addResourcePoint(resource.data)
+                    print("➕ Added ResourcePointData to engine for \(resource.resourceType.displayName)")
+                }
+
+                // Ensure villager group exists in engine state
+                if engineState.getVillagerGroup(id: villagers.id) == nil {
+                    let groupData = VillagerGroupData(
+                        id: villagers.id,
+                        name: villagers.name,
+                        coordinate: villagers.coordinate,
+                        villagerCount: villagers.villagerCount,
+                        ownerID: player.id
+                    )
+                    engineState.addVillagerGroup(groupData)
+                    print("➕ Added VillagerGroupData to engine for \(villagers.name)")
+                }
+
+                // Start gathering in the resource engine
+                let registered = GameEngine.shared.resourceEngine.startGathering(
+                    villagerGroupID: villagers.id,
+                    resourcePointID: resource.id
+                )
+
+                if registered {
+                    // Sync villager task state to engine's data layer
+                    if let groupData = engineState.getVillagerGroup(id: villagers.id) {
+                        groupData.currentTask = .gatheringResource(resourcePointID: resource.id)
+                        print("🔄 Synced VillagerGroupData task to gathering \(resource.resourceType.displayName)")
+                    }
+
+                    // Update collection rates to include adjacency bonuses
+                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
+
+                    print("✅ Registered gathering with ResourceEngine")
+                } else {
+                    print("⚠️ Failed to register gathering with ResourceEngine")
+                }
+            }
+        }
+
         context.onResourcesChanged?()
-        
+
         print("⛏️ Assigned \(villagers.villagerCount) villagers to gather \(resource.resourceType.displayName)")
-        
+
         return .success
     }
 }
@@ -134,25 +180,35 @@ struct StopGatheringCommand: GameCommand {
               let player = context.getPlayer(by: playerID) else {
             return .failure(reason: "Required objects not found")
         }
-        
+
         // Get the resource they were gathering
         if case .gatheringResource(let resource) = villagers.currentTask {
             // Remove from resource's list
             resource.stopGathering(by: villagers)
-            
+
             // Decrease collection rate
             let rateContribution = 0.2 * Double(villagers.villagerCount)
             player.decreaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
+
+            // ✅ FIX: Unregister from ResourceEngine when engine is enabled
+            if let gameScene = context.gameScene, gameScene.isEngineEnabled {
+                GameEngine.shared.resourceEngine.stopGathering(villagerGroupID: villagers.id)
+
+                // Update collection rates to reflect removed gatherers
+                GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
+
+                print("✅ Unregistered gathering from ResourceEngine")
+            }
         }
-        
+
         // Clear task
         villagers.clearTask()
         entity.isMoving = false
-        
+
         context.onResourcesChanged?()
-        
+
         print("🛑 Stopped gathering for \(villagers.name)")
-        
+
         return .success
     }
 }

@@ -287,3 +287,31 @@ extension VillagerGroupData {
         return "\(name) (\(villagerCount) villagers)\n\(taskDesc)"
     }
 }
+
+// MARK: - Combat Stats (Villagers are weak civilians)
+
+extension VillagerGroupData {
+    /// HP per villager - weak compared to military (70-180 HP)
+    static let hpPerVillager: Double = 25.0
+
+    /// Melee attack damage per villager
+    static let meleeAttackPerVillager: Double = 1.0
+
+    /// Melee armor per villager
+    static let meleeArmorPerVillager: Double = 1.0
+
+    /// Total HP of the villager group
+    var totalHP: Double {
+        return Double(villagerCount) * VillagerGroupData.hpPerVillager
+    }
+
+    /// Total melee attack of the villager group
+    var totalMeleeAttack: Double {
+        return Double(villagerCount) * VillagerGroupData.meleeAttackPerVillager
+    }
+
+    /// Total melee armor of the villager group
+    var totalMeleeArmor: Double {
+        return Double(villagerCount) * VillagerGroupData.meleeArmorPerVillager
+    }
+}

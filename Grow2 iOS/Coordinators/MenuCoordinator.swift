@@ -173,14 +173,6 @@ class MenuCoordinator {
                 }
             }
 
-            // If there's also a building here (camp), add option to view it
-            if let building = buildingAtLocation, building.owner?.id == player.id {
-                if building.state == .completed || building.state == .upgrading {
-                    actions.append(AlertAction(title: "🏗️ Open \(building.buildingType.displayName)") { [weak self] in
-                        self?.presentBuildingDetail(for: building)
-                    })
-                }
-            }
         }
         
         // -------------------------
@@ -206,21 +198,42 @@ class MenuCoordinator {
         }
         
         // -------------------------
-        // MARK: - Attack Option (Enemy Entities)
+        // MARK: - Attack Option (Enemy Buildings or Entities)
         // -------------------------
-        let enemyEntities = visibleEntities.filter { entity in
-            guard entity.entity.owner != nil else { return false }
-            let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
-            return diplomacyStatus == .enemy
-        }
+        // If there's a building at this coordinate, show building attack only
+        // (any defending army will participate in building defense)
+        // Otherwise, show entity attack if there are enemy entities
 
-        if !enemyEntities.isEmpty {
-            // Check if player has armies that can attack
-            let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
-            if !playerArmies.isEmpty {
-                actions.append(AlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] in
-                    self?.showAttackerSelectionForTile(enemies: enemyEntities, at: coordinate)
-                })
+        let buildingAtCoordinate = hexMap.getBuilding(at: coordinate)
+
+        if let building = buildingAtCoordinate,
+           let buildingOwner = building.owner,
+           visibility == .visible {
+            let diplomacyStatus = player.getDiplomacyStatus(with: buildingOwner)
+            if diplomacyStatus == .enemy && building.state == .completed {
+                let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+                if !playerArmies.isEmpty {
+                    actions.append(AlertAction(title: "⚔️ Attack \(building.buildingType.displayName)", style: .destructive) { [weak self] in
+                        self?.showAttackerSelectionForBuilding(building: building, at: coordinate)
+                    })
+                }
+            }
+        } else {
+            // No building - check for enemy entities
+            let enemyEntities = visibleEntities.filter { entity in
+                guard entity.entity.owner != nil else { return false }
+                let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
+                return diplomacyStatus == .enemy
+            }
+
+            if !enemyEntities.isEmpty {
+                // Check if player has armies that can attack
+                let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+                if !playerArmies.isEmpty {
+                    actions.append(AlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] in
+                        self?.showAttackerSelectionForTile(enemies: enemyEntities, at: coordinate)
+                    })
+                }
             }
         }
 
@@ -1387,6 +1400,51 @@ class MenuCoordinator {
         delegate?.deselectAll()
     }
 
+    /// Shows a slide-out panel for selecting player's armies to attack an enemy building
+    func showAttackerSelectionForBuilding(building: BuildingNode, at coordinate: HexCoordinate) {
+        guard let player = player,
+              let vc = viewController,
+              let hexMap = hexMap,
+              let gameScene = gameScene else { return }
+
+        let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+
+        guard !playerArmies.isEmpty else {
+            vc.showAlert(
+                title: "No Armies",
+                message: "You don't have any armies with military units to attack."
+            )
+            return
+        }
+
+        // Sort armies by distance to target
+        let sortedArmies = playerArmies.sorted { a1, a2 in
+            a1.coordinate.distance(to: coordinate) < a2.coordinate.distance(to: coordinate)
+        }
+
+        // Present the AttackEntityPanelViewController
+        let panelVC = AttackEntityPanelViewController()
+        panelVC.targetCoordinate = coordinate
+        panelVC.targetBuilding = building
+        panelVC.enemies = []  // No entity enemies, just the building
+        panelVC.availableArmies = sortedArmies
+        panelVC.hexMap = hexMap
+        panelVC.gameScene = gameScene
+        panelVC.player = player
+        panelVC.modalPresentationStyle = .overFullScreen
+        panelVC.modalTransitionStyle = .crossDissolve
+
+        panelVC.onConfirm = { [weak self] selectedArmy in
+            self?.executeAttackCommand(attacker: selectedArmy, targetCoordinate: coordinate)
+        }
+
+        panelVC.onCancel = { [weak self] in
+            self?.delegate?.deselectAll()
+        }
+
+        vc.present(panelVC, animated: false)
+    }
+
     // MARK: - Garrison Info
 
     func showGarrisonInfo(for building: BuildingNode) {
@@ -1684,25 +1742,41 @@ class MenuCoordinator {
     private func startHunt(villagerGroup: VillagerGroup, target: ResourcePointNode) {
         guard let hexMap = hexMap,
               let gameScene = gameScene else { return }
-        
+
         guard let entityNode = hexMap.entities.first(where: {
             ($0.entity as? VillagerGroup)?.id == villagerGroup.id
         }) else {
             viewController?.showAlert(title: "Error", message: "Could not find villager group.")
             return
         }
-        
+
         villagerGroup.assignTask(.hunting(target), target: target.coordinate)
         entityNode.isMoving = true
-        
-        // Move to target
-        if let path = hexMap.findPath(from: entityNode.coordinate, to: target.coordinate) {
-            entityNode.moveTo(path: path) { [weak self] in
-                self?.gameScene?.villagerArrivedForHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
+
+        // Check if already at target location
+        if entityNode.coordinate == target.coordinate {
+            // Already at target - execute hunt immediately
+            print("🏹 \(villagerGroup.name) already at hunt target, executing hunt")
+            gameScene.villagerArrivedForHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
+        } else if let path = hexMap.findPath(from: entityNode.coordinate, to: target.coordinate), !path.isEmpty {
+            // Move to target
+            entityNode.moveTo(path: path) { [weak self, weak gameScene] in
+                // Only trigger hunt if task is still .hunting (hasn't already been handled by EntityNode)
+                guard case .hunting = villagerGroup.currentTask else {
+                    print("🏹 Hunt already processed or task changed, skipping completion handler")
+                    return
+                }
+                print("🏹 Movement completed, triggering hunt from completion handler")
+                gameScene?.villagerArrivedForHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
             }
+            print("🏹 \(villagerGroup.name) heading to hunt \(target.resourceType.displayName)")
+        } else {
+            // No valid path - can't reach target
+            villagerGroup.clearTask()
+            entityNode.isMoving = false
+            viewController?.showAlert(title: "Can't Reach Target", message: "No valid path to the hunting target.")
         }
-        
-        print("🏹 \(villagerGroup.name) heading to hunt \(target.resourceType.displayName)")
+
         delegate?.deselectAll()
     }
     

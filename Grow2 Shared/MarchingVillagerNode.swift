@@ -43,9 +43,10 @@ class MarchingVillagerNode: SKSpriteNode {
         self.currentPlayerReference = currentPlayer
 
         let texture = MarchingVillagerNode.createTexture(for: marchingGroup, currentPlayer: currentPlayer)
-        super.init(texture: texture, color: .clear, size: CGSize(width: 32, height: 32))
+        super.init(texture: texture, color: .clear, size: CGSize(width: 16, height: 16))
 
-        self.zPosition = 10
+        // Set isometric z-position for depth sorting
+        self.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: HexTileNode.ZLayer.entity)
         self.name = "marchingVillagers"
 
         setupTimerLabel()
@@ -61,7 +62,7 @@ class MarchingVillagerNode: SKSpriteNode {
     // MARK: - Texture Creation
 
     static func createTexture(for marchingGroup: MarchingVillagerGroup, currentPlayer: Player?) -> SKTexture {
-        let size = CGSize(width: 32, height: 32)
+        let size = CGSize(width: 16, height: 16)
         let renderer = UIGraphicsImageRenderer(size: size)
 
         let image = renderer.image { context in
@@ -70,18 +71,18 @@ class MarchingVillagerNode: SKSpriteNode {
             // Background color - brown/tan for villagers
             let bgColor = UIColor(red: 0.5, green: 0.4, blue: 0.3, alpha: 1.0)
             bgColor.setFill()
-            context.cgContext.fillEllipse(in: rect.insetBy(dx: 2, dy: 2))
+            context.cgContext.fillEllipse(in: rect.insetBy(dx: 1, dy: 1))
 
             // Border with diplomacy color
             let diplomacyStatus = currentPlayer?.getDiplomacyStatus(with: marchingGroup.owner) ?? .neutral
             diplomacyStatus.strokeColor.setStroke()
-            context.cgContext.setLineWidth(2.5)
-            context.cgContext.strokeEllipse(in: rect.insetBy(dx: 2, dy: 2))
+            context.cgContext.setLineWidth(1.25)
+            context.cgContext.strokeEllipse(in: rect.insetBy(dx: 1, dy: 1))
 
             // Draw "V" icon for villagers
             let icon = "V"
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.boldSystemFont(ofSize: 14),
+                .font: UIFont.boldSystemFont(ofSize: 7),
                 .foregroundColor: UIColor.white
             ]
             let iconString = NSAttributedString(string: icon, attributes: attributes)
@@ -102,9 +103,9 @@ class MarchingVillagerNode: SKSpriteNode {
 
     private func setupTimerLabel() {
         timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        timerLabel?.fontSize = 11
+        timerLabel?.fontSize = 6
         timerLabel?.fontColor = .yellow
-        timerLabel?.position = CGPoint(x: 0, y: -28)
+        timerLabel?.position = CGPoint(x: 0, y: -14)
         timerLabel?.zPosition = 15
         timerLabel?.name = "marchingTimer"
         addChild(timerLabel!)
@@ -127,22 +128,22 @@ class MarchingVillagerNode: SKSpriteNode {
 
     private func setupCountBadge() {
         // Badge background
-        let badgeRadius: CGFloat = 10
+        let badgeRadius: CGFloat = 5
         countBadge = SKShapeNode(circleOfRadius: badgeRadius)
         countBadge?.fillColor = UIColor(red: 0.3, green: 0.5, blue: 0.3, alpha: 1.0)
         countBadge?.strokeColor = .white
-        countBadge?.lineWidth = 1.5
-        countBadge?.position = CGPoint(x: 14, y: 14)
+        countBadge?.lineWidth = 0.75
+        countBadge?.position = CGPoint(x: 7, y: 7)
         countBadge?.zPosition = 16
         addChild(countBadge!)
 
         // Count label
         countLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        countLabel?.fontSize = 10
+        countLabel?.fontSize = 5
         countLabel?.fontColor = .white
         countLabel?.verticalAlignmentMode = .center
         countLabel?.horizontalAlignmentMode = .center
-        countLabel?.position = CGPoint(x: 14, y: 14)
+        countLabel?.position = CGPoint(x: 7, y: 7)
         countLabel?.zPosition = 17
         countLabel?.text = "\(marchingGroup.villagerCount)"
         addChild(countLabel!)
@@ -157,7 +158,7 @@ class MarchingVillagerNode: SKSpriteNode {
     private func setupDirectionArrow() {
         directionArrow = SKShapeNode()
         directionArrow?.strokeColor = .cyan
-        directionArrow?.lineWidth = 2.0
+        directionArrow?.lineWidth = 1.0
         directionArrow?.lineCap = .round
         directionArrow?.zPosition = 14
         directionArrow?.name = "directionArrow"
@@ -181,13 +182,13 @@ class MarchingVillagerNode: SKSpriteNode {
         let angle = atan2(dy, dx)
 
         // Create arrow path
-        let arrowLength: CGFloat = 20
-        let arrowHeadSize: CGFloat = 6
+        let arrowLength: CGFloat = 10
+        let arrowHeadSize: CGFloat = 3
 
         let path = UIBezierPath()
 
         // Arrow line (starting from edge of circle)
-        let startOffset: CGFloat = 18  // Start just outside the circle
+        let startOffset: CGFloat = 9  // Start just outside the circle
         let startPoint = CGPoint(
             x: cos(angle) * startOffset,
             y: sin(angle) * startOffset
@@ -226,6 +227,9 @@ class MarchingVillagerNode: SKSpriteNode {
     func calculateTravelTime(path: [HexCoordinate], hexMap: HexMap?) -> TimeInterval {
         guard !path.isEmpty else { return 0 }
 
+        // Capture hexMap strongly for the duration of this calculation
+        let map = hexMap
+
         var totalTime: TimeInterval = 0
         var previousCoord = coordinate
 
@@ -239,7 +243,7 @@ class MarchingVillagerNode: SKSpriteNode {
             let dy = nextPos.y - prevPos.y
             let distance = sqrt(dx * dx + dy * dy)
 
-            let hasRoad = hexMap?.hasRoad(at: coord) ?? false
+            let hasRoad = map?.hasRoad(at: coord) ?? false
             var segmentSpeed = baseMoveSpeed
             if hasRoad {
                 segmentSpeed = baseMoveSpeed / (1.5 * roadSpeedBonus)
@@ -264,11 +268,14 @@ class MarchingVillagerNode: SKSpriteNode {
             return
         }
 
+        // Capture hexMap strongly for the duration of the movement
+        let map = hexMap
+
         isMoving = true
         movementPath = path
 
         // Calculate initial time estimate
-        let totalTime = calculateTravelTime(path: path, hexMap: hexMap)
+        let totalTime = calculateTravelTime(path: path, hexMap: map)
         updateTimer(remaining: totalTime)
 
         // Calculate segment distances
@@ -293,7 +300,7 @@ class MarchingVillagerNode: SKSpriteNode {
             let position = HexMap.hexToPixel(q: coord.q, r: coord.r)
             let segmentDistance = segmentDistances[index]
 
-            let hasRoad = hexMap?.hasRoad(at: coord) ?? false
+            let hasRoad = map?.hasRoad(at: coord) ?? false
             var segmentSpeed = baseMoveSpeed
             if hasRoad {
                 segmentSpeed = baseMoveSpeed / (1.5 * roadSpeedBonus)
@@ -312,10 +319,13 @@ class MarchingVillagerNode: SKSpriteNode {
                 self.marchingGroup.updateCoordinate(coord)
                 self.marchingGroup.pathIndex += 1
 
+                // Update isometric z-position for correct depth sorting during movement
+                self.zPosition = HexTileNode.isometricZPosition(q: coord.q, r: coord.r, baseLayer: HexTileNode.ZLayer.entity)
+
                 remainingPath.removeFirst()
 
                 // Update timer
-                let remaining = self.calculateTravelTime(path: remainingPath, hexMap: hexMap)
+                let remaining = self.calculateTravelTime(path: remainingPath, hexMap: map)
                 self.updateTimer(remaining: remaining)
 
                 // Update arrow direction

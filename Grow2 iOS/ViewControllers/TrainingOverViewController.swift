@@ -93,14 +93,21 @@ class TrainingOverviewViewController: UIViewController, UITableViewDelegate, UIT
         if buildingsWithTraining.isEmpty {
             return 100
         }
-        
+
         let building = buildingsWithTraining[indexPath.row]
         let queueCount = building.trainingQueue.count + building.villagerTrainingQueue.count
-        
+
+        // Header: buildingLabel + locationLabel + statusLabel + padding = ~70
+        // Each queue item: unitLabel + progressBar + timeLabel + padding = ~60
+        // Stack spacing: 8 per item
+        let headerHeight: CGFloat = 80
+        let itemHeight: CGFloat = 60
+        let stackSpacing: CGFloat = 8
+
         if queueCount > 0 {
-            return 80 + CGFloat(queueCount * 25) // Base height + queue items
+            return headerHeight + CGFloat(queueCount) * (itemHeight + stackSpacing)
         }
-        return 80
+        return headerHeight
     }
     
     @objc func closeScreen() {
@@ -109,92 +116,226 @@ class TrainingOverviewViewController: UIViewController, UITableViewDelegate, UIT
 }
 
 class TrainingBuildingCell: UITableViewCell {
-    
+
     let buildingLabel = UILabel()
     let locationLabel = UILabel()
-    let queueLabel = UILabel()
     let statusLabel = UILabel()
-    
+    let queueStackView = UIStackView()
+
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         setupUI()
     }
-    
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        queueStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    }
+
     func setupUI() {
         backgroundColor = .clear
         selectionStyle = .none
-        
-        buildingLabel.frame = CGRect(x: 15, y: 10, width: 300, height: 22)
-        buildingLabel.font = UIFont.boldSystemFont(ofSize: 16)
+
+        buildingLabel.translatesAutoresizingMaskIntoConstraints = false
+        buildingLabel.font = UIFont.boldSystemFont(ofSize: 18)
         buildingLabel.textColor = .white
         contentView.addSubview(buildingLabel)
-        
-        locationLabel.frame = CGRect(x: 15, y: 32, width: 350, height: 18)
+
+        locationLabel.translatesAutoresizingMaskIntoConstraints = false
         locationLabel.font = UIFont.systemFont(ofSize: 13)
-        locationLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
+        locationLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
         contentView.addSubview(locationLabel)
-        
-        statusLabel.frame = CGRect(x: 15, y: 52, width: 350, height: 18)
-        statusLabel.font = UIFont.systemFont(ofSize: 13, weight: .medium)
+
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
         statusLabel.textColor = UIColor(white: 0.8, alpha: 1.0)
         contentView.addSubview(statusLabel)
-        
-        queueLabel.frame = CGRect(x: 15, y: 70, width: 350, height: 200)
-        queueLabel.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        queueLabel.textColor = UIColor(white: 0.75, alpha: 1.0)
-        queueLabel.numberOfLines = 0
-        contentView.addSubview(queueLabel)
+
+        queueStackView.translatesAutoresizingMaskIntoConstraints = false
+        queueStackView.axis = .vertical
+        queueStackView.spacing = 8
+        contentView.addSubview(queueStackView)
+
+        NSLayoutConstraint.activate([
+            buildingLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+            buildingLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            buildingLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+
+            locationLabel.topAnchor.constraint(equalTo: buildingLabel.bottomAnchor, constant: 4),
+            locationLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            locationLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+
+            statusLabel.topAnchor.constraint(equalTo: locationLabel.bottomAnchor, constant: 8),
+            statusLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            statusLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+
+            queueStackView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 10),
+            queueStackView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            queueStackView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            queueStackView.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -12)
+        ])
     }
-    
+
+    // MARK: - Time Calculation Helpers
+
+    func getRemainingTime(for entry: TrainingQueueEntryData, currentTime: TimeInterval) -> TimeInterval {
+        let baseTime = entry.unitType.trainingTime * Double(entry.quantity)
+        let elapsed = currentTime - entry.startTime
+        return max(0, baseTime - elapsed)
+    }
+
+    func getRemainingTime(for entry: VillagerTrainingEntryData, currentTime: TimeInterval) -> TimeInterval {
+        let totalTime = VillagerTrainingEntryData.trainingTimePerVillager * Double(entry.quantity)
+        let elapsed = currentTime - entry.startTime
+        return max(0, totalTime - elapsed)
+    }
+
+    func formatTime(_ seconds: TimeInterval) -> String {
+        let mins = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
+    }
+
+    func calculateTotalRemaining(_ building: BuildingNode, currentTime: TimeInterval) -> TimeInterval {
+        var total: TimeInterval = 0
+        for entry in building.trainingQueue {
+            total += getRemainingTime(for: entry, currentTime: currentTime)
+        }
+        for entry in building.villagerTrainingQueue {
+            total += getRemainingTime(for: entry, currentTime: currentTime)
+        }
+        return total
+    }
+
+    // MARK: - Progress Bar Creation
+
+    func createProgressBar(progress: Double, width: CGFloat) -> UIView {
+        let container = UIView()
+        container.backgroundColor = UIColor(white: 0.25, alpha: 1.0)
+        container.layer.cornerRadius = 3
+        container.clipsToBounds = true
+
+        let fill = UIView()
+        fill.backgroundColor = progress > 0.75 ? .systemGreen : (progress > 0.4 ? .systemYellow : .systemOrange)
+        fill.layer.cornerRadius = 3
+        fill.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(fill)
+
+        NSLayoutConstraint.activate([
+            fill.topAnchor.constraint(equalTo: container.topAnchor),
+            fill.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            fill.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            fill.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: max(0.02, min(1.0, progress)))
+        ])
+
+        return container
+    }
+
+    // MARK: - Queue Item View
+
+    func addQueueItemView(index: Int, icon: String, name: String, quantity: Int, progress: Double, remainingTime: TimeInterval) {
+        let container = UIView()
+        container.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+        container.layer.cornerRadius = 6
+
+        // Unit info label
+        let unitLabel = UILabel()
+        unitLabel.translatesAutoresizingMaskIntoConstraints = false
+        unitLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        unitLabel.textColor = .white
+        unitLabel.text = "\(index). \(quantity)x \(icon) \(name)"
+        container.addSubview(unitLabel)
+
+        // Progress bar
+        let progressBar = createProgressBar(progress: progress, width: 200)
+        progressBar.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(progressBar)
+
+        // Time/percentage label
+        let timeLabel = UILabel()
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        timeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        timeLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
+        let percentText = Int(progress * 100)
+        timeLabel.text = "\(formatTime(remainingTime)) remaining (\(percentText)%)"
+        container.addSubview(timeLabel)
+
+        NSLayoutConstraint.activate([
+            unitLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            unitLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
+            unitLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+
+            progressBar.topAnchor.constraint(equalTo: unitLabel.bottomAnchor, constant: 6),
+            progressBar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
+            progressBar.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            progressBar.heightAnchor.constraint(equalToConstant: 6),
+
+            timeLabel.topAnchor.constraint(equalTo: progressBar.bottomAnchor, constant: 4),
+            timeLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
+            timeLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            timeLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
+        ])
+
+        queueStackView.addArrangedSubview(container)
+    }
+
+    // MARK: - Configure
+
     func configure(with building: BuildingNode?) {
+        queueStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
         guard let building = building else {
             buildingLabel.text = "No Training Buildings"
             locationLabel.text = "Build barracks, archery ranges, or city centers to train units"
             statusLabel.text = ""
-            queueLabel.text = ""
             return
         }
-        
+
         buildingLabel.text = "\(building.buildingType.icon) \(building.buildingType.displayName)"
-        locationLabel.text = "📍 Location: (\(building.coordinate.q), \(building.coordinate.r))"
-        
+        locationLabel.text = "Location: (\(building.coordinate.q), \(building.coordinate.r))"
+
         let currentTime = Date().timeIntervalSince1970
-        let militaryQueue = building.trainingQueue
-        let villagerQueue = building.villagerTrainingQueue
-        
-        if militaryQueue.isEmpty && villagerQueue.isEmpty {
-            statusLabel.text = "✅ Idle - Ready to train"
-            queueLabel.text = ""
+
+        // Process military queue
+        for (index, entry) in building.trainingQueue.enumerated() {
+            let progress = entry.getProgress(currentTime: currentTime)
+            let remaining = getRemainingTime(for: entry, currentTime: currentTime)
+            addQueueItemView(
+                index: index + 1,
+                icon: entry.unitType.icon,
+                name: entry.unitType.displayName,
+                quantity: entry.quantity,
+                progress: progress,
+                remainingTime: remaining
+            )
+        }
+
+        // Process villager queue
+        for (index, entry) in building.villagerTrainingQueue.enumerated() {
+            let progress = entry.getProgress(currentTime: currentTime)
+            let remaining = getRemainingTime(for: entry, currentTime: currentTime)
+            addQueueItemView(
+                index: building.trainingQueue.count + index + 1,
+                icon: "👷",
+                name: "Villager",
+                quantity: entry.quantity,
+                progress: progress,
+                remainingTime: remaining
+            )
+        }
+
+        // Update status
+        if building.trainingQueue.isEmpty && building.villagerTrainingQueue.isEmpty {
+            statusLabel.text = "✅ Ready to train"
+            statusLabel.textColor = .systemGreen
         } else {
-            var totalRemaining: TimeInterval = 0
-            var queueText = ""
-            
-            for (index, entry) in militaryQueue.enumerated() {
-                let remaining = entry.getProgress(currentTime: currentTime)
-                totalRemaining += remaining
-                let minutes = Int(remaining) / 60
-                let seconds = Int(remaining) % 60
-                let progress = Int(entry.getProgress(currentTime: currentTime) * 100)
-                queueText += "\n\(index + 1). \(entry.quantity)x \(entry.unitType.icon) \(entry.unitType.displayName) - \(minutes)m \(seconds)s (\(progress)%)"
-            }
-            
-            for (index, entry) in villagerQueue.enumerated() {
-                let remaining = entry.getProgress(currentTime: currentTime)
-                totalRemaining += remaining
-                let minutes = Int(remaining) / 60
-                let seconds = Int(remaining) % 60
-                let progress = Int(entry.getProgress(currentTime: currentTime) * 100)
-                queueText += "\n\(militaryQueue.count + index + 1). \(entry.quantity)x 👷 Villager - \(minutes)m \(seconds)s (\(progress)%)"
-            }
-            
-            let totalMinutes = Int(totalRemaining) / 60
-            let totalSeconds = Int(totalRemaining) % 60
-            statusLabel.text = "🔨 Training - Total: \(totalMinutes)m \(totalSeconds)s"
-            queueLabel.text = queueText
+            let totalRemaining = calculateTotalRemaining(building, currentTime: currentTime)
+            statusLabel.text = "⏳ \(formatTime(totalRemaining)) remaining"
+            statusLabel.textColor = .systemYellow
         }
     }
 }

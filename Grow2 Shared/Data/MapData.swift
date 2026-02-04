@@ -248,6 +248,12 @@ class MapData: Codable {
             switch building.buildingType {
             case .wall:
                 return false  // Walls block everyone
+            case .castle, .woodenFort:
+                // Defensive structures block enemies and neutrals
+                guard let fortOwnerID = building.ownerID,
+                      let requestorID = playerID else { return false }
+                let status = gameState.getDiplomacyStatus(playerID: requestorID, otherPlayerID: fortOwnerID)
+                return status.canMove  // true for .me, .guild, .ally
             case .gate:
                 // Gates allow allies through
                 guard let gateOwnerID = building.ownerID,
@@ -274,9 +280,23 @@ class MapData: Codable {
 
     // MARK: - Pathfinding
 
-    func findPath(from start: HexCoordinate, to goal: HexCoordinate, forPlayerID playerID: UUID?, gameState: GameState) -> [HexCoordinate]? {
+    /// Find a path from start to goal
+    /// - Parameters:
+    ///   - start: Starting coordinate
+    ///   - goal: Target coordinate
+    ///   - playerID: The player requesting the path (for passability checks)
+    ///   - gameState: The game state for building/diplomacy lookups
+    ///   - allowImpassableDestination: If true, allows pathfinding to an impassable destination (for attacking buildings)
+    ///   - targetBuildingCoordinates: Optional set of coordinates occupied by a target building (allows pathing through all tiles of an attacked building)
+    func findPath(from start: HexCoordinate, to goal: HexCoordinate, forPlayerID playerID: UUID?, gameState: GameState, allowImpassableDestination: Bool = false, targetBuildingCoordinates: Set<HexCoordinate>? = nil) -> [HexCoordinate]? {
         guard isValidCoordinate(start) && isValidCoordinate(goal) else { return nil }
-        guard isPassable(at: goal, forPlayerID: playerID, gameState: gameState) else { return nil }
+
+        // Check if destination is passable (unless we're allowing impassable destinations for attacks)
+        let destinationPassable = isPassable(at: goal, forPlayerID: playerID, gameState: gameState)
+        if !destinationPassable && !allowImpassableDestination {
+            return nil
+        }
+
         guard start != goal else { return [] }
 
         var openSet: Set<HexCoordinate> = [start]
@@ -303,7 +323,11 @@ class MapData: Codable {
             openSet.remove(current)
 
             for neighbor in current.neighbors() {
-                guard isValidCoordinate(neighbor) && isPassable(at: neighbor, forPlayerID: playerID, gameState: gameState) else { continue }
+                // Allow the goal tile even if impassable (for attacking)
+                let neighborPassable = isPassable(at: neighbor, forPlayerID: playerID, gameState: gameState)
+                let isGoalTile = neighbor == goal && allowImpassableDestination
+                let isTargetBuildingTile = targetBuildingCoordinates?.contains(neighbor) ?? false
+                guard isValidCoordinate(neighbor) && (neighborPassable || isGoalTile || isTargetBuildingTile) else { continue }
 
                 let movementCost = getMovementCost(at: neighbor)
                 let tentativeGScore = (gScore[current] ?? Int.max) + movementCost

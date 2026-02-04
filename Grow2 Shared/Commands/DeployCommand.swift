@@ -195,12 +195,6 @@ struct DeployVillagersCommand: GameCommand {
         // Add to player's entity list
         player.addEntity(villagers)
         
-        villagerNode.position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
-        
-        // Add to game
-        context.hexMap.addEntity(villagerNode)
-        player.addEntity(villagers)
-        
         print("👷 Deployed \(removed) villagers from \(building.buildingType.displayName)")
         
         return .success

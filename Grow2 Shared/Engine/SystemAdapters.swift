@@ -104,8 +104,9 @@ class ResourceSystemAdapter {
     /// Convert ResourcePointNode (visual) to ResourcePointData (pure data)
     func convertToResourcePointData(_ node: ResourcePointNode) -> ResourcePointData {
         // Types are now unified, use directly
+        // Use the node's existing ID to maintain consistency with gathering assignments
         let data = ResourcePointData(
-            id: UUID(),
+            id: node.id,
             coordinate: node.coordinate,
             resourceType: node.resourceType
         )
@@ -140,6 +141,14 @@ class ResourceSystemAdapter {
         // Convert visual task to data task
         data.currentTask = group.currentTask.toTaskData()
         data.taskTargetCoordinate = group.taskTarget
+
+        // Set assignedResourcePointID for gathering tasks (ResourceEngine needs this)
+        if case .gatheringResource(let resourcePoint) = group.currentTask {
+            data.assignedResourcePointID = resourcePoint.id
+            data.taskTargetID = resourcePoint.id
+        } else if case .hunting(let resourcePoint) = group.currentTask {
+            data.taskTargetID = resourcePoint.id
+        }
 
         return data
     }
@@ -269,9 +278,15 @@ class GameStateSynchronizer {
     static func createGameState(from hexMap: HexMap, players: [Player], mapWidth: Int, mapHeight: Int) -> GameState {
         let gameState = GameState(mapWidth: mapWidth, mapHeight: mapHeight)
 
-        // Convert map
-        let mapData = MapDataAdapter.convertToMapData(hexMap)
-        // Note: GameState owns its mapData, would need to copy tiles
+        // Convert map tiles - copy terrain data from hexMap to gameState.mapData
+        for (coord, tile) in hexMap.tiles {
+            let tileData = TileData(
+                coordinate: coord,
+                terrain: tile.terrain,
+                elevation: tile.elevation
+            )
+            gameState.mapData.setTile(tileData)
+        }
 
         // Add players
         for player in players {
@@ -284,16 +299,23 @@ class GameStateSynchronizer {
             gameState.addBuilding(building.data)
         }
 
+        // Add resource points (needed for ResourceEngine gathering/depletion)
+        let resourceAdapter = ResourceSystemAdapter(resourceEngine: GameEngine.shared.resourceEngine, gameState: gameState)
+        for resourcePoint in hexMap.resourcePoints {
+            let resourceData = resourceAdapter.convertToResourcePointData(resourcePoint)
+            gameState.addResourcePoint(resourceData)
+            // Register in map data for coordinate lookup
+            gameState.mapData.registerResourcePoint(id: resourceData.id, at: resourcePoint.coordinate)
+        }
+
         // Add entities
         for entity in hexMap.entities {
             if let army = entity.entity as? Army {
-                let combatAdapter = CombatDataAdapter(combatEngine: GameEngine.shared.combatEngine, gameState: gameState)
-                let armyData = combatAdapter.convertToArmyData(army)
-                gameState.addArmy(armyData)
+                // Use existing data object to maintain reference identity
+                gameState.addArmy(army.data)
             } else if let villagerGroup = entity.entity as? VillagerGroup {
-                let resourceAdapter = ResourceSystemAdapter(resourceEngine: GameEngine.shared.resourceEngine, gameState: gameState)
-                let groupData = resourceAdapter.convertToVillagerGroupData(villagerGroup)
-                gameState.addVillagerGroup(groupData)
+                // Use existing data object to maintain reference identity
+                gameState.addVillagerGroup(villagerGroup.data)
             }
         }
 

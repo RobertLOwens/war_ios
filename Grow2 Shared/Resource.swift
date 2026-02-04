@@ -48,9 +48,10 @@ class ResourcePointNode: SKSpriteNode {
         }
 
         let texture = ResourcePointNode.createResourceTexture(for: resourceType)
-        super.init(texture: texture, color: .clear, size: CGSize(width: 32, height: 32))
+        super.init(texture: texture, color: .clear, size: CGSize(width: 16, height: 16))
 
-        self.zPosition = 3
+        // Set isometric z-position for depth sorting
+        self.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: HexTileNode.ZLayer.resource)
         self.name = "resourcePoint"
 
         setupLabel()
@@ -61,12 +62,12 @@ class ResourcePointNode: SKSpriteNode {
     }
     
     static func createResourceTexture(for type: ResourcePointType) -> SKTexture {
-        let size = CGSize(width: 32, height: 32)
+        let size = CGSize(width: 16, height: 16)
         let renderer = UIGraphicsImageRenderer(size: size)
-        
+
         let image = renderer.image { context in
             let rect = CGRect(origin: .zero, size: size)
-            
+
             // Background color based on resource type
             let bgColor: UIColor
             switch type {
@@ -85,20 +86,20 @@ class ResourcePointNode: SKSpriteNode {
             case .farmland:
                 bgColor = UIColor(red: 0.5, green: 0.3, blue: 0.2, alpha: 1.0)
             }
-            
+
             // Draw circle
             bgColor.setFill()
-            context.cgContext.fillEllipse(in: rect.insetBy(dx: 2, dy: 2))
-            
+            context.cgContext.fillEllipse(in: rect.insetBy(dx: 1, dy: 1))
+
             // Draw border
             UIColor.white.setStroke()
-            context.cgContext.setLineWidth(2)
-            context.cgContext.strokeEllipse(in: rect.insetBy(dx: 2, dy: 2))
-            
+            context.cgContext.setLineWidth(1)
+            context.cgContext.strokeEllipse(in: rect.insetBy(dx: 1, dy: 1))
+
             // Draw icon
             let icon = type.icon
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 16),
+                .font: UIFont.systemFont(ofSize: 8),
                 .foregroundColor: UIColor.white
             ]
             let iconString = NSAttributedString(string: icon, attributes: attributes)
@@ -116,25 +117,7 @@ class ResourcePointNode: SKSpriteNode {
     }
     
     private func setupLabel() {
-        let amountLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        amountLabel.fontSize = 10
-        amountLabel.fontColor = .white
-        amountLabel.text = "\(remainingAmount)"
-        amountLabel.position = CGPoint(x: 0, y: -20)
-        amountLabel.zPosition = 1
-        amountLabel.name = "amountLabel"
-        
-        // Add shadow
-        let shadow = SKLabelNode(fontNamed: "Menlo-Bold")
-        shadow.fontSize = 10
-        shadow.fontColor = UIColor(white: 0, alpha: 0.7)
-        shadow.text = "\(remainingAmount)"
-        shadow.position = CGPoint(x: 1, y: -1)
-        shadow.zPosition = -1
-        shadow.name = "shadow"  // Name required for updateLabel() to find and update it
-        amountLabel.addChild(shadow)
-        
-        addChild(amountLabel)
+        // Resource amount label removed from map display
     }
     
     var currentGatherRate: Double {
@@ -201,32 +184,14 @@ class ResourcePointNode: SKSpriteNode {
     }
     
     func updateLabel() {
-        if let label = children.first(where: { $0 is SKLabelNode }) as? SKLabelNode {
-            let villagerCount = getTotalVillagersGathering()
-            if villagerCount > 0 {
-                label.text = "\(remainingAmount) 👷\(villagerCount)"
-            } else {
-                label.text = "\(remainingAmount)"
-            }
-            // Update shadow label (direct child of the main label)
-            if let shadow = label.childNode(withName: "shadow") as? SKLabelNode {
-                shadow.text = label.text
-            }
-        }
+        // Resource amount label removed from map display
     }
     
     func gather(amount: Int) -> Int {
         let gathered = data.gather(amount: amount)
         updateLabel()
-
-        if data.isDepleted() {
-            // Resource depleted - cleanup will be handled by GameScene update loop
-            let fadeOut = SKAction.fadeOut(withDuration: 1.0)
-            run(fadeOut) { [weak self] in
-                self?.removeFromParent()
-            }
-        }
-
+        // Note: Resource depletion cleanup is handled by GameVisualLayer.handleResourceDepleted()
+        // to ensure consistent removal from both the scene and hexMap.resourcePoints array
         return gathered
     }
 
@@ -260,6 +225,15 @@ class ResourcePointNode: SKSpriteNode {
         assignedVillagerGroups.append(villagerGroup)
         updateLabel()
 
+        // Register with engine for resource depletion tracking
+        let engineRegistered = GameEngine.shared.resourceEngine.startGathering(
+            villagerGroupID: villagerGroup.id,
+            resourcePointID: self.id
+        )
+        if engineRegistered {
+            print("🔧 Engine: Registered gathering for \(villagerGroup.name)")
+        }
+
         print("✅ Added \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourceType.displayName)")
         print("   Total villagers gathering: \(getTotalVillagersGathering())/\(ResourcePointNode.maxVillagersPerTile)")
     }
@@ -275,6 +249,10 @@ class ResourcePointNode: SKSpriteNode {
             if case .gatheringResource = group.currentTask {
                 group.clearTask()
             }
+
+            // Notify engine
+            GameEngine.shared.resourceEngine.stopGathering(villagerGroupID: group.id)
+
             print("✅ Removed \(group.name) from gathering")
         } else {
             // Clear all assigned villagers
@@ -283,6 +261,8 @@ class ResourcePointNode: SKSpriteNode {
                 if case .gatheringResource = group.currentTask {
                     group.clearTask()
                 }
+                // Notify engine for each group
+                GameEngine.shared.resourceEngine.stopGathering(villagerGroupID: group.id)
             }
             assignedVillagerGroups.removeAll()
         }

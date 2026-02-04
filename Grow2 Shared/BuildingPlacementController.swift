@@ -131,15 +131,16 @@ class BuildingPlacementController {
         }
     }
 
-    /// Creates a hexagon-shaped highlight node
+    /// Creates a hexagon-shaped highlight node (isometric)
     private func createHexHighlight(at position: CGPoint, color: UIColor) -> SKShapeNode {
         let radius: CGFloat = HexTileNode.hexRadius - 2
+        let isoRatio = HexTileNode.isoRatio
         let path = UIBezierPath()
 
         for i in 0..<6 {
             let angle = CGFloat(i) * CGFloat.pi / 3 - CGFloat.pi / 6
             let x = radius * cos(angle)
-            let y = radius * sin(angle)
+            let y = radius * sin(angle) * isoRatio  // Apply isometric compression
 
             if i == 0 {
                 path.move(to: CGPoint(x: x, y: y))
@@ -270,15 +271,16 @@ class BuildingPlacementController {
         }
     }
 
-    /// Creates a filled hexagon shape for rotation preview
+    /// Creates a filled hexagon shape for rotation preview (isometric)
     private func createHexFillShape(at position: CGPoint, fillColor: UIColor, isAnchor: Bool, buildingType: BuildingType?) -> SKShapeNode {
         let radius: CGFloat = HexTileNode.hexRadius - 2
+        let isoRatio = HexTileNode.isoRatio
         let path = CGMutablePath()
 
         for i in 0..<6 {
             let angle = CGFloat(i) * CGFloat.pi / 3 - CGFloat.pi / 6
             let x = radius * cos(angle)
-            let y = radius * sin(angle)
+            let y = radius * sin(angle) * isoRatio  // Apply isometric compression
 
             if i == 0 {
                 path.move(to: CGPoint(x: x, y: y))

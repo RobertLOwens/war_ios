@@ -57,6 +57,7 @@ class GameSceneCameraController {
 
     func calculateMapBounds(hexMap: HexMap?) {
         // Calculate the bounds of the map in scene coordinates
+        // For isometric view, the map is diamond-shaped, so we need to check all corners
         guard let hexMap = hexMap else { return }
 
         let hexRadius = HexTileNode.hexRadius
@@ -65,17 +66,29 @@ class GameSceneCameraController {
         let width = hexMap.width
         let height = hexMap.height
 
-        // Get corner positions
-        let minPos = HexMap.hexToPixel(q: 0, r: 0)
-        let maxPos = HexMap.hexToPixel(q: width - 1, r: height - 1)
+        // Get all corner positions of the isometric map
+        // The map extends in a diamond pattern due to isometric skew
+        let corner00 = HexMap.hexToPixel(q: 0, r: 0)                    // Bottom-right corner
+        let cornerW0 = HexMap.hexToPixel(q: width - 1, r: 0)           // Right corner
+        let corner0H = HexMap.hexToPixel(q: 0, r: height - 1)          // Top corner (skewed left)
+        let cornerWH = HexMap.hexToPixel(q: width - 1, r: height - 1)  // Top-left corner
+
+        // Find the actual bounds by checking all corners
+        let allX = [corner00.x, cornerW0.x, corner0H.x, cornerWH.x]
+        let allY = [corner00.y, cornerW0.y, corner0H.y, cornerWH.y]
+
+        let minX = allX.min() ?? 0
+        let maxX = allX.max() ?? 0
+        let minY = allY.min() ?? 0
+        let maxY = allY.max() ?? 0
 
         // Add padding for hex size
         let padding = hexRadius * 2
         mapBounds = CGRect(
-            x: minPos.x - padding,
-            y: minPos.y - padding,
-            width: (maxPos.x - minPos.x) + padding * 2,
-            height: (maxPos.y - minPos.y) + padding * 2
+            x: minX - padding,
+            y: minY - padding,
+            width: (maxX - minX) + padding * 2,
+            height: (maxY - minY) + padding * 2
         )
     }
 

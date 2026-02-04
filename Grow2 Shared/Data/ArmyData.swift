@@ -39,15 +39,15 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
 
     var moveSpeed: TimeInterval {
         switch self {
-        case .swordsman: return 0.35
-        case .pikeman: return 0.40
-        case .archer: return 0.35
-        case .crossbow: return 0.38
-        case .scout: return 0.22  // Fast cavalry
-        case .knight: return 0.25
-        case .heavyCavalry: return 0.28
-        case .mangonel: return 0.50  // Slow siege
-        case .trebuchet: return 0.60  // Very slow siege
+        case .swordsman: return 1.40
+        case .pikeman: return 1.60
+        case .archer: return 1.40
+        case .crossbow: return 1.52
+        case .scout: return 0.88  // Fast cavalry
+        case .knight: return 1.00
+        case .heavyCavalry: return 1.12
+        case .mangonel: return 2.00  // Slow siege
+        case .trebuchet: return 2.40  // Very slow siege
         }
     }
 
@@ -55,7 +55,7 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
         switch self {
         case .swordsman: return 1.0    // Standard melee
         case .pikeman: return 1.2      // Slower heavy weapon
-        case .archer: return 0.8       // Fast ranged
+        case .archer: return 1.0       // Fast ranged
         case .crossbow: return 1.5     // Slow reload
         case .scout: return 0.7        // Fast light cavalry
         case .knight: return 1.1       // Heavy cavalry
@@ -102,57 +102,57 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
         switch self {
         case .swordsman:
             return UnitCombatStatsData(
-                meleeDamage: 12, pierceDamage: 0, bludgeonDamage: 0,
-                meleeArmor: 10, pierceArmor: 6, bludgeonArmor: 5,
+                meleeDamage: 2, pierceDamage: 0, bludgeonDamage: 0,
+                meleeArmor: 2, pierceArmor: 1, bludgeonArmor: 0,
                 bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
             )
         case .archer:
             return UnitCombatStatsData(
-                meleeDamage: 0, pierceDamage: 12, bludgeonDamage: 0,
-                meleeArmor: 3, pierceArmor: 3, bludgeonArmor: 0,
+                meleeDamage: 0, pierceDamage: 2, bludgeonDamage: 0,
+                meleeArmor: 0, pierceArmor: 1, bludgeonArmor: 0,
                 bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
             )
         case .crossbow:
             return UnitCombatStatsData(
-                meleeDamage: 0, pierceDamage: 14, bludgeonDamage: 0,
-                meleeArmor: 3, pierceArmor: 7, bludgeonArmor: 0,
+                meleeDamage: 0, pierceDamage: 2, bludgeonDamage: 0,
+                meleeArmor: 1, pierceArmor: 2, bludgeonArmor: 0,
                 bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
             )
         case .pikeman:
             return UnitCombatStatsData(
-                meleeDamage: 6, pierceDamage: 0, bludgeonDamage: 0,
-                meleeArmor: 4, pierceArmor: 3, bludgeonArmor: 3,
-                bonusVsInfantry: 0, bonusVsCavalry: 15, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
+                meleeDamage: 1, pierceDamage: 0, bludgeonDamage: 0,
+                meleeArmor: 1, pierceArmor: 1, bludgeonArmor: 3,
+                bonusVsInfantry: 0, bonusVsCavalry: 8, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
             )
         case .scout:
             return UnitCombatStatsData(
-                meleeDamage: 6, pierceDamage: 0, bludgeonDamage: 0,
-                meleeArmor: 3, pierceArmor: 6, bludgeonArmor: 0,
-                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
+                meleeDamage: 2, pierceDamage: 0, bludgeonDamage: 0,
+                meleeArmor: 1, pierceArmor: 0, bludgeonArmor: 0,
+                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 1, bonusVsSiege: 0, bonusVsBuildings: 0
             )
         case .knight:
             return UnitCombatStatsData(
-                meleeDamage: 14, pierceDamage: 0, bludgeonDamage: 0,
-                meleeArmor: 8, pierceArmor: 5, bludgeonArmor: 4,
-                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
+                meleeDamage: 4, pierceDamage: 0, bludgeonDamage: 0,
+                meleeArmor: 2, pierceArmor: 2, bludgeonArmor: 1,
+                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 1, bonusVsSiege: 0, bonusVsBuildings: 0
             )
         case .heavyCavalry:
             return UnitCombatStatsData(
-                meleeDamage: 18, pierceDamage: 0, bludgeonDamage: 0,
-                meleeArmor: 12, pierceArmor: 8, bludgeonArmor: 6,
-                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 0
+                meleeDamage: 5, pierceDamage: 0, bludgeonDamage: 0,
+                meleeArmor: 3, pierceArmor: 3, bludgeonArmor: 1,
+                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 1, bonusVsSiege: 0, bonusVsBuildings: 0
             )
         case .mangonel:
             return UnitCombatStatsData(
-                meleeDamage: 0, pierceDamage: 0, bludgeonDamage: 18,
-                meleeArmor: 6, pierceArmor: 10, bludgeonArmor: 6,
+                meleeDamage: 0, pierceDamage: 0, bludgeonDamage: 8,
+                meleeArmor: 2, pierceArmor: 10, bludgeonArmor: 3,
                 bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 20
             )
         case .trebuchet:
             return UnitCombatStatsData(
-                meleeDamage: 0, pierceDamage: 0, bludgeonDamage: 25,
-                meleeArmor: 5, pierceArmor: 12, bludgeonArmor: 5,
-                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 35
+                meleeDamage: 0, pierceDamage: 0, bludgeonDamage: 12,
+                meleeArmor: 2, pierceArmor: 15, bludgeonArmor: 4,
+                bonusVsInfantry: 0, bonusVsCavalry: 0, bonusVsRanged: 0, bonusVsSiege: 0, bonusVsBuildings: 30
             )
         }
     }
@@ -160,15 +160,15 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
     /// Hit points for this unit type
     var hp: Double {
         switch self {
-        case .swordsman:    return 120  // Tanky infantry
-        case .archer:       return 70   // Fragile ranged
-        case .crossbow:     return 85   // Armored ranged
-        case .pikeman:      return 100  // Standard infantry
-        case .scout:        return 80   // Light cavalry
-        case .knight:       return 140  // Heavy cavalry
-        case .heavyCavalry: return 160  // Very heavy cavalry
-        case .mangonel:     return 150  // Siege - tanky but slow
-        case .trebuchet:    return 180  // Heavy siege
+        case .swordsman:    return 50  // Tanky infantry
+        case .archer:       return 30   // Fragile ranged
+        case .crossbow:     return 40   // Armored ranged
+        case .pikeman:      return 35  // Standard infantry
+        case .scout:        return 30   // Light cavalry
+        case .knight:       return 60  // Heavy cavalry
+        case .heavyCavalry: return 80  // Very heavy cavalry
+        case .mangonel:     return 70  // Siege - tanky but slow
+        case .trebuchet:    return 120  // Heavy siege
         }
     }
 
@@ -431,6 +431,15 @@ class ArmyData: Codable {
 
     func isEmpty() -> Bool {
         return getTotalUnits() == 0
+    }
+
+    /// Returns the moveSpeed of the slowest unit in the army (higher = slower)
+    /// Falls back to default army speed if empty
+    var slowestUnitMoveSpeed: TimeInterval {
+        guard !militaryComposition.isEmpty else {
+            return 1.6  // Default army speed (matches EntityType.army.moveSpeed)
+        }
+        return militaryComposition.keys.map { $0.moveSpeed }.max() ?? 1.6
     }
 
     // MARK: - Combat Stats

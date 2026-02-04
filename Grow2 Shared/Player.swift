@@ -288,6 +288,9 @@ class Player {
          if !armies.contains(where: { $0.id == army.id }) {
              armies.append(army)
              army.owner = self
+
+             // Sync to data layer
+             GameEngine.shared.gameState?.addArmy(army.data)
          }
      }
      
@@ -296,6 +299,9 @@ class Player {
          if army.owner === self {
              army.owner = nil
          }
+
+         // Sync removal to data layer
+         GameEngine.shared.gameState?.removeArmy(id: army.id)
      }
      
      func getTotalMilitaryUnitsCount() -> Int {

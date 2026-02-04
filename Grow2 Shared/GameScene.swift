@@ -150,6 +150,13 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleCampCompleted(_:)),
+            name: NSNotification.Name("CampCompletedNotification"),
+            object: nil
+        )
+
         // ✅ FIX: Only generate map and entities for NEW games
         if !skipInitialSetup {
             setupMap()
@@ -163,6 +170,12 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         setupGestureRecognizers()
     }
     
+    /// Callback that fires when the scene is fully ready for loading saved game data
+    var onSceneReady: (() -> Void)?
+
+    /// Indicates whether the scene's node structure is fully initialized
+    private(set) var isSceneReady: Bool = false
+
     func setupEmptyNodeStructure() {
         mapNode?.removeFromParent()
         unitsNode?.removeFromParent()
@@ -199,7 +212,14 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         unitsNode.name = "unitsNode"
         addChild(unitsNode)
 
+        // Mark scene as ready and notify
+        isSceneReady = true
         print("📦 Empty node structure created for saved game loading")
+
+        // Notify that scene is ready (on main thread to ensure UI safety)
+        DispatchQueue.main.async { [weak self] in
+            self?.onSceneReady?()
+        }
     }
     
     deinit {
@@ -501,11 +521,12 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     // MARK: - Arena Map Setup
 
     /// Sets up a combat test arena using an ArenaMapGenerator
-    /// Creates armies with commanders and swordsmen - no buildings or villagers
+    /// Creates armies with commanders and military units - no buildings or villagers
     /// - Parameters:
     ///   - generator: The arena map generator to use
     ///   - players: Array of players (player at index 0 is the human player)
-    func setupArenaWithGenerator(_ generator: MapGenerator, players: [Player]) {
+    ///   - armyConfig: Optional army configuration for unit composition (uses default if nil)
+    func setupArenaWithGenerator(_ generator: MapGenerator, players: [Player], armyConfig: ArenaArmyConfiguration? = nil) {
         guard players.count >= 2 else {
             print("Arena map requires at least 2 players")
             return
@@ -575,8 +596,12 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             let armyName = index == 0 ? "Player's Army" : "\(currentPlayer.name)'s Army"
             let army = Army(name: armyName, coordinate: startPos.coordinate, commander: commander, owner: currentPlayer)
 
-            // Add 5 swordsmen to the army
-            army.addMilitaryUnits(.swordsman, count: 5)
+            // Add units to the army based on config
+            let config = armyConfig ?? .default
+            let composition = index == 0 ? config.playerArmy : config.enemyArmy
+            for (unitType, count) in composition where count > 0 {
+                army.addMilitaryUnits(unitType, count: count)
+            }
 
             // Create EntityNode and add to map
             let armyNode = EntityNode(
@@ -595,6 +620,10 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             currentPlayer.addArmy(army)
             currentPlayer.addEntity(army)  // For getArmies() to work via entities
 
+            // Explicitly ensure army is registered in GameState for combat/retreat systems
+            GameEngine.shared.gameState?.addArmy(army.data)
+            print("DEBUG: Army \(army.name) added. In GameState: \(GameEngine.shared.gameState?.getArmy(id: army.id) != nil)")
+
             // Register commander with player
             currentPlayer.addCommander(commander)
 
@@ -603,8 +632,77 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
             print("Player \(index + 1) (\(currentPlayer.name)) army spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
             print("   Commander: \(commander.name)")
-            print("   Swordsmen: 5")
+            for (unitType, count) in composition where count > 0 {
+                print("   \(unitType.displayName): \(count)")
+            }
         }
+
+        // Create city centers at corners for retreat testing
+        let player1CityPos = HexCoordinate(q: 0, r: 0)
+        let player2CityPos = HexCoordinate(q: generator.width - 1, r: generator.height - 1)
+
+        // Player 1 city center
+        let player1CityCenter = BuildingNode(coordinate: player1CityPos, buildingType: .cityCenter, owner: players[0])
+        player1CityCenter.state = .completed
+        let p1CityPixelPos = HexMap.hexToPixel(q: player1CityPos.q, r: player1CityPos.r)
+        player1CityCenter.position = p1CityPixelPos
+        hexMap.addBuilding(player1CityCenter)
+        buildingsNode.addChild(player1CityCenter)
+        players[0].addBuilding(player1CityCenter)
+        // Sync to GameEngine's game state for combat engine to find buildings
+        GameEngine.shared.gameState?.addBuilding(player1CityCenter.data)
+
+        // Player 2 city center
+        let player2CityCenter = BuildingNode(coordinate: player2CityPos, buildingType: .cityCenter, owner: players[1])
+        player2CityCenter.state = .completed
+        let p2CityPixelPos = HexMap.hexToPixel(q: player2CityPos.q, r: player2CityPos.r)
+        player2CityCenter.position = p2CityPixelPos
+        hexMap.addBuilding(player2CityCenter)
+        buildingsNode.addChild(player2CityCenter)
+        players[1].addBuilding(player2CityCenter)
+        GameEngine.shared.gameState?.addBuilding(player2CityCenter.data)
+
+        // Player 2 wooden fort (for testing building protection)
+        let player2FortPos = HexCoordinate(q: 2, r: 3)
+        let player2Fort = BuildingNode(coordinate: player2FortPos, buildingType: .woodenFort, owner: players[1])
+        player2Fort.state = .completed
+        let p2FortPixelPos = HexMap.hexToPixel(q: player2FortPos.q, r: player2FortPos.r)
+        player2Fort.position = p2FortPixelPos
+        hexMap.addBuilding(player2Fort)
+        buildingsNode.addChild(player2Fort)
+        players[1].addBuilding(player2Fort)
+        player2Fort.createTileOverlays(in: self)
+        GameEngine.shared.gameState?.addBuilding(player2Fort.data)
+
+        // NOTE: Removed hardcoded archer garrison - garrison should come from game setup config
+        // player2Fort.addToGarrison(unitType: .archer, quantity: 5)
+
+        // Player 2 farm adjacent to fort (protected by the fort)
+        let player2FarmPos = HexCoordinate(q: 2, r: 2)
+        let player2Farm = BuildingNode(coordinate: player2FarmPos, buildingType: .farm, owner: players[1])
+        player2Farm.state = .completed
+        let p2FarmPixelPos = HexMap.hexToPixel(q: player2FarmPos.q, r: player2FarmPos.r)
+        player2Farm.position = p2FarmPixelPos
+        hexMap.addBuilding(player2Farm)
+        buildingsNode.addChild(player2Farm)
+        players[1].addBuilding(player2Farm)
+        GameEngine.shared.gameState?.addBuilding(player2Farm.data)
+
+        print("Enemy defensive buildings placed:")
+        print("   Wooden Fort: (\(player2FortPos.q), \(player2FortPos.r))")
+        print("   Farm (protected by fort): (\(player2FarmPos.q), \(player2FarmPos.r))")
+
+        // Set home bases for armies
+        if let player1Army = players[0].armies.first {
+            player1Army.setHomeBase(player1CityCenter.data.id)
+        }
+        if let player2Army = players[1].armies.first {
+            player2Army.setHomeBase(player2CityCenter.data.id)
+        }
+
+        print("City centers placed at corners for retreat testing")
+        print("   Player 1 city center: (\(player1CityPos.q), \(player1CityPos.r))")
+        print("   Player 2 city center: (\(player2CityPos.q), \(player2CityPos.r))")
 
         // Set player references
         self.player = players[0]
@@ -1010,6 +1108,11 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // Recalculate adjacency bonuses for nearby buildings
         AdjacencyBonusManager.shared.recalculateAffectedBuildings(near: building.coordinate)
 
+        // Update collection rates (building removal may affect adjacency bonuses)
+        if isEngineEnabled {
+            GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
+        }
+
         // Post notification
         NotificationCenter.default.post(
             name: NSNotification.Name("BuildingDemolishedNotification"),
@@ -1073,17 +1176,23 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         print("🏠 Army \(army.name) home base updated to \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
     }
 
-    /// Handles building destruction by clearing home base references for affected armies
+    /// Handles building destruction by reassigning home base references for affected armies
     func handleBuildingDestruction(_ building: BuildingNode) {
+        // When using the engine, GameState.removeBuilding() handles home base reassignment
+        // For legacy mode, reassign to City Center instead of clearing to nil
+        guard let player = building.owner else { return }
+
         let buildingID = building.data.id
 
-        // Find all armies that have this building as their home base and clear it
-        guard let player = building.owner else { return }
+        // Find city center for this player
+        guard let cityCenter = player.buildings.first(where: { $0.buildingType == .cityCenter }) else {
+            return
+        }
 
         for army in player.armies {
             if army.homeBaseID == buildingID {
-                army.setHomeBase(nil)
-                print("⚠️ Army \(army.name) home base destroyed!")
+                army.setHomeBase(cityCenter.data.id)
+                print("🏠 Army \(army.name) home base reassigned to City Center (building destroyed)")
             }
         }
     }
@@ -1154,17 +1263,29 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         let location = touch.location(in: self)
         lastTouchPosition = location
 
-        // Check if touch starts on a tile with player-owned, non-moving entity
-        if let coordinate = getTileCoordinate(at: location),
-           let entity = hexMap?.getEntity(at: coordinate),
-           entity.entity.owner?.id == player?.id,
-           !entity.isMoving {
-            // Check entity is not in combat (for armies)
-            if let army = entity.armyReference {
-                guard !GameEngine.shared.combatEngine.isInCombat(armyID: army.id) else { return }
+        // Check if touch starts on a tile with player-owned entities
+        if let coordinate = getTileCoordinate(at: location) {
+            let entitiesAtCoord = hexMap?.getEntities(at: coordinate) ?? []
+
+            // Filter to player-owned, non-moving entities
+            let ownedEntities = entitiesAtCoord.filter { entity in
+                guard entity.entity.owner?.id == player?.id, !entity.isMoving else { return false }
+                // For armies, check not in combat
+                if let army = entity.armyReference {
+                    return !GameEngine.shared.combatEngine.isInCombat(armyID: army.id)
+                }
+                return true
             }
-            dragStartCoordinate = coordinate
-            dragSourceEntity = entity
+
+            if ownedEntities.count == 1 {
+                // Single entity - proceed with drag
+                dragStartCoordinate = coordinate
+                dragSourceEntity = ownedEntities[0]
+            } else if ownedEntities.count > 1 {
+                // Multiple entities - show warning
+                gameDelegate?.gameScene(self, showAlertWithTitle: "Multiple Units",
+                    message: "There are multiple units on this tile. Tap to select one first.")
+            }
         }
     }
 
@@ -1303,11 +1424,28 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // Check if destination is unexplored and show warning
         let visibility = player.getVisibilityLevel(at: destination)
         if visibility == .unexplored {
-            // Show confirmation for unexplored move
             gameDelegate?.gameScene(self, showAlertWithTitle: "Scout Unknown Area?",
                 message: "Moving to unexplored territory. Your unit will reveal the fog of war as it travels.")
         }
 
+        // Check if this is an army - show stamina confirmation
+        if let army = entity.armyReference, let commander = army.commander {
+            let currentStamina = Int(commander.stamina)
+            let cost = Int(Commander.staminaCostPerCommand)
+
+            gameDelegate?.gameScene(self, showConfirmation: "Move Army?",
+                message: "This will cost \(cost) stamina.\nCurrent stamina: \(currentStamina)/100",
+                confirmTitle: "Move",
+                onConfirm: { [weak self] in
+                    self?.performMove(entity: entity, to: destination, player: player)
+                })
+        } else {
+            // Non-army entities move immediately
+            performMove(entity: entity, to: destination, player: player)
+        }
+    }
+
+    private func performMove(entity: EntityNode, to destination: HexCoordinate, player: Player) {
         let command = MoveCommand(
             playerID: player.id,
             entityID: entity.entity.id,
@@ -1584,7 +1722,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     func startCombat(attacker: Army, target: Any, location: HexCoordinate) {
         print("⚔️ COMBAT STARTED!")
 
-        let currentTime = Date().timeIntervalSince1970
+        let currentTime = GameEngine.shared.gameState?.currentTime ?? 0
 
         // Use CombatEngine for combat
         if let defenderArmy = target as? Army {
@@ -1637,6 +1775,12 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 building.clearTileOverlays()  // Clean up multi-tile overlays
                 building.removeFromParent()
                 building.owner?.removeBuilding(building)
+
+                // Update collection rates (building removal may affect adjacency bonuses)
+                if isEngineEnabled, let owner = building.owner {
+                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: owner.id)
+                }
+
                 print("💀 \(building.buildingType.displayName) was destroyed")
             }
         } else if let villagers = defender as? VillagerGroup {
@@ -1907,8 +2051,11 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             farmland.startGathering(by: villagerGroup)
             builderEntity.isMoving = true
 
-            // Update collection rate for the player
-            if let farmOwner = building.owner {
+            // Update collection rate for the player (use engine for accurate rates with adjacency)
+            if let farmOwner = building.owner, isEngineEnabled {
+                GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: farmOwner.id)
+            } else if let farmOwner = building.owner {
+                // Fallback for non-engine mode
                 let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
                 farmOwner.increaseCollectionRate(.food, amount: rateContribution)
             }
@@ -1924,6 +2071,57 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
         // Recalculate adjacency bonuses for nearby buildings
         AdjacencyBonusManager.shared.recalculateAffectedBuildings(near: building.coordinate)
+
+        // Update collection rates for the building's owner (building may affect adjacency bonuses)
+        if isEngineEnabled, let owner = building.owner {
+            GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: owner.id)
+        }
+    }
+
+    @objc func handleCampCompleted(_ notification: Notification) {
+        guard let building = notification.object as? BuildingNode,
+              let coordinate = notification.userInfo?["coordinate"] as? HexCoordinate,
+              let campType = notification.userInfo?["campType"] as? BuildingType else { return }
+
+        // Find resources in camp range
+        let resourcesInRange = hexMap.getResourcesInCampRange(campCoordinate: coordinate, campType: campType)
+
+        guard !resourcesInRange.isEmpty else {
+            print("⚠️ \(campType.displayName) completed but no matching resources in range")
+            return
+        }
+
+        // Auto-start gathering if a builder was provided
+        if let builderEntity = notification.userInfo?["builder"] as? EntityNode,
+           let villagerGroup = builderEntity.entity as? VillagerGroup {
+
+            // Find the first available resource to gather
+            if let targetResource = resourcesInRange.first(where: { $0.canBeGathered() }) {
+                // Set up gathering task
+                villagerGroup.currentTask = .gatheringResource(targetResource)
+                targetResource.startGathering(by: villagerGroup)
+                builderEntity.isMoving = true
+
+                // Update collection rate for the player (use engine for accurate rates with adjacency)
+                if let campOwner = building.owner, isEngineEnabled {
+                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: campOwner.id)
+                } else if let campOwner = building.owner {
+                    // Fallback for non-engine mode
+                    let yieldType = targetResource.resourceType.resourceYield
+                    let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
+                    campOwner.increaseCollectionRate(yieldType, amount: rateContribution)
+                }
+
+                print("⛏️ \(campType.displayName) completed - \(villagerGroup.name) now gathering from \(targetResource.resourceType.displayName) at (\(targetResource.coordinate.q), \(targetResource.coordinate.r))")
+            } else {
+                // No available resources, unlock the villagers
+                builderEntity.isMoving = false
+                villagerGroup.clearTask()
+                print("⚠️ \(campType.displayName) completed - no available resources to gather")
+            }
+        } else {
+            print("⛏️ \(campType.displayName) completed - resources in range: \(resourcesInRange.count)")
+        }
     }
 
     func checkPendingUpgradeArrival(entity: EntityNode) {

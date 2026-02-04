@@ -108,6 +108,7 @@
 		3FREINPNL10000000100REINP /* ReinforcePanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */; };
 		3FRETREAT12F2AA00100RETRT /* RetreatCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */; };
 		3FROOT0001000000000GSINT /* GameSceneEngineIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */; };
+		3FMILTOVW10000000100MILTO /* MilitaryOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */; };
 		3FRSRCOVW10000000100RSRCO /* ResourceOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */; };
 		3FSIDEPNLVC1000000100SPVC /* SidePanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */; };
 		3FVISL0001000000000GMVSL /* GameVisualLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVISL0002000000000GMVSL /* GameVisualLayer.swift */; };
@@ -221,6 +222,7 @@
 		3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcePanelViewController.swift; sourceTree = "<group>"; };
 		3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetreatCommand.swift; sourceTree = "<group>"; };
 		3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneEngineIntegration.swift; sourceTree = "<group>"; };
+		3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilitaryOverviewViewController.swift; sourceTree = "<group>"; };
 		3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceOverviewViewController.swift; sourceTree = "<group>"; };
 		3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidePanelViewController.swift; sourceTree = "<group>"; };
 		3FVISL0002000000000GMVSL /* GameVisualLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameVisualLayer.swift; sourceTree = "<group>"; };
@@ -407,6 +409,7 @@
 				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
 				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
 				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
+				3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */,
 				3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */,
 				3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */,
 				3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */,
@@ -645,6 +648,7 @@
 				3FCMDS0001000000000ENGCM /* EngineCommands.swift in Sources */,
 				3FROOT0001000000000GSINT /* GameSceneEngineIntegration.swift in Sources */,
 				3FRSRCOVW10000000100RSRCO /* ResourceOverviewViewController.swift in Sources */,
+				3FMILTOVW10000000100MILTO /* MilitaryOverviewViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

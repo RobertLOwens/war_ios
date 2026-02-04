@@ -60,6 +60,7 @@ enum StateChange: Codable {
     case combatPhaseCompleted(attackerID: UUID, defenderID: UUID, phase: Int)
     case combatEnded(attackerID: UUID, defenderID: UUID, result: CombatResultData)
     case garrisonDefenseAttack(buildingID: UUID, targetArmyID: UUID, damage: Double)
+    case villagerCasualties(villagerGroupID: UUID, casualties: Int, remaining: Int)
 
     // MARK: - Resource Changes
     case resourcesChanged(playerID: UUID, resourceType: String, oldAmount: Int, newAmount: Int)

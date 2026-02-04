@@ -88,14 +88,36 @@ class GameVisualLayer {
 
     /// Apply a batch of state changes to the visual layer
     func applyChanges(_ batch: StateChangeBatch) {
-        for change in batch.changes {
-            applyChange(change)
+        // Ensure all SpriteKit updates happen on main thread
+        let work = { [weak self] in
+            guard let self = self else { return }
+            for change in batch.changes {
+                self.applyChangeInternal(change)
+            }
+            self.delegate?.visualLayerDidCompleteStateUpdate(self)
         }
-        delegate?.visualLayerDidCompleteStateUpdate(self)
+
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async(execute: work)
+        }
     }
 
     /// Apply a single state change
     func applyChange(_ change: StateChange) {
+        // Ensure all SpriteKit updates happen on main thread
+        if Thread.isMainThread {
+            applyChangeInternal(change)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.applyChangeInternal(change)
+            }
+        }
+    }
+
+    /// Internal implementation of state change application (must be called on main thread)
+    private func applyChangeInternal(_ change: StateChange) {
         switch change {
         // MARK: Building Changes
         case .buildingPlaced(let buildingID, let buildingType, let coordinate, let ownerID, let rotation):
@@ -275,6 +297,7 @@ class GameVisualLayer {
     private func handleBuildingDamaged(buildingID: UUID, currentHealth: Double, maxHealth: Double) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
         buildingNode.updateAppearance()
+        buildingNode.updateHealthBar()
 
         // Visual damage effect
         let flash = SKAction.sequence([
@@ -287,6 +310,12 @@ class GameVisualLayer {
     private func handleBuildingDestroyed(buildingID: UUID) {
         guard let buildingNode = buildingNodes[buildingID],
               let hexMap = hexMap else { return }
+
+        // Remove health bar before destruction
+        buildingNode.removeHealthBar()
+
+        // Remove tile overlays (text labels, hex outlines for multi-tile buildings)
+        buildingNode.clearTileOverlays()
 
         // Destruction animation
         let explode = SKAction.group([
@@ -483,15 +512,49 @@ class GameVisualLayer {
     // MARK: - Combat Handlers
 
     private func handleCombatStarted(attackerID: UUID, defenderID: UUID, coordinate: HexCoordinate) {
-        // Visual combat indicator could be added here
-        // For now, we just ensure both entities are updated
+        // Debug logging for building combat HP bar
+        print("🎯 Combat started - defenderID: \(defenderID)")
+        print("🎯 buildingNodes count: \(buildingNodes.count)")
+        print("🎯 buildingNodes keys: \(buildingNodes.keys.map { $0.uuidString.prefix(8) })")
+
         entityNodes[attackerID]?.updateTexture()
-        entityNodes[defenderID]?.updateTexture()
+
+        // Check if defender is an army or a building
+        if let defenderEntity = entityNodes[defenderID] {
+            // Army vs Army combat
+            defenderEntity.updateTexture()
+            entityNodes[attackerID]?.updateHealthBarCombatPosition(isAttacker: true)
+            defenderEntity.updateHealthBarCombatPosition(isAttacker: false)
+            print("✅ Found defender entity (army)")
+        } else if let defenderBuilding = buildingNodes[defenderID] ?? hexMap?.buildings.first(where: { $0.data.id == defenderID }) {
+            // Army vs Building combat - set up health bar on building
+            // Register if found via hexMap fallback (e.g., arena buildings)
+            if buildingNodes[defenderID] == nil {
+                buildingNodes[defenderID] = defenderBuilding
+                print("📝 Registered building from hexMap fallback: \(defenderBuilding.buildingType.displayName)")
+            }
+            defenderBuilding.setupHealthBar()
+            print("✅ Found building: \(defenderBuilding.buildingType.displayName)")
+            print("🏰 Building health bar set up for \(defenderBuilding.buildingType.displayName)")
+        } else {
+            print("❌ Defender not found in entityNodes or buildingNodes for ID: \(defenderID)")
+        }
     }
 
     private func handleCombatEnded(attackerID: UUID, defenderID: UUID) {
         entityNodes[attackerID]?.updateTexture()
-        entityNodes[defenderID]?.updateTexture()
+
+        // Check if defender was an army or a building
+        if let defenderEntity = entityNodes[defenderID] {
+            // Army vs Army combat
+            defenderEntity.updateTexture()
+            entityNodes[attackerID]?.resetHealthBarPosition()
+            defenderEntity.resetHealthBarPosition()
+        } else if let defenderBuilding = buildingNodes[defenderID] {
+            // Army vs Building combat - remove health bar
+            defenderBuilding.removeHealthBar()
+            print("🏰 Building health bar removed for \(defenderBuilding.buildingType.displayName)")
+        }
     }
 
     private func handleGarrisonDefenseAttack(buildingID: UUID, targetArmyID: UUID, damage: Double) {

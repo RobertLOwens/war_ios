@@ -83,7 +83,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .stable: return "🐴"
         case .siegeWorkshop: return "🎯"
         case .tower: return "🗼"
-        case .woodenFort: return "🗝️"
+        case .woodenFort: return "🏰"
         case .mill: return "⚙️"
         case .wall: return "🧱"
         case .gate: return "🚪"
@@ -441,6 +441,11 @@ class BuildingNode: SKSpriteNode {
     var demolitionProgressBar: SKShapeNode?
     var demolitionTimerLabel: SKLabelNode?
 
+    // Health bar UI elements (for combat)
+    private var healthBarBackground: SKShapeNode?
+    private var healthBarFill: SKShapeNode?
+    private var isInCombat: Bool = false
+
     // MARK: - Multi-Tile Visual Overlays
     private var tileOverlays: [SKShapeNode] = []
     private var hasCreatedTileOverlays: Bool = false
@@ -540,7 +545,8 @@ class BuildingNode: SKSpriteNode {
         let nodeSize = BuildingNode.getNodeSize(for: buildingType)
         super.init(texture: texture, color: .clear, size: nodeSize)
 
-        self.zPosition = 5
+        // Set isometric z-position for depth sorting
+        self.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: HexTileNode.ZLayer.building)
         self.name = "building"
 
         setupUI()
@@ -555,7 +561,8 @@ class BuildingNode: SKSpriteNode {
         let nodeSize = BuildingNode.getNodeSize(for: data.buildingType)
         super.init(texture: texture, color: .clear, size: nodeSize)
 
-        self.zPosition = 5
+        // Set isometric z-position for depth sorting
+        self.zPosition = HexTileNode.isometricZPosition(q: data.coordinate.q, r: data.coordinate.r, baseLayer: HexTileNode.ZLayer.building)
         self.name = "building"
 
         setupUI()
@@ -802,9 +809,9 @@ class BuildingNode: SKSpriteNode {
         // Create timer label if needed
         if demolitionTimerLabel == nil {
             demolitionTimerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-            demolitionTimerLabel?.fontSize = 11
+            demolitionTimerLabel?.fontSize = 6
             demolitionTimerLabel?.fontColor = .orange
-            demolitionTimerLabel?.position = CGPoint(x: 0, y: -30)
+            demolitionTimerLabel?.position = CGPoint(x: 0, y: -15)
             demolitionTimerLabel?.zPosition = 15
             demolitionTimerLabel?.name = "demolitionTimerLabel"
             addChild(demolitionTimerLabel!)
@@ -817,15 +824,15 @@ class BuildingNode: SKSpriteNode {
         // Update progress bar
         demolitionProgressBar?.removeFromParent()
 
-        let barWidth: CGFloat = 44
-        let barHeight: CGFloat = 6
-        let progressWidth = max(2.0, barWidth * CGFloat(newProgress))
+        let barWidth: CGFloat = 22
+        let barHeight: CGFloat = 3
+        let progressWidth = max(1.0, barWidth * CGFloat(newProgress))
 
-        demolitionProgressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 3)
+        demolitionProgressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 1.5)
         demolitionProgressBar?.fillColor = .orange
         demolitionProgressBar?.strokeColor = .white
-        demolitionProgressBar?.lineWidth = 1
-        demolitionProgressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -40)
+        demolitionProgressBar?.lineWidth = 0.5
+        demolitionProgressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -20)
         demolitionProgressBar?.zPosition = 15
         demolitionProgressBar?.name = "demolitionProgressBar"
         addChild(demolitionProgressBar!)
@@ -834,11 +841,99 @@ class BuildingNode: SKSpriteNode {
     func takeDamage(_ amount: Double) {
         data.takeDamage(amount)
         updateAppearance()
+        updateHealthBar()
     }
-    
+
     func repair(_ amount: Double) {
         data.repair(amount)
         updateAppearance()
+        updateHealthBar()
+    }
+
+    // MARK: - Health Bar (for Combat)
+
+    /// Sets up the health bar for combat visualization
+    func setupHealthBar() {
+        // Guard against duplicate health bars
+        if healthBarBackground != nil && healthBarFill != nil {
+            return
+        }
+
+        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
+        // Wider bars for better visibility
+        let barWidth: CGFloat = isMultiTile ? 40 : 32
+        let barHeight: CGFloat = 5
+
+        // Position on top-right hex edge to avoid overlap with army HP bars
+        // Army HP bars appear at the bottom of entities, so we place building bars on the edge
+        let hexRadius: CGFloat = HexTileNode.hexRadius
+        let isoRatio = HexTileNode.isoRatio
+        let edgeX: CGFloat = hexRadius * 0.4  // Offset toward right edge
+        let edgeY: CGFloat = hexRadius * isoRatio * 0.5  // Offset toward top (with iso compression)
+
+        // Background (dark)
+        let bgRect = CGRect(x: edgeX - barWidth/2, y: edgeY, width: barWidth, height: barHeight)
+        healthBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 2)
+        healthBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
+        healthBarBackground?.strokeColor = UIColor(white: 0.4, alpha: 0.8)
+        healthBarBackground?.lineWidth = 0.5
+        healthBarBackground?.zPosition = 15
+        addChild(healthBarBackground!)
+
+        // Fill (starts green, changes with health)
+        healthBarFill = SKShapeNode(rect: bgRect, cornerRadius: 2)
+        healthBarFill?.fillColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0)
+        healthBarFill?.strokeColor = .clear
+        healthBarFill?.zPosition = 16
+        addChild(healthBarFill!)
+
+        isInCombat = true
+        updateHealthBar()
+    }
+
+    /// Updates the health bar fill based on current health
+    func updateHealthBar() {
+        guard isInCombat, let fill = healthBarFill else { return }
+
+        let percentage = CGFloat(health / max(maxHealth, 1))
+        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
+        // Match setupHealthBar dimensions
+        let fullWidth: CGFloat = isMultiTile ? 40 : 32
+        let barHeight: CGFloat = 5
+
+        // Position on top-right hex edge (same as setupHealthBar)
+        let hexRadius: CGFloat = HexTileNode.hexRadius
+        let isoRatio = HexTileNode.isoRatio
+        let edgeX: CGFloat = hexRadius * 0.4
+        let edgeY: CGFloat = hexRadius * isoRatio * 0.5
+
+        let barWidth = fullWidth * max(0, min(1, percentage))
+        let newRect = CGRect(x: edgeX - fullWidth/2, y: edgeY, width: barWidth, height: barHeight)
+        fill.path = CGPath(roundedRect: newRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
+
+        // Change color based on health percentage
+        if percentage > 0.6 {
+            fill.fillColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0) // Green
+        } else if percentage > 0.3 {
+            fill.fillColor = UIColor(red: 0.9, green: 0.7, blue: 0.2, alpha: 1.0) // Yellow/Orange
+        } else {
+            fill.fillColor = UIColor(red: 0.9, green: 0.3, blue: 0.2, alpha: 1.0) // Red
+        }
+    }
+
+    /// Removes the health bar when combat ends
+    func removeHealthBar() {
+        healthBarBackground?.removeFromParent()
+        healthBarBackground = nil
+        healthBarFill?.removeFromParent()
+        healthBarFill = nil
+        isInCombat = false
+    }
+
+    /// Shows or hides the health bar
+    func setHealthBarVisible(_ visible: Bool) {
+        healthBarBackground?.isHidden = !visible
+        healthBarFill?.isHidden = !visible
     }
     
     // ... Keep all the visual/UI methods unchanged:
@@ -854,7 +949,7 @@ class BuildingNode: SKSpriteNode {
             return createMultiTileBuildingTexture(for: type, state: state)
         }
 
-        let size = CGSize(width: 40, height: 40)
+        let size = CGSize(width: 20, height: 20)
         let renderer = UIGraphicsImageRenderer(size: size)
 
         let image = renderer.image { context in
@@ -883,17 +978,17 @@ class BuildingNode: SKSpriteNode {
             }
 
             bgColor.setFill()
-            context.cgContext.fillEllipse(in: rect.insetBy(dx: 4, dy: 4))
+            context.cgContext.fillEllipse(in: rect.insetBy(dx: 2, dy: 2))
 
             // Border
             UIColor.white.setStroke()
-            context.cgContext.setLineWidth(2)
-            context.cgContext.strokeEllipse(in: rect.insetBy(dx: 4, dy: 4))
+            context.cgContext.setLineWidth(1)
+            context.cgContext.strokeEllipse(in: rect.insetBy(dx: 2, dy: 2))
 
             // Draw icon text
             let icon = type.icon
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 20),
+                .font: UIFont.systemFont(ofSize: 10),
                 .foregroundColor: UIColor.white
             ]
             let iconString = NSAttributedString(string: icon, attributes: attributes)
@@ -913,7 +1008,7 @@ class BuildingNode: SKSpriteNode {
     /// Creates a larger texture for multi-tile buildings (Castle, Wooden Fort)
     static func createMultiTileBuildingTexture(for type: BuildingType, state: BuildingState) -> SKTexture {
         // Size to cover approximately 3 hex tiles
-        let size = CGSize(width: 90, height: 80)
+        let size = CGSize(width: 45, height: 40)
         let renderer = UIGraphicsImageRenderer(size: size)
 
         let image = renderer.image { context in
@@ -929,11 +1024,8 @@ class BuildingNode: SKSpriteNode {
             case .demolishing:
                 bgColor = UIColor(red: 0.7, green: 0.4, blue: 0.2, alpha: 1.0)  // Orange for demolition
             case .completed:
-                if type == .castle {
-                    bgColor = UIColor(red: 0.5, green: 0.5, blue: 0.55, alpha: 1.0)  // Gray stone
-                } else {
-                    bgColor = UIColor(red: 0.55, green: 0.4, blue: 0.25, alpha: 1.0)  // Brown wood
-                }
+                // Both Castle and Wooden Fort use same gray stone appearance
+                bgColor = UIColor(red: 0.5, green: 0.5, blue: 0.55, alpha: 1.0)  // Gray stone
             case .damaged:
                 bgColor = UIColor(red: 0.5, green: 0.4, blue: 0.3, alpha: 1.0)
             case .destroyed:
@@ -941,31 +1033,26 @@ class BuildingNode: SKSpriteNode {
             }
 
             // Draw rounded rectangle fill
-            let buildingPath = UIBezierPath(roundedRect: rect.insetBy(dx: 4, dy: 4), cornerRadius: 12)
+            let buildingPath = UIBezierPath(roundedRect: rect.insetBy(dx: 2, dy: 2), cornerRadius: 6)
             bgColor.setFill()
             buildingPath.fill()
 
-            // Draw border/outline
-            let borderColor: UIColor
-            if type == .castle {
-                borderColor = UIColor(red: 0.3, green: 0.3, blue: 0.35, alpha: 1.0)  // Dark gray
-            } else {
-                borderColor = UIColor(red: 0.35, green: 0.25, blue: 0.15, alpha: 1.0)  // Dark brown
-            }
+            // Draw border/outline - same dark gray for both Castle and Fort
+            let borderColor = UIColor(red: 0.3, green: 0.3, blue: 0.35, alpha: 1.0)  // Dark gray
             borderColor.setStroke()
-            buildingPath.lineWidth = 3
+            buildingPath.lineWidth = 1.5
             buildingPath.stroke()
 
             // Inner border for depth
             UIColor.white.withAlphaComponent(0.3).setStroke()
-            let innerPath = UIBezierPath(roundedRect: rect.insetBy(dx: 8, dy: 8), cornerRadius: 10)
-            innerPath.lineWidth = 1
+            let innerPath = UIBezierPath(roundedRect: rect.insetBy(dx: 4, dy: 4), cornerRadius: 5)
+            innerPath.lineWidth = 0.5
             innerPath.stroke()
 
             // Draw building name text in center
             let buildingName = type == .castle ? "CASTLE" : "FORT"
             let textAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.boldSystemFont(ofSize: 14),
+                .font: UIFont.boldSystemFont(ofSize: 7),
                 .foregroundColor: UIColor.white
             ]
             let textString = NSAttributedString(string: buildingName, attributes: textAttributes)
@@ -979,7 +1066,7 @@ class BuildingNode: SKSpriteNode {
 
             // Text shadow for readability
             let shadowAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.boldSystemFont(ofSize: 14),
+                .font: UIFont.boldSystemFont(ofSize: 7),
                 .foregroundColor: UIColor.black.withAlphaComponent(0.5)
             ]
             let shadowString = NSAttributedString(string: buildingName, attributes: shadowAttributes)
@@ -995,9 +1082,9 @@ class BuildingNode: SKSpriteNode {
     /// Returns the node size based on building type
     static func getNodeSize(for type: BuildingType) -> CGSize {
         if type == .castle || type == .woodenFort {
-            return CGSize(width: 90, height: 80)
+            return CGSize(width: 45, height: 40)
         }
-        return CGSize(width: 40, height: 40)
+        return CGSize(width: 20, height: 20)
     }
     
     func setupUI() {
@@ -1005,31 +1092,22 @@ class BuildingNode: SKSpriteNode {
 
         // Building name label (hidden for multi-tile buildings since name is in texture)
         buildingLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
-        buildingLabel?.fontSize = 9
+        buildingLabel?.fontSize = 6
         buildingLabel?.fontColor = .white
         buildingLabel?.text = buildingType.displayName
-        buildingLabel?.position = isMultiTile ? CGPoint(x: 0, y: 45) : CGPoint(x: 0, y: 25)
+        buildingLabel?.position = isMultiTile ? CGPoint(x: 0, y: 22) : CGPoint(x: 0, y: 12)
         buildingLabel?.zPosition = 1
         buildingLabel?.name = "buildingLabel"
         buildingLabel?.isHidden = isMultiTile  // Hide for multi-tile since name is in texture
 
-        // Level label (only shown when completed)
-        levelLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
-        levelLabel?.fontSize = isMultiTile ? 12 : 10
-        levelLabel?.fontColor = .yellow
-        levelLabel?.position = isMultiTile ? CGPoint(x: 40, y: 30) : CGPoint(x: 18, y: 15)
-        levelLabel?.zPosition = 2
-        levelLabel?.name = "levelLabel"
-        levelLabel?.horizontalAlignmentMode = .right
-        updateLevelLabel()
-        addChild(levelLabel!)
+        // Level label removed from map display
 
         // Add shadow effect to label
         let shadow = SKLabelNode(fontNamed: "Helvetica-Bold")
-        shadow.fontSize = 9
+        shadow.fontSize = 6
         shadow.fontColor = UIColor(white: 0, alpha: 0.7)
         shadow.text = buildingType.displayName
-        shadow.position = CGPoint(x: 1, y: -1)
+        shadow.position = CGPoint(x: 0.5, y: -0.5)
         shadow.zPosition = -1
         buildingLabel?.addChild(shadow)
 
@@ -1142,32 +1220,32 @@ class BuildingNode: SKSpriteNode {
         // ✅ Create timer label if needed
         if timerLabel == nil {
             timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-            timerLabel?.fontSize = 11
+            timerLabel?.fontSize = 6
             timerLabel?.fontColor = .white
-            timerLabel?.position = CGPoint(x: 0, y: -30)
+            timerLabel?.position = CGPoint(x: 0, y: -15)
             timerLabel?.zPosition = 15
             timerLabel?.name = "timerLabel"
             addChild(timerLabel!)
         }
-        
+
         // Format time remaining
         let minutes = Int(remaining) / 60
         let seconds = Int(remaining) % 60
         timerLabel?.text = String(format: "%d:%02d", minutes, seconds)
-        
+
         // ✅ Update progress bar - use simpler SKShapeNode rect
         progressBar?.removeFromParent()
-        
-        let barWidth: CGFloat = 44
-        let barHeight: CGFloat = 6
-        let progressWidth = max(1.0, barWidth * CGFloat(constructionProgress)) // ✅ Ensure minimum width
-        
+
+        let barWidth: CGFloat = 22
+        let barHeight: CGFloat = 3
+        let progressWidth = max(0.5, barWidth * CGFloat(constructionProgress)) // ✅ Ensure minimum width
+
         // Create new progress bar
-        progressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 3)
+        progressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 1.5)
         progressBar?.fillColor = .green
         progressBar?.strokeColor = .white
-        progressBar?.lineWidth = 1
-        progressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -40)
+        progressBar?.lineWidth = 0.5
+        progressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -20)
         progressBar?.zPosition = 15
         progressBar?.name = "progressBar"
         addChild(progressBar!)
@@ -1186,11 +1264,11 @@ class BuildingNode: SKSpriteNode {
         progressBar?.removeFromParent()
         progressBar = nil
         
-        // Unlock the builder entity (unless it's a farm - they'll start gathering)
+        // Unlock the builder entity (unless it's a farm or camp - they'll start gathering)
         if let builder = builderEntity {
-            if buildingType == .farm {
-                // For farms, don't clear task - they'll start gathering automatically
-                print("✅ Farm completed - villagers will start gathering")
+            if buildingType == .farm || buildingType == .miningCamp || buildingType == .lumberCamp {
+                // For farms and camps, don't clear task - they'll start gathering automatically
+                print("✅ \(buildingType.displayName) completed - villagers will start gathering")
             } else {
                 builder.isMoving = false
 
@@ -1216,7 +1294,20 @@ class BuildingNode: SKSpriteNode {
                 userInfo: userInfo
             )
         }
-        
+
+        // Post notification for mining/lumber camp completion to auto-start gathering
+        if buildingType == .miningCamp || buildingType == .lumberCamp {
+            var userInfo: [String: Any] = ["coordinate": coordinate, "campType": buildingType]
+            if let builder = builderEntity {
+                userInfo["builder"] = builder
+            }
+            NotificationCenter.default.post(
+                name: NSNotification.Name("CampCompletedNotification"),
+                object: self,
+                userInfo: userInfo
+            )
+        }
+
         print("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
     }
 
@@ -1370,42 +1461,37 @@ class BuildingNode: SKSpriteNode {
         // Create/update timer label
         if upgradeTimerLabel == nil {
             upgradeTimerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-            upgradeTimerLabel?.fontSize = 11
+            upgradeTimerLabel?.fontSize = 6
             upgradeTimerLabel?.fontColor = .cyan
-            upgradeTimerLabel?.position = CGPoint(x: 0, y: -30)
+            upgradeTimerLabel?.position = CGPoint(x: 0, y: -15)
             upgradeTimerLabel?.zPosition = 15
             upgradeTimerLabel?.name = "upgradeTimerLabel"
             addChild(upgradeTimerLabel!)
         }
-        
+
         let minutes = Int(remaining) / 60
         let seconds = Int(remaining) % 60
         upgradeTimerLabel?.text = "⬆️ \(minutes):\(String(format: "%02d", seconds))"
-        
+
         // ✅ FIX: Recreate progress bar with correct width
         upgradeProgressBar?.removeFromParent()
-        
-        let barWidth: CGFloat = 44
-        let barHeight: CGFloat = 6
-        let progressWidth = max(2.0, barWidth * CGFloat(newProgress))  // ✅ Use newProgress directly
-        
-        upgradeProgressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 3)
+
+        let barWidth: CGFloat = 22
+        let barHeight: CGFloat = 3
+        let progressWidth = max(1.0, barWidth * CGFloat(newProgress))  // ✅ Use newProgress directly
+
+        upgradeProgressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 1.5)
         upgradeProgressBar?.fillColor = .cyan
         upgradeProgressBar?.strokeColor = .white
-        upgradeProgressBar?.lineWidth = 1
-        upgradeProgressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -40)
+        upgradeProgressBar?.lineWidth = 0.5
+        upgradeProgressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -20)
         upgradeProgressBar?.zPosition = 15
         upgradeProgressBar?.name = "upgradeProgressBar"
         addChild(upgradeProgressBar!)
     }
     
     func updateLevelLabel() {
-        if state == .completed || state == .upgrading {
-            levelLabel?.text = "Lv.\(level)"
-            levelLabel?.isHidden = false
-        } else {
-            levelLabel?.isHidden = true
-        }
+        // Level label removed from map display
     }
 
     // MARK: - Multi-Tile Visual Overlays
@@ -1427,7 +1513,8 @@ class BuildingNode: SKSpriteNode {
 
             let overlay = createHexTileOverlay(at: worldPos, isAnchor: isAnchor)
             overlay.name = "tileOverlay_\(coord.q)_\(coord.r)"
-            overlay.zPosition = 4  // Below the main building sprite but above terrain
+            // Use isometric z-position for each tile overlay
+            overlay.zPosition = HexTileNode.isometricZPosition(q: coord.q, r: coord.r, baseLayer: HexTileNode.ZLayer.building - 1)
 
             scene.addChild(overlay)
             tileOverlays.append(overlay)
@@ -1443,15 +1530,16 @@ class BuildingNode: SKSpriteNode {
         print("✅ Created \(tileOverlays.count) tile overlays for \(buildingType.displayName)")
     }
 
-    /// Creates a single hex-shaped overlay for one tile
+    /// Creates a single hex-shaped overlay for one tile (isometric)
     private func createHexTileOverlay(at position: CGPoint, isAnchor: Bool) -> SKShapeNode {
         let radius: CGFloat = HexTileNode.hexRadius - 1
+        let isoRatio = HexTileNode.isoRatio
         let path = CGMutablePath()
 
         for i in 0..<6 {
             let angle = CGFloat(i) * CGFloat.pi / 3 - CGFloat.pi / 6
             let x = radius * cos(angle)
-            let y = radius * sin(angle)
+            let y = radius * sin(angle) * isoRatio  // Apply isometric compression
 
             if i == 0 {
                 path.move(to: CGPoint(x: x, y: y))
@@ -1475,7 +1563,7 @@ class BuildingNode: SKSpriteNode {
         if isAnchor {
             let label = SKLabelNode(fontNamed: "Helvetica-Bold")
             label.text = buildingType == .castle ? "CASTLE" : "FORT"
-            label.fontSize = 11
+            label.fontSize = 6
             label.fontColor = .white
             label.verticalAlignmentMode = .center
             label.horizontalAlignmentMode = .center
@@ -1484,27 +1572,15 @@ class BuildingNode: SKSpriteNode {
             // Add shadow for readability
             let shadow = SKLabelNode(fontNamed: "Helvetica-Bold")
             shadow.text = label.text
-            shadow.fontSize = 11
+            shadow.fontSize = 6
             shadow.fontColor = UIColor.black.withAlphaComponent(0.7)
             shadow.verticalAlignmentMode = .center
             shadow.horizontalAlignmentMode = .center
-            shadow.position = CGPoint(x: 1, y: -1)
+            shadow.position = CGPoint(x: 0.5, y: -0.5)
             shadow.zPosition = 0
             overlay.addChild(shadow)
 
             overlay.addChild(label)
-
-            // Add level label below the building name
-            let lvlLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
-            lvlLabel.text = "Lv.\(level)"
-            lvlLabel.fontSize = 9
-            lvlLabel.fontColor = .yellow
-            lvlLabel.verticalAlignmentMode = .center
-            lvlLabel.horizontalAlignmentMode = .center
-            lvlLabel.position = CGPoint(x: 0, y: -12)
-            lvlLabel.zPosition = 1
-            lvlLabel.name = "overlayLevelLabel"
-            overlay.addChild(lvlLabel)
         }
 
         return overlay
@@ -1546,14 +1622,9 @@ class BuildingNode: SKSpriteNode {
         let fillColor = getTileOverlayColor()
         let strokeColor = getOverlayStrokeColor()
 
-        for (index, overlay) in tileOverlays.enumerated() {
+        for overlay in tileOverlays {
             overlay.fillColor = fillColor
             overlay.strokeColor = strokeColor
-
-            // Update level label on anchor tile
-            if index == 0, let lvlLabel = overlay.childNode(withName: "overlayLevelLabel") as? SKLabelNode {
-                lvlLabel.text = "Lv.\(level)"
-            }
         }
     }
 

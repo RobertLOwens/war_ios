@@ -87,7 +87,35 @@ class HexTileNode: SKShapeNode {
         }
     }
 
-    static let hexRadius: CGFloat = 30
+    static let hexRadius: CGFloat = 50
+
+    // MARK: - Isometric Configuration
+    /// Vertical compression ratio for isometric view (0.5 = 50% compression)
+    static let isoRatio: CGFloat = 0.5
+
+    /// Z-Position layer constants for isometric rendering
+    enum ZLayer {
+        static let terrain: CGFloat = 0
+        static let resource: CGFloat = 100
+        static let building: CGFloat = 200
+        static let entity: CGFloat = 300
+        static let fog: CGFloat = 1000
+    }
+
+    /// Calculates the z-position for isometric depth sorting
+    /// Higher r (north on screen) renders behind lower r (south on screen)
+    /// - Parameters:
+    ///   - q: The q coordinate
+    ///   - r: The r coordinate
+    ///   - baseLayer: The base z-layer for this type of object
+    /// - Returns: The z-position for correct depth sorting
+    static func isometricZPosition(q: Int, r: Int, baseLayer: CGFloat) -> CGFloat {
+        // Higher r values should render behind (lower z), lower r values in front (higher z)
+        // We use a large constant minus the row to invert the order
+        let maxRows: CGFloat = 200  // Support maps up to 200 rows
+        let depthOrder = (maxRows - CGFloat(r)) + CGFloat(q) * 0.01
+        return baseLayer + depthOrder
+    }
     
     init(coordinate: HexCoordinate, terrain: TerrainType, elevation: Int = 0) {
         self.coordinate = coordinate
@@ -98,6 +126,10 @@ class HexTileNode: SKShapeNode {
         self.path = HexTileNode.createHexagonPath(radius: HexTileNode.hexRadius)
         self.lineWidth = 2
         self.isUserInteractionEnabled = false
+
+        // Set isometric z-position based on coordinate for depth sorting
+        self.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: ZLayer.terrain)
+
         updateAppearance()
     }
     
@@ -124,12 +156,13 @@ class HexTileNode: SKShapeNode {
     
     static func createHexagonPath(radius: CGFloat) -> CGPath {
         let path = CGMutablePath()
-        
+        let isoRatio = HexTileNode.isoRatio
+
         for i in 0..<6 {
             let angle = CGFloat(i) * .pi / 3.0 - .pi / 6.0
             let x = radius * cos(angle)
-            let y = radius * sin(angle)
-            
+            let y = radius * sin(angle) * isoRatio  // Apply isometric compression
+
             if i == 0 {
                 path.move(to: CGPoint(x: x, y: y))
             } else {
@@ -137,7 +170,7 @@ class HexTileNode: SKShapeNode {
             }
         }
         path.closeSubpath()
-        
+
         return path
     }
 }
@@ -294,7 +327,7 @@ class HexMap {
         return tile.terrain.isWalkable
     }
 
-    /// Check if a coordinate is passable for a specific player (considers walls/gates)
+    /// Check if a coordinate is passable for a specific player (considers walls/gates/forts)
     func isPassable(at coord: HexCoordinate, for requestingOwner: Player?) -> Bool {
         guard isWalkable(coord) else { return false }
 
@@ -302,6 +335,12 @@ class HexMap {
             switch building.buildingType {
             case .wall:
                 return false  // Walls block everyone
+            case .castle, .woodenFort:
+                // Defensive structures block enemies and neutrals
+                guard let fortOwner = building.owner,
+                      let requestor = requestingOwner else { return false }
+                let status = requestor.getDiplomacyStatus(with: fortOwner)
+                return status.canMove  // true for .me, .guild, .ally
             case .gate:
                 guard let gateOwner = building.owner,
                       let requestor = requestingOwner else { return false }
@@ -326,7 +365,11 @@ class HexMap {
     func getEntity(at coordinate: HexCoordinate) -> EntityNode? {
         return entities.first { $0.coordinate == coordinate }
     }
-    
+
+    func getEntities(at coordinate: HexCoordinate) -> [EntityNode] {
+        return entities.filter { $0.coordinate == coordinate }
+    }
+
     // ✅ NEW METHOD
     func getResourcePoint(at coordinate: HexCoordinate) -> ResourcePointNode? {
         return resourcePoints.first { $0.coordinate == coordinate }
@@ -458,15 +501,20 @@ class HexMap {
         let position = HexMap.hexToPixel(q: huntedAnimal.coordinate.q, r: huntedAnimal.coordinate.r)
         carcass.position = position
         
-        resourcePoints.append(carcass)
+        addResourcePoint(carcass)
         scene.addChild(carcass)
-        
+
         print("✅ Created \(carcassType.displayName) at (\(huntedAnimal.coordinate.q), \(huntedAnimal.coordinate.r)) with \(huntedAnimal.remainingAmount) food")
         
         return carcass
     }
     
     func addBuilding(_ building: BuildingNode) {
+        // Check for duplicates before adding
+        guard !buildings.contains(where: { $0.data.id == building.data.id }) else {
+            print("⚠️ Attempted to add duplicate building: \(building.buildingType.displayName) (ID: \(building.data.id))")
+            return
+        }
         buildings.append(building)
     }
     
@@ -489,9 +537,22 @@ class HexMap {
     
     // MARK: - Pathfinding
 
-    func findPath(from start: HexCoordinate, to goal: HexCoordinate, for requestingOwner: Player? = nil) -> [HexCoordinate]? {
+    /// Find a path from start to goal
+    /// - Parameters:
+    ///   - start: Starting coordinate
+    ///   - goal: Target coordinate
+    ///   - requestingOwner: The player requesting the path (for passability checks)
+    ///   - allowImpassableDestination: If true, allows pathfinding to an impassable destination (for attacking buildings)
+    ///   - targetBuilding: Optional target building (allows pathing through all tiles of an attacked building)
+    func findPath(from start: HexCoordinate, to goal: HexCoordinate, for requestingOwner: Player? = nil, allowImpassableDestination: Bool = false, targetBuilding: BuildingNode? = nil) -> [HexCoordinate]? {
         guard isValidCoordinate(start) && isValidCoordinate(goal) else { return nil }
-        guard isPassable(at: goal, for: requestingOwner) else { return nil }
+
+        // Check if destination is passable (unless we're allowing impassable destinations for attacks)
+        let destinationPassable = isPassable(at: goal, for: requestingOwner)
+        if !destinationPassable && !allowImpassableDestination {
+            return nil
+        }
+
         guard start != goal else { return [] }
 
         // A* pathfinding with road preference
@@ -524,7 +585,11 @@ class HexMap {
             openSet.remove(current)
 
             for neighbor in current.neighbors() {
-                guard isValidCoordinate(neighbor) && isPassable(at: neighbor, for: requestingOwner) else { continue }
+                // Allow the goal tile even if impassable (for attacking)
+                let neighborPassable = isPassable(at: neighbor, for: requestingOwner)
+                let isGoalTile = neighbor == goal && allowImpassableDestination
+                let isTargetBuildingTile = targetBuilding?.data.occupies(neighbor) ?? false
+                guard isValidCoordinate(neighbor) && (neighborPassable || isGoalTile || isTargetBuildingTile) else { continue }
 
                 // Use movement cost based on whether tile has road
                 let movementCost = getMovementCost(at: neighbor)
@@ -600,34 +665,68 @@ class HexMap {
         return results
     }
     
-    // MARK: - Coordinate Conversion
-    
+    // MARK: - Coordinate Conversion (Isometric)
+
     static func hexToPixel(q: Int, r: Int) -> CGPoint {
         let size = HexTileNode.hexRadius
         let sqrt3 = sqrt(3.0)
-        
+        let isoRatio = HexTileNode.isoRatio
+
         let hexWidth = sqrt3 * size
         let hexHeight = 2.0 * size
-        
+
+        // Base horizontal spacing
         let horizontalSpacing = hexWidth
-        let verticalSpacing = hexHeight * 0.75
-        
-        let xOffset = (r % 2 == 1) ? hexWidth / 2.0 : 0.0
-        
-        let x = CGFloat(q) * horizontalSpacing + xOffset
+
+        // Isometric vertical spacing (compressed)
+        let verticalSpacing = hexHeight * 0.75 * isoRatio
+
+        // Offset for odd rows (standard hex offset)
+        let oddRowOffset = (r % 2 == 1) ? hexWidth / 2.0 : 0.0
+
+        // NO isometric skew - vertical compression alone creates isometric look
+        let x = CGFloat(q) * horizontalSpacing + oddRowOffset
         let y = CGFloat(r) * verticalSpacing
-        
+
         return CGPoint(x: x, y: y)
     }
-    
+
     static func pixelToHex(point: CGPoint) -> HexCoordinate {
-        let hexWidth = HexTileNode.hexRadius * sqrt(3.0)
-        let hexHeight = HexTileNode.hexRadius * 2.0
-        
-        let r = Int(round(point.y / (hexHeight * 0.75)))
-        let q = Int(round((point.x - CGFloat(r) * hexWidth * 0.5) / hexWidth))
-        
-        return HexCoordinate(q: q, r: r)
+        let size = HexTileNode.hexRadius
+        let sqrt3 = sqrt(3.0)
+        let isoRatio = HexTileNode.isoRatio
+
+        let hexWidth = sqrt3 * size
+        let hexHeight = 2.0 * size
+        let verticalSpacing = hexHeight * 0.75 * isoRatio
+
+        // Estimate row first (no skew to reverse)
+        let estimatedR = Int(round(point.y / verticalSpacing))
+
+        // Calculate x offset for this row
+        let oddRowOffset = (estimatedR % 2 == 1) ? hexWidth / 2.0 : 0.0
+        let estimatedQ = Int(round((point.x - oddRowOffset) / hexWidth))
+
+        // Best-match search around estimate
+        var bestCoord = HexCoordinate(q: estimatedQ, r: estimatedR)
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+
+        for dr in -1...1 {
+            for dq in -1...1 {
+                let testQ = estimatedQ + dq
+                let testR = estimatedR + dr
+                let testPos = hexToPixel(q: testQ, r: testR)
+                let dx = point.x - testPos.x
+                let dy = point.y - testPos.y
+                let dist = dx * dx + dy * dy
+                if dist < bestDistance {
+                    bestDistance = dist
+                    bestCoord = HexCoordinate(q: testQ, r: testR)
+                }
+            }
+        }
+
+        return bestCoord
     }
     
     func spawnResourcesWithDensity(scene: SKNode, densityMultiplier: Double) {
@@ -690,6 +789,14 @@ class HexMap {
     }
     
     func addResourcePoint(_ resource: ResourcePointNode) {
+        // Clean up orphaned resource points (removed from scene but still in array)
+        // This prevents crashes when iterating resourcePoints with stale nodes
+        let validResources = resourcePoints.filter { $0.parent != nil }
+        if validResources.count != resourcePoints.count {
+            print("⚠️ Cleaning up \(resourcePoints.count - validResources.count) orphaned resource points")
+            resourcePoints = validResources
+        }
+
         // Check for duplicates at same coordinate
         guard !resourcePoints.contains(where: { $0.coordinate == resource.coordinate }) else {
             print("⚠️ Resource point already exists at (\(resource.coordinate.q), \(resource.coordinate.r))")

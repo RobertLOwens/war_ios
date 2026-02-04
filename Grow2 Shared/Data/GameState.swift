@@ -96,6 +96,9 @@ class GameState: Codable {
     func removeBuilding(id: UUID) {
         guard let building = buildings[id] else { return }
 
+        // Reassign home bases for armies that had this building as home
+        reassignHomeBasesForDestroyedBuilding(id, ownerID: building.ownerID)
+
         // Update player ownership
         if let ownerID = building.ownerID, let player = getPlayer(id: ownerID) {
             player.removeOwnedBuilding(id)
@@ -105,6 +108,49 @@ class GameState: Codable {
         mapData.unregisterBuilding(id: id)
 
         buildings.removeValue(forKey: id)
+    }
+
+    /// Reassigns home bases for armies when their home building is destroyed
+    private func reassignHomeBasesForDestroyedBuilding(_ buildingID: UUID, ownerID: UUID?) {
+        guard let ownerID = ownerID else { return }
+
+        // Find city center for this player
+        let cityCenter = buildings.values.first {
+            $0.ownerID == ownerID && $0.buildingType == .cityCenter
+        }
+        guard let cityCenterID = cityCenter?.id else { return }
+
+        // Reassign all armies that had this building as home base
+        for army in armies.values where army.homeBaseID == buildingID {
+            army.homeBaseID = cityCenterID
+            print("🏠 \(army.name) home base reassigned to City Center")
+        }
+    }
+
+    /// Finds the nearest valid home base building for retreat (City Center, Castle, or Wooden Fort)
+    /// - Parameters:
+    ///   - playerID: The player who owns the buildings
+    ///   - coordinate: The coordinate to measure distance from
+    ///   - excluding: Optional coordinate to exclude (e.g., the building the army is currently at)
+    func findNearestHomeBase(for playerID: UUID, from coordinate: HexCoordinate, excluding: HexCoordinate? = nil) -> BuildingData? {
+        let validTypes: Set<BuildingType> = [.cityCenter, .woodenFort, .castle]
+        var playerBuildings = buildings.values.filter {
+            $0.ownerID == playerID &&
+            validTypes.contains($0.buildingType) &&
+            $0.isOperational
+        }
+
+        // Exclude buildings at the specified coordinate (for retreat from current location)
+        if let excludeCoord = excluding {
+            playerBuildings = playerBuildings.filter { building in
+                // Check if any of the building's occupied coordinates match the exclusion
+                !building.occupiedCoordinates.contains(excludeCoord)
+            }
+        }
+
+        return playerBuildings.min(by: {
+            coordinate.distance(to: $0.coordinate) < coordinate.distance(to: $1.coordinate)
+        })
     }
 
     func getBuilding(id: UUID) -> BuildingData? {
@@ -368,6 +414,88 @@ class GameState: Codable {
             $0.buildingType == .cityCenter && ($0.state == .completed || $0.state == .upgrading)
         }
         return cityCenters.map { $0.level }.max() ?? 0
+    }
+
+    // MARK: - Building Protection
+
+    /// Check if a building is protected by a nearby defensive building (Castle/Fort/Tower)
+    /// A building is protected if there's an operational defensive building owned by the same player within range
+    func isBuildingProtected(_ buildingID: UUID) -> Bool {
+        return !getProtectingBuildings(for: buildingID).isEmpty
+    }
+
+    /// Get defensive buildings (Castle/Fort/Tower) within range of a coordinate for a player
+    /// - Parameters:
+    ///   - coordinate: The coordinate to check around
+    ///   - range: The maximum distance in hexes
+    ///   - playerID: The player who owns the defensive buildings
+    /// - Returns: Array of defensive BuildingData within range
+    func getDefensiveBuildingsInRange(of coordinate: HexCoordinate, range: Int, forPlayer playerID: UUID) -> [BuildingData] {
+        var defensiveBuildings: [BuildingData] = []
+
+        for building in buildings.values {
+            // Must be owned by the specified player
+            guard building.ownerID == playerID else { continue }
+
+            // Must be a defensive building type
+            guard building.canProvideGarrisonDefense else { continue }
+
+            // Must be operational (not under construction or destroyed)
+            guard building.isOperational else { continue }
+
+            // Check distance from any occupied coordinate of the defensive building
+            // to the target coordinate
+            let minDistance = building.occupiedCoordinates.map { $0.distance(to: coordinate) }.min() ?? Int.max
+            if minDistance <= range {
+                defensiveBuildings.append(building)
+            }
+        }
+
+        return defensiveBuildings
+    }
+
+    /// Get the specific defensive building(s) protecting a target building
+    /// A defensive building protects another building if:
+    /// - Both are owned by the same player
+    /// - The defensive building is operational
+    /// - The defensive building is within garrisonDefenseRange of any tile the target occupies
+    /// - The defensive building is NOT the target itself (no self-protection)
+    func getProtectingBuildings(for buildingID: UUID) -> [BuildingData] {
+        guard let targetBuilding = buildings[buildingID],
+              let ownerID = targetBuilding.ownerID else {
+            return []
+        }
+
+        var protectors: [BuildingData] = []
+
+        for building in buildings.values {
+            // Skip self - buildings don't protect themselves
+            guard building.id != buildingID else { continue }
+
+            // Must be owned by the same player
+            guard building.ownerID == ownerID else { continue }
+
+            // Must be a defensive building type
+            guard building.canProvideGarrisonDefense else { continue }
+
+            // Must be operational
+            guard building.isOperational else { continue }
+
+            let defenseRange = building.garrisonDefenseRange
+
+            // Check if any tile of the defensive building is within range of any tile of the target
+            let isInRange = building.occupiedCoordinates.contains { defenderCoord in
+                targetBuilding.occupiedCoordinates.contains { targetCoord in
+                    defenderCoord.distance(to: targetCoord) <= defenseRange
+                }
+            }
+
+            if isInRange {
+                protectors.append(building)
+            }
+        }
+
+        return protectors
     }
 
     // MARK: - Codable
