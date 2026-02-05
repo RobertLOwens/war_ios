@@ -4,24 +4,43 @@
 // ============================================================================
 
 import UIKit
+import UserNotifications
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    
-    
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        
+
         window = UIWindow(frame: UIScreen.main.bounds)
-        
+
         // Start with Main Menu instead of going straight to game
         let mainMenuVC = MainMenuViewController()
         window?.rootViewController = mainMenuVC
         window?.makeKeyAndVisible()
-        
+
+        // Request push notification permissions
+        requestNotificationPermissions()
+
         return true
+    }
+
+    // MARK: - Push Notification Setup
+
+    private func requestNotificationPermissions() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                print("📱 Push notification permissions granted")
+            } else if let error = error {
+                print("📱 Push notification permission error: \(error.localizedDescription)")
+            } else {
+                print("📱 Push notification permissions denied")
+            }
+        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -63,6 +82,48 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func saveCurrentGame() {
         // Post notification that GameViewController can listen to
         NotificationCenter.default.post(name: .appWillSaveGame, object: nil)
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+
+    /// Handle notification when app is in foreground - suppress it since in-game banners handle this
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        // Don't show push notification when app is in foreground - in-game banners handle this
+        completionHandler([])
+    }
+
+    /// Handle notification tap - jump to the coordinate if available
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+
+        // Extract coordinate from userInfo
+        if let q = userInfo["coordinateQ"] as? Int,
+           let r = userInfo["coordinateR"] as? Int {
+            let coordinate = HexCoordinate(q: q, r: r)
+            print("📱 Notification tapped - jumping to coordinate: \(coordinate)")
+
+            // Post notification for GameViewController to handle
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: .jumpToCoordinate,
+                    object: nil,
+                    userInfo: ["coordinate": coordinate]
+                )
+            }
+        }
+
+        completionHandler()
     }
 }
 

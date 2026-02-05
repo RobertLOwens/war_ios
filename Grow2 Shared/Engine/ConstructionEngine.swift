@@ -53,6 +53,7 @@ class ConstructionEngine {
     // MARK: - Construction
 
     private func updateConstruction(_ building: BuildingData, currentTime: TimeInterval) -> [StateChange] {
+        guard let state = gameState else { return [] }
         var changes: [StateChange] = []
 
         let previousProgress = building.constructionProgress
@@ -67,7 +68,33 @@ class ConstructionEngine {
         }
 
         if completed {
+            // Find and release any villagers assigned to build this building
+            let builderChanges = releaseBuilders(forBuildingID: building.id, state: state)
+            changes.append(contentsOf: builderChanges)
+
             changes.append(.buildingCompleted(buildingID: building.id))
+        }
+
+        return changes
+    }
+
+    /// Finds villagers assigned to a building and clears their task, emitting state changes
+    private func releaseBuilders(forBuildingID buildingID: UUID, state: GameState) -> [StateChange] {
+        var changes: [StateChange] = []
+
+        for group in state.villagerGroups.values {
+            if case .building(let assignedBuildingID) = group.currentTask,
+               assignedBuildingID == buildingID {
+                // Clear the villager's task
+                group.clearTask()
+
+                // Emit state change for visual layer sync
+                changes.append(.villagerGroupTaskChanged(
+                    groupID: group.id,
+                    task: "idle",
+                    targetCoordinate: nil
+                ))
+            }
         }
 
         return changes

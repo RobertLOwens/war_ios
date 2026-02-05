@@ -167,6 +167,7 @@ class NotificationBannerView: UIView {
 
     /// Display a specific notification
     private func showNotification(_ notification: GameNotification) {
+        print("🔔 NotificationBannerView: Showing notification: \(notification.message)")
         currentNotification = notification
 
         // Update UI
@@ -182,6 +183,7 @@ class NotificationBannerView: UIView {
         } completion: { _ in
             self.isAnimating = false
             self.startDisplayTimer()
+            print("🔔 NotificationBannerView: Animation complete, banner should be visible")
         }
     }
 
@@ -291,10 +293,13 @@ class NotificationBannerContainer: UIView {
     }
 
     @objc private func handleGameNotification(_ notification: Notification) {
+        print("🔔 NotificationBannerContainer: Received notification from NotificationCenter")
         guard let gameNotification = notification.userInfo?["notification"] as? GameNotification else {
+            print("🔔 NotificationBannerContainer: Failed to extract GameNotification from userInfo")
             return
         }
 
+        print("🔔 NotificationBannerContainer: Queueing notification: \(gameNotification.message)")
         bannerView.queueNotification(gameNotification)
     }
 

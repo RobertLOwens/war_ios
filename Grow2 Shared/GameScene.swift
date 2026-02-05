@@ -908,7 +908,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // =========================================================================
         // ENGINE UPDATE: Process authoritative game state (if enabled)
         // =========================================================================
-        updateEngine(currentTime: currentTime)
+        updateEngine(currentTime: realWorldTime)
 
         // =========================================================================
         // EVERY FRAME: Critical updates only
