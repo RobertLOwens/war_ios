@@ -120,6 +120,7 @@
 		3FNOTIF0001000000000GMNOT /* GameNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000GMNOT /* GameNotification.swift */; };
 		3FNOTIF0001000000000NTFMG /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFMG /* NotificationManager.swift */; };
 		3FNOTIF0001000000000NTFBV /* NotificationBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */; };
+		3FNOTIF0001000000000NSTNG /* NotificationSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -238,6 +239,7 @@
 		3FNOTIF0002000000000GMNOT /* GameNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameNotification.swift; sourceTree = "<group>"; };
 		3FNOTIF0002000000000NTFMG /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationBannerView.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -291,6 +293,7 @@
 				3FNOTIF0003000000000NOTGP /* Notifications */,
 				3FVISL0003000000000VSLGP /* Visual */,
 				3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */,
+				3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */,
 				3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */,
 				3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */,
 				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
@@ -673,6 +676,7 @@
 				3FNOTIF0001000000000GMNOT /* GameNotification.swift in Sources */,
 				3FNOTIF0001000000000NTFMG /* NotificationManager.swift in Sources */,
 				3FNOTIF0001000000000NTFBV /* NotificationBannerView.swift in Sources */,
+				3FNOTIF0001000000000NSTNG /* NotificationSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

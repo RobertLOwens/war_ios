@@ -150,6 +150,24 @@ enum GameNotificationType {
             return 20
         }
     }
+
+    /// Title for iOS push notifications (category-based)
+    var notificationTitle: String {
+        switch self {
+        case .armyAttacked, .villagerAttacked:
+            return "Combat Alert"
+        case .armySighted:
+            return "Enemy Sighted"
+        case .buildingCompleted, .upgradeCompleted:
+            return "Building Update"
+        case .trainingCompleted:
+            return "Training Complete"
+        case .researchCompleted:
+            return "Research Complete"
+        case .gatheringCompleted, .resourcesMaxed, .resourcePointDepleted:
+            return "Resource Alert"
+        }
+    }
 }
 
 // MARK: - Game Notification

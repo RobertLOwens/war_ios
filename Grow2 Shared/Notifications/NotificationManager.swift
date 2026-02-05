@@ -5,6 +5,10 @@
 // ============================================================================
 
 import Foundation
+#if canImport(UIKit)
+import UIKit
+import UserNotifications
+#endif
 
 // MARK: - Notification Manager
 
@@ -27,6 +31,9 @@ class NotificationManager {
     /// Default cooldown period between duplicate notifications (seconds)
     private let defaultCooldownPeriod: TimeInterval = 5.0
 
+    /// Track whether the app is in the foreground (for push notification scheduling)
+    private var isAppInForeground: Bool = true
+
     /// Cooldown periods for specific notification types
     private let specificCooldowns: [String: TimeInterval] = [
         "gathering": 10.0,       // Gathering notifications less frequent
@@ -41,6 +48,36 @@ class NotificationManager {
 
     private init() {
         setupNotificationListeners()
+        setupAppStateObservers()
+    }
+
+    // MARK: - App State Tracking
+
+    private func setupAppStateObservers() {
+        #if canImport(UIKit)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+        #endif
+    }
+
+    @objc private func appDidEnterBackground() {
+        isAppInForeground = false
+        print("📢 NotificationManager: App entered background - push notifications enabled")
+    }
+
+    @objc private func appWillEnterForeground() {
+        isAppInForeground = true
+        print("📢 NotificationManager: App entering foreground - push notifications disabled")
     }
 
     // MARK: - Setup
@@ -358,6 +395,9 @@ class NotificationManager {
     private func postNotification(_ notification: GameNotification) {
         guard notification.playerID == localPlayerID else { return }
 
+        // Check if notification category is enabled in settings
+        guard NotificationSettings.isEnabled(for: notification.type) else { return }
+
         // Check cooldown for deduplication
         let key = notification.deduplicationKey
         if let lastNotificationTime = notificationCooldowns[key] {
@@ -381,6 +421,11 @@ class NotificationManager {
             )
         }
 
+        // Schedule iOS push notification if app is backgrounded and push is enabled for this type
+        if !isAppInForeground && NotificationSettings.isPushEnabled(for: notification.type) {
+            scheduleLocalPushNotification(notification)
+        }
+
         print("📢 Posted notification: \(notification.icon) \(notification.message)")
     }
 
@@ -392,6 +437,41 @@ class NotificationManager {
             }
         }
         return defaultCooldownPeriod
+    }
+
+    // MARK: - iOS Push Notifications
+
+    /// Schedule a local push notification for when the app is backgrounded
+    private func scheduleLocalPushNotification(_ notification: GameNotification) {
+        #if canImport(UIKit)
+        let content = UNMutableNotificationContent()
+        content.title = notification.type.notificationTitle
+        content.body = notification.message
+        content.sound = .default
+
+        // Store coordinate in userInfo for tap-to-jump functionality
+        if let coord = notification.coordinate {
+            content.userInfo = ["q": coord.q, "r": coord.r]
+        }
+
+        // Trigger after 1 second (minimum required interval)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+
+        // Use deduplication key as identifier so duplicates replace each other
+        let request = UNNotificationRequest(
+            identifier: notification.deduplicationKey,
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("📢 Failed to schedule push notification: \(error.localizedDescription)")
+            } else {
+                print("📢 Scheduled push notification: \(notification.type.notificationTitle)")
+            }
+        }
+        #endif
     }
 
     // MARK: - Cleanup
