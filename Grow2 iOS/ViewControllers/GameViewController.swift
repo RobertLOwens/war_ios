@@ -41,6 +41,11 @@ class GameViewController: UIViewController {
     // Notification banner
     private var notificationBannerContainer: NotificationBannerContainer?
 
+    // Notification bell icon
+    private var notificationBellButton: UIButton?
+    private var notificationBellBadge: UIView?
+    private var notificationBellBadgeLabel: UILabel?
+
     private struct AssociatedKeys {
         static var unitLabels: UInt8 = 0
         static var garrisonData: UInt8 = 1
@@ -72,6 +77,7 @@ class GameViewController: UIViewController {
         NotificationManager.shared.setup(localPlayerID: player.id)
 
         setupNotificationBanner()
+        setupNotificationBell()
         setupAutoSave()
     
         // ✅ FIX: Only setup a new scene if NOT loading a saved game
@@ -131,11 +137,25 @@ class GameViewController: UIViewController {
             object: nil
         )
 
+        // Listen for jump to coordinate (from push notification taps)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleJumpToCoordinate),
+            name: .jumpToCoordinate,
+            object: nil
+        )
+
     }
     
     @objc func handleAppWillEnterForeground() {
         print("📱 App returning to foreground - processing background time")
         processBackgroundTime()
+    }
+
+    @objc func handleJumpToCoordinate(_ notification: Notification) {
+        guard let coordinate = notification.userInfo?["coordinate"] as? HexCoordinate else { return }
+        print("📍 Push notification tap - jumping to coordinate: \(coordinate)")
+        gameScene.focusCamera(on: coordinate, zoom: 0.7, animated: true)
     }
 
     @objc func handlePhasedCombatEnded(_ notification: Notification) {
@@ -755,6 +775,103 @@ class GameViewController: UIViewController {
         ])
 
         notificationBannerContainer = bannerContainer
+    }
+
+    // MARK: - Notification Bell
+
+    func setupNotificationBell() {
+        // Create bell button
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.setTitle("🔔", for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 22)
+        button.backgroundColor = UIColor(white: 0.15, alpha: 0.9)
+        button.layer.cornerRadius = 22
+        button.clipsToBounds = true
+        button.addTarget(self, action: #selector(showNotificationsInbox), for: .touchUpInside)
+        view.addSubview(button)
+
+        // Position top-right
+        NSLayoutConstraint.activate([
+            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            button.widthAnchor.constraint(equalToConstant: 44),
+            button.heightAnchor.constraint(equalToConstant: 44)
+        ])
+
+        notificationBellButton = button
+
+        // Create badge
+        let badge = UIView()
+        badge.backgroundColor = .systemRed
+        badge.layer.cornerRadius = 9
+        badge.clipsToBounds = true
+        badge.translatesAutoresizingMaskIntoConstraints = false
+        badge.isHidden = true
+        badge.isUserInteractionEnabled = false
+        button.addSubview(badge)
+
+        // Badge label
+        let label = UILabel()
+        label.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        label.textColor = .white
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        badge.addSubview(label)
+
+        // Position badge at top-right of button
+        NSLayoutConstraint.activate([
+            badge.topAnchor.constraint(equalTo: button.topAnchor, constant: -4),
+            badge.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: 4),
+            badge.widthAnchor.constraint(greaterThanOrEqualToConstant: 18),
+            badge.heightAnchor.constraint(equalToConstant: 18),
+
+            label.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: badge.leadingAnchor, constant: 4),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: badge.trailingAnchor, constant: -4)
+        ])
+
+        notificationBellBadge = badge
+        notificationBellBadgeLabel = label
+
+        // Observe history changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateNotificationBellBadge),
+            name: .notificationHistoryChanged,
+            object: nil
+        )
+
+        // Initial badge update
+        updateNotificationBellBadge()
+    }
+
+    @objc func updateNotificationBellBadge() {
+        guard let badge = notificationBellBadge,
+              let label = notificationBellBadgeLabel else { return }
+
+        let unreadCount = NotificationManager.shared.unreadCount
+
+        if unreadCount > 0 {
+            label.text = unreadCount > 99 ? "99+" : "\(unreadCount)"
+            badge.isHidden = false
+        } else {
+            badge.isHidden = true
+        }
+    }
+
+    @objc func showNotificationsInbox() {
+        let inboxVC = NotificationsInboxViewController()
+        inboxVC.gameScene = gameScene
+        inboxVC.modalPresentationStyle = .pageSheet
+
+        if let sheet = inboxVC.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+
+        present(inboxVC, animated: true)
     }
 
     func setupEntitiesBadge() {
@@ -2188,7 +2305,7 @@ extension GameViewController: NotificationBannerDelegate {
     func notificationBannerTapped(notification: GameNotification) {
         // Jump to the notification's coordinate if available
         if let coordinate = notification.coordinate {
-            gameScene.focusCamera(on: coordinate, zoom: 1.0, animated: true)
+            gameScene.focusCamera(on: coordinate, zoom: 0.7, animated: true)
             print("📍 Jumped to coordinate: \(coordinate)")
         }
     }

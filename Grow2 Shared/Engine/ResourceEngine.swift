@@ -193,6 +193,15 @@ class ResourceEngine {
 
                 // Check for depletion
                 if resourcePoint.isDepleted() {
+                    // Emit task change for the villager group going idle
+                    // This must be emitted BEFORE resourcePointDepleted so the visual layer
+                    // can update the villager before the resource is removed
+                    changes.append(.villagerGroupTaskChanged(
+                        groupID: groupID,
+                        task: "idle",
+                        targetCoordinate: nil
+                    ))
+
                     changes.append(.resourcePointDepleted(
                         coordinate: resourcePoint.coordinate,
                         resourceType: resourcePoint.resourceType.rawValue

@@ -67,6 +67,7 @@
 		3FEBD1FF2EF3258E00341AEE /* CommanderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */; };
 		3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2002EF360E200341AEE /* CombatRecord.swift */; };
 		3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */; };
+		3FNOTFINBX1000000100NFIB /* NotificationsInboxViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */; };
 		3FEBD2072EF3B10200341AEE /* Diplomacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2062EF3B10200341AEE /* Diplomacy.swift */; };
 		3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2082F006EE800341AEE /* FogOfWar.swift */; };
 		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
@@ -186,6 +187,7 @@
 		3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommanderViewController.swift; sourceTree = "<group>"; };
 		3FEBD2002EF360E200341AEE /* CombatRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatRecord.swift; sourceTree = "<group>"; };
 		3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatHistoryViewController.swift; sourceTree = "<group>"; };
+		3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsInboxViewController.swift; sourceTree = "<group>"; };
 		3FEBD2062EF3B10200341AEE /* Diplomacy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diplomacy.swift; sourceTree = "<group>"; };
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
@@ -424,6 +426,7 @@
 				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
 				3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */,
 				3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */,
+				3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */,
 				3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */,
 				3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */,
 				3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */,
@@ -607,6 +610,7 @@
 				3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */,
 				3F286A0D2F1960FF004636ED /* BuildCommand.swift in Sources */,
 				3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */,
+				3FNOTFINBX1000000100NFIB /* NotificationsInboxViewController.swift in Sources */,
 				3FLIVECBT12F28D00100LIVEC /* LiveCombatViewController.swift in Sources */,
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
 				3F98926C2F21DB81008A24E7 /* EntitiesOverviewViewController.swift in Sources */,

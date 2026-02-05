@@ -20,8 +20,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = mainMenuVC
         window?.makeKeyAndVisible()
 
-        // Set up push notification handling
-        UNUserNotificationCenter.current().delegate = self
+        // Request push notification permissions
         requestNotificationPermissions()
 
         return true
@@ -30,13 +29,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // MARK: - Push Notification Setup
 
     private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error = error {
-                print("📱 Notification permission error: \(error.localizedDescription)")
-            } else if granted {
-                print("📱 Notification permissions granted")
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                print("📱 Push notification permissions granted")
+            } else if let error = error {
+                print("📱 Push notification permission error: \(error.localizedDescription)")
             } else {
-                print("📱 Notification permissions denied")
+                print("📱 Push notification permissions denied")
             }
         }
     }
@@ -87,32 +89,38 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 extension AppDelegate: UNUserNotificationCenterDelegate {
 
-    /// Handle notification tap when app is in foreground (won't show banner, but we handle it)
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification,
-                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        // Don't show push notifications when app is in foreground (we have in-game banners)
+    /// Handle notification when app is in foreground - suppress it since in-game banners handle this
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        // Don't show push notification when app is in foreground - in-game banners handle this
         completionHandler([])
     }
 
-    /// Handle notification tap when user opens notification
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                didReceive response: UNNotificationResponse,
-                                withCompletionHandler completionHandler: @escaping () -> Void) {
+    /// Handle notification tap - jump to the coordinate if available
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         let userInfo = response.notification.request.content.userInfo
 
-        // Extract coordinate from userInfo if available
-        if let q = userInfo["q"] as? Int,
-           let r = userInfo["r"] as? Int {
-            // Post notification to jump to coordinate when game scene is ready
+        // Extract coordinate from userInfo
+        if let q = userInfo["coordinateQ"] as? Int,
+           let r = userInfo["coordinateR"] as? Int {
+            let coordinate = HexCoordinate(q: q, r: r)
+            print("📱 Notification tapped - jumping to coordinate: \(coordinate)")
+
+            // Post notification for GameViewController to handle
             DispatchQueue.main.async {
                 NotificationCenter.default.post(
                     name: .jumpToCoordinate,
                     object: nil,
-                    userInfo: ["q": q, "r": r]
+                    userInfo: ["coordinate": coordinate]
                 )
             }
-            print("📱 Notification tapped - will jump to coordinate (\(q), \(r))")
         }
 
         completionHandler()

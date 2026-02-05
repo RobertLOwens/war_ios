@@ -64,7 +64,7 @@ enum ResourcePointTypeData: String, Codable, CaseIterable {
 
     var initialAmount: Int {
         switch self {
-        case .trees: return 5000
+        case .trees: return 100
         case .forage: return 3000
         case .oreMine: return 8000
         case .stoneQuarry: return 6000

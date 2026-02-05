@@ -201,4 +201,7 @@ extension Notification.Name {
 
     /// Posted when the camera should jump to a coordinate
     static let jumpToCoordinate = Notification.Name("JumpToCoordinate")
+
+    /// Posted when notification history changes (new notification, read status, or cleared)
+    static let notificationHistoryChanged = Notification.Name("NotificationHistoryChanged")
 }

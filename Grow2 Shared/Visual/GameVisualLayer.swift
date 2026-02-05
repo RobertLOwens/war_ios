@@ -184,6 +184,9 @@ class GameVisualLayer {
         case .villagerGroupDestroyed(let groupID, _):
             handleVillagerGroupDestroyed(groupID: groupID)
 
+        case .villagerGroupTaskChanged(let groupID, let task, _):
+            handleVillagerGroupTaskChanged(groupID: groupID, task: task)
+
         // MARK: Resource Changes
         case .resourcePointDepleted(let coordinate, _):
             handleResourcePointDepleted(at: coordinate)
@@ -454,6 +457,16 @@ class GameVisualLayer {
             hexMap.removeEntity(entityNode)
             self?.entityNodes.removeValue(forKey: groupID)
         }
+    }
+
+    private func handleVillagerGroupTaskChanged(groupID: UUID, task: String) {
+        guard let entityNode = entityNodes[groupID],
+              let villagerGroup = entityNode.entity as? VillagerGroup else { return }
+
+        if task == "idle" {
+            villagerGroup.clearTask()
+        }
+        // Could handle other task types here if needed in future
     }
 
     // MARK: - Resource Handlers

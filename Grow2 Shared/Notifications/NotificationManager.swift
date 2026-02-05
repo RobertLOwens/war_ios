@@ -7,6 +7,8 @@
 import Foundation
 #if canImport(UIKit)
 import UIKit
+#endif
+#if canImport(UserNotifications)
 import UserNotifications
 #endif
 
@@ -28,11 +30,22 @@ class NotificationManager {
     /// Cooldown tracking to prevent notification spam
     private var notificationCooldowns: [String: Date] = [:]
 
+    // MARK: - Notification History
+
+    /// Maximum number of notifications to store in history
+    private let maxStoredNotifications: Int = 50
+
+    /// Historical notifications (newest first)
+    private(set) var notificationHistory: [GameNotification] = []
+
+    /// Set of unread notification IDs
+    private var unreadNotificationIDs: Set<UUID> = []
+
+    /// Number of unread notifications
+    var unreadCount: Int { return unreadNotificationIDs.count }
+
     /// Default cooldown period between duplicate notifications (seconds)
     private let defaultCooldownPeriod: TimeInterval = 5.0
-
-    /// Track whether the app is in the foreground (for push notification scheduling)
-    private var isAppInForeground: Bool = true
 
     /// Cooldown periods for specific notification types
     private let specificCooldowns: [String: TimeInterval] = [
@@ -44,6 +57,12 @@ class NotificationManager {
     /// Track previously visible enemy armies to detect new sightings
     private var knownEnemyArmyPositions: Set<HexCoordinate> = []
 
+    /// Whether the app is currently in the foreground
+    private var isAppInForeground: Bool = true
+
+    /// Debug logging enabled
+    private let debugLogging: Bool = true
+
     // MARK: - Initialization
 
     private init() {
@@ -51,7 +70,17 @@ class NotificationManager {
         setupAppStateObservers()
     }
 
-    // MARK: - App State Tracking
+    // MARK: - Setup
+
+    /// Configure the notification manager for a specific player
+    func setup(localPlayerID: UUID) {
+        self.localPlayerID = localPlayerID
+        notificationCooldowns.removeAll()
+        knownEnemyArmyPositions.removeAll()
+        debugLog("Setup for player: \(localPlayerID)")
+    }
+
+    // MARK: - App State Observers
 
     private func setupAppStateObservers() {
         #if canImport(UIKit)
@@ -61,6 +90,7 @@ class NotificationManager {
             name: UIApplication.didEnterBackgroundNotification,
             object: nil
         )
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(appWillEnterForeground),
@@ -72,22 +102,88 @@ class NotificationManager {
 
     @objc private func appDidEnterBackground() {
         isAppInForeground = false
-        print("📢 NotificationManager: App entered background - push notifications enabled")
+        scheduleBackgroundCompletionNotifications()
+        debugLog("App entered background - scheduled completion notifications")
     }
 
     @objc private func appWillEnterForeground() {
         isAppInForeground = true
-        print("📢 NotificationManager: App entering foreground - push notifications disabled")
+        debugLog("App entered foreground")
+        // Cancel any pending notifications since user is back in app
+        #if canImport(UserNotifications)
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        #endif
     }
 
-    // MARK: - Setup
+    // MARK: - Debug Logging
 
-    /// Configure the notification manager for a specific player
-    func setup(localPlayerID: UUID) {
-        self.localPlayerID = localPlayerID
-        notificationCooldowns.removeAll()
-        knownEnemyArmyPositions.removeAll()
-        print("📢 NotificationManager setup for player: \(localPlayerID)")
+    private func debugLog(_ message: String) {
+        if debugLogging {
+            print("📢 NotificationManager: \(message)")
+        }
+    }
+
+    // MARK: - History Management
+
+    /// Add a notification to history
+    private func addToHistory(_ notification: GameNotification) {
+        // Insert at front (newest first)
+        notificationHistory.insert(notification, at: 0)
+
+        // Mark as unread
+        unreadNotificationIDs.insert(notification.id)
+
+        // Trim to max size
+        if notificationHistory.count > maxStoredNotifications {
+            let removedNotifications = notificationHistory.suffix(from: maxStoredNotifications)
+            for removed in removedNotifications {
+                unreadNotificationIDs.remove(removed.id)
+            }
+            notificationHistory = Array(notificationHistory.prefix(maxStoredNotifications))
+        }
+
+        // Post notification that history changed
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .notificationHistoryChanged, object: nil)
+        }
+    }
+
+    /// Mark a notification as read
+    func markAsRead(_ notificationID: UUID) {
+        if unreadNotificationIDs.remove(notificationID) != nil {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .notificationHistoryChanged, object: nil)
+            }
+        }
+    }
+
+    /// Mark all notifications as read
+    func markAllAsRead() {
+        if !unreadNotificationIDs.isEmpty {
+            unreadNotificationIDs.removeAll()
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .notificationHistoryChanged, object: nil)
+            }
+        }
+    }
+
+    /// Clear all notification history
+    func clearHistory() {
+        notificationHistory.removeAll()
+        unreadNotificationIDs.removeAll()
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .notificationHistoryChanged, object: nil)
+        }
+    }
+
+    /// Get recent notifications
+    func getRecentNotifications(limit: Int = 50) -> [GameNotification] {
+        return Array(notificationHistory.prefix(limit))
+    }
+
+    /// Check if a notification is unread
+    func isUnread(_ notificationID: UUID) -> Bool {
+        return unreadNotificationIDs.contains(notificationID)
     }
 
     /// Reset the notification manager
@@ -95,6 +191,8 @@ class NotificationManager {
         localPlayerID = nil
         notificationCooldowns.removeAll()
         knownEnemyArmyPositions.removeAll()
+        notificationHistory.removeAll()
+        unreadNotificationIDs.removeAll()
     }
 
     // MARK: - Notification Listeners
@@ -108,29 +206,6 @@ class NotificationManager {
             object: nil
         )
 
-        // Listen for building completion
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleBuildingComplete),
-            name: .buildingDidComplete,
-            object: nil
-        )
-
-        // Listen for training completion
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleTrainingComplete),
-            name: .trainingDidComplete,
-            object: nil
-        )
-
-        // Listen for phased combat started (army attacked)
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleCombatStartedNotification),
-            name: .phasedCombatStarted,
-            object: nil
-        )
     }
 
     @objc private func handleResearchComplete(_ notification: Notification) {
@@ -145,68 +220,16 @@ class NotificationManager {
         }
     }
 
-    @objc private func handleBuildingComplete(_ notification: Notification) {
-        guard let localPlayerID = localPlayerID else { return }
-
-        // Building completion is handled via StateChange processing
-        // This listener is for cases where Building posts directly
-        if let userInfo = notification.userInfo,
-           let buildingType = userInfo["buildingType"] as? BuildingType,
-           let coordinate = userInfo["coordinate"] as? HexCoordinate,
-           let ownerID = userInfo["ownerID"] as? UUID,
-           ownerID == localPlayerID {
-            let gameNotification = GameNotification(
-                type: .buildingCompleted(buildingType: buildingType, coordinate: coordinate),
-                playerID: localPlayerID
-            )
-            postNotification(gameNotification)
-        }
-    }
-
-    @objc private func handleTrainingComplete(_ notification: Notification) {
-        guard let localPlayerID = localPlayerID else { return }
-
-        if let userInfo = notification.userInfo,
-           let playerID = userInfo["playerID"] as? UUID,
-           playerID == localPlayerID,
-           let unitType = userInfo["unitType"] as? String,
-           let quantity = userInfo["quantity"] as? Int,
-           let coordinate = userInfo["coordinate"] as? HexCoordinate {
-            let gameNotification = GameNotification(
-                type: .trainingCompleted(unitType: unitType, quantity: quantity, coordinate: coordinate),
-                playerID: localPlayerID
-            )
-            postNotification(gameNotification)
-        }
-    }
-
-    @objc private func handleCombatStartedNotification(_ notification: Notification) {
-        guard let localPlayerID = localPlayerID,
-              let combat = notification.object as? ActiveCombat else { return }
-
-        // Check if local player is the defender (they're being attacked)
-        let gameState = GameEngine.shared.gameState
-
-        // Check if any defender army belongs to local player
-        for defenderState in [combat.defenderArmies.first].compactMap({ $0 }) {
-            if let army = gameState?.getArmy(id: defenderState.armyID),
-               army.ownerID == localPlayerID {
-                let gameNotification = GameNotification(
-                    type: .armyAttacked(armyName: defenderState.armyName, coordinate: combat.location),
-                    playerID: localPlayerID
-                )
-                postNotification(gameNotification)
-                return
-            }
-        }
-    }
-
     // MARK: - State Change Processing
 
     /// Process a batch of state changes and generate appropriate notifications
     func processStateChanges(_ changes: [StateChange]) {
-        guard let localPlayerID = localPlayerID else { return }
+        guard let localPlayerID = localPlayerID else {
+            debugLog("processStateChanges: No localPlayerID set - skipping \(changes.count) changes")
+            return
+        }
 
+        debugLog("processStateChanges: Processing \(changes.count) changes")
         for change in changes {
             processStateChange(change, localPlayerID: localPlayerID)
         }
@@ -256,13 +279,29 @@ class NotificationManager {
     // MARK: - Event Handlers
 
     private func handleBuildingCompletion(buildingID: UUID, playerID: UUID) {
-        guard let gameState = GameEngine.shared.gameState,
-              let building = gameState.getBuilding(id: buildingID),
-              building.ownerID == playerID,
-              let buildingType = BuildingType(rawValue: building.buildingType.rawValue) else {
+        debugLog("handleBuildingCompletion: buildingID=\(buildingID)")
+
+        guard let gameState = GameEngine.shared.gameState else {
+            debugLog("handleBuildingCompletion: No gameState")
             return
         }
 
+        guard let building = gameState.getBuilding(id: buildingID) else {
+            debugLog("handleBuildingCompletion: Building not found")
+            return
+        }
+
+        guard building.ownerID == playerID else {
+            debugLog("handleBuildingCompletion: Building owner \(building.ownerID ?? UUID()) != player \(playerID)")
+            return
+        }
+
+        guard let buildingType = BuildingType(rawValue: building.buildingType.rawValue) else {
+            debugLog("handleBuildingCompletion: Invalid building type \(building.buildingType.rawValue)")
+            return
+        }
+
+        debugLog("handleBuildingCompletion: Creating notification for \(buildingType.displayName)")
         let notification = GameNotification(
             type: .buildingCompleted(buildingType: buildingType, coordinate: building.coordinate),
             playerID: playerID
@@ -286,21 +325,14 @@ class NotificationManager {
     }
 
     private func handleResourceDepleted(coordinate: HexCoordinate, resourceType: String, playerID: UUID) {
-        // Check if player has villagers assigned to this resource
-        guard let gameState = GameEngine.shared.gameState else { return }
-
-        let playerVillagers = gameState.getVillagerGroupsForPlayer(id: playerID)
-        let hasVillagersAtResource = playerVillagers.contains { group in
-            group.taskTargetCoordinate == coordinate
-        }
-
-        if hasVillagersAtResource {
-            let notification = GameNotification(
-                type: .resourcePointDepleted(resourceType: resourceType, coordinate: coordinate),
-                playerID: playerID
-            )
-            postNotification(notification)
-        }
+        // The resourcePointDepleted state change is only emitted when villagers were
+        // actively gathering, so post the notification directly without checking
+        // (the check would fail anyway due to timing - task already cleared by the time we get here)
+        let notification = GameNotification(
+            type: .resourcePointDepleted(resourceType: resourceType, coordinate: coordinate),
+            playerID: playerID
+        )
+        postNotification(notification)
     }
 
     private func checkForEnemySighting(at coordinate: HexCoordinate, playerID: UUID) {
@@ -391,12 +423,20 @@ class NotificationManager {
 
     // MARK: - Notification Posting
 
-    /// Post a notification to the UI if it passes deduplication
+    /// Post a notification to the UI if it passes deduplication and settings allow
     private func postNotification(_ notification: GameNotification) {
-        guard notification.playerID == localPlayerID else { return }
+        debugLog("postNotification: \(notification.type)")
 
-        // Check if notification category is enabled in settings
-        guard NotificationSettings.isEnabled(for: notification.type) else { return }
+        guard notification.playerID == localPlayerID else {
+            debugLog("postNotification: Player mismatch - notification for \(notification.playerID), local is \(localPlayerID?.uuidString ?? "nil")")
+            return
+        }
+
+        // Check if this notification type is enabled in settings
+        guard isNotificationEnabled(notification.type) else {
+            debugLog("postNotification: Notification type disabled in settings")
+            return
+        }
 
         // Check cooldown for deduplication
         let key = notification.deduplicationKey
@@ -404,7 +444,7 @@ class NotificationManager {
             let cooldownPeriod = getCooldownPeriod(for: key)
             let elapsed = Date().timeIntervalSince(lastNotificationTime)
             if elapsed < cooldownPeriod {
-                // Still in cooldown, skip this notification
+                debugLog("postNotification: In cooldown (\(String(format: "%.1f", elapsed))s / \(cooldownPeriod)s)")
                 return
             }
         }
@@ -412,7 +452,16 @@ class NotificationManager {
         // Update cooldown
         notificationCooldowns[key] = Date()
 
-        // Post to UI on main thread
+        // Add to history
+        addToHistory(notification)
+
+        // If app is in background, schedule a local push notification
+        if !isAppInForeground {
+            debugLog("postNotification: App in background, scheduling push notification")
+            schedulePushNotification(notification)
+        }
+
+        // Post to UI on main thread (will be processed when app returns to foreground)
         DispatchQueue.main.async {
             NotificationCenter.default.post(
                 name: .gameNotificationReceived,
@@ -421,12 +470,192 @@ class NotificationManager {
             )
         }
 
-        // Schedule iOS push notification if app is backgrounded and push is enabled for this type
-        if !isAppInForeground && NotificationSettings.isPushEnabled(for: notification.type) {
-            scheduleLocalPushNotification(notification)
+        debugLog("Posted notification: \(notification.icon) \(notification.message)")
+    }
+
+    // MARK: - Push Notifications
+
+    /// Schedule push notifications for all pending completions when app enters background
+    func scheduleBackgroundCompletionNotifications() {
+        #if canImport(UserNotifications)
+        guard let gameState = GameEngine.shared.gameState,
+              let localPlayerID = localPlayerID else { return }
+
+        let now = Date().timeIntervalSince1970
+
+        // Buildings under construction
+        for building in gameState.buildings.values {
+            guard building.ownerID == localPlayerID,
+                  building.state == .constructing,
+                  let startTime = building.constructionStartTime else { continue }
+
+            let buildSpeedMultiplier = 1.0 + (Double(building.buildersAssigned - 1) * 0.5)
+            let totalTime = building.buildingType.buildTime / buildSpeedMultiplier
+            let delay = (startTime + totalTime) - now
+            if delay > 1 {
+                scheduleDelayedNotification(
+                    body: "🏗️ \(building.buildingType.displayName) construction complete",
+                    delay: delay,
+                    identifier: "building-\(building.id)"
+                )
+            }
         }
 
-        print("📢 Posted notification: \(notification.icon) \(notification.message)")
+        // Building upgrades
+        for building in gameState.buildings.values {
+            guard building.ownerID == localPlayerID,
+                  building.state == .upgrading,
+                  let startTime = building.upgradeStartTime,
+                  let upgradeTime = building.getUpgradeTime() else { continue }
+
+            let delay = (startTime + upgradeTime) - now
+            if delay > 1 {
+                scheduleDelayedNotification(
+                    body: "⬆️ \(building.buildingType.displayName) upgrade complete",
+                    delay: delay,
+                    identifier: "upgrade-\(building.id)"
+                )
+            }
+        }
+
+        // Military training queues
+        for building in gameState.buildings.values {
+            guard building.ownerID == localPlayerID else { continue }
+
+            for entry in building.trainingQueue {
+                let totalTime = entry.unitType.trainingTime * Double(entry.quantity)
+                let delay = (entry.startTime + totalTime) - now
+                if delay > 1 {
+                    scheduleDelayedNotification(
+                        body: "⚔️ \(entry.quantity)x \(entry.unitType.displayName) training complete",
+                        delay: delay,
+                        identifier: "training-\(entry.id)"
+                    )
+                }
+            }
+
+            // Villager training
+            for entry in building.villagerTrainingQueue {
+                let totalTime = VillagerTrainingEntryData.trainingTimePerVillager * Double(entry.quantity)
+                let delay = (entry.startTime + totalTime) - now
+                if delay > 1 {
+                    scheduleDelayedNotification(
+                        body: "👷 \(entry.quantity)x Villager training complete",
+                        delay: delay,
+                        identifier: "villager-\(entry.id)"
+                    )
+                }
+            }
+        }
+
+        // Research
+        if let active = ResearchManager.shared.activeResearch {
+            let delay = active.getRemainingTime(currentTime: now)
+            if delay > 1 {
+                scheduleDelayedNotification(
+                    body: "🔬 \(active.researchType.displayName) research complete",
+                    delay: delay,
+                    identifier: "research-\(active.researchType.rawValue)"
+                )
+            }
+        }
+
+        debugLog("Scheduled background completion notifications")
+        #endif
+    }
+
+    private func scheduleDelayedNotification(body: String, delay: TimeInterval, identifier: String) {
+        #if canImport(UserNotifications)
+        let content = UNMutableNotificationContent()
+        content.title = "Grow2"
+        content.body = body
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, delay), repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error = error {
+                self?.debugLog("Failed to schedule notification: \(error)")
+            } else {
+                self?.debugLog("Scheduled notification '\(identifier)' for \(Int(delay))s")
+            }
+        }
+        #endif
+    }
+
+    /// Schedule a local push notification for when app is backgrounded
+    private func schedulePushNotification(_ notification: GameNotification) {
+        #if canImport(UserNotifications)
+        // Check if push notifications are enabled in settings
+        guard isPushNotificationEnabled(notification.type) else {
+            debugLog("schedulePushNotification: Push disabled for this type")
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Grow2"
+        content.body = "\(notification.icon) \(notification.message)"
+        content.sound = .default
+
+        // Add coordinate to userInfo for tap-to-jump
+        var userInfo: [String: Any] = [
+            "notificationType": notification.deduplicationKey
+        ]
+        if let coordinate = notification.coordinate {
+            userInfo["coordinateQ"] = coordinate.q
+            userInfo["coordinateR"] = coordinate.r
+        }
+        content.userInfo = userInfo
+
+        // Deliver immediately (1 second delay to allow batching)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+
+        let request = UNNotificationRequest(
+            identifier: notification.id.uuidString,
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error = error {
+                self?.debugLog("schedulePushNotification: Error - \(error.localizedDescription)")
+            } else {
+                self?.debugLog("schedulePushNotification: Scheduled successfully")
+            }
+        }
+        #endif
+    }
+
+    /// Check if push notifications are enabled for a notification type
+    private func isPushNotificationEnabled(_ type: GameNotificationType) -> Bool {
+        let defaults = UserDefaults.standard
+
+        // Master toggle for push notifications
+        guard defaults.object(forKey: "settings.push.enabled") as? Bool ?? true else {
+            return false
+        }
+
+        // Per-category toggles
+        switch type {
+        case .armyAttacked, .villagerAttacked:
+            return defaults.object(forKey: "settings.push.combatAlerts") as? Bool ?? true
+
+        case .armySighted:
+            return defaults.object(forKey: "settings.push.scoutingAlerts") as? Bool ?? true
+
+        case .buildingCompleted, .upgradeCompleted:
+            return defaults.object(forKey: "settings.push.buildingComplete") as? Bool ?? true
+
+        case .trainingCompleted:
+            return defaults.object(forKey: "settings.push.trainingComplete") as? Bool ?? true
+
+        case .resourcesMaxed, .resourcePointDepleted, .gatheringCompleted:
+            return defaults.object(forKey: "settings.push.resourceAlerts") as? Bool ?? true
+
+        case .researchCompleted:
+            return defaults.object(forKey: "settings.push.researchComplete") as? Bool ?? true
+        }
     }
 
     private func getCooldownPeriod(for key: String) -> TimeInterval {
@@ -439,39 +668,32 @@ class NotificationManager {
         return defaultCooldownPeriod
     }
 
-    // MARK: - iOS Push Notifications
+    // MARK: - Settings Integration
 
-    /// Schedule a local push notification for when the app is backgrounded
-    private func scheduleLocalPushNotification(_ notification: GameNotification) {
-        #if canImport(UIKit)
-        let content = UNMutableNotificationContent()
-        content.title = notification.type.notificationTitle
-        content.body = notification.message
-        content.sound = .default
+    /// Check if a notification type is enabled in settings
+    private func isNotificationEnabled(_ type: GameNotificationType) -> Bool {
+        let defaults = UserDefaults.standard
 
-        // Store coordinate in userInfo for tap-to-jump functionality
-        if let coord = notification.coordinate {
-            content.userInfo = ["q": coord.q, "r": coord.r]
+        // Default to true if key not set
+        switch type {
+        case .armyAttacked, .villagerAttacked:
+            return defaults.object(forKey: "settings.notify.combatAlerts") as? Bool ?? true
+
+        case .armySighted:
+            return defaults.object(forKey: "settings.notify.scoutingAlerts") as? Bool ?? true
+
+        case .buildingCompleted, .upgradeCompleted:
+            return defaults.object(forKey: "settings.notify.buildingComplete") as? Bool ?? true
+
+        case .trainingCompleted:
+            return defaults.object(forKey: "settings.notify.trainingComplete") as? Bool ?? true
+
+        case .resourcesMaxed, .resourcePointDepleted, .gatheringCompleted:
+            return defaults.object(forKey: "settings.notify.resourceAlerts") as? Bool ?? true
+
+        case .researchCompleted:
+            return defaults.object(forKey: "settings.notify.researchComplete") as? Bool ?? true
         }
-
-        // Trigger after 1 second (minimum required interval)
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-
-        // Use deduplication key as identifier so duplicates replace each other
-        let request = UNNotificationRequest(
-            identifier: notification.deduplicationKey,
-            content: content,
-            trigger: trigger
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("📢 Failed to schedule push notification: \(error.localizedDescription)")
-            } else {
-                print("📢 Scheduled push notification: \(notification.type.notificationTitle)")
-            }
-        }
-        #endif
     }
 
     // MARK: - Cleanup

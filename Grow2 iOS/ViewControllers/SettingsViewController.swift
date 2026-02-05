@@ -1,60 +1,116 @@
 // ============================================================================
 // FILE: SettingsViewController.swift
 // LOCATION: Grow2 iOS/ViewControllers/SettingsViewController.swift
-// PURPOSE: Settings screen for notification preferences
+// PURPOSE: Game settings screen with notification and gameplay preferences
 // ============================================================================
 
 import UIKit
 
-class SettingsViewController: UIViewController {
+// MARK: - Settings Keys
 
-    // MARK: - UI Components
-
-    private let scrollView = UIScrollView()
-    private let contentView = UIView()
+struct SettingsKeys {
+    // In-game notification toggles
+    static let notifyCombatAlerts = "settings.notify.combatAlerts"
+    static let notifyScoutingAlerts = "settings.notify.scoutingAlerts"
+    static let notifyBuildingComplete = "settings.notify.buildingComplete"
+    static let notifyTrainingComplete = "settings.notify.trainingComplete"
+    static let notifyResourceAlerts = "settings.notify.resourceAlerts"
+    static let notifyResearchComplete = "settings.notify.researchComplete"
 
     // Push notification toggles
-    private var pushMasterSwitch: UISwitch!
-    private var pushCombatSwitch: UISwitch!
-    private var pushEnemySightingsSwitch: UISwitch!
-    private var pushBuildingSwitch: UISwitch!
-    private var pushTrainingSwitch: UISwitch!
-    private var pushResearchSwitch: UISwitch!
-    private var pushResourceSwitch: UISwitch!
+    static let pushEnabled = "settings.push.enabled"
+    static let pushCombatAlerts = "settings.push.combatAlerts"
+    static let pushScoutingAlerts = "settings.push.scoutingAlerts"
+    static let pushBuildingComplete = "settings.push.buildingComplete"
+    static let pushTrainingComplete = "settings.push.trainingComplete"
+    static let pushResourceAlerts = "settings.push.resourceAlerts"
+    static let pushResearchComplete = "settings.push.researchComplete"
 
-    // Container for category toggles (to enable/disable based on master)
-    private var pushCategoryTogglesContainer: UIStackView!
+    // Gameplay
+    static let showTutorialHints = "settings.gameplay.tutorialHints"
+    static let confirmDestructiveActions = "settings.gameplay.confirmDestructive"
+}
 
-    // MARK: - Lifecycle
+// MARK: - Settings Manager
+
+class GameSettings {
+    static let shared = GameSettings()
+
+    private let defaults = UserDefaults.standard
+
+    private init() {
+        // Set default values on first launch
+        registerDefaults()
+    }
+
+    private func registerDefaults() {
+        let defaultValues: [String: Any] = [
+            // In-game notifications
+            SettingsKeys.notifyCombatAlerts: true,
+            SettingsKeys.notifyScoutingAlerts: true,
+            SettingsKeys.notifyBuildingComplete: true,
+            SettingsKeys.notifyTrainingComplete: true,
+            SettingsKeys.notifyResourceAlerts: true,
+            SettingsKeys.notifyResearchComplete: true,
+            // Push notifications
+            SettingsKeys.pushEnabled: true,
+            SettingsKeys.pushCombatAlerts: true,
+            SettingsKeys.pushScoutingAlerts: true,
+            SettingsKeys.pushBuildingComplete: true,
+            SettingsKeys.pushTrainingComplete: true,
+            SettingsKeys.pushResourceAlerts: false,  // Resource alerts can be spammy
+            SettingsKeys.pushResearchComplete: true,
+            // Gameplay
+            SettingsKeys.showTutorialHints: true,
+            SettingsKeys.confirmDestructiveActions: true
+        ]
+        defaults.register(defaults: defaultValues)
+    }
+
+    func bool(forKey key: String) -> Bool {
+        return defaults.bool(forKey: key)
+    }
+
+    func set(_ value: Bool, forKey key: String) {
+        defaults.set(value, forKey: key)
+    }
+}
+
+// MARK: - Settings View Controller
+
+class SettingsViewController: UIViewController {
+
+    private var scrollView: UIScrollView!
+    private var contentView: UIView!
+    private var switches: [String: UISwitch] = [:]
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
-        loadSettings()
     }
-
-    // MARK: - UI Setup
 
     private func setupUI() {
-        view.backgroundColor = UIColor(white: 0.1, alpha: 1.0)
+        view.backgroundColor = UIColor(red: 0.1, green: 0.12, blue: 0.1, alpha: 1.0)
 
-        setupScrollView()
-        setupHeader()
-        setupPushNotificationToggles()
-    }
+        // Header
+        let headerView = createHeader()
+        view.addSubview(headerView)
 
-    private func setupScrollView() {
+        // Scroll View
+        scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.showsVerticalScrollIndicator = true
         view.addSubview(scrollView)
 
+        contentView = UIView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(contentView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: headerView.bottomAnchor, constant: 10),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
 
             contentView.topAnchor.constraint(equalTo: scrollView.topAnchor),
             contentView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
@@ -62,287 +118,207 @@ class SettingsViewController: UIViewController {
             contentView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
             contentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
         ])
+
+        // Build settings sections
+        var yOffset: CGFloat = 20
+
+        // Notification Settings Section
+        yOffset = addSectionHeader("Notifications", at: yOffset)
+        yOffset = addToggle(
+            title: "Combat Alerts",
+            subtitle: "When your units are attacked",
+            key: SettingsKeys.notifyCombatAlerts,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Scouting Alerts",
+            subtitle: "When enemy units are spotted",
+            key: SettingsKeys.notifyScoutingAlerts,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Building Complete",
+            subtitle: "When construction finishes",
+            key: SettingsKeys.notifyBuildingComplete,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Training Complete",
+            subtitle: "When unit training finishes",
+            key: SettingsKeys.notifyTrainingComplete,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Resource Alerts",
+            subtitle: "Storage full or deposits depleted",
+            key: SettingsKeys.notifyResourceAlerts,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Research Complete",
+            subtitle: "When research finishes",
+            key: SettingsKeys.notifyResearchComplete,
+            at: yOffset
+        )
+
+        // Push Notification Settings Section
+        yOffset += 20
+        yOffset = addSectionHeader("Push Notifications (Background)", at: yOffset)
+        yOffset = addToggle(
+            title: "Enable Push Notifications",
+            subtitle: "Receive alerts when app is in background",
+            key: SettingsKeys.pushEnabled,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Combat Alerts",
+            subtitle: "Push when units are attacked",
+            key: SettingsKeys.pushCombatAlerts,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Scouting Alerts",
+            subtitle: "Push when enemies are spotted",
+            key: SettingsKeys.pushScoutingAlerts,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Building Complete",
+            subtitle: "Push when construction finishes",
+            key: SettingsKeys.pushBuildingComplete,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Training Complete",
+            subtitle: "Push when unit training finishes",
+            key: SettingsKeys.pushTrainingComplete,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Resource Alerts",
+            subtitle: "Push for storage full or deposits depleted",
+            key: SettingsKeys.pushResourceAlerts,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Research Complete",
+            subtitle: "Push when research finishes",
+            key: SettingsKeys.pushResearchComplete,
+            at: yOffset
+        )
+
+        // Gameplay Settings Section
+        yOffset += 20
+        yOffset = addSectionHeader("Gameplay", at: yOffset)
+        yOffset = addToggle(
+            title: "Tutorial Hints",
+            subtitle: "Show helpful hints during gameplay",
+            key: SettingsKeys.showTutorialHints,
+            at: yOffset
+        )
+        yOffset = addToggle(
+            title: "Confirm Destructive Actions",
+            subtitle: "Ask before deleting saves or surrendering",
+            key: SettingsKeys.confirmDestructiveActions,
+            at: yOffset
+        )
+
+        // Add bottom padding
+        yOffset += 40
+
+        // Set content size
+        contentView.heightAnchor.constraint(equalToConstant: yOffset).isActive = true
     }
 
-    private func setupHeader() {
-        // Back Button
+    private func createHeader() -> UIView {
+        let headerView = UIView()
+        headerView.backgroundColor = UIColor(red: 0.15, green: 0.18, blue: 0.15, alpha: 1.0)
+        headerView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(headerView)
+
         let backButton = UIButton(type: .system)
-        backButton.setTitle("< Back", for: .normal)
-        backButton.titleLabel?.font = UIFont.systemFont(ofSize: 16)
+        backButton.setTitle("Done", for: .normal)
         backButton.setTitleColor(.white, for: .normal)
+        backButton.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .medium)
         backButton.addTarget(self, action: #selector(backTapped), for: .touchUpInside)
         backButton.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(backButton)
+        headerView.addSubview(backButton)
 
-        // Title
         let titleLabel = UILabel()
         titleLabel.text = "Settings"
-        titleLabel.font = UIFont.boldSystemFont(ofSize: 28)
+        titleLabel.font = UIFont.boldSystemFont(ofSize: 20)
         titleLabel.textColor = .white
         titleLabel.textAlignment = .center
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(titleLabel)
+        headerView.addSubview(titleLabel)
 
         NSLayoutConstraint.activate([
-            backButton.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-            backButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            headerView.topAnchor.constraint(equalTo: view.topAnchor),
+            headerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerView.heightAnchor.constraint(equalToConstant: 100),
 
-            titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-            titleLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor)
+            backButton.leadingAnchor.constraint(equalTo: headerView.leadingAnchor, constant: 16),
+            backButton.bottomAnchor.constraint(equalTo: headerView.bottomAnchor, constant: -12),
+
+            titleLabel.centerXAnchor.constraint(equalTo: headerView.centerXAnchor),
+            titleLabel.bottomAnchor.constraint(equalTo: headerView.bottomAnchor, constant: -12)
         ])
+
+        return headerView
     }
 
-    private func setupPushNotificationToggles() {
-        // Section Header
-        let sectionHeader = createSectionHeader(title: "Push Notifications")
-        sectionHeader.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(sectionHeader)
-
-        NSLayoutConstraint.activate([
-            sectionHeader.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 80),
-            sectionHeader.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            sectionHeader.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20)
-        ])
-
-        // Master Toggle Container
-        let masterContainer = UIStackView()
-        masterContainer.axis = .vertical
-        masterContainer.spacing = 0
-        masterContainer.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(masterContainer)
-
-        NSLayoutConstraint.activate([
-            masterContainer.topAnchor.constraint(equalTo: sectionHeader.bottomAnchor, constant: 12),
-            masterContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            masterContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20)
-        ])
-
-        // Master toggle row
-        let masterRow: UIView
-        (masterRow, pushMasterSwitch) = createToggleRow(
-            icon: "bell.fill",
-            title: "Enable Push Notifications",
-            description: "Receive alerts when app is backgrounded"
-        )
-        pushMasterSwitch.addTarget(self, action: #selector(pushMasterSwitchChanged), for: .valueChanged)
-        masterContainer.addArrangedSubview(masterRow)
-
-        // Category toggles section header
-        let categoryHeader = createSectionHeader(title: "Notification Categories")
-        categoryHeader.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(categoryHeader)
-
-        NSLayoutConstraint.activate([
-            categoryHeader.topAnchor.constraint(equalTo: masterContainer.bottomAnchor, constant: 24),
-            categoryHeader.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            categoryHeader.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20)
-        ])
-
-        // Category Toggle Rows Container
-        pushCategoryTogglesContainer = UIStackView()
-        pushCategoryTogglesContainer.axis = .vertical
-        pushCategoryTogglesContainer.spacing = 0
-        pushCategoryTogglesContainer.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(pushCategoryTogglesContainer)
-
-        NSLayoutConstraint.activate([
-            pushCategoryTogglesContainer.topAnchor.constraint(equalTo: categoryHeader.bottomAnchor, constant: 12),
-            pushCategoryTogglesContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            pushCategoryTogglesContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            pushCategoryTogglesContainer.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -40)
-        ])
-
-        // Create category toggle rows
-        let combatRow: UIView
-        (combatRow, pushCombatSwitch) = createToggleRow(
-            icon: "crossed.swords.fill",
-            title: "Combat Alerts",
-            description: "Army and villager attacks"
-        )
-        pushCombatSwitch.addTarget(self, action: #selector(pushCombatSwitchChanged), for: .valueChanged)
-        pushCategoryTogglesContainer.addArrangedSubview(combatRow)
-
-        let enemyRow: UIView
-        (enemyRow, pushEnemySightingsSwitch) = createToggleRow(
-            icon: "eye.fill",
-            title: "Enemy Sightings",
-            description: "Spotted enemy armies"
-        )
-        pushEnemySightingsSwitch.addTarget(self, action: #selector(pushEnemySightingsSwitchChanged), for: .valueChanged)
-        pushCategoryTogglesContainer.addArrangedSubview(enemyRow)
-
-        let buildingRow: UIView
-        (buildingRow, pushBuildingSwitch) = createToggleRow(
-            icon: "building.2.fill",
-            title: "Building Updates",
-            description: "Construction and upgrades"
-        )
-        pushBuildingSwitch.addTarget(self, action: #selector(pushBuildingSwitchChanged), for: .valueChanged)
-        pushCategoryTogglesContainer.addArrangedSubview(buildingRow)
-
-        let trainingRow: UIView
-        (trainingRow, pushTrainingSwitch) = createToggleRow(
-            icon: "person.3.fill",
-            title: "Training Updates",
-            description: "Unit training completed"
-        )
-        pushTrainingSwitch.addTarget(self, action: #selector(pushTrainingSwitchChanged), for: .valueChanged)
-        pushCategoryTogglesContainer.addArrangedSubview(trainingRow)
-
-        let researchRow: UIView
-        (researchRow, pushResearchSwitch) = createToggleRow(
-            icon: "book.fill",
-            title: "Research Updates",
-            description: "Research completed"
-        )
-        pushResearchSwitch.addTarget(self, action: #selector(pushResearchSwitchChanged), for: .valueChanged)
-        pushCategoryTogglesContainer.addArrangedSubview(researchRow)
-
-        let resourceRow: UIView
-        (resourceRow, pushResourceSwitch) = createToggleRow(
-            icon: "cube.box.fill",
-            title: "Resource Alerts",
-            description: "Gathering, storage full, depleted"
-        )
-        pushResourceSwitch.addTarget(self, action: #selector(pushResourceSwitchChanged), for: .valueChanged)
-        pushCategoryTogglesContainer.addArrangedSubview(resourceRow)
-    }
-
-    private func createSectionHeader(title: String) -> UIView {
+    private func addSectionHeader(_ title: String, at yOffset: CGFloat) -> CGFloat {
         let label = UILabel()
         label.text = title.uppercased()
-        label.font = UIFont.boldSystemFont(ofSize: 13)
-        label.textColor = UIColor(white: 0.5, alpha: 1.0)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
+        label.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        label.textColor = UIColor(red: 0.5, green: 0.7, blue: 0.5, alpha: 1.0)
+        label.frame = CGRect(x: 20, y: yOffset, width: view.bounds.width - 40, height: 20)
+        contentView.addSubview(label)
+
+        return yOffset + 30
     }
 
-    private func createToggleRow(icon: String, title: String, description: String) -> (UIView, UISwitch) {
-        let container = UIView()
-        container.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
-        container.layer.cornerRadius = 10
-        container.translatesAutoresizingMaskIntoConstraints = false
+    private func addToggle(title: String, subtitle: String, key: String, at yOffset: CGFloat) -> CGFloat {
+        let rowHeight: CGFloat = 70
 
-        // Icon
-        let iconView = UIImageView()
-        iconView.image = UIImage(systemName: icon)
-        iconView.tintColor = UIColor(red: 0.4, green: 0.6, blue: 1.0, alpha: 1.0)
-        iconView.contentMode = .scaleAspectFit
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(iconView)
+        let containerView = UIView()
+        containerView.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+        containerView.layer.cornerRadius = 10
+        containerView.frame = CGRect(x: 16, y: yOffset, width: view.bounds.width - 32, height: rowHeight)
+        contentView.addSubview(containerView)
 
-        // Title
         let titleLabel = UILabel()
         titleLabel.text = title
-        titleLabel.font = UIFont.systemFont(ofSize: 16, weight: .medium)
+        titleLabel.font = UIFont.systemFont(ofSize: 17, weight: .medium)
         titleLabel.textColor = .white
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(titleLabel)
+        titleLabel.frame = CGRect(x: 16, y: 14, width: containerView.bounds.width - 90, height: 22)
+        containerView.addSubview(titleLabel)
 
-        // Description
-        let descLabel = UILabel()
-        descLabel.text = description
-        descLabel.font = UIFont.systemFont(ofSize: 12)
-        descLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
-        descLabel.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(descLabel)
+        let subtitleLabel = UILabel()
+        subtitleLabel.text = subtitle
+        subtitleLabel.font = UIFont.systemFont(ofSize: 13)
+        subtitleLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+        subtitleLabel.frame = CGRect(x: 16, y: 38, width: containerView.bounds.width - 90, height: 18)
+        containerView.addSubview(subtitleLabel)
 
-        // Switch
         let toggle = UISwitch()
-        toggle.onTintColor = UIColor(red: 0.3, green: 0.7, blue: 0.4, alpha: 1.0)
-        toggle.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(toggle)
+        toggle.isOn = GameSettings.shared.bool(forKey: key)
+        toggle.onTintColor = UIColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1.0)
+        toggle.frame = CGRect(x: containerView.bounds.width - 67, y: (rowHeight - 31) / 2, width: 51, height: 31)
+        toggle.accessibilityIdentifier = key
+        toggle.addTarget(self, action: #selector(toggleChanged(_:)), for: .valueChanged)
+        containerView.addSubview(toggle)
 
-        NSLayoutConstraint.activate([
-            container.heightAnchor.constraint(equalToConstant: 70),
+        switches[key] = toggle
 
-            iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            iconView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 24),
-            iconView.heightAnchor.constraint(equalToConstant: 24),
-
-            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
-            titleLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: toggle.leadingAnchor, constant: -12),
-
-            descLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            descLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
-            descLabel.trailingAnchor.constraint(lessThanOrEqualTo: toggle.leadingAnchor, constant: -12),
-
-            toggle.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
-            toggle.centerYAnchor.constraint(equalTo: container.centerYAnchor)
-        ])
-
-        // Add separator at bottom (except last row)
-        let separator = UIView()
-        separator.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(separator)
-
-        NSLayoutConstraint.activate([
-            separator.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            separator.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            separator.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            separator.heightAnchor.constraint(equalToConstant: 1)
-        ])
-
-        return (container, toggle)
+        return yOffset + rowHeight + 8
     }
 
-    // MARK: - Settings Management
-
-    private func loadSettings() {
-        // Load push notification settings
-        pushMasterSwitch.isOn = NotificationSettings.pushNotificationsEnabled
-        pushCombatSwitch.isOn = NotificationSettings.pushCombatAlertsEnabled
-        pushEnemySightingsSwitch.isOn = NotificationSettings.pushEnemySightingsEnabled
-        pushBuildingSwitch.isOn = NotificationSettings.pushBuildingUpdatesEnabled
-        pushTrainingSwitch.isOn = NotificationSettings.pushTrainingUpdatesEnabled
-        pushResearchSwitch.isOn = NotificationSettings.pushResearchUpdatesEnabled
-        pushResourceSwitch.isOn = NotificationSettings.pushResourceAlertsEnabled
-
-        // Update category toggles enabled state based on master toggle
-        updateCategoryTogglesState()
+    @objc private func toggleChanged(_ sender: UISwitch) {
+        guard let key = sender.accessibilityIdentifier else { return }
+        GameSettings.shared.set(sender.isOn, forKey: key)
     }
-
-    private func updateCategoryTogglesState() {
-        let enabled = pushMasterSwitch.isOn
-        pushCategoryTogglesContainer.alpha = enabled ? 1.0 : 0.5
-        pushCategoryTogglesContainer.isUserInteractionEnabled = enabled
-    }
-
-    // MARK: - Push Notification Switch Actions
-
-    @objc private func pushMasterSwitchChanged(_ sender: UISwitch) {
-        NotificationSettings.pushNotificationsEnabled = sender.isOn
-        updateCategoryTogglesState()
-    }
-
-    @objc private func pushCombatSwitchChanged(_ sender: UISwitch) {
-        NotificationSettings.pushCombatAlertsEnabled = sender.isOn
-    }
-
-    @objc private func pushEnemySightingsSwitchChanged(_ sender: UISwitch) {
-        NotificationSettings.pushEnemySightingsEnabled = sender.isOn
-    }
-
-    @objc private func pushBuildingSwitchChanged(_ sender: UISwitch) {
-        NotificationSettings.pushBuildingUpdatesEnabled = sender.isOn
-    }
-
-    @objc private func pushTrainingSwitchChanged(_ sender: UISwitch) {
-        NotificationSettings.pushTrainingUpdatesEnabled = sender.isOn
-    }
-
-    @objc private func pushResearchSwitchChanged(_ sender: UISwitch) {
-        NotificationSettings.pushResearchUpdatesEnabled = sender.isOn
-    }
-
-    @objc private func pushResourceSwitchChanged(_ sender: UISwitch) {
-        NotificationSettings.pushResourceAlertsEnabled = sender.isOn
-    }
-
-    // MARK: - Navigation
 
     @objc private func backTapped() {
         dismiss(animated: true)

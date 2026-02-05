@@ -163,8 +163,9 @@ class MainMenuViewController: UIViewController {
     }
     
     @objc func settingsTapped() {
-        showAlert(title: "⚙️ Settings", message: "Settings coming soon!")
-
+        let settingsVC = SettingsViewController()
+        settingsVC.modalPresentationStyle = .fullScreen
+        present(settingsVC, animated: true)
     }
     
     @objc func deleteSaveTapped() {
