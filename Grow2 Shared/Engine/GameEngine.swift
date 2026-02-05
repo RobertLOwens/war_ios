@@ -195,6 +195,10 @@ class GameEngine {
             lastAIUpdate = adjustedTime
         }
 
+        // Research completion updates (check all players)
+        let researchChanges = updateResearchCompletion(currentTime: adjustedTime)
+        allChanges.append(contentsOf: researchChanges)
+
         // Notify delegate if there are changes
         if !allChanges.isEmpty {
             let batch = StateChangeBatch(timestamp: adjustedTime, changes: allChanges)
@@ -204,6 +208,44 @@ class GameEngine {
         // Notify tick
         delegate?.gameEngineDidTick(self, currentTime: adjustedTime)
         lastTickTime = adjustedTime
+    }
+
+    // MARK: - Research Completion
+
+    /// Check and complete any finished research for all players
+    private func updateResearchCompletion(currentTime: TimeInterval) -> [StateChange] {
+        guard let state = gameState else { return [] }
+
+        var changes: [StateChange] = []
+
+        for player in state.players.values {
+            // Check if player has active research
+            guard let activeResearchRaw = player.activeResearchType,
+                  let startTime = player.activeResearchStartTime,
+                  let researchType = ResearchType(rawValue: activeResearchRaw) else {
+                continue
+            }
+
+            // Check if research is complete
+            let elapsed = currentTime - startTime
+            if elapsed >= researchType.researchTime {
+                // Complete the research
+                player.completeResearch(activeResearchRaw)
+
+                changes.append(.researchCompleted(
+                    playerID: player.id,
+                    researchType: activeResearchRaw
+                ))
+
+                if player.isAI {
+                    print("🤖 AI completed research: \(researchType.displayName)")
+                } else {
+                    print("🔬 Player completed research: \(researchType.displayName)")
+                }
+            }
+        }
+
+        return changes
     }
 
     // MARK: - Command Execution

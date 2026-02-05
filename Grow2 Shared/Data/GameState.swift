@@ -505,6 +505,39 @@ class GameState: Codable {
         return players.values.filter { $0.isAI }
     }
 
+    /// Get resource points that the player has explored (for AI fog of war respect)
+    func getExploredResourcePoints(forPlayer playerID: UUID) -> [ResourcePointData] {
+        guard let player = getPlayer(id: playerID) else { return [] }
+        return resourcePoints.values.filter { player.isExplored($0.coordinate) }
+    }
+
+    /// Get resource points that are currently visible to the player
+    func getVisibleResourcePoints(forPlayer playerID: UUID) -> [ResourcePointData] {
+        guard let player = getPlayer(id: playerID) else { return [] }
+        return resourcePoints.values.filter { player.isVisible($0.coordinate) }
+    }
+
+    /// Find nearest unexplored coordinate within range for scouting
+    func findNearestUnexploredCoordinate(from coordinate: HexCoordinate, forPlayer playerID: UUID, maxRange: Int = 12) -> HexCoordinate? {
+        guard let player = getPlayer(id: playerID) else { return nil }
+
+        // Search in expanding rings to find nearest unexplored tile
+        for distance in 1...maxRange {
+            let ring = coordinate.coordinatesInRing(distance: distance)
+            for coord in ring {
+                // Must be valid and walkable
+                guard mapData.isValidCoordinate(coord) && mapData.isWalkable(coord) else { continue }
+
+                // Must be unexplored
+                if !player.isExplored(coord) {
+                    return coord
+                }
+            }
+        }
+
+        return nil
+    }
+
     /// Get the nearest enemy army to a coordinate for a player
     func getNearestEnemyArmy(from coordinate: HexCoordinate, forPlayer playerID: UUID) -> ArmyData? {
         var nearestArmy: ArmyData?
@@ -703,6 +736,164 @@ class GameState: Codable {
         guard mapData.getVillagerGroupID(at: coordinate) == nil else { return false }
 
         return true
+    }
+
+    // MARK: - AI Composition Analysis
+
+    /// Analyze enemy army composition for counter-unit decisions
+    /// Returns nil if no enemy armies are visible
+    func analyzeEnemyComposition(forPlayer playerID: UUID) -> (cavalryRatio: Double, rangedRatio: Double, infantryRatio: Double, siegeRatio: Double, totalStrength: Int, weightedStrength: Double)? {
+        var totalCavalry = 0
+        var totalRanged = 0
+        var totalInfantry = 0
+        var totalSiege = 0
+        var totalWeightedStrength = 0.0
+
+        // Get all enemy armies
+        for army in armies.values {
+            guard let armyOwnerID = army.ownerID, armyOwnerID != playerID else { continue }
+
+            let status = getDiplomacyStatus(playerID: playerID, otherPlayerID: armyOwnerID)
+            guard status == .enemy else { continue }
+
+            totalCavalry += army.getUnitCountByCategory(.cavalry)
+            totalRanged += army.getUnitCountByCategory(.ranged)
+            totalInfantry += army.getUnitCountByCategory(.infantry)
+            totalSiege += army.getUnitCountByCategory(.siege)
+            totalWeightedStrength += army.getWeightedStrength()
+        }
+
+        // Also count garrisoned units in enemy buildings
+        for building in buildings.values {
+            guard let ownerID = building.ownerID, ownerID != playerID else { continue }
+
+            let status = getDiplomacyStatus(playerID: playerID, otherPlayerID: ownerID)
+            guard status == .enemy else { continue }
+
+            for (unitType, count) in building.garrison {
+                if let dataType = MilitaryUnitTypeData(rawValue: unitType.rawValue) {
+                    switch dataType.category {
+                    case .cavalry: totalCavalry += count
+                    case .ranged: totalRanged += count
+                    case .infantry: totalInfantry += count
+                    case .siege: totalSiege += count
+                    }
+                }
+            }
+        }
+
+        let totalUnits = totalCavalry + totalRanged + totalInfantry + totalSiege
+        guard totalUnits > 0 else { return nil }
+
+        let total = Double(totalUnits)
+        return (
+            cavalryRatio: Double(totalCavalry) / total,
+            rangedRatio: Double(totalRanged) / total,
+            infantryRatio: Double(totalInfantry) / total,
+            siegeRatio: Double(totalSiege) / total,
+            totalStrength: totalUnits,
+            weightedStrength: totalWeightedStrength
+        )
+    }
+
+    /// Get the weighted military strength of a player (accounts for unit quality)
+    func getWeightedMilitaryStrength(forPlayer playerID: UUID) -> Double {
+        var strength = 0.0
+
+        // Count army units
+        for army in getArmiesForPlayer(id: playerID) {
+            strength += army.getWeightedStrength()
+        }
+
+        // Count garrisoned units
+        for building in getBuildingsForPlayer(id: playerID) {
+            for (unitType, count) in building.garrison {
+                if let dataType = MilitaryUnitTypeData(rawValue: unitType.rawValue) {
+                    let hp = dataType.hp
+                    let damage = dataType.combatStats.totalDamage
+                    strength += Double(count) * (hp * (1.0 + damage * 0.1))
+                }
+            }
+        }
+
+        return strength
+    }
+
+    /// Get health percentage of an army (current HP / max HP)
+    /// This requires tracking individual unit health, which we approximate from unit counts
+    func getArmyHealthPercentage(_ armyID: UUID) -> Double {
+        guard let army = armies[armyID] else { return 0.0 }
+
+        // If army has no units, it's at 0% health
+        guard army.getTotalUnits() > 0 else { return 0.0 }
+
+        // Calculate max HP if army was at full strength
+        let maxHP = army.getTotalHP()
+
+        // For now, we assume full health since we don't track individual unit HP
+        // In the future, this could track actual unit damage
+        // Return a simple approximation based on unit count vs expected
+        return min(1.0, maxHP > 0 ? 1.0 : 0.0)
+    }
+
+    /// Check if an army is locally outnumbered (enemies within 3 hexes have more strength)
+    func isArmyLocallyOutnumbered(_ army: ArmyData, forPlayer playerID: UUID) -> Bool {
+        let armyStrength = army.getWeightedStrength()
+        let nearbyEnemies = getEnemyArmies(near: army.coordinate, range: 3, forPlayer: playerID)
+
+        var enemyStrength = 0.0
+        for enemy in nearbyEnemies {
+            enemyStrength += enemy.getWeightedStrength()
+        }
+
+        // Outnumbered if enemy strength is 1.5x or more
+        return enemyStrength > armyStrength * 1.5
+    }
+
+    // MARK: - Food Consumption
+
+    /// Calculate food consumption rate per second for a player based on population
+    /// Returns (civilianPopulation, militaryPopulation, totalConsumptionRate)
+    func getFoodConsumptionRate(forPlayer playerID: UUID) -> (civilian: Int, military: Int, rate: Double) {
+        var civilianCount = 0
+        var militaryCount = 0
+
+        // Count villagers in groups
+        for group in getVillagerGroupsForPlayer(id: playerID) {
+            civilianCount += group.villagerCount
+        }
+
+        // Count military units in armies
+        for army in getArmiesForPlayer(id: playerID) {
+            militaryCount += army.getTotalUnits()
+        }
+
+        // Count garrisoned units
+        for building in getBuildingsForPlayer(id: playerID) {
+            if building.isOperational {
+                civilianCount += building.villagerGarrison
+                militaryCount += building.getTotalGarrisonedUnits()
+
+                // Count units in training queues
+                for entry in building.trainingQueue {
+                    militaryCount += entry.quantity
+                }
+                for entry in building.villagerTrainingQueue {
+                    civilianCount += entry.quantity
+                }
+            }
+        }
+
+        // Base consumption rate: 0.1 food per pop per second
+        let baseRate = 0.1
+        let civilianRate = Double(civilianCount) * baseRate
+        let militaryRate = Double(militaryCount) * baseRate
+
+        // Note: Research multipliers would be applied here if AI had access to ResearchManager
+        // For now, use base rates
+        let totalRate = civilianRate + militaryRate
+
+        return (civilian: civilianCount, military: militaryCount, rate: totalRate)
     }
 
     // MARK: - Codable

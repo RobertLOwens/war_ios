@@ -476,6 +476,32 @@ class ArmyData: Codable {
         return count
     }
 
+    /// Calculate weighted strength based on HP * totalDamage for each unit
+    /// This gives a more accurate representation of army power than raw unit count
+    func getWeightedStrength() -> Double {
+        var strength = 0.0
+        for (unitType, count) in militaryComposition {
+            let hp = unitType.hp
+            let damage = unitType.combatStats.totalDamage
+            // Weighted strength = HP * damage per unit
+            strength += Double(count) * (hp * (1.0 + damage * 0.1))
+        }
+        return strength
+    }
+
+    /// Get ratios of unit categories in this army
+    func getCategoryRatios() -> (cavalry: Double, ranged: Double, infantry: Double, siege: Double) {
+        let total = Double(getTotalUnits())
+        guard total > 0 else { return (0, 0, 0, 0) }
+
+        let cavalry = Double(getUnitCountByCategory(.cavalry)) / total
+        let ranged = Double(getUnitCountByCategory(.ranged)) / total
+        let infantry = Double(getUnitCountByCategory(.infantry)) / total
+        let siege = Double(getUnitCountByCategory(.siege)) / total
+
+        return (cavalry, ranged, infantry, siege)
+    }
+
     func getPrimaryCategory() -> UnitCategoryData? {
         var categoryCounts: [UnitCategoryData: Int] = [:]
 

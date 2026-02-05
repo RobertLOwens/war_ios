@@ -93,6 +93,26 @@ class ResourceEngine {
             }
         }
 
+        // Process food consumption for AI players only
+        // Human players have food consumption handled in the visual layer (Player.updateResources())
+        if player.isAI {
+            let consumptionInfo = state.getFoodConsumptionRate(forPlayer: player.id)
+            if consumptionInfo.rate > 0 {
+                let deltaTime: TimeInterval = 0.5  // Match resource update interval
+                let oldFood = player.getResource(.food)
+                let consumed = player.consumeFood(consumptionRate: consumptionInfo.rate, deltaTime: deltaTime)
+
+                if consumed > 0 {
+                    changes.append(.resourcesChanged(
+                        playerID: player.id,
+                        resourceType: ResourceTypeData.food.rawValue,
+                        oldAmount: oldFood,
+                        newAmount: player.getResource(.food)
+                    ))
+                }
+            }
+        }
+
         return changes
     }
 

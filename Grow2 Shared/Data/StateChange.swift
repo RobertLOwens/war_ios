@@ -96,6 +96,11 @@ enum StateChange: Codable {
     case animalKilled(coordinate: HexCoordinate, resourceType: String)
     case carcassCreated(coordinate: HexCoordinate, resourceType: String, amount: Int)
 
+    // MARK: - Research Changes
+    case researchStarted(playerID: UUID, researchType: String, startTime: TimeInterval)
+    case researchProgress(playerID: UUID, researchType: String, progress: Double)
+    case researchCompleted(playerID: UUID, researchType: String)
+
     // MARK: - Game State Changes
     case gameTick(currentTime: TimeInterval)
     case gameOver(reason: String, winnerID: UUID?)

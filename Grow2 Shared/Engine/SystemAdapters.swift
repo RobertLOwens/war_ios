@@ -278,6 +278,8 @@ class GameStateSynchronizer {
     static func createGameState(from hexMap: HexMap, players: [Player], mapWidth: Int, mapHeight: Int) -> GameState {
         let gameState = GameState(mapWidth: mapWidth, mapHeight: mapHeight)
 
+        print("🔧 GameStateSynchronizer: Creating game state from \(players.count) players, \(hexMap.buildings.count) buildings")
+
         // Convert map tiles - copy terrain data from hexMap to gameState.mapData
         for (coord, tile) in hexMap.tiles {
             let tileData = TileData(
@@ -292,11 +294,13 @@ class GameStateSynchronizer {
         for player in players {
             let playerState = PlayerStateAdapter.convertToPlayerState(player)
             gameState.addPlayer(playerState)
+            print("🔧   Added player: \(player.name) (isAI: \(playerState.isAI))")
         }
 
         // Add buildings
         for building in hexMap.buildings {
             gameState.addBuilding(building.data)
+            print("🔧   Added building: \(building.buildingType.displayName) owner=\(building.data.ownerID?.uuidString.prefix(8) ?? "nil") state=\(building.data.state)")
         }
 
         // Add resource points (needed for ResourceEngine gathering/depletion)

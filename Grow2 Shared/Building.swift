@@ -446,6 +446,20 @@ class BuildingNode: SKSpriteNode {
     private var healthBarFill: SKShapeNode?
     private var isInCombat: Bool = false
 
+    // Construction progress bar UI elements (styled like HP bar)
+    private var constructionBarContainer: SKNode?
+    private var constructionBarBackground: SKShapeNode?
+    private var constructionBarFill: SKShapeNode?
+    private var additionalConstructionBarContainers: [SKNode] = []
+    private var additionalConstructionBarFills: [SKShapeNode] = []
+
+    // Upgrade progress bar UI elements (styled like HP bar)
+    private var upgradeBarContainer: SKNode?
+    private var upgradeBarBackground: SKShapeNode?
+    private var upgradeBarFill: SKShapeNode?
+    private var additionalUpgradeBarContainers: [SKNode] = []
+    private var additionalUpgradeBarFills: [SKShapeNode] = []
+
     // MARK: - Multi-Tile Visual Overlays
     private var tileOverlays: [SKShapeNode] = []
     private var hasCreatedTileOverlays: Bool = false
@@ -675,12 +689,13 @@ class BuildingNode: SKSpriteNode {
     
     func completeUpgrade() {
         data.completeUpgrade()
-        
+
         // Remove upgrade UI elements
         upgradeTimerLabel?.removeFromParent()
         upgradeTimerLabel = nil
         upgradeProgressBar?.removeFromParent()
         upgradeProgressBar = nil
+        removeUpgradeBar()
         
         // Unlock the upgrader entity
         if let upgrader = upgraderEntity {
@@ -706,6 +721,7 @@ class BuildingNode: SKSpriteNode {
         upgradeTimerLabel = nil
         upgradeProgressBar?.removeFromParent()
         upgradeProgressBar = nil
+        removeUpgradeBar()
 
         // Unlock the upgrader entity
         if let upgrader = upgraderEntity {
@@ -1048,7 +1064,283 @@ class BuildingNode: SKSpriteNode {
     func setHealthBarVisible(_ visible: Bool) {
         healthBarContainer?.isHidden = !visible
     }
-    
+
+    // MARK: - Construction Progress Bar (styled like HP bar)
+
+    /// Sets up the construction progress bar (same style/position as HP bar)
+    func setupConstructionBar() {
+        // Guard against duplicate bars
+        if constructionBarBackground != nil && constructionBarFill != nil {
+            return
+        }
+
+        let barHeight: CGFloat = 3
+        let hexRadius: CGFloat = HexTileNode.hexRadius
+        let isoRatio = HexTileNode.isoRatio
+
+        // Bottom vertex (vertex 5)
+        let bottomX: CGFloat = 0
+        let bottomY: CGFloat = -hexRadius * isoRatio
+
+        // Bottom-right vertex (vertex 0)
+        let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)
+        let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio
+
+        // Calculate full edge length
+        let edgeDx = bottomRightX - bottomX
+        let edgeDy = bottomRightY - bottomY
+        let barWidth: CGFloat = sqrt(edgeDx * edgeDx + edgeDy * edgeDy)
+
+        // Midpoint of bottom-right edge
+        let edgeMidX = (bottomX + bottomRightX) / 2
+        let edgeMidY = (bottomY + bottomRightY) / 2
+
+        // Offset inward towards center of tile
+        let inwardOffset: CGFloat = 5
+        let distToCenter = sqrt(edgeMidX * edgeMidX + edgeMidY * edgeMidY)
+        let midX = edgeMidX - (edgeMidX / distToCenter) * inwardOffset
+        let midY = edgeMidY - (edgeMidY / distToCenter) * inwardOffset
+
+        // Calculate angle of the edge for rotation
+        let edgeAngle = atan2(bottomRightY - bottomY, bottomRightX - bottomX)
+
+        // Create container node for rotation
+        constructionBarContainer = SKNode()
+        constructionBarContainer?.position = CGPoint(x: midX, y: midY)
+        constructionBarContainer?.zRotation = edgeAngle
+        constructionBarContainer?.zPosition = 1
+        addChild(constructionBarContainer!)
+
+        // Background with white outline
+        let bgRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
+        constructionBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 1)
+        constructionBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
+        constructionBarBackground?.strokeColor = .white
+        constructionBarBackground?.lineWidth = 1
+        constructionBarBackground?.zPosition = 1
+        constructionBarContainer?.addChild(constructionBarBackground!)
+
+        // Fill (green for construction)
+        let fillRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: 0, height: barHeight)
+        constructionBarFill = SKShapeNode(rect: fillRect, cornerRadius: 1)
+        constructionBarFill?.fillColor = UIColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0)
+        constructionBarFill?.strokeColor = .clear
+        constructionBarFill?.zPosition = 2
+        constructionBarContainer?.addChild(constructionBarFill!)
+
+        // For multi-tile buildings, create progress bars on additional tiles
+        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
+        if isMultiTile {
+            let occupiedCoords = getOccupiedCoordinates()
+            let anchorPixelPos = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+
+            for tileCoord in occupiedCoords.dropFirst() {
+                let tilePixelPos = HexMap.hexToPixel(q: tileCoord.q, r: tileCoord.r)
+                let offsetX = tilePixelPos.x - anchorPixelPos.x
+                let offsetY = tilePixelPos.y - anchorPixelPos.y
+
+                let container = SKNode()
+                container.position = CGPoint(x: offsetX + midX, y: offsetY + midY)
+                container.zRotation = edgeAngle
+                container.zPosition = 1
+                addChild(container)
+                additionalConstructionBarContainers.append(container)
+
+                let bg = SKShapeNode(rect: bgRect, cornerRadius: 1)
+                bg.fillColor = UIColor(white: 0.2, alpha: 0.8)
+                bg.strokeColor = .white
+                bg.lineWidth = 1
+                bg.zPosition = 1
+                container.addChild(bg)
+
+                let fill = SKShapeNode(rect: fillRect, cornerRadius: 1)
+                fill.fillColor = UIColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0)
+                fill.strokeColor = .clear
+                fill.zPosition = 2
+                container.addChild(fill)
+                additionalConstructionBarFills.append(fill)
+            }
+        }
+    }
+
+    /// Updates the construction progress bar fill
+    func updateConstructionBar(progress: Double) {
+        guard let fill = constructionBarFill else { return }
+
+        let percentage = CGFloat(max(0, min(1, progress)))
+        let hexRadius: CGFloat = HexTileNode.hexRadius
+        let isoRatio = HexTileNode.isoRatio
+
+        let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)
+        let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio
+        let bottomY: CGFloat = -hexRadius * isoRatio
+        let edgeDx = bottomRightX
+        let edgeDy = bottomRightY - bottomY
+        let fullWidth: CGFloat = sqrt(edgeDx * edgeDx + edgeDy * edgeDy)
+        let barHeight: CGFloat = 3
+
+        let barWidth = fullWidth * percentage
+        let fillRect = CGRect(x: -fullWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
+        fill.path = CGPath(roundedRect: fillRect, cornerWidth: 1, cornerHeight: 1, transform: nil)
+
+        // Update additional bars for multi-tile buildings
+        for additionalFill in additionalConstructionBarFills {
+            additionalFill.path = CGPath(roundedRect: fillRect, cornerWidth: 1, cornerHeight: 1, transform: nil)
+        }
+    }
+
+    /// Removes the construction progress bar
+    func removeConstructionBar() {
+        constructionBarContainer?.removeFromParent()
+        constructionBarContainer = nil
+        constructionBarBackground = nil
+        constructionBarFill = nil
+
+        for container in additionalConstructionBarContainers {
+            container.removeFromParent()
+        }
+        additionalConstructionBarContainers.removeAll()
+        additionalConstructionBarFills.removeAll()
+    }
+
+    // MARK: - Upgrade Progress Bar (styled like HP bar)
+
+    /// Sets up the upgrade progress bar (same style/position as HP bar)
+    func setupUpgradeBar() {
+        // Guard against duplicate bars
+        if upgradeBarBackground != nil && upgradeBarFill != nil {
+            return
+        }
+
+        let barHeight: CGFloat = 3
+        let hexRadius: CGFloat = HexTileNode.hexRadius
+        let isoRatio = HexTileNode.isoRatio
+
+        // Bottom vertex (vertex 5)
+        let bottomX: CGFloat = 0
+        let bottomY: CGFloat = -hexRadius * isoRatio
+
+        // Bottom-right vertex (vertex 0)
+        let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)
+        let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio
+
+        // Calculate full edge length
+        let edgeDx = bottomRightX - bottomX
+        let edgeDy = bottomRightY - bottomY
+        let barWidth: CGFloat = sqrt(edgeDx * edgeDx + edgeDy * edgeDy)
+
+        // Midpoint of bottom-right edge
+        let edgeMidX = (bottomX + bottomRightX) / 2
+        let edgeMidY = (bottomY + bottomRightY) / 2
+
+        // Offset inward towards center of tile
+        let inwardOffset: CGFloat = 5
+        let distToCenter = sqrt(edgeMidX * edgeMidX + edgeMidY * edgeMidY)
+        let midX = edgeMidX - (edgeMidX / distToCenter) * inwardOffset
+        let midY = edgeMidY - (edgeMidY / distToCenter) * inwardOffset
+
+        // Calculate angle of the edge for rotation
+        let edgeAngle = atan2(bottomRightY - bottomY, bottomRightX - bottomX)
+
+        // Create container node for rotation
+        upgradeBarContainer = SKNode()
+        upgradeBarContainer?.position = CGPoint(x: midX, y: midY)
+        upgradeBarContainer?.zRotation = edgeAngle
+        upgradeBarContainer?.zPosition = 1
+        addChild(upgradeBarContainer!)
+
+        // Background with white outline
+        let bgRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
+        upgradeBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 1)
+        upgradeBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
+        upgradeBarBackground?.strokeColor = .white
+        upgradeBarBackground?.lineWidth = 1
+        upgradeBarBackground?.zPosition = 1
+        upgradeBarContainer?.addChild(upgradeBarBackground!)
+
+        // Fill (cyan for upgrade)
+        let fillRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: 0, height: barHeight)
+        upgradeBarFill = SKShapeNode(rect: fillRect, cornerRadius: 1)
+        upgradeBarFill?.fillColor = UIColor(red: 0.3, green: 0.8, blue: 0.9, alpha: 1.0)
+        upgradeBarFill?.strokeColor = .clear
+        upgradeBarFill?.zPosition = 2
+        upgradeBarContainer?.addChild(upgradeBarFill!)
+
+        // For multi-tile buildings, create progress bars on additional tiles
+        let isMultiTile = buildingType == .castle || buildingType == .woodenFort
+        if isMultiTile {
+            let occupiedCoords = getOccupiedCoordinates()
+            let anchorPixelPos = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+
+            for tileCoord in occupiedCoords.dropFirst() {
+                let tilePixelPos = HexMap.hexToPixel(q: tileCoord.q, r: tileCoord.r)
+                let offsetX = tilePixelPos.x - anchorPixelPos.x
+                let offsetY = tilePixelPos.y - anchorPixelPos.y
+
+                let container = SKNode()
+                container.position = CGPoint(x: offsetX + midX, y: offsetY + midY)
+                container.zRotation = edgeAngle
+                container.zPosition = 1
+                addChild(container)
+                additionalUpgradeBarContainers.append(container)
+
+                let bg = SKShapeNode(rect: bgRect, cornerRadius: 1)
+                bg.fillColor = UIColor(white: 0.2, alpha: 0.8)
+                bg.strokeColor = .white
+                bg.lineWidth = 1
+                bg.zPosition = 1
+                container.addChild(bg)
+
+                let fill = SKShapeNode(rect: fillRect, cornerRadius: 1)
+                fill.fillColor = UIColor(red: 0.3, green: 0.8, blue: 0.9, alpha: 1.0)
+                fill.strokeColor = .clear
+                fill.zPosition = 2
+                container.addChild(fill)
+                additionalUpgradeBarFills.append(fill)
+            }
+        }
+    }
+
+    /// Updates the upgrade progress bar fill
+    func updateUpgradeBar(progress: Double) {
+        guard let fill = upgradeBarFill else { return }
+
+        let percentage = CGFloat(max(0, min(1, progress)))
+        let hexRadius: CGFloat = HexTileNode.hexRadius
+        let isoRatio = HexTileNode.isoRatio
+
+        let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)
+        let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio
+        let bottomY: CGFloat = -hexRadius * isoRatio
+        let edgeDx = bottomRightX
+        let edgeDy = bottomRightY - bottomY
+        let fullWidth: CGFloat = sqrt(edgeDx * edgeDx + edgeDy * edgeDy)
+        let barHeight: CGFloat = 3
+
+        let barWidth = fullWidth * percentage
+        let fillRect = CGRect(x: -fullWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
+        fill.path = CGPath(roundedRect: fillRect, cornerWidth: 1, cornerHeight: 1, transform: nil)
+
+        // Update additional bars for multi-tile buildings
+        for additionalFill in additionalUpgradeBarFills {
+            additionalFill.path = CGPath(roundedRect: fillRect, cornerWidth: 1, cornerHeight: 1, transform: nil)
+        }
+    }
+
+    /// Removes the upgrade progress bar
+    func removeUpgradeBar() {
+        upgradeBarContainer?.removeFromParent()
+        upgradeBarContainer = nil
+        upgradeBarBackground = nil
+        upgradeBarFill = nil
+
+        for container in additionalUpgradeBarContainers {
+            container.removeFromParent()
+        }
+        additionalUpgradeBarContainers.removeAll()
+        additionalUpgradeBarFills.removeAll()
+    }
+
     // ... Keep all the visual/UI methods unchanged:
     // setupUI(), updateAppearance(), updateUIVisibility(), updateTimerLabel(),
     // updateUpgradeTimerLabel(), updateLevelLabel(), completeConstruction(),
@@ -1303,9 +1595,10 @@ class BuildingNode: SKSpriteNode {
             timerLabel = nil
             progressBar?.removeFromParent()
             progressBar = nil
+            removeConstructionBar()
             return
         }
-        
+
         guard let startTime = constructionStartTime else { return }
 
         let currentTime = Date().timeIntervalSince1970
@@ -1317,19 +1610,19 @@ class BuildingNode: SKSpriteNode {
         let totalSpeedMultiplier = builderMultiplier * researchMultiplier
         let effectiveBuildTime = buildingType.buildTime / totalSpeedMultiplier
         let remaining = max(0, effectiveBuildTime - elapsed)
-        
+
         // Update progress (without triggering didSet)
         let newProgress = min(1.0, max(0.0, elapsed / effectiveBuildTime))
         if abs(constructionProgress - newProgress) > 0.01 {
             constructionProgress = newProgress
         }
-        
+
         // Check if construction is complete
         if remaining <= 0 {
             completeConstruction()
             return
         }
-        
+
         // ✅ Create timer label if needed
         if timerLabel == nil {
             timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
@@ -1346,36 +1639,24 @@ class BuildingNode: SKSpriteNode {
         let seconds = Int(remaining) % 60
         timerLabel?.text = String(format: "%d:%02d", minutes, seconds)
 
-        // ✅ Update progress bar - use simpler SKShapeNode rect
-        progressBar?.removeFromParent()
-
-        let barWidth: CGFloat = 22
-        let barHeight: CGFloat = 3
-        let progressWidth = max(0.5, barWidth * CGFloat(constructionProgress)) // ✅ Ensure minimum width
-
-        // Create new progress bar
-        progressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 1.5)
-        progressBar?.fillColor = .green
-        progressBar?.strokeColor = .white
-        progressBar?.lineWidth = 0.5
-        progressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -20)
-        progressBar?.zPosition = 15
-        progressBar?.name = "progressBar"
-        addChild(progressBar!)
+        // ✅ Setup and update styled construction bar (same as HP bar)
+        setupConstructionBar()
+        updateConstructionBar(progress: newProgress)
     }
     
     func completeConstruction() {
         guard state == .constructing else { return }
-        
+
         state = .completed
         constructionProgress = 1.0
         health = maxHealth
-        
+
         // ✅ Remove all construction UI elements
         timerLabel?.removeFromParent()
         timerLabel = nil
         progressBar?.removeFromParent()
         progressBar = nil
+        removeConstructionBar()
         
         // Unlock the builder entity (unless it's a farm or camp - they'll start gathering)
         if let builder = builderEntity {
@@ -1531,14 +1812,15 @@ class BuildingNode: SKSpriteNode {
             upgradeTimerLabel = nil
             upgradeProgressBar?.removeFromParent()
             upgradeProgressBar = nil
+            removeUpgradeBar()
             return
         }
-        
+
         guard let startTime = upgradeStartTime else {
             print("⚠️ Upgrading but no start time set!")
             return
         }
-        
+
         guard let baseUpgradeTime = getUpgradeTime() else {
             print("⚠️ Could not get upgrade time for level \(level)")
             return
@@ -1551,26 +1833,26 @@ class BuildingNode: SKSpriteNode {
         let currentTime = Date().timeIntervalSince1970
         let elapsed = currentTime - startTime
         let remaining = max(0, totalUpgradeTime - elapsed)
-        
+
         // ✅ FIX: Calculate and SET progress correctly
         let newProgress = min(1.0, max(0.0, elapsed / totalUpgradeTime))
-        
+
         // Debug logging
         print("⬆️ Upgrade Update: \(buildingType.displayName)")
         print("   Elapsed: \(String(format: "%.1f", elapsed))s / \(String(format: "%.1f", totalUpgradeTime))s")
         print("   Progress: \(String(format: "%.1f", newProgress * 100))%")
         print("   Remaining: \(String(format: "%.1f", remaining))s")
-        
+
         // ✅ FIX: Check completion BEFORE updating progress to avoid race condition
         if newProgress >= 1.0 || remaining <= 0 {
             print("✅ Upgrade complete! Calling completeUpgrade()")
             completeUpgrade()
             return
         }
-        
+
         // Update stored progress
         upgradeProgress = newProgress
-        
+
         // Create/update timer label
         if upgradeTimerLabel == nil {
             upgradeTimerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
@@ -1586,21 +1868,9 @@ class BuildingNode: SKSpriteNode {
         let seconds = Int(remaining) % 60
         upgradeTimerLabel?.text = "⬆️ \(minutes):\(String(format: "%02d", seconds))"
 
-        // ✅ FIX: Recreate progress bar with correct width
-        upgradeProgressBar?.removeFromParent()
-
-        let barWidth: CGFloat = 22
-        let barHeight: CGFloat = 3
-        let progressWidth = max(1.0, barWidth * CGFloat(newProgress))  // ✅ Use newProgress directly
-
-        upgradeProgressBar = SKShapeNode(rectOf: CGSize(width: progressWidth, height: barHeight), cornerRadius: 1.5)
-        upgradeProgressBar?.fillColor = .cyan
-        upgradeProgressBar?.strokeColor = .white
-        upgradeProgressBar?.lineWidth = 0.5
-        upgradeProgressBar?.position = CGPoint(x: -barWidth/2 + progressWidth/2, y: -20)
-        upgradeProgressBar?.zPosition = 15
-        upgradeProgressBar?.name = "upgradeProgressBar"
-        addChild(upgradeProgressBar!)
+        // ✅ Setup and update styled upgrade bar (same as HP bar)
+        setupUpgradeBar()
+        updateUpgradeBar(progress: newProgress)
     }
     
     func updateLevelLabel() {

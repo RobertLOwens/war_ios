@@ -119,6 +119,12 @@ class PlayerState: Codable {
     private var lastUpdateTime: TimeInterval?
     private var foodConsumptionAccumulator: Double = 0.0
 
+    // MARK: - Research Tracking
+    private(set) var completedResearch: Set<String> = []  // ResearchType rawValue strings
+    private(set) var activeResearchType: String? = nil
+    private(set) var activeResearchStartTime: TimeInterval? = nil
+    private var cachedResearchBonuses: [String: Double] = [:]  // ResearchBonusType rawValue -> value
+
     // MARK: - Constants
     static let foodConsumptionPerPop: Double = 0.1
 
@@ -192,6 +198,25 @@ class PlayerState: Codable {
     func decreaseCollectionRate(_ type: ResourceTypeData, amount: Double) {
         let current = collectionRates[type] ?? 0.0
         collectionRates[type] = max(0, current - amount)
+    }
+
+    // MARK: - Food Consumption
+
+    /// Process food consumption based on population. Returns the amount of food consumed.
+    func consumeFood(consumptionRate: Double, deltaTime: TimeInterval) -> Int {
+        let consumed = consumptionRate * deltaTime
+        foodConsumptionAccumulator += consumed
+
+        let wholeConsumption = Int(foodConsumptionAccumulator)
+        if wholeConsumption > 0 {
+            let current = resources[.food] ?? 0
+            let actualConsumed = min(wholeConsumption, current)
+            resources[.food] = current - actualConsumed
+            foodConsumptionAccumulator -= Double(wholeConsumption)
+            return actualConsumed
+        }
+
+        return 0
     }
 
     // MARK: - Resource Update (per-tick)
@@ -301,6 +326,66 @@ class PlayerState: Codable {
         }
     }
 
+    // MARK: - Research Methods
+
+    /// Start researching a new research type
+    func startResearch(_ typeRawValue: String, at time: TimeInterval) {
+        guard activeResearchType == nil else { return }  // Can only research one at a time
+        activeResearchType = typeRawValue
+        activeResearchStartTime = time
+    }
+
+    /// Complete the active research
+    func completeResearch(_ typeRawValue: String) {
+        completedResearch.insert(typeRawValue)
+        if activeResearchType == typeRawValue {
+            activeResearchType = nil
+            activeResearchStartTime = nil
+        }
+        recalculateResearchBonuses()
+    }
+
+    /// Check if a specific research has been completed
+    func hasCompletedResearch(_ typeRawValue: String) -> Bool {
+        return completedResearch.contains(typeRawValue)
+    }
+
+    /// Check if any research is currently active
+    func isResearchActive() -> Bool {
+        return activeResearchType != nil
+    }
+
+    /// Get progress of active research (0.0 to 1.0), returns nil if no active research
+    func getActiveResearchProgress(currentTime: TimeInterval, researchTime: TimeInterval) -> Double? {
+        guard let startTime = activeResearchStartTime, activeResearchType != nil else {
+            return nil
+        }
+        let elapsed = currentTime - startTime
+        return min(1.0, max(0.0, elapsed / researchTime))
+    }
+
+    /// Get a research bonus multiplier
+    func getResearchBonus(_ bonusTypeRawValue: String) -> Double {
+        return cachedResearchBonuses[bonusTypeRawValue] ?? 0.0
+    }
+
+    /// Get a research bonus multiplier (1.0 + bonus)
+    func getResearchBonusMultiplier(_ bonusTypeRawValue: String) -> Double {
+        return 1.0 + getResearchBonus(bonusTypeRawValue)
+    }
+
+    /// Recalculate cached research bonuses from completed research
+    func recalculateResearchBonuses() {
+        cachedResearchBonuses.removeAll()
+        for researchRawValue in completedResearch {
+            if let researchType = ResearchType(rawValue: researchRawValue) {
+                for bonus in researchType.bonuses {
+                    cachedResearchBonuses[bonus.type.rawValue, default: 0] += bonus.value
+                }
+            }
+        }
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
@@ -310,6 +395,7 @@ class PlayerState: Codable {
         case diplomacyRelations
         case visibleCoordinates, exploredCoordinates
         case lastUpdateTime, foodConsumptionAccumulator
+        case completedResearch, activeResearchType, activeResearchStartTime, cachedResearchBonuses
     }
 }
 
@@ -339,6 +425,10 @@ extension PlayerState {
         copy.exploredCoordinates = exploredCoordinates
         copy.lastUpdateTime = lastUpdateTime
         copy.foodConsumptionAccumulator = foodConsumptionAccumulator
+        copy.completedResearch = completedResearch
+        copy.activeResearchType = activeResearchType
+        copy.activeResearchStartTime = activeResearchStartTime
+        copy.cachedResearchBonuses = cachedResearchBonuses
         return copy
     }
 }
