@@ -125,6 +125,9 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
         // Apply changes to the visual layer
         visualLayer?.applyChanges(changes)
 
+        // Process changes for notifications
+        NotificationManager.shared.processStateChanges(changes.changes)
+
         // Notify delegate of state changes
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }

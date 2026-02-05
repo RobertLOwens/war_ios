@@ -117,6 +117,9 @@
 		3FVLRDPLPNL1000000100VDPL /* VillagerDeploymentPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */; };
 		3FVLRJNMGR10000000100VJMG /* VillagerJoinManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */; };
 		3FVLRTSKWR1000000100VTWH /* VillagerTaskWarningHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */; };
+		3FNOTIF0001000000000GMNOT /* GameNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000GMNOT /* GameNotification.swift */; };
+		3FNOTIF0001000000000NTFMG /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFMG /* NotificationManager.swift */; };
+		3FNOTIF0001000000000NTFBV /* NotificationBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -232,6 +235,9 @@
 		3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerDeploymentPanelViewController.swift; sourceTree = "<group>"; };
 		3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerJoinManager.swift; sourceTree = "<group>"; };
 		3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerTaskWarningHelper.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000GMNOT /* GameNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameNotification.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000NTFMG /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationBannerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -282,6 +288,7 @@
 			children = (
 				3FDATA0003000000000DTAGP /* Data */,
 				3FENGN0003000000000ENGGP /* Engine */,
+				3FNOTIF0003000000000NOTGP /* Notifications */,
 				3FVISL0003000000000VSLGP /* Visual */,
 				3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */,
 				3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */,
@@ -454,6 +461,7 @@
 			isa = PBXGroup;
 			children = (
 				3FENTSELCL2000000100ESCL /* EntitySelectionCell.swift */,
+				3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -473,6 +481,15 @@
 				3FVISL0002000000000NDFCT /* NodeFactory.swift */,
 			);
 			path = Visual;
+			sourceTree = "<group>";
+		};
+		3FNOTIF0003000000000NOTGP /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				3FNOTIF0002000000000GMNOT /* GameNotification.swift */,
+				3FNOTIF0002000000000NTFMG /* NotificationManager.swift */,
+			);
+			path = Notifications;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -653,6 +670,9 @@
 				3FROOT0001000000000GSINT /* GameSceneEngineIntegration.swift in Sources */,
 				3FRSRCOVW10000000100RSRCO /* ResourceOverviewViewController.swift in Sources */,
 				3FMILTOVW10000000100MILTO /* MilitaryOverviewViewController.swift in Sources */,
+				3FNOTIF0001000000000GMNOT /* GameNotification.swift in Sources */,
+				3FNOTIF0001000000000NTFMG /* NotificationManager.swift in Sources */,
+				3FNOTIF0001000000000NTFBV /* NotificationBannerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
