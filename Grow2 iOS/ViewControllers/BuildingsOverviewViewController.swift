@@ -115,7 +115,9 @@ class BuildingsOverviewViewController: UIViewController, UITableViewDelegate, UI
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "BuildingOverviewCell", for: indexPath) as! BuildingOverviewCell
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: "BuildingOverviewCell", for: indexPath) as? BuildingOverviewCell else {
+            return UITableViewCell()
+        }
 
         if filteredBuildings.isEmpty {
             let categoryName = selectedCategory == 0 ? "economic" : "military"

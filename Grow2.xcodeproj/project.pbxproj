@@ -73,6 +73,8 @@
 		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
 		3FENGN0001000000000AICNT /* AIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AICNT /* AIController.swift */; };
 		3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CMENG /* CombatEngine.swift */; };
+		3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DMGCL /* DamageCalculator.swift */; };
+		3FENGN0001000000000GRDEF /* GarrisonDefenseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */; };
 		3FENGN0001000000000CNENG /* ConstructionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CNENG /* ConstructionEngine.swift */; };
 		3FENGN0001000000000GMENG /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GMENG /* GameEngine.swift */; };
 		3FENGN0001000000000MVENG /* MovementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000MVENG /* MovementEngine.swift */; };
@@ -192,6 +194,8 @@
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000AICNT /* AIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIController.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000DMGCL /* DamageCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageCalculator.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarrisonDefenseEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CMENG /* CombatEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CNENG /* ConstructionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstructionEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GMENG /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
@@ -388,6 +392,8 @@
 				3FENGN0002000000000AICNT /* AIController.swift */,
 				3FENGN0002000000000CMENG /* CombatEngine.swift */,
 				3FENGN0002000000000CNENG /* ConstructionEngine.swift */,
+				3FENGN0002000000000DMGCL /* DamageCalculator.swift */,
+				3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */,
 				3FENGN0002000000000GMENG /* GameEngine.swift */,
 				3FENGN0002000000000MVENG /* MovementEngine.swift */,
 				3FENGN0002000000000RSENG /* ResourceEngine.swift */,
@@ -666,6 +672,8 @@
 				3FENGN0001000000000AICNT /* AIController.swift in Sources */,
 				3FENGN0001000000000MVENG /* MovementEngine.swift in Sources */,
 				3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */,
+				3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */,
+				3FENGN0001000000000GRDEF /* GarrisonDefenseEngine.swift in Sources */,
 				3FENGN0001000000000RSENG /* ResourceEngine.swift in Sources */,
 				3FENGN0001000000000CNENG /* ConstructionEngine.swift in Sources */,
 				3FENGN0001000000000TRENG /* TrainingEngine.swift in Sources */,

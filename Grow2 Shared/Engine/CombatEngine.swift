@@ -61,17 +61,16 @@ class CombatEngine {
     // MARK: - Villager Combats (army vs villager group)
     private(set) var villagerCombats: [UUID: VillagerCombatData] = [:]
 
-    // MARK: - Garrison Defense Tracking
-    private var activeGarrisonEngagements: Set<UUID> = []  // Army IDs currently under garrison fire
+    // MARK: - Garrison Defense
+    let garrisonDefenseEngine = GarrisonDefenseEngine()
 
     // MARK: - Combat History
     private(set) var combatHistory: [CombatRecord] = []
     private(set) var detailedCombatHistory: [DetailedCombatRecord] = []
 
     // MARK: - Combat Constants
-    private let cavalryChargeBonus: Double = 0.2
-    private let infantryChargeBonus: Double = 0.1
     private let buildingPhaseInterval: TimeInterval = 1.0
+    private let siegeBuildingBonusMultiplier: Double = 1.5
 
     // MARK: - Setup
 
@@ -80,7 +79,13 @@ class CombatEngine {
         activeCombats.removeAll()
         buildingCombats.removeAll()
         villagerCombats.removeAll()
-        activeGarrisonEngagements.removeAll()
+
+        garrisonDefenseEngine.setup(gameState: gameState, buildingCombatsProvider: { [weak self] in
+            self?.buildingCombats ?? [:]
+        })
+        garrisonDefenseEngine.onCombatRecord = { [weak self] record in
+            self?.addCombatRecord(record)
+        }
     }
 
     // MARK: - Update Loop
@@ -103,7 +108,7 @@ class CombatEngine {
         changes.append(contentsOf: villagerChanges)
 
         // Check for garrison defense attacks
-        let garrisonChanges = processGarrisonDefense(currentTime: currentTime, state: state)
+        let garrisonChanges = garrisonDefenseEngine.processGarrisonDefense(currentTime: currentTime, state: state)
         changes.append(contentsOf: garrisonChanges)
 
         return changes
@@ -522,136 +527,24 @@ class CombatEngine {
         }
     }
 
-    // MARK: - DPS Calculations
-
-    /// Calculates weighted bonus damage based on enemy unit category composition
-    /// For example: If the enemy has 50% cavalry and the attacker has +8 vs cavalry,
-    /// the weighted bonus is 0.5 * 8 = 4 bonus damage per attack
-    private func calculateWeightedBonus(
-        attackerStats: UnitCombatStatsData,
-        enemyState: SideCombatState
-    ) -> Double {
-        let totalEnemyUnits = Double(enemyState.totalUnits)
-        guard totalEnemyUnits > 0 else { return 0 }
-
-        let infantryRatio = Double(enemyState.infantryUnits) / totalEnemyUnits
-        let cavalryRatio = Double(enemyState.cavalryUnits) / totalEnemyUnits
-        let rangedRatio = Double(enemyState.rangedUnits) / totalEnemyUnits
-        let siegeRatio = Double(enemyState.siegeUnits) / totalEnemyUnits
-
-        return attackerStats.bonusVsInfantry * infantryRatio
-             + attackerStats.bonusVsCavalry * cavalryRatio
-             + attackerStats.bonusVsRanged * rangedRatio
-             + attackerStats.bonusVsSiege * siegeRatio
-    }
+    // MARK: - DPS Calculations (delegating to DamageCalculator)
 
     private func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
-        var totalDPS: Double = 0
-
-        for (unitType, count) in sideState.unitCounts {
-            guard count > 0 else { continue }
-
-            // Only ranged and siege units contribute in ranged phase
-            guard unitType.category == .ranged || unitType.category == .siege else { continue }
-
-            let stats = unitType.combatStats
-            let baseDamage = stats.totalDamage
-            let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            let unitDPS = (baseDamage + bonusDamage) / unitType.attackSpeed
-            totalDPS += unitDPS * Double(count)
-        }
-
-        // Apply terrain modifiers
-        let modifier = 1.0 - terrainPenalty + terrainBonus
-        return totalDPS * modifier
+        DamageCalculator.calculateRangedDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
     }
 
     private func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
-        var totalDPS: Double = 0
-
-        for (unitType, count) in sideState.unitCounts {
-            guard count > 0 else { continue }
-
-            // Only infantry and cavalry contribute in melee phase
-            guard unitType.category == .infantry || unitType.category == .cavalry else { continue }
-
-            let stats = unitType.combatStats
-            let baseDamage = stats.totalDamage
-            let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            var unitDPS = (baseDamage + bonusDamage) / unitType.attackSpeed
-
-            // Apply charge bonus
-            if isCharge {
-                if unitType.category == .cavalry {
-                    unitDPS *= (1.0 + cavalryChargeBonus)
-                } else if unitType.category == .infantry {
-                    unitDPS *= (1.0 + infantryChargeBonus)
-                }
-            }
-
-            totalDPS += unitDPS * Double(count)
-        }
-
-        // Apply terrain modifiers
-        let modifier = 1.0 - terrainPenalty + terrainBonus
-        return totalDPS * modifier
+        DamageCalculator.calculateMeleeDPS(sideState, enemyState: enemyState, isCharge: isCharge, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
     }
 
     private func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
-        var totalDPS: Double = 0
-
-        for (unitType, count) in sideState.unitCounts {
-            guard count > 0 else { continue }
-
-            let stats = unitType.combatStats
-            let baseDamage = stats.totalDamage
-            let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            let unitDPS = (baseDamage + bonusDamage) / unitType.attackSpeed
-            totalDPS += unitDPS * Double(count)
-        }
-
-        // Apply terrain modifiers
-        let modifier = 1.0 - terrainPenalty + terrainBonus
-        return totalDPS * modifier
+        DamageCalculator.calculateTotalDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
     }
 
     // MARK: - Damage Application
 
     private func applyDamageToSide(_ sideState: inout SideCombatState, damage: Double, combat: ActiveCombat, isDefender: Bool, state: GameState) {
-        var remainingDamage = damage
-
-        // Priority order for damage: siege, ranged, infantry, cavalry
-        let priorityOrder: [UnitCategory] = [.siege, .ranged, .infantry, .cavalry]
-
-        for category in priorityOrder {
-            guard remainingDamage > 0 else { break }
-
-            for (unitType, count) in sideState.unitCounts where unitType.category == category && count > 0 {
-                guard remainingDamage > 0 else { break }
-
-                let damageToApply = min(remainingDamage, Double(count) * unitType.hp)
-                let kills = sideState.applyDamage(damageToApply, to: unitType)
-
-                if kills > 0 {
-                    combat.trackPhaseCasualty(isAttacker: !isDefender, unitType: unitType, count: kills)
-
-                    // Also update the actual army data
-                    if isDefender {
-                        if let armyID = combat.defenderArmies.first?.armyID,
-                           let army = state.getArmy(id: armyID) {
-                            _ = army.removeMilitaryUnits(unitType, count: kills)
-                        }
-                    } else {
-                        if let armyID = combat.attackerArmies.first?.armyID,
-                           let army = state.getArmy(id: armyID) {
-                            _ = army.removeMilitaryUnits(unitType, count: kills)
-                        }
-                    }
-                }
-
-                remainingDamage -= damageToApply
-            }
-        }
+        DamageCalculator.applyDamageToSide(&sideState, damage: damage, combat: combat, isDefender: isDefender, state: state)
     }
 
     // MARK: - Auto-Start Building Combat
@@ -757,7 +650,7 @@ class CombatEngine {
         let siegeCount = attacker.getUnitCountByCategory(.siege)
         if siegeCount > 0 {
             damage += attackerStats.bonusVsBuildings
-            damage *= 1.5  // 50% bonus for having siege units
+            damage *= siegeBuildingBonusMultiplier
         }
 
         // Track damage for reporting
@@ -939,7 +832,7 @@ class CombatEngine {
             if villagerGroup.villagerCount > 0 {
                 let villagerDamage = villagerGroup.totalMeleeAttack * deltaTime
                 // Apply damage to army (simplified - spread across units)
-                let armyCasualties = applyDamageToArmy(attacker, damage: villagerDamage)
+                let armyCasualties = DamageCalculator.applyDamageToArmy(attacker, damage: villagerDamage)
 
                 if !armyCasualties.isEmpty {
                     let totalDamageDealt = armyCasualties.reduce(0.0) { $0 + Double($1.value) * $1.key.hp }
@@ -998,231 +891,6 @@ class CombatEngine {
         }
 
         return changes
-    }
-
-    // MARK: - Garrison Defense
-
-    private func processGarrisonDefense(currentTime: TimeInterval, state: GameState) -> [StateChange] {
-        var changes: [StateChange] = []
-        var armiesUnderFireThisTick: Set<UUID> = []
-
-        // Aggregate damage per target: tracking pierce and bludgeon separately for armor calculation
-        var aggregatedAttacks: [UUID: (pierceDamage: Double, bludgeonDamage: Double,
-                                        buildings: [String], ownerID: UUID,
-                                        location: HexCoordinate)] = [:]
-
-        for building in state.buildings.values {
-            // Must be a defensive building type (fort, castle, tower)
-            guard building.canProvideGarrisonDefense else { continue }
-
-            // Must be operational
-            guard building.isOperational else { continue }
-
-            guard let ownerID = building.ownerID else { continue }
-
-            // GARRISON = army positioned on the building tile (not building's internal garrison)
-            guard let garrisonArmy = state.getArmy(at: building.coordinate) else { continue }
-
-            // Army must belong to the building owner
-            guard garrisonArmy.ownerID == ownerID else { continue }
-
-            // Calculate defensive unit count from army (ranged + siege only)
-            let archerCount = garrisonArmy.getUnitCount(ofType: .archer)
-            let crossbowCount = garrisonArmy.getUnitCount(ofType: .crossbow)
-            let mangonelCount = garrisonArmy.getUnitCount(ofType: .mangonel)
-            let trebuchetCount = garrisonArmy.getUnitCount(ofType: .trebuchet)
-            let defensiveUnitCount = archerCount + crossbowCount + mangonelCount + trebuchetCount
-
-            // Must have ranged/siege units to attack
-            guard defensiveUnitCount > 0 else { continue }
-
-            // Find enemies in range
-            let enemies = state.getEnemyArmiesInRange(
-                of: building.coordinate,
-                range: building.garrisonDefenseRange,
-                forPlayer: ownerID
-            )
-            guard !enemies.isEmpty else { continue }
-
-            // Attack first enemy not attacking a defensive building
-            guard let target = enemies.first(where: { !isArmyAttackingDefensiveBuilding($0.id) }) else {
-                continue
-            }
-
-            // Calculate damage from army's ranged/siege units
-            var pierceDamage: Double = 0
-            var bludgeonDamage: Double = 0
-
-            // Archers: 12 pierce damage each
-            pierceDamage += Double(archerCount) * 12.0
-            // Crossbows: 14 pierce damage each
-            pierceDamage += Double(crossbowCount) * 14.0
-            // Mangonels: 18 bludgeon damage each
-            bludgeonDamage += Double(mangonelCount) * 18.0
-            // Trebuchets: 25 bludgeon damage each
-            bludgeonDamage += Double(trebuchetCount) * 25.0
-
-            // Apply research bonuses
-            pierceDamage *= ResearchManager.shared.getPiercingDamageMultiplier()
-
-            if pierceDamage > 0 || bludgeonDamage > 0 {
-                armiesUnderFireThisTick.insert(target.id)
-
-                // Aggregate attacks
-                if var existing = aggregatedAttacks[target.id] {
-                    existing.pierceDamage += pierceDamage
-                    existing.bludgeonDamage += bludgeonDamage
-                    existing.buildings.append(building.buildingType.displayName)
-                    aggregatedAttacks[target.id] = existing
-                } else {
-                    aggregatedAttacks[target.id] = (
-                        pierceDamage: pierceDamage,
-                        bludgeonDamage: bludgeonDamage,
-                        buildings: [building.buildingType.displayName],
-                        ownerID: ownerID,
-                        location: building.coordinate
-                    )
-                }
-
-                // Visual effect state change
-                changes.append(.garrisonDefenseAttack(
-                    buildingID: building.id,
-                    targetArmyID: target.id,
-                    damage: pierceDamage + bludgeonDamage
-                ))
-            }
-        }
-
-        // Apply damage with armor reduction
-        for (targetArmyID, attackData) in aggregatedAttacks {
-            guard let target = state.getArmy(id: targetArmyID) else { continue }
-
-            // Get target's aggregated armor
-            let targetArmor = target.getAggregatedCombatStats()
-
-            // Apply armor reduction (damage - armor, minimum 0)
-            let effectivePierceDamage = max(0, attackData.pierceDamage - targetArmor.pierceArmor)
-            let effectiveBludgeonDamage = max(0, attackData.bludgeonDamage - targetArmor.bludgeonArmor)
-            let totalEffectiveDamage = effectivePierceDamage + effectiveBludgeonDamage
-
-            // Skip if all damage absorbed by armor
-            guard totalEffectiveDamage > 0 else { continue }
-
-            let targetInitialUnits = target.getTotalUnits()
-            _ = applyDamageToArmy(target, damage: totalEffectiveDamage)
-            let targetFinalUnits = target.getTotalUnits()
-            let totalCasualties = targetInitialUnits - targetFinalUnits
-
-            // Create report only for NEW engagements or destruction
-            let isNewEngagement = !activeGarrisonEngagements.contains(targetArmyID)
-            let isDestroyed = target.isEmpty()
-
-            if isNewEngagement || isDestroyed {
-                // Create combat record
-                let buildingOwner = state.getPlayer(id: attackData.ownerID)
-                let targetOwner = target.ownerID.flatMap { state.getPlayer(id: $0) }
-
-                let attackerName: String
-                if attackData.buildings.count == 1 {
-                    attackerName = "\(attackData.buildings[0]) Garrison"
-                } else {
-                    let uniqueBuildings = Array(Set(attackData.buildings)).sorted()
-                    attackerName = "\(uniqueBuildings.joined(separator: " & ")) Garrisons"
-                }
-
-                let attackerParticipant = CombatParticipant(
-                    name: attackerName,
-                    type: .building,
-                    ownerName: buildingOwner?.name ?? "Unknown",
-                    ownerColor: buildingOwner.flatMap { UIColor(hex: $0.colorHex) } ?? .gray,
-                    commanderName: nil
-                )
-
-                let defenderParticipant = CombatParticipant(
-                    name: target.name,
-                    type: .army,
-                    ownerName: targetOwner?.name ?? "Unknown",
-                    ownerColor: targetOwner.flatMap { UIColor(hex: $0.colorHex) } ?? .gray,
-                    commanderName: target.commanderID.flatMap { state.getCommander(id: $0)?.name }
-                )
-
-                let winner: CombatResult = target.isEmpty() ? .attackerVictory : .draw
-
-                let record = CombatRecord(
-                    attacker: attackerParticipant,
-                    defender: defenderParticipant,
-                    attackerInitialStrength: totalEffectiveDamage,
-                    defenderInitialStrength: Double(targetInitialUnits),
-                    attackerFinalStrength: totalEffectiveDamage,
-                    defenderFinalStrength: Double(targetFinalUnits),
-                    winner: winner,
-                    attackerCasualties: 0,
-                    defenderCasualties: totalCasualties,
-                    location: attackData.location,
-                    duration: 0.0
-                )
-                addCombatRecord(record)
-
-                // Mark this army as engaged
-                activeGarrisonEngagements.insert(targetArmyID)
-            }
-
-            // Handle destruction
-            if isDestroyed {
-                activeGarrisonEngagements.remove(targetArmyID)
-
-                changes.append(.armyDestroyed(
-                    armyID: target.id,
-                    coordinate: target.coordinate
-                ))
-                state.removeArmy(id: target.id)
-            }
-        }
-
-        // Clean up engagements for armies that left range
-        let armiesThatLeftRange = activeGarrisonEngagements.subtracting(armiesUnderFireThisTick)
-        for armyID in armiesThatLeftRange {
-            activeGarrisonEngagements.remove(armyID)
-        }
-
-        return changes
-    }
-
-    /// Check if an army is actively attacking a defensive building (fort, castle, tower)
-    /// If so, garrison defense should not fire - the assault is happening in close combat
-    private func isArmyAttackingDefensiveBuilding(_ armyID: UUID) -> Bool {
-        // Check if army is in building combat
-        guard let combat = buildingCombats.values.first(where: { $0.attackerArmyID == armyID }),
-              let buildingID = combat.defenderBuildingID,
-              let building = gameState?.getBuilding(id: buildingID) else {
-            return false
-        }
-
-        // If attacking any defensive building (fort, castle, tower), don't fire
-        return building.canProvideGarrisonDefense
-    }
-
-    // MARK: - Legacy Damage Application (for garrison defense)
-
-    private func applyDamageToArmy(_ army: ArmyData, damage: Double) -> [MilitaryUnitTypeData: Int] {
-        var casualties: [MilitaryUnitTypeData: Int] = [:]
-        var remainingDamage = damage
-
-        // Distribute damage across unit types using their HP
-        for (unitType, count) in army.militaryComposition {
-            guard remainingDamage > 0 && count > 0 else { continue }
-
-            let unitHealth = unitType.hp
-            let unitsKilled = min(count, Int(remainingDamage / unitHealth))
-
-            if unitsKilled > 0 {
-                army.removeMilitaryUnits(unitType, count: unitsKilled)
-                casualties[unitType] = unitsKilled
-                remainingDamage -= Double(unitsKilled) * unitHealth
-            }
-        }
-
-        return casualties
     }
 
     // MARK: - Combat Resolution
@@ -1578,7 +1246,7 @@ class CombatEngine {
         activeCombats.removeAll()
         buildingCombats.removeAll()
         villagerCombats.removeAll()
-        activeGarrisonEngagements.removeAll()
+        garrisonDefenseEngine.reset()
         print("🗑️ Combat history cleared")
     }
 

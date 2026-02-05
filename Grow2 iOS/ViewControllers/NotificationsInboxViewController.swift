@@ -21,12 +21,17 @@ class NotificationsInboxViewController: UIViewController, UITableViewDelegate, U
         super.viewDidLoad()
         setupUI()
         loadNotifications()
-        observeChanges()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         loadNotifications()
+        observeChanges()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Setup
@@ -183,7 +188,9 @@ class NotificationsInboxViewController: UIViewController, UITableViewDelegate, U
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "NotificationInboxCell", for: indexPath) as! NotificationInboxCell
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: "NotificationInboxCell", for: indexPath) as? NotificationInboxCell else {
+            return UITableViewCell()
+        }
         let notification = notifications[indexPath.row]
         let isUnread = NotificationManager.shared.isUnread(notification.id)
         cell.configure(with: notification, isUnread: isUnread)

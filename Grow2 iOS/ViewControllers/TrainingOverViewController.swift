@@ -77,7 +77,9 @@ class TrainingOverviewViewController: UIViewController, UITableViewDelegate, UIT
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "TrainingBuildingCell", for: indexPath) as! TrainingBuildingCell
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: "TrainingBuildingCell", for: indexPath) as? TrainingBuildingCell else {
+            return UITableViewCell()
+        }
         
         if buildingsWithTraining.isEmpty {
             cell.configure(with: nil)

@@ -41,14 +41,16 @@ class BuildingDetailViewController: UIViewController {
     
     var building: BuildingNode!
     var player: Player!
-    var gameViewController: GameViewController?
+    weak var gameViewController: GameViewController?
     var trainingContexts: [Int: TrainingSliderContext]?
     var hexMap: HexMap!
     var gameScene: GameScene!
     
+    private var updateTimer: Timer?
+
     var scrollView: UIScrollView!
     var contentView: UIView!
-    
+
     // Training UI elements
     var trainingContainerView: UIView?
     var trainingSlider: UISlider?
@@ -82,7 +84,7 @@ class BuildingDetailViewController: UIViewController {
         print("   Villager queue: \(building.villagerTrainingQueue.count)")
         
         // Update queue display every second
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
@@ -92,6 +94,12 @@ class BuildingDetailViewController: UIViewController {
             }
             self.updateQueueDisplay()
         }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        updateTimer?.invalidate()
+        updateTimer = nil
     }
     
     override func viewDidLayoutSubviews() {

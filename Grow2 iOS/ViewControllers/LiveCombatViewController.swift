@@ -395,7 +395,7 @@ class CombatSideView: UIView {
 
     func configure(name: String, commander: String?, state: SideCombatState) {
         nameLabel.text = isAttacker ? "Attacker: \(name)" : "Defender: \(name)"
-        commanderLabel.text = commander != nil ? "Commander: \(commander!)" : "No Commander"
+        commanderLabel.text = commander.map { "Commander: \($0)" } ?? "No Commander"
 
         totalUnitsLabel.text = "\(state.totalUnits)"
 

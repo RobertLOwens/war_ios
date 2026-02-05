@@ -10,6 +10,9 @@ import Foundation
 /// Handles all building construction, upgrade, and demolition logic
 class ConstructionEngine {
 
+    // MARK: - Constants
+    private let progressChangeThreshold: Double = 0.01
+
     // MARK: - State
     private weak var gameState: GameState?
 
@@ -60,7 +63,7 @@ class ConstructionEngine {
         let completed = building.updateConstruction(currentTime: currentTime)
 
         // Only emit progress change if it changed significantly
-        if abs(building.constructionProgress - previousProgress) > 0.01 {
+        if abs(building.constructionProgress - previousProgress) > progressChangeThreshold {
             changes.append(.buildingConstructionProgress(
                 buildingID: building.id,
                 progress: building.constructionProgress
@@ -109,7 +112,7 @@ class ConstructionEngine {
         let completed = building.updateUpgrade(currentTime: currentTime)
 
         // Only emit progress change if it changed significantly
-        if abs(building.upgradeProgress - previousProgress) > 0.01 {
+        if abs(building.upgradeProgress - previousProgress) > progressChangeThreshold {
             changes.append(.buildingUpgradeProgress(
                 buildingID: building.id,
                 progress: building.upgradeProgress
@@ -135,7 +138,7 @@ class ConstructionEngine {
         let completed = building.updateDemolition(currentTime: currentTime)
 
         // Only emit progress change if it changed significantly
-        if abs(building.demolitionProgress - previousProgress) > 0.01 {
+        if abs(building.demolitionProgress - previousProgress) > progressChangeThreshold {
             changes.append(.buildingDemolitionProgress(
                 buildingID: building.id,
                 progress: building.demolitionProgress
@@ -149,7 +152,7 @@ class ConstructionEngine {
             if let ownerID = building.ownerID, let player = state.getPlayer(id: ownerID) {
                 let refund = building.getDemolitionRefund()
                 for (resourceType, amount) in refund {
-                    let dataType = ResourceTypeData(rawValue: resourceType.rawValue)!
+                    guard let dataType = ResourceTypeData(rawValue: resourceType.rawValue) else { continue }
                     let capacity = state.getStorageCapacity(forPlayer: ownerID, resourceType: dataType)
                     _ = player.addResource(dataType, amount: amount, storageCapacity: capacity)
                 }
@@ -333,7 +336,7 @@ class ConstructionEngine {
         // Deduct resources
         if let upgradeCost = building.getUpgradeCost() {
             for (resourceType, amount) in upgradeCost {
-                let dataType = ResourceTypeData(rawValue: resourceType.rawValue)!
+                guard let dataType = ResourceTypeData(rawValue: resourceType.rawValue) else { continue }
                 _ = player.removeResource(dataType, amount: amount)
             }
         }
