@@ -38,6 +38,9 @@ class GameViewController: UIViewController {
     private var starvationCountdownLabel: UILabel?
     private var starvationCountdownTimer: Timer?
 
+    // Notification banner
+    private var notificationBannerContainer: NotificationBannerContainer?
+
     private struct AssociatedKeys {
         static var unitLabels: UInt8 = 0
         static var garrisonData: UInt8 = 1
@@ -66,7 +69,9 @@ class GameViewController: UIViewController {
         menuCoordinator = MenuCoordinator(viewController: self, delegate: self)
         entityActionHandler = EntityActionHandler(viewController: self, delegate: self)
         ResearchManager.shared.setup(player: player)
-    
+        NotificationManager.shared.setup(localPlayerID: player.id)
+
+        setupNotificationBanner()
         setupAutoSave()
     
         // ✅ FIX: Only setup a new scene if NOT loading a saved game
@@ -731,6 +736,25 @@ class GameViewController: UIViewController {
         setupEntitiesBadge()
 
         view.addSubview(bottomBar)
+    }
+
+    // MARK: - Notification Banner
+
+    func setupNotificationBanner() {
+        let bannerContainer = NotificationBannerContainer()
+        bannerContainer.translatesAutoresizingMaskIntoConstraints = false
+        bannerContainer.delegate = self
+        view.addSubview(bannerContainer)
+
+        // Position below the resource panel
+        NSLayoutConstraint.activate([
+            bannerContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            bannerContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            bannerContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 100),
+            bannerContainer.heightAnchor.constraint(equalToConstant: 60)
+        ])
+
+        notificationBannerContainer = bannerContainer
     }
 
     func setupEntitiesBadge() {
@@ -2156,6 +2180,18 @@ extension GameViewController: EntityActionHandlerDelegate {
     // player and gameScene already exist as properties
     // updateResourceDisplay() already exists
     // showSimpleAlert() already exists
+}
+
+// MARK: - Notification Banner Delegate
+
+extension GameViewController: NotificationBannerDelegate {
+    func notificationBannerTapped(notification: GameNotification) {
+        // Jump to the notification's coordinate if available
+        if let coordinate = notification.coordinate {
+            gameScene.focusCamera(on: coordinate, zoom: 1.0, animated: true)
+            print("📍 Jumped to coordinate: \(coordinate)")
+        }
+    }
 }
 
 extension GameViewController: GameSceneDelegate {
