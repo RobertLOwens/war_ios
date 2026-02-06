@@ -145,4 +145,5 @@ extension Notification.Name {
     static let phasedCombatUpdated = Notification.Name("PhasedCombatUpdated")
     static let phasedCombatEnded = Notification.Name("PhasedCombatEnded")
     static let buildingCombatEnded = Notification.Name("BuildingCombatEnded")
+    static let starvationStarted = Notification.Name("StarvationStarted")
 }

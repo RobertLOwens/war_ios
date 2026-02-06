@@ -246,29 +246,35 @@ class GameVisualLayer {
     private func handleBuildingConstructionStarted(buildingID: UUID) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
         buildingNode.updateAppearance()
+        buildingNode.setupConstructionBar()
     }
 
     private func handleBuildingConstructionProgress(buildingID: UUID, progress: Double) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
         buildingNode.data.constructionProgress = progress
         buildingNode.updateAppearance()
+        buildingNode.updateConstructionBar(progress: progress)
     }
 
     private func handleBuildingCompleted(buildingID: UUID) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
         buildingNode.data.state = .completed
         buildingNode.updateAppearance()
+        buildingNode.removeConstructionBar()
+        buildingNode.setupHealthBar()
     }
 
     private func handleBuildingUpgradeStarted(buildingID: UUID, toLevel: Int) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
         buildingNode.updateAppearance()
+        buildingNode.setupUpgradeBar()
     }
 
     private func handleBuildingUpgradeProgress(buildingID: UUID, progress: Double) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
         buildingNode.data.upgradeProgress = progress
         buildingNode.updateAppearance()
+        buildingNode.updateUpgradeBar(progress: progress)
     }
 
     private func handleBuildingUpgradeCompleted(buildingID: UUID, newLevel: Int) {
@@ -276,6 +282,7 @@ class GameVisualLayer {
         buildingNode.data.level = newLevel
         buildingNode.data.state = .completed
         buildingNode.updateAppearance()
+        buildingNode.removeUpgradeBar()
     }
 
     private func handleBuildingDemolitionStarted(buildingID: UUID) {
@@ -615,6 +622,21 @@ class GameVisualLayer {
 
     func getEntityNode(id: UUID) -> EntityNode? {
         return entityNodes[id]
+    }
+
+    /// Register a building node created outside the visual layer (e.g. by BuildCommand)
+    func registerBuildingNode(id: UUID, node: BuildingNode) {
+        guard buildingNodes[id] == nil else { return }
+        buildingNodes[id] = node
+        if node.data.state != .constructing && node.data.state != .planning {
+            node.setupHealthBar()
+        }
+    }
+
+    /// Register an entity node created outside the visual layer (e.g. by DeployCommand)
+    func registerEntityNode(id: UUID, node: EntityNode) {
+        guard entityNodes[id] == nil else { return }
+        entityNodes[id] = node
     }
 }
 

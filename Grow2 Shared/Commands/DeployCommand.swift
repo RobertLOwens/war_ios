@@ -93,8 +93,17 @@ struct DeployArmyCommand: GameCommand {
         context.hexMap.addEntity(armyNode)
         player.addArmy(army)
 
+        // Register in GameState so combat/movement engines can find it
+        GameEngine.shared.gameState?.addArmy(army.data)
+
         // Add visual sprite to scene
         context.gameScene?.entitiesNode.addChild(armyNode)
+
+        // Register in visual layer for movement/combat handlers
+        context.gameScene?.visualLayer?.registerEntityNode(id: army.id, node: armyNode)
+
+        // Add to player's entity list
+        player.addEntity(army)
 
         // Setup health bar for combat visualization
         armyNode.setupHealthBar(currentPlayer: context.getPlayer(by: playerID))
@@ -184,13 +193,18 @@ struct DeployVillagersCommand: GameCommand {
         
         let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
         villagerNode.position = position
-        villagerNode.zPosition = 10
 
         // Add to hexMap tracking
         context.hexMap.addEntity(villagerNode)
 
+        // Register in GameState so engines can find it
+        GameEngine.shared.gameState?.addVillagerGroup(villagers.data)
+
         // ADD VISUAL SPRITE TO SCENE
         context.gameScene?.entitiesNode.addChild(villagerNode)
+
+        // Register in visual layer
+        context.gameScene?.visualLayer?.registerEntityNode(id: villagers.id, node: villagerNode)
 
         // Add to player's entity list
         player.addEntity(villagers)

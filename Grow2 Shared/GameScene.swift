@@ -1224,6 +1224,8 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             if zeroFoodStartTime == nil {
                 zeroFoodStartTime = currentTime
                 print("Warning: Food reached 0! Starvation timer started.")
+                // Notify UI immediately so countdown starts without delay
+                NotificationCenter.default.post(name: .starvationStarted, object: nil)
             } else {
                 // Check if time limit exceeded
                 let timeAtZeroFood = currentTime - zeroFoodStartTime!

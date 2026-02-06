@@ -207,6 +207,10 @@ class EntityActionHandler {
         // Add to game
         hexMap.addEntity(entityNode)
         gameScene.entitiesNode.addChild(entityNode)
+
+        // Register in visual layer
+        gameScene.visualLayer?.registerEntityNode(id: army.id, node: entityNode)
+
         player.addEntity(army)
         player.addArmy(army)
         

@@ -142,7 +142,7 @@ class LiveCombatViewController: UIViewController {
             attackerView.topAnchor.constraint(equalTo: terrainLabel.bottomAnchor, constant: 15),
             attackerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 15),
             attackerView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -15),
-            attackerView.heightAnchor.constraint(equalToConstant: 180),
+            attackerView.heightAnchor.constraint(equalToConstant: 240),
 
             // VS label
             vsLabel.topAnchor.constraint(equalTo: attackerView.bottomAnchor, constant: 10),
@@ -152,7 +152,7 @@ class LiveCombatViewController: UIViewController {
             defenderView.topAnchor.constraint(equalTo: vsLabel.bottomAnchor, constant: 10),
             defenderView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 15),
             defenderView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -15),
-            defenderView.heightAnchor.constraint(equalToConstant: 180),
+            defenderView.heightAnchor.constraint(equalToConstant: 240),
         ])
     }
 
@@ -230,17 +230,22 @@ class LiveCombatViewController: UIViewController {
         }
         terrainLabel.text = terrainText
 
+        // Compute shared HP scale so the weaker army's bar starts shorter
+        let maxHP = max(combat.attackerState.initialTotalHP, combat.defenderState.initialTotalHP)
+
         // Update side views
         attackerView.configure(
             name: combat.attackerArmy?.name ?? "Attacker",
             commander: combat.attackerArmy?.commander?.name,
-            state: combat.attackerState
+            state: combat.attackerState,
+            maxHP: maxHP
         )
 
         defenderView.configure(
             name: combat.defenderArmy?.name ?? "Defender",
             commander: combat.defenderArmy?.commander?.name,
-            state: combat.defenderState
+            state: combat.defenderState,
+            maxHP: maxHP
         )
 
         // Check if combat ended
@@ -287,8 +292,7 @@ class CombatSideView: UIView {
     let totalUnitsLabel = UILabel()
     let hpBarBackground = UIView()
     let hpBarFill = UIView()
-    let unitBreakdownLabel = UILabel()
-    let damageLabel = UILabel()
+    let unitTableStack = UIStackView()
     var hpBarFillWidthConstraint: NSLayoutConstraint?
 
     init(isAttacker: Bool) {
@@ -319,8 +323,8 @@ class CombatSideView: UIView {
         commanderLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(commanderLabel)
 
-        // Total units label
-        totalUnitsLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 28, weight: .bold)
+        // Total units label (now shows HP)
+        totalUnitsLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 22, weight: .bold)
         totalUnitsLabel.textColor = .white
         totalUnitsLabel.textAlignment = .right
         totalUnitsLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -338,18 +342,11 @@ class CombatSideView: UIView {
         hpBarFill.translatesAutoresizingMaskIntoConstraints = false
         hpBarBackground.addSubview(hpBarFill)
 
-        // Unit breakdown
-        unitBreakdownLabel.font = UIFont.systemFont(ofSize: 12)
-        unitBreakdownLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
-        unitBreakdownLabel.numberOfLines = 3
-        unitBreakdownLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(unitBreakdownLabel)
-
-        // Damage label
-        damageLabel.font = UIFont.systemFont(ofSize: 12, weight: .medium)
-        damageLabel.textColor = .systemOrange
-        damageLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(damageLabel)
+        // Unit table stack
+        unitTableStack.axis = .vertical
+        unitTableStack.spacing = 2
+        unitTableStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(unitTableStack)
 
         setupConstraints()
     }
@@ -358,11 +355,11 @@ class CombatSideView: UIView {
         hpBarFillWidthConstraint = hpBarFill.widthAnchor.constraint(equalTo: hpBarBackground.widthAnchor, multiplier: 1.0)
 
         NSLayoutConstraint.activate([
-            // Total units at top right
+            // Total HP at top right
             totalUnitsLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
             totalUnitsLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
 
-            // HP bar at top (most prominent, leaving room for unit count)
+            // HP bar at top (most prominent, leaving room for HP count)
             hpBarBackground.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             hpBarBackground.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
             hpBarBackground.trailingAnchor.constraint(equalTo: totalUnitsLabel.leadingAnchor, constant: -12),
@@ -375,32 +372,30 @@ class CombatSideView: UIView {
             hpBarFillWidthConstraint!,
 
             // Name below HP bar
-            nameLabel.topAnchor.constraint(equalTo: hpBarBackground.bottomAnchor, constant: 10),
+            nameLabel.topAnchor.constraint(equalTo: hpBarBackground.bottomAnchor, constant: 8),
             nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
 
             // Commander below name
             commanderLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
             commanderLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
 
-            // Unit breakdown below commander
-            unitBreakdownLabel.topAnchor.constraint(equalTo: commanderLabel.bottomAnchor, constant: 8),
-            unitBreakdownLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
-            unitBreakdownLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
-
-            // Damage at bottom
-            damageLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
-            damageLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
+            // Unit table below commander
+            unitTableStack.topAnchor.constraint(equalTo: commanderLabel.bottomAnchor, constant: 6),
+            unitTableStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
+            unitTableStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
         ])
     }
 
-    func configure(name: String, commander: String?, state: SideCombatState) {
+    func configure(name: String, commander: String?, state: SideCombatState, maxHP: Double) {
         nameLabel.text = isAttacker ? "Attacker: \(name)" : "Defender: \(name)"
         commanderLabel.text = commander.map { "Commander: \($0)" } ?? "No Commander"
 
-        totalUnitsLabel.text = "\(state.totalUnits)"
+        // Show total HP remaining
+        let currentHP = Int(state.currentTotalHP)
+        totalUnitsLabel.text = "\(currentHP) HP"
 
-        // Calculate HP percentage
-        let percentage = state.initialUnitCount > 0 ? CGFloat(state.totalUnits) / CGFloat(state.initialUnitCount) : 0
+        // Calculate HP percentage using shared maxHP scale
+        let percentage: CGFloat = maxHP > 0 ? CGFloat(state.currentTotalHP / maxHP) : 0
 
         // Update HP bar with animation
         hpBarFillWidthConstraint?.isActive = false
@@ -411,28 +406,42 @@ class CombatSideView: UIView {
             self.layoutIfNeeded()
         }
 
-        // Change color based on HP percentage
-        if percentage < 0.25 {
+        // Color based on this side's own HP ratio
+        let ownRatio = state.initialTotalHP > 0 ? state.currentTotalHP / state.initialTotalHP : 0
+        if ownRatio < 0.25 {
             hpBarFill.backgroundColor = .systemRed
-        } else if percentage < 0.5 {
+        } else if ownRatio < 0.5 {
             hpBarFill.backgroundColor = .systemOrange
         } else {
             hpBarFill.backgroundColor = isAttacker ? .systemRed : .systemBlue
         }
 
-        // Unit breakdown
-        var breakdown = ""
-        let sortedUnits = state.unitCounts.sorted { $0.value > $1.value }
-        for (unitType, count) in sortedUnits.prefix(4) {
-            if count > 0 {
-                breakdown += "\(unitType.icon) \(unitType.displayName): \(count)  "
+        // Rebuild unit table
+        unitTableStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        // Sort by initial composition (show all unit types that participated)
+        let allTypes = state.initialComposition.sorted { $0.key.displayName < $1.key.displayName }
+
+        if allTypes.isEmpty {
+            let emptyLabel = UILabel()
+            emptyLabel.text = "No units remaining"
+            emptyLabel.font = UIFont.systemFont(ofSize: 12)
+            emptyLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
+            unitTableStack.addArrangedSubview(emptyLabel)
+        } else {
+            for (unitType, initialCount) in allTypes {
+                let currentCount = state.unitCounts[unitType] ?? 0
+                let damage = state.damageDealtByType[unitType] ?? 0
+
+                let row = UILabel()
+                row.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+                row.textColor = currentCount > 0 ? UIColor(white: 0.8, alpha: 1.0) : UIColor(white: 0.4, alpha: 1.0)
+
+                let nameStr = unitType.displayName.padding(toLength: 12, withPad: " ", startingAt: 0)
+                row.text = "\(unitType.icon) \(nameStr) \(currentCount)/\(initialCount)  DMG: \(Int(damage))"
+                unitTableStack.addArrangedSubview(row)
             }
         }
-        unitBreakdownLabel.text = breakdown.isEmpty ? "No units remaining" : breakdown
-
-        // Total damage dealt
-        let totalDamage = state.damageDealtByType.values.reduce(0, +)
-        damageLabel.text = "Damage Dealt: \(Int(totalDamage))"
     }
 
     func showWinner() {

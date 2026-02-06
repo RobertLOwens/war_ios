@@ -116,14 +116,16 @@ struct RecruitCommanderCommand: GameCommand {
         // Set position and add to scene
         let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
         entityNode.position = position
-        entityNode.zPosition = 10
         
         // Add to hexMap tracking
         context.hexMap.addEntity(entityNode)
         
         // ADD VISUAL SPRITE TO SCENE
         context.gameScene?.entitiesNode.addChild(entityNode)
-        
+
+        // Register in visual layer
+        context.gameScene?.visualLayer?.registerEntityNode(id: army.id, node: entityNode)
+
         // Add to player's tracking
         player.addArmy(army)
         player.addEntity(army)

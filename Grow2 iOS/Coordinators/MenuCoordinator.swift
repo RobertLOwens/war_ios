@@ -119,7 +119,7 @@ class MenuCoordinator {
         // -------------------------
         // MARK: - Resource Info
         // -------------------------
-        if let resourcePoint = hexMap.getResourcePoint(at: coordinate), visibility == .visible {
+        if let resourcePoint = hexMap.getResourcePoint(at: coordinate), (visibility == .visible || visibility == .explored) {
             // Check if there's a building (camp) at this location
             let buildingAtLocation = hexMap.getBuilding(at: coordinate)
 
@@ -206,6 +206,7 @@ class MenuCoordinator {
 
         let buildingAtCoordinate = hexMap.getBuilding(at: coordinate)
 
+        // Building attack option
         if let building = buildingAtCoordinate,
            let buildingOwner = building.owner,
            visibility == .visible {
@@ -218,22 +219,21 @@ class MenuCoordinator {
                     })
                 }
             }
-        } else {
-            // No building - check for enemy entities
-            let enemyEntities = visibleEntities.filter { entity in
-                guard entity.entity.owner != nil else { return false }
-                let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
-                return diplomacyStatus == .enemy
-            }
+        }
 
-            if !enemyEntities.isEmpty {
-                // Check if player has armies that can attack
-                let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
-                if !playerArmies.isEmpty {
-                    actions.append(AlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] in
-                        self?.showAttackerSelectionForTile(enemies: enemyEntities, at: coordinate)
-                    })
-                }
+        // Entity attack option (independent of building presence)
+        let enemyEntities = visibleEntities.filter { entity in
+            guard entity.entity.owner != nil else { return false }
+            let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
+            return diplomacyStatus == .enemy
+        }
+
+        if !enemyEntities.isEmpty {
+            let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+            if !playerArmies.isEmpty {
+                actions.append(AlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] in
+                    self?.showAttackerSelectionForTile(enemies: enemyEntities, at: coordinate)
+                })
             }
         }
 
@@ -274,25 +274,35 @@ class MenuCoordinator {
                 }
             }
             
-            actions.append(AlertAction(title: buttonTitle) { [weak self] in
-                if let villagers = entity.entity as? VillagerGroup {
-                    switch villagers.currentTask {
-                    case .gatheringResource, .hunting:
-                        self?.showVillagerOptionsMenu(villagerGroup: villagers, entityNode: entity)
-                    default:
-                        self?.showVillagerMenu(at: coordinate, villagerGroup: entity)
-                    }
+            if let villagers = entity.entity as? VillagerGroup {
+                if villagers.owner?.id != player.id {
+                    // Enemy villager - destructive style, triggers attack selection
+                    actions.append(AlertAction(title: buttonTitle, style: .destructive) { [weak self] in
+                        self?.showAttackerSelectionForTile(enemies: [entity], at: coordinate)
+                    })
                 } else {
-                    self?.showEntityActionMenu(for: entity, at: coordinate)
+                    // Own villager - normal menu
+                    actions.append(AlertAction(title: buttonTitle) { [weak self] in
+                        switch villagers.currentTask {
+                        case .gatheringResource, .hunting:
+                            self?.showVillagerOptionsMenu(villagerGroup: villagers, entityNode: entity)
+                        default:
+                            self?.showVillagerMenu(at: coordinate, villagerGroup: entity)
+                        }
+                    })
                 }
-            })
+            } else {
+                actions.append(AlertAction(title: buttonTitle) { [weak self] in
+                    self?.showEntityActionMenu(for: entity, at: coordinate)
+                })
+            }
         }
         
         // -------------------------
         // MARK: - Build Here Option
         // -------------------------
         // Show build option if tile is empty and buildable (no building, walkable terrain)
-        if visibility == .visible {
+        if visibility == .visible || visibility == .explored {
             let existingBuilding = hexMap.getBuilding(at: coordinate)
             let canBuildHere = hexMap.isWalkable(coordinate) && (existingBuilding == nil || existingBuilding?.buildingType.isRoad == true)
 
@@ -1496,34 +1506,6 @@ class MenuCoordinator {
             onCancel: { [weak self] in
                 self?.delegate?.deselectAll()
             }
-        )
-    }
-    
-    // MARK: - Game Menu
-    
-    func showGameMenu() {
-        guard let vc = viewController,
-              let gameVC = vc as? GameViewController else { return }
-
-        let actions: [AlertAction] = [
-            AlertAction(title: "💾 Save Game") {
-                gameVC.manualSave()
-            },
-            AlertAction(title: "📂 Load Game") {
-                gameVC.confirmLoad()
-            },
-            AlertAction(title: "🏳️ Resign", style: .destructive) {
-                gameVC.confirmResign()
-            },
-            AlertAction(title: "🏠 Main Menu") {
-                gameVC.returnToMainMenu()
-            }
-        ]
-
-        vc.showActionSheet(
-            title: "⚙️ Game Menu",
-            actions: actions,
-            sourceRect: CGRect(x: vc.view.bounds.width - 70, y: 50, width: 0, height: 0)
         )
     }
     

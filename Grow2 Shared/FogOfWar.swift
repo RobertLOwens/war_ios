@@ -141,8 +141,19 @@ class FogOfWarManager {
         // Vision from entities (2 tile radius)
         var entityVisionCount = 0
         for entity in hexMap.entities {
-            guard entity.entity.owner?.id == player.id else { continue }
-            
+            // Check both weak owner ref and data-layer ownerID for reliability
+            let isOwnedByPlayer: Bool
+            if entity.entity.owner?.id == player.id {
+                isOwnedByPlayer = true
+            } else if let army = entity.entity as? Army, army.data.ownerID == player.id {
+                isOwnedByPlayer = true
+            } else if let villagers = entity.entity as? VillagerGroup, villagers.data.ownerID == player.id {
+                isOwnedByPlayer = true
+            } else {
+                isOwnedByPlayer = false
+            }
+            guard isOwnedByPlayer else { continue }
+
             let coord: HexCoordinate
             if let army = entity.entity as? Army {
                 coord = army.coordinate

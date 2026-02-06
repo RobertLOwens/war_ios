@@ -325,15 +325,27 @@ class EntityNode: SKSpriteNode {
     }
 
     func updateVisibility(for player: Player) {
+        // Own entities should always be visible to their owner.
+        // Check both weak owner reference AND data-layer ownerID for reliability,
+        // since owner is a weak ref that may be nil for engine-created entities.
+        if entity.owner?.id == player.id {
+            self.isHidden = false
+            return
+        }
+        if let army = entity as? Army, army.data.ownerID == player.id {
+            self.isHidden = false
+            return
+        }
+        if let villagers = entity as? VillagerGroup, villagers.data.ownerID == player.id {
+            self.isHidden = false
+            return
+        }
+
         if let fogOfWar = player.fogOfWar {
             let visibility = fogOfWar.getVisibilityLevel(at: coordinate)
-            
-            // ✅ FIX: Only show entity if tile is VISIBLE (not just explored)
             let shouldShow = visibility == .visible &&
                             fogOfWar.shouldShowEntity(entity, at: coordinate)
-            
             self.isHidden = !shouldShow
-        
         }
     }
     

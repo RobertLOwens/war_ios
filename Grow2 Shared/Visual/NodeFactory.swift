@@ -66,25 +66,15 @@ class NodeFactory {
 
     /// Create an EntityNode from ArmyData
     func createEntityNode(from armyData: ArmyData) -> EntityNode {
-        // First create the Army object
+        // Create the Army object, passing existing data to preserve ownerID
         let army = Army(
             id: armyData.id,
             name: armyData.name,
             coordinate: armyData.coordinate,
             commander: nil,
-            owner: nil
+            owner: nil,
+            data: armyData
         )
-
-        // Copy composition
-        for (unitTypeData, count) in armyData.militaryComposition {
-            if let unitType = MilitaryUnitType(rawValue: unitTypeData.rawValue) {
-                army.addMilitaryUnits(unitType, count: count)
-            }
-        }
-
-        // Copy state
-        army.isRetreating = armyData.isRetreating
-        army.homeBaseID = armyData.homeBaseID
 
         // Create the entity node with correct initializer
         let entityNode = EntityNode(
@@ -129,12 +119,13 @@ class NodeFactory {
 
     /// Create an EntityNode from VillagerGroupData
     func createEntityNode(from groupData: VillagerGroupData) -> EntityNode {
-        // Create the VillagerGroup object
+        // Create the VillagerGroup object, passing existing data to preserve ownerID
         let villagerGroup = VillagerGroup(
             name: groupData.name,
             coordinate: groupData.coordinate,
             villagerCount: groupData.villagerCount,
-            owner: nil
+            owner: nil,
+            data: groupData
         )
 
         // Create the entity node with correct initializer

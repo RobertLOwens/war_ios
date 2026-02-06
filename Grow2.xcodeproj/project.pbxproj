@@ -67,16 +67,15 @@
 		3FEBD1FF2EF3258E00341AEE /* CommanderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */; };
 		3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2002EF360E200341AEE /* CombatRecord.swift */; };
 		3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */; };
-		3FNOTFINBX1000000100NFIB /* NotificationsInboxViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */; };
 		3FEBD2072EF3B10200341AEE /* Diplomacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2062EF3B10200341AEE /* Diplomacy.swift */; };
 		3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2082F006EE800341AEE /* FogOfWar.swift */; };
 		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
 		3FENGN0001000000000AICNT /* AIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AICNT /* AIController.swift */; };
 		3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CMENG /* CombatEngine.swift */; };
-		3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DMGCL /* DamageCalculator.swift */; };
-		3FENGN0001000000000GRDEF /* GarrisonDefenseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */; };
 		3FENGN0001000000000CNENG /* ConstructionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CNENG /* ConstructionEngine.swift */; };
+		3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DMGCL /* DamageCalculator.swift */; };
 		3FENGN0001000000000GMENG /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GMENG /* GameEngine.swift */; };
+		3FENGN0001000000000GRDEF /* GarrisonDefenseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */; };
 		3FENGN0001000000000MVENG /* MovementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000MVENG /* MovementEngine.swift */; };
 		3FENGN0001000000000RSENG /* ResourceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000RSENG /* ResourceEngine.swift */; };
 		3FENGN0001000000000SYADP /* SystemAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000SYADP /* SystemAdapters.swift */; };
@@ -102,9 +101,15 @@
 		3FGTHENTPNL1000000100GTHE /* GatherEntityPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGTHENTPNL2000000100GTHE /* GatherEntityPanelViewController.swift */; };
 		3FJNVLRCMD10000000100JNVL /* JoinVillagerGroupCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FJNVLRCMD20000000100JNVL /* JoinVillagerGroupCommand.swift */; };
 		3FLIVECBT12F28D00100LIVEC /* LiveCombatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */; };
+		3FMILTOVW10000000100MILTO /* MilitaryOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */; };
 		3FMRCHVLRG10000000100MRVG /* MarchingVillagerGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMRCHVLRG20000000100MRVG /* MarchingVillagerGroup.swift */; };
 		3FMRCHVLRN10000000100MRVN /* MarchingVillagerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMRCHVLRN20000000100MRVN /* MarchingVillagerNode.swift */; };
 		3FMVENTPNL12F2CC00100MVEP /* MoveEntityPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */; };
+		3FNOTFINBX1000000100NFIB /* NotificationsInboxViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */; };
+		3FNOTIF0001000000000GMNOT /* GameNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000GMNOT /* GameNotification.swift */; };
+		3FNOTIF0001000000000NSTNG /* NotificationSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */; };
+		3FNOTIF0001000000000NTFBV /* NotificationBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */; };
+		3FNOTIF0001000000000NTFMG /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFMG /* NotificationManager.swift */; };
 		3FPNLLAYOT1000000100PLAY /* PanelLayoutConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FPNLLAYOT2000000100PLAY /* PanelLayoutConstants.swift */; };
 		3FPNLTHEME1000000100PTHM /* PanelTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FPNLTHEME2000000100PTHM /* PanelTheme.swift */; };
 		3FREINGRP12F29A00100REINF /* ReinforcementGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */; };
@@ -112,7 +117,6 @@
 		3FREINPNL10000000100REINP /* ReinforcePanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */; };
 		3FRETREAT12F2AA00100RETRT /* RetreatCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */; };
 		3FROOT0001000000000GSINT /* GameSceneEngineIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */; };
-		3FMILTOVW10000000100MILTO /* MilitaryOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */; };
 		3FRSRCOVW10000000100RSRCO /* ResourceOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */; };
 		3FSIDEPNLVC1000000100SPVC /* SidePanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */; };
 		3FVISL0001000000000GMVSL /* GameVisualLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVISL0002000000000GMVSL /* GameVisualLayer.swift */; };
@@ -120,10 +124,6 @@
 		3FVLRDPLPNL1000000100VDPL /* VillagerDeploymentPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */; };
 		3FVLRJNMGR10000000100VJMG /* VillagerJoinManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */; };
 		3FVLRTSKWR1000000100VTWH /* VillagerTaskWarningHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */; };
-		3FNOTIF0001000000000GMNOT /* GameNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000GMNOT /* GameNotification.swift */; };
-		3FNOTIF0001000000000NTFMG /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFMG /* NotificationManager.swift */; };
-		3FNOTIF0001000000000NTFBV /* NotificationBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */; };
-		3FNOTIF0001000000000NSTNG /* NotificationSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -189,16 +189,15 @@
 		3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommanderViewController.swift; sourceTree = "<group>"; };
 		3FEBD2002EF360E200341AEE /* CombatRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatRecord.swift; sourceTree = "<group>"; };
 		3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatHistoryViewController.swift; sourceTree = "<group>"; };
-		3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsInboxViewController.swift; sourceTree = "<group>"; };
 		3FEBD2062EF3B10200341AEE /* Diplomacy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diplomacy.swift; sourceTree = "<group>"; };
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000AICNT /* AIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIController.swift; sourceTree = "<group>"; };
-		3FENGN0002000000000DMGCL /* DamageCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageCalculator.swift; sourceTree = "<group>"; };
-		3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarrisonDefenseEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CMENG /* CombatEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CNENG /* ConstructionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstructionEngine.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000DMGCL /* DamageCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageCalculator.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GMENG /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarrisonDefenseEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000MVENG /* MovementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovementEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000RSENG /* ResourceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000SYADP /* SystemAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAdapters.swift; sourceTree = "<group>"; };
@@ -224,9 +223,15 @@
 		3FGTHENTPNL2000000100GTHE /* GatherEntityPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatherEntityPanelViewController.swift; sourceTree = "<group>"; };
 		3FJNVLRCMD20000000100JNVL /* JoinVillagerGroupCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinVillagerGroupCommand.swift; sourceTree = "<group>"; };
 		3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCombatViewController.swift; sourceTree = "<group>"; };
+		3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilitaryOverviewViewController.swift; sourceTree = "<group>"; };
 		3FMRCHVLRG20000000100MRVG /* MarchingVillagerGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarchingVillagerGroup.swift; sourceTree = "<group>"; };
 		3FMRCHVLRN20000000100MRVN /* MarchingVillagerNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarchingVillagerNode.swift; sourceTree = "<group>"; };
 		3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveEntityPanelViewController.swift; sourceTree = "<group>"; };
+		3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsInboxViewController.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000GMNOT /* GameNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameNotification.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettings.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationBannerView.swift; sourceTree = "<group>"; };
+		3FNOTIF0002000000000NTFMG /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		3FPNLLAYOT2000000100PLAY /* PanelLayoutConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelLayoutConstants.swift; sourceTree = "<group>"; };
 		3FPNLTHEME2000000100PTHM /* PanelTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelTheme.swift; sourceTree = "<group>"; };
 		3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementGroup.swift; sourceTree = "<group>"; };
@@ -234,7 +239,6 @@
 		3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcePanelViewController.swift; sourceTree = "<group>"; };
 		3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetreatCommand.swift; sourceTree = "<group>"; };
 		3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneEngineIntegration.swift; sourceTree = "<group>"; };
-		3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilitaryOverviewViewController.swift; sourceTree = "<group>"; };
 		3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceOverviewViewController.swift; sourceTree = "<group>"; };
 		3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidePanelViewController.swift; sourceTree = "<group>"; };
 		3FVISL0002000000000GMVSL /* GameVisualLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameVisualLayer.swift; sourceTree = "<group>"; };
@@ -242,10 +246,6 @@
 		3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerDeploymentPanelViewController.swift; sourceTree = "<group>"; };
 		3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerJoinManager.swift; sourceTree = "<group>"; };
 		3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerTaskWarningHelper.swift; sourceTree = "<group>"; };
-		3FNOTIF0002000000000GMNOT /* GameNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameNotification.swift; sourceTree = "<group>"; };
-		3FNOTIF0002000000000NTFMG /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
-		3FNOTIF0002000000000NTFBV /* NotificationBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationBannerView.swift; sourceTree = "<group>"; };
-		3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -304,7 +304,6 @@
 				3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */,
 				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
 				3F34D5B02ECA5CD900AE6DF0 /* Building.swift */,
-				3F286A042F195A5B004636ED /* BuildingData.swift */,
 				3F6225A92F2BE74300A6F7D4 /* BuildingPlacementController.swift */,
 				3F9892722F21DBC0008A24E7 /* CombatState.swift */,
 				3F286A0E2F196114004636ED /* Commands */,
@@ -376,6 +375,7 @@
 			isa = PBXGroup;
 			children = (
 				3FDATA0002000000000ARMYD /* ArmyData.swift */,
+				3F286A042F195A5B004636ED /* BuildingData.swift */,
 				3FDATA0002000000000GMEST /* GameState.swift */,
 				3FDATA0002000000000MAPDT /* MapData.swift */,
 				3FDATA0002000000000PLRST /* PlayerState.swift */,
@@ -486,15 +486,6 @@
 			path = Coordinators;
 			sourceTree = "<group>";
 		};
-		3FVISL0003000000000VSLGP /* Visual */ = {
-			isa = PBXGroup;
-			children = (
-				3FVISL0002000000000GMVSL /* GameVisualLayer.swift */,
-				3FVISL0002000000000NDFCT /* NodeFactory.swift */,
-			);
-			path = Visual;
-			sourceTree = "<group>";
-		};
 		3FNOTIF0003000000000NOTGP /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
@@ -502,6 +493,15 @@
 				3FNOTIF0002000000000NTFMG /* NotificationManager.swift */,
 			);
 			path = Notifications;
+			sourceTree = "<group>";
+		};
+		3FVISL0003000000000VSLGP /* Visual */ = {
+			isa = PBXGroup;
+			children = (
+				3FVISL0002000000000GMVSL /* GameVisualLayer.swift */,
+				3FVISL0002000000000NDFCT /* NodeFactory.swift */,
+			);
+			path = Visual;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

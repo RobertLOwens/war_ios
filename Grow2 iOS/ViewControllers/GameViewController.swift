@@ -46,6 +46,13 @@ class GameViewController: UIViewController {
     private var notificationBellBadge: UIView?
     private var notificationBellBadgeLabel: UILabel?
 
+    // Gear menu button (top-right, next to bell)
+    private var menuGearButton: UIButton?
+
+    // Top-right button container
+    private var topButtonStack: UIStackView?
+    private var resourcePanelBottomConstraint: NSLayoutConstraint?
+
     private struct AssociatedKeys {
         static var unitLabels: UInt8 = 0
         static var garrisonData: UInt8 = 1
@@ -78,6 +85,7 @@ class GameViewController: UIViewController {
 
         setupNotificationBanner()
         setupNotificationBell()
+        setupMenuGearButton()
         setupAutoSave()
     
         // ✅ FIX: Only setup a new scene if NOT loading a saved game
@@ -142,6 +150,14 @@ class GameViewController: UIViewController {
             self,
             selector: #selector(handleJumpToCoordinate),
             name: .jumpToCoordinate,
+            object: nil
+        )
+
+        // Listen for starvation start to immediately show countdown
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleStarvationStarted),
+            name: .starvationStarted,
             object: nil
         )
 
@@ -559,7 +575,7 @@ class GameViewController: UIViewController {
             let cap = player.getStorageCapacity(for: resourceType)
             let rate = player.getCollectionRate(resourceType)
             let storagePercent = player.getStoragePercent(for: resourceType)
-            
+
             // Color based on how full this resource's storage is
             let textColor: UIColor
             if storagePercent >= 1.0 {
@@ -569,11 +585,24 @@ class GameViewController: UIViewController {
             } else {
                 textColor = .white
             }
-            
-            label.textColor = textColor
-            
-            // ✅ Show per-resource cap: "🪵 500/800 (+0.5/s)"
-            label.text = "\(resourceType.icon) \(amount)/\(cap) (+\(String(format: "%.1f", rate))/s)"
+
+            if resourceType == .food {
+                // Show net food rate (production minus population consumption)
+                let consumptionRate = player.getFoodConsumptionRate()
+                let netRate = rate - consumptionRate
+                let sign = netRate >= 0 ? "+" : ""
+                label.text = "\(resourceType.icon) \(amount)/\(cap) (\(sign)\(String(format: "%.1f", netRate))/s)"
+                if netRate < 0 {
+                    label.textColor = .systemRed
+                } else if storagePercent >= 1.0 {
+                    label.textColor = .systemRed
+                } else {
+                    label.textColor = .systemGreen
+                }
+            } else {
+                label.textColor = textColor
+                label.text = "\(resourceType.icon) \(amount)/\(cap) (+\(String(format: "%.1f", rate))/s)"
+            }
         }
         
         // Population display
@@ -620,10 +649,32 @@ class GameViewController: UIViewController {
     }
     
     func setupUI() {
-        // Resource Panel (Top) - Full width (expanded to fit starvation countdown)
-        resourcePanel = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 94))
+        // Resource Panel (Top) - Auto Layout, height determined by content
+        resourcePanel = UIView()
         resourcePanel.backgroundColor = UIColor(white: 0.1, alpha: 0.9)
-        resourcePanel.autoresizingMask = [.flexibleWidth]
+        resourcePanel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(resourcePanel)
+
+        // Resource panel: full-width bar across the top
+        NSLayoutConstraint.activate([
+            resourcePanel.topAnchor.constraint(equalTo: view.topAnchor),
+            resourcePanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            resourcePanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+
+        // Top-right button stack (menu + mailbox) inside the resource panel
+        let buttonStack = UIStackView()
+        buttonStack.axis = .horizontal
+        buttonStack.spacing = 4
+        buttonStack.alignment = .center
+        buttonStack.translatesAutoresizingMaskIntoConstraints = false
+        resourcePanel.addSubview(buttonStack)
+
+        NSLayoutConstraint.activate([
+            buttonStack.trailingAnchor.constraint(equalTo: resourcePanel.trailingAnchor, constant: -8),
+            buttonStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
+        ])
+        topButtonStack = buttonStack
 
         // Resource labels - horizontal row across top
         let resourceTypes: [ResourceType] = [.wood, .food, .stone, .ore]
@@ -636,8 +687,8 @@ class GameViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             resourceStack.leadingAnchor.constraint(equalTo: resourcePanel.leadingAnchor, constant: 12),
-            resourceStack.trailingAnchor.constraint(equalTo: resourcePanel.trailingAnchor, constant: -12),
-            resourceStack.topAnchor.constraint(equalTo: resourcePanel.topAnchor, constant: 8),
+            resourceStack.trailingAnchor.constraint(equalTo: buttonStack.leadingAnchor, constant: -8),
+            resourceStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
             resourceStack.heightAnchor.constraint(equalToConstant: 24)
         ])
 
@@ -661,15 +712,16 @@ class GameViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             bottomStack.leadingAnchor.constraint(equalTo: resourcePanel.leadingAnchor, constant: 12),
-            bottomStack.trailingAnchor.constraint(equalTo: resourcePanel.trailingAnchor, constant: -12),
-            bottomStack.topAnchor.constraint(equalTo: resourceStack.bottomAnchor, constant: 6),
+            bottomStack.trailingAnchor.constraint(equalTo: buttonStack.leadingAnchor, constant: -8),
+            bottomStack.topAnchor.constraint(equalTo: resourceStack.bottomAnchor, constant: 4),
             bottomStack.heightAnchor.constraint(equalToConstant: 24)
         ])
 
-        // Population label
+        // Population label (centered)
         populationLabel = UILabel()
         populationLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
         populationLabel.textColor = .white
+        populationLabel.textAlignment = .center
         populationLabel.text = "👥 0/0 (-0.0 🌾/s)"
         bottomStack.addArrangedSubview(populationLabel)
 
@@ -683,6 +735,10 @@ class GameViewController: UIViewController {
             bottomStack.addArrangedSubview(storageLabel)
         }
 
+        // Panel bottom = bottomStack bottom + 8 (compact height)
+        resourcePanelBottomConstraint = resourcePanel.bottomAnchor.constraint(equalTo: bottomStack.bottomAnchor, constant: 8)
+        resourcePanelBottomConstraint?.isActive = true
+
         // Starvation countdown label (appears below bottom stack when food is 0)
         let starvationLabel = UILabel()
         starvationLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 16, weight: .bold)
@@ -695,13 +751,11 @@ class GameViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             starvationLabel.leadingAnchor.constraint(equalTo: resourcePanel.leadingAnchor, constant: 12),
-            starvationLabel.trailingAnchor.constraint(equalTo: resourcePanel.trailingAnchor, constant: -12),
+            starvationLabel.trailingAnchor.constraint(equalTo: buttonStack.leadingAnchor, constant: -8),
             starvationLabel.topAnchor.constraint(equalTo: bottomStack.bottomAnchor, constant: 4),
             starvationLabel.heightAnchor.constraint(equalToConstant: 20)
         ])
         starvationCountdownLabel = starvationLabel
-
-        view.addSubview(resourcePanel)
 
         // Bottom Button Bar
         let bottomBar = UIView(frame: CGRect(x: 0, y: view.bounds.height - 60, width: view.bounds.width, height: 60))
@@ -709,23 +763,22 @@ class GameViewController: UIViewController {
         bottomBar.autoresizingMask = [.flexibleWidth, .flexibleTopMargin]
 
         // Button stack view
-        let buttonStack = UIStackView()
-        buttonStack.axis = .horizontal
-        buttonStack.distribution = .fillEqually
-        buttonStack.spacing = 4
-        buttonStack.translatesAutoresizingMaskIntoConstraints = false
-        bottomBar.addSubview(buttonStack)
+        let bottomButtonStack = UIStackView()
+        bottomButtonStack.axis = .horizontal
+        bottomButtonStack.distribution = .fillEqually
+        bottomButtonStack.spacing = 4
+        bottomButtonStack.translatesAutoresizingMaskIntoConstraints = false
+        bottomBar.addSubview(bottomButtonStack)
 
         NSLayoutConstraint.activate([
-            buttonStack.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor, constant: 8),
-            buttonStack.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor, constant: -8),
-            buttonStack.topAnchor.constraint(equalTo: bottomBar.topAnchor, constant: 8),
-            buttonStack.bottomAnchor.constraint(equalTo: bottomBar.bottomAnchor, constant: -8)
+            bottomButtonStack.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor, constant: 8),
+            bottomButtonStack.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor, constant: -8),
+            bottomButtonStack.topAnchor.constraint(equalTo: bottomBar.topAnchor, constant: 8),
+            bottomButtonStack.bottomAnchor.constraint(equalTo: bottomBar.bottomAnchor, constant: -8)
         ])
 
         // Create buttons for bottom bar
         let buttonConfigs: [(title: String, action: Selector, color: UIColor)] = [
-            ("Menu", #selector(showGameMenu), UIColor(white: 0.25, alpha: 1.0)),
             ("Commanders", #selector(showCommandersScreen), UIColor(red: 0.3, green: 0.4, blue: 0.8, alpha: 1.0)),
             ("Battles", #selector(showCombatHistoryScreen), UIColor(red: 0.8, green: 0.3, blue: 0.3, alpha: 1.0)),
             ("Research", #selector(showResearchScreen), UIColor(red: 0.4, green: 0.6, blue: 0.3, alpha: 1.0)),
@@ -744,7 +797,7 @@ class GameViewController: UIViewController {
             button.setTitleColor(.white, for: .normal)
             button.layer.cornerRadius = 6
             button.addTarget(self, action: config.action, for: .touchUpInside)
-            buttonStack.addArrangedSubview(button)
+            bottomButtonStack.addArrangedSubview(button)
 
             // Store reference to Entities button for badge
             if config.title == "Entities" {
@@ -780,40 +833,53 @@ class GameViewController: UIViewController {
     // MARK: - Notification Bell
 
     func setupNotificationBell() {
-        // Create bell button
-        let button = UIButton(type: .system)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.setTitle("🔔", for: .normal)
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 22)
-        button.backgroundColor = UIColor(white: 0.15, alpha: 0.9)
-        button.layer.cornerRadius = 22
-        button.clipsToBounds = true
-        button.addTarget(self, action: #selector(showNotificationsInbox), for: .touchUpInside)
-        view.addSubview(button)
+        guard let buttonStack = topButtonStack else { return }
 
-        // Position top-right
+        // Menu button (left) - SF Symbol hamburger icon
+        let menuButton = UIButton(type: .system)
+        menuButton.translatesAutoresizingMaskIntoConstraints = false
+        let menuImage = UIImage(systemName: "line.3.horizontal")?.withConfiguration(
+            UIImage.SymbolConfiguration(pointSize: 16, weight: .medium))
+        menuButton.setImage(menuImage, for: .normal)
+        menuButton.tintColor = .white
+        menuButton.addTarget(self, action: #selector(showGameMenu), for: .touchUpInside)
+        buttonStack.addArrangedSubview(menuButton)
+
         NSLayoutConstraint.activate([
-            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            button.widthAnchor.constraint(equalToConstant: 44),
-            button.heightAnchor.constraint(equalToConstant: 44)
+            menuButton.widthAnchor.constraint(equalToConstant: 36),
+            menuButton.heightAnchor.constraint(equalToConstant: 36)
         ])
+        menuGearButton = menuButton
 
-        notificationBellButton = button
+        // Notification button (right) - SF Symbol envelope icon
+        let bellButton = UIButton(type: .system)
+        bellButton.translatesAutoresizingMaskIntoConstraints = false
+        let envelopeImage = UIImage(systemName: "envelope")?.withConfiguration(
+            UIImage.SymbolConfiguration(pointSize: 16, weight: .medium))
+        bellButton.setImage(envelopeImage, for: .normal)
+        bellButton.tintColor = .white
+        bellButton.addTarget(self, action: #selector(showNotificationsInbox), for: .touchUpInside)
+        buttonStack.addArrangedSubview(bellButton)
 
-        // Create badge
+        NSLayoutConstraint.activate([
+            bellButton.widthAnchor.constraint(equalToConstant: 36),
+            bellButton.heightAnchor.constraint(equalToConstant: 36)
+        ])
+        notificationBellButton = bellButton
+
+        // Create badge on envelope button
         let badge = UIView()
         badge.backgroundColor = .systemRed
-        badge.layer.cornerRadius = 9
+        badge.layer.cornerRadius = 8
         badge.clipsToBounds = true
         badge.translatesAutoresizingMaskIntoConstraints = false
         badge.isHidden = true
         badge.isUserInteractionEnabled = false
-        button.addSubview(badge)
+        bellButton.addSubview(badge)
 
         // Badge label
         let label = UILabel()
-        label.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        label.font = UIFont.systemFont(ofSize: 10, weight: .bold)
         label.textColor = .white
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -821,10 +887,10 @@ class GameViewController: UIViewController {
 
         // Position badge at top-right of button
         NSLayoutConstraint.activate([
-            badge.topAnchor.constraint(equalTo: button.topAnchor, constant: -4),
-            badge.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: 4),
-            badge.widthAnchor.constraint(greaterThanOrEqualToConstant: 18),
-            badge.heightAnchor.constraint(equalToConstant: 18),
+            badge.topAnchor.constraint(equalTo: bellButton.topAnchor, constant: -3),
+            badge.trailingAnchor.constraint(equalTo: bellButton.trailingAnchor, constant: 3),
+            badge.widthAnchor.constraint(greaterThanOrEqualToConstant: 16),
+            badge.heightAnchor.constraint(equalToConstant: 16),
 
             label.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
             label.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
@@ -845,6 +911,18 @@ class GameViewController: UIViewController {
 
         // Initial badge update
         updateNotificationBellBadge()
+    }
+
+    // MARK: - Menu Gear Button
+
+    func setupMenuGearButton() {
+        // Menu button is now created inside setupNotificationBell() as part of the button container
+    }
+
+    func showSettings() {
+        let settingsVC = SettingsViewController()
+        settingsVC.modalPresentationStyle = .fullScreen
+        present(settingsVC, animated: true)
     }
 
     @objc func updateNotificationBellBadge() {
@@ -935,6 +1013,9 @@ class GameViewController: UIViewController {
         guard starvationCountdownTimer == nil else { return }
 
         starvationCountdownLabel?.isHidden = false
+        // Expand panel to fit starvation label (bottomStack + 4 gap + 20 height + 4 padding)
+        resourcePanelBottomConstraint?.constant = 28
+        UIView.animate(withDuration: 0.2) { self.view.layoutIfNeeded() }
         updateStarvationCountdownLabel()
 
         starvationCountdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -950,6 +1031,9 @@ class GameViewController: UIViewController {
         starvationCountdownTimer = nil
         starvationCountdownLabel?.isHidden = true
         starvationCountdownLabel?.text = ""
+        // Shrink panel back to compact height
+        resourcePanelBottomConstraint?.constant = 8
+        UIView.animate(withDuration: 0.2) { self.view.layoutIfNeeded() }
 
         print("✅ Starvation countdown stopped - food restored")
     }
@@ -958,8 +1042,11 @@ class GameViewController: UIViewController {
     @objc func updateStarvationCountdownLabel() {
         guard let gameScene = gameScene,
               let remaining = gameScene.getStarvationTimeRemaining() else {
-            // No starvation in progress, stop the timer
-            stopStarvationCountdown()
+            // zeroFoodStartTime not set yet - show generic warning while waiting
+            // Don't call stopStarvationCountdown() here: it causes a race condition
+            // where the label is hidden before checkStarvationCondition() sets zeroFoodStartTime.
+            // Stopping is handled by updateStarvationStatus() when food > 0.
+            starvationCountdownLabel?.text = "☠️ STARVATION WARNING - GATHER FOOD!"
             return
         }
 
@@ -976,6 +1063,10 @@ class GameViewController: UIViewController {
                 }
             }
         }
+    }
+
+    @objc func handleStarvationStarted() {
+        startStarvationCountdown()
     }
 
     /// Checks if starvation countdown should be running and starts/stops accordingly
@@ -1048,8 +1139,7 @@ class GameViewController: UIViewController {
         showActionSheet(
             title: "⚙️ Game Menu",
             actions: [
-                AlertAction(title: "💾 Save Game") { [weak self] in self?.manualSave() },
-                AlertAction(title: "📂 Load Game") { [weak self] in self?.confirmLoad() },
+                AlertAction(title: "⚙️ Settings") { [weak self] in self?.showSettings() },
                 AlertAction(title: "🏠 Main Menu") { [weak self] in self?.returnToMainMenu() },
                 AlertAction(title: "🏳️ Resign", style: .destructive) { [weak self] in self?.confirmResign() }
             ],
@@ -1101,6 +1191,9 @@ class GameViewController: UIViewController {
         // Stop auto-save
         autoSaveTimer?.invalidate()
         autoSaveTimer = nil
+
+        // Delete save immediately so a lost game can't be loaded
+        _ = GameSaveManager.shared.deleteSave()
 
         // Gather statistics
         let stats = GameStatistics.gather(from: player, gameStartTime: gameScene.gameStartTime)
@@ -1155,7 +1248,14 @@ class GameViewController: UIViewController {
 
         gameScene.hexMap.addEntity(armyNode)
         gameScene.entitiesNode.addChild(armyNode)
+
+        // Register in visual layer
+        gameScene.visualLayer?.registerEntityNode(id: army.id, node: armyNode)
+
         player.addArmy(army)
+
+        // Add to player's entity list
+        player.addEntity(army)
 
         // Setup health bar for combat visualization
         armyNode.setupHealthBar(currentPlayer: player)
@@ -1286,6 +1386,9 @@ class GameViewController: UIViewController {
     }
 
     func autoSaveGame() {
+        // Don't save if game is over (defeat/victory)
+        guard !gameScene.isGameOver else { return }
+
         guard let player = player,
               let hexMap = gameScene.hexMap,
               !gameScene.allGamePlayers.isEmpty else {

@@ -143,6 +143,16 @@ struct SideCombatState: Codable {
         return unitCounts.values.reduce(0, +)
     }
 
+    /// Total HP of all current units (unit count * unit HP per type)
+    var currentTotalHP: Double {
+        unitCounts.reduce(0.0) { $0 + Double($1.value) * $1.key.hp }
+    }
+
+    /// Total HP of all initial units at combat start
+    var initialTotalHP: Double {
+        initialComposition.reduce(0.0) { $0 + Double($1.value) * $1.key.hp }
+    }
+
     /// Total melee units (infantry + cavalry)
     var meleeUnits: Int {
         return unitCounts.filter { $0.key.category == .infantry || $0.key.category == .cavalry }

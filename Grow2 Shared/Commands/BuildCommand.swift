@@ -171,9 +171,19 @@ struct BuildCommand: GameCommand {
 
         let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
         building.position = position
-        // Roads should be below other buildings and entities
-        building.zPosition = buildingType.isRoad ? 2 : 5
+        // Roads should be below other buildings; non-roads keep isometric z from init
+        if buildingType.isRoad {
+            building.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: 50)
+        }
         context.gameScene?.buildingsNode.addChild(building)
+
+        // Register in visual layer so state change handlers work
+        context.gameScene?.visualLayer?.registerBuildingNode(id: building.data.id, node: building)
+
+        // Setup construction progress bar
+        if building.state == .constructing {
+            building.setupConstructionBar()
+        }
 
         // Create per-tile visual overlays for multi-tile buildings
         if let scene = context.gameScene, buildingType.hexSize > 1 {

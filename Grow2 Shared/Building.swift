@@ -677,6 +677,7 @@ class BuildingNode: SKSpriteNode {
     
     func startConstruction(builders: Int = 1) {
         data.startConstruction(builders: builders)
+        updateAppearance()
         print("🏗️ Started construction of \(buildingType.displayName)")
     }
     
@@ -1108,15 +1109,15 @@ class BuildingNode: SKSpriteNode {
         constructionBarContainer = SKNode()
         constructionBarContainer?.position = CGPoint(x: midX, y: midY)
         constructionBarContainer?.zRotation = edgeAngle
-        constructionBarContainer?.zPosition = 1
+        constructionBarContainer?.zPosition = 10
         addChild(constructionBarContainer!)
 
-        // Background with white outline
+        // Background (no outline - overlays HP bar)
         let bgRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
         constructionBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 1)
         constructionBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
-        constructionBarBackground?.strokeColor = .white
-        constructionBarBackground?.lineWidth = 1
+        constructionBarBackground?.strokeColor = .clear
+        constructionBarBackground?.lineWidth = 0
         constructionBarBackground?.zPosition = 1
         constructionBarContainer?.addChild(constructionBarBackground!)
 
@@ -1148,8 +1149,8 @@ class BuildingNode: SKSpriteNode {
 
                 let bg = SKShapeNode(rect: bgRect, cornerRadius: 1)
                 bg.fillColor = UIColor(white: 0.2, alpha: 0.8)
-                bg.strokeColor = .white
-                bg.lineWidth = 1
+                bg.strokeColor = .clear
+                bg.lineWidth = 0
                 bg.zPosition = 1
                 container.addChild(bg)
 
@@ -1205,7 +1206,7 @@ class BuildingNode: SKSpriteNode {
 
     // MARK: - Upgrade Progress Bar (styled like HP bar)
 
-    /// Sets up the upgrade progress bar (same style/position as HP bar)
+    /// Sets up the upgrade progress bar above the HP bar on the bottom-RIGHT hex edge
     func setupUpgradeBar() {
         // Guard against duplicate bars
         if upgradeBarBackground != nil && upgradeBarFill != nil {
@@ -1220,7 +1221,7 @@ class BuildingNode: SKSpriteNode {
         let bottomX: CGFloat = 0
         let bottomY: CGFloat = -hexRadius * isoRatio
 
-        // Bottom-right vertex (vertex 0)
+        // Bottom-right vertex (vertex 0): angle = -π/6
         let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)
         let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio
 
@@ -1233,7 +1234,7 @@ class BuildingNode: SKSpriteNode {
         let edgeMidX = (bottomX + bottomRightX) / 2
         let edgeMidY = (bottomY + bottomRightY) / 2
 
-        // Offset inward towards center of tile
+        // Offset inward towards center of tile (same as HP bar)
         let inwardOffset: CGFloat = 5
         let distToCenter = sqrt(edgeMidX * edgeMidX + edgeMidY * edgeMidY)
         let midX = edgeMidX - (edgeMidX / distToCenter) * inwardOffset
@@ -1249,12 +1250,12 @@ class BuildingNode: SKSpriteNode {
         upgradeBarContainer?.zPosition = 1
         addChild(upgradeBarContainer!)
 
-        // Background with white outline
+        // Background (no outline - overlays HP bar)
         let bgRect = CGRect(x: -barWidth/2, y: -barHeight/2, width: barWidth, height: barHeight)
         upgradeBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 1)
         upgradeBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
-        upgradeBarBackground?.strokeColor = .white
-        upgradeBarBackground?.lineWidth = 1
+        upgradeBarBackground?.strokeColor = .clear
+        upgradeBarBackground?.lineWidth = 0
         upgradeBarBackground?.zPosition = 1
         upgradeBarContainer?.addChild(upgradeBarBackground!)
 
@@ -1286,8 +1287,8 @@ class BuildingNode: SKSpriteNode {
 
                 let bg = SKShapeNode(rect: bgRect, cornerRadius: 1)
                 bg.fillColor = UIColor(white: 0.2, alpha: 0.8)
-                bg.strokeColor = .white
-                bg.lineWidth = 1
+                bg.strokeColor = .clear
+                bg.lineWidth = 0
                 bg.zPosition = 1
                 container.addChild(bg)
 
@@ -1309,6 +1310,7 @@ class BuildingNode: SKSpriteNode {
         let hexRadius: CGFloat = HexTileNode.hexRadius
         let isoRatio = HexTileNode.isoRatio
 
+        // Bottom-right edge (matching setupUpgradeBar)
         let bottomRightX: CGFloat = hexRadius * cos(-CGFloat.pi / 6)
         let bottomRightY: CGFloat = hexRadius * sin(-CGFloat.pi / 6) * isoRatio
         let bottomY: CGFloat = -hexRadius * isoRatio
@@ -1537,14 +1539,17 @@ class BuildingNode: SKSpriteNode {
 
         // For multi-tile buildings with overlays, keep main sprite hidden
         if hasCreatedTileOverlays {
-            self.alpha = 0
+            // Hide the sprite texture but keep alpha=1 so children (bars, labels) remain visible
+            self.texture = nil
+            self.color = .clear
+            self.alpha = 1.0
             updateTileOverlays()
         } else {
             switch state {
             case .planning:
                 self.alpha = 0.6
             case .constructing:
-                self.alpha = 0.5 + (constructionProgress * 0.5)
+                self.alpha = 1.0
             case .completed:
                 self.alpha = 1.0
             case .upgrading:
@@ -1657,7 +1662,8 @@ class BuildingNode: SKSpriteNode {
         progressBar?.removeFromParent()
         progressBar = nil
         removeConstructionBar()
-        
+        setupHealthBar()
+
         // Unlock the builder entity (unless it's a farm or camp - they'll start gathering)
         if let builder = builderEntity {
             if buildingType == .farm || buildingType == .miningCamp || buildingType == .lumberCamp {
@@ -1741,9 +1747,10 @@ class BuildingNode: SKSpriteNode {
 
         case .memory:
             self.isHidden = false
-            // For multi-tile buildings with overlays, keep main sprite hidden
             if hasCreatedTileOverlays {
-                self.alpha = 0
+                self.texture = nil
+                self.color = .clear
+                self.alpha = 0.5
             } else {
                 self.alpha = 0.5  // Dimmed to show it's last-known
             }
@@ -1754,9 +1761,10 @@ class BuildingNode: SKSpriteNode {
 
         case .current:
             self.isHidden = false
-            // For multi-tile buildings with overlays, keep main sprite hidden
             if hasCreatedTileOverlays {
-                self.alpha = 0
+                self.texture = nil
+                self.color = .clear
+                self.alpha = 1.0
             } else {
                 self.alpha = 1.0
             }
@@ -1903,8 +1911,9 @@ class BuildingNode: SKSpriteNode {
             tileOverlays.append(overlay)
         }
 
-        // Hide the main sprite since we're using per-tile overlays
-        self.alpha = 0
+        // Hide the main sprite texture; keep alpha=1 so children (bars, labels) stay visible
+        self.texture = nil
+        self.color = .clear
 
         // Move UI elements to anchor tile position (they're children of this node)
         // They'll still be visible since only the sprite itself is hidden
