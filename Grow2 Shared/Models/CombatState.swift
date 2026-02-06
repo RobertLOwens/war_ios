@@ -704,7 +704,7 @@ class ActiveCombat: Codable {
             mergeIntoSideState(&defenderState, from: army)
         }
 
-        print("⚔️ Reinforcements arrived: \(army.name) joined \(isAttacker ? "attacker" : "defender") side at time \(String(format: "%.1f", elapsedTime))s")
+        debugLog("⚔️ Reinforcements arrived: \(army.name) joined \(isAttacker ? "attacker" : "defender") side at time \(String(format: "%.1f", elapsedTime))s")
     }
 
     /// Merges an army's units into an aggregated side state

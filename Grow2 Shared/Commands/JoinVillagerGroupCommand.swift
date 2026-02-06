@@ -113,16 +113,16 @@ struct JoinVillagerGroupCommand: GameCommand {
         // If spawn fails, return villagers to garrison
         gameScene.spawnMarchingVillagerNode(marchingGroup: marchingGroup, path: path) { [weak building] success in
             if success {
-                print("Villagers arrived at \(targetGroup.name)")
+                debugLog("Villagers arrived at \(targetGroup.name)")
             } else {
                 // Return villagers to garrison on spawn failure
-                print("Villager transfer failed - returning to garrison")
+                debugLog("Villager transfer failed - returning to garrison")
                 building?.addVillagersToGarrison(quantity: actualRemoved)
             }
         }
 
-        print("Sent \(actualRemoved) villagers to join \(targetGroup.name)")
-        print("   Path length: \(path.count) tiles")
+        debugLog("Sent \(actualRemoved) villagers to join \(targetGroup.name)")
+        debugLog("   Path length: \(path.count) tiles")
 
         // Notify UI
         context.onAlert?("Villagers Dispatched", "\(actualRemoved) villagers marching to \(targetGroup.name)")

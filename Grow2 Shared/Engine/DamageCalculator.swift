@@ -10,8 +10,8 @@ import Foundation
 struct DamageCalculator {
 
     // MARK: - Charge Bonuses
-    static let cavalryChargeBonus: Double = 0.2
-    static let infantryChargeBonus: Double = 0.1
+    static let cavalryChargeBonus = GameConfig.Combat.cavalryChargeBonus
+    static let infantryChargeBonus = GameConfig.Combat.infantryChargeBonus
 
     // MARK: - Terrain Modifier
 

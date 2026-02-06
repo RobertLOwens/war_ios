@@ -54,11 +54,8 @@ class GameViewController: UIViewController {
     private var resourcePanelBottomConstraint: NSLayoutConstraint?
 
     private struct AssociatedKeys {
-        static var unitLabels: UInt8 = 0
-        static var garrisonData: UInt8 = 1
         static var villagerCountLabel: UInt8 = 2
         static var splitLabels: UInt8 = 3
-        static var trainingLabels: UInt8 = 4  // ✅ Unified training slider labels
     }
 
     override var prefersStatusBarHidden: Bool {
@@ -164,13 +161,13 @@ class GameViewController: UIViewController {
     }
     
     @objc func handleAppWillEnterForeground() {
-        print("📱 App returning to foreground - processing background time")
+        debugLog("📱 App returning to foreground - processing background time")
         processBackgroundTime()
     }
 
     @objc func handleJumpToCoordinate(_ notification: Notification) {
         guard let coordinate = notification.userInfo?["coordinate"] as? HexCoordinate else { return }
-        print("📍 Push notification tap - jumping to coordinate: \(coordinate)")
+        debugLog("📍 Push notification tap - jumping to coordinate: \(coordinate)")
         gameScene.focusCamera(on: coordinate, zoom: 0.7, animated: true)
     }
 
@@ -254,7 +251,7 @@ class GameViewController: UIViewController {
     }
     
     @objc func handleAppWillSave() {
-        print("📱 Received app save notification")
+        debugLog("📱 Received app save notification")
         autoSaveGame()
     }
     
@@ -275,14 +272,14 @@ class GameViewController: UIViewController {
                   self.gameScene.mapNode != nil,
                   self.gameScene.buildingsNode != nil,
                   self.gameScene.entitiesNode != nil else {
-                print("⚠️ Scene not fully ready, waiting...")
+                debugLog("⚠️ Scene not fully ready, waiting...")
                 // Retry after a short delay if nodes aren't ready
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.gameScene.onSceneReady?()
                 }
                 return
             }
-            print("✅ Scene ready - proceeding with game load")
+            debugLog("✅ Scene ready - proceeding with game load")
             completion()
         }
 
@@ -313,7 +310,7 @@ class GameViewController: UIViewController {
 
     func setupCommandExecutor() {
         guard gameScene.hexMap != nil else {
-            print("⚠️ Cannot setup CommandExecutor - hexMap is nil")
+            debugLog("⚠️ Cannot setup CommandExecutor - hexMap is nil")
             return
         }
 
@@ -356,7 +353,7 @@ class GameViewController: UIViewController {
             let fullyVisible = visibilityMode == .fullyVisible
             gameScene.initializeFogOfWar(fullyVisible: fullyVisible)
 
-            print("Arabia map generated!")
+            debugLog("Arabia map generated!")
         } else if mapType == .arena {
             // Use Arena map generator for combat testing
             gameScene.skipInitialSetup = true
@@ -372,14 +369,14 @@ class GameViewController: UIViewController {
             // Always fully visible for testing
             gameScene.initializeFogOfWar(fullyVisible: true)
 
-            print("Arena map generated!")
+            debugLog("Arena map generated!")
         } else {
             // Use random map generation (legacy)
             gameScene.mapSize = mapSize.rawValue
             gameScene.resourceDensity = resourceDensity.multiplier
             skView.presentScene(gameScene)
 
-            print("Random map generated!")
+            debugLog("Random map generated!")
         }
 
         // Initialize game start time for statistics
@@ -1022,7 +1019,7 @@ class GameViewController: UIViewController {
             self?.updateStarvationCountdownLabel()
         }
 
-        print("⚠️ Starvation countdown started")
+        debugLog("⚠️ Starvation countdown started")
     }
 
     /// Stops the starvation countdown timer when food is restored
@@ -1035,7 +1032,7 @@ class GameViewController: UIViewController {
         resourcePanelBottomConstraint?.constant = 8
         UIView.animate(withDuration: 0.2) { self.view.layoutIfNeeded() }
 
-        print("✅ Starvation countdown stopped - food restored")
+        debugLog("✅ Starvation countdown stopped - food restored")
     }
 
     /// Updates the starvation countdown label with remaining time
@@ -1093,7 +1090,7 @@ class GameViewController: UIViewController {
         researchVC.player = player
         researchVC.modalPresentationStyle = .fullScreen
         present(researchVC, animated: true)
-        print("🔬 Opening Research screen")
+        debugLog("🔬 Opening Research screen")
     }
     
     @objc func showBuildingsOverview() {
@@ -1104,7 +1101,7 @@ class GameViewController: UIViewController {
         buildingsVC.gameViewController = self  // ✅ ADD THIS LINE
         buildingsVC.modalPresentationStyle = .fullScreen
         present(buildingsVC, animated: true)
-        print("🏛️ Opening Buildings Overview screen")
+        debugLog("🏛️ Opening Buildings Overview screen")
     }
 
     @objc func showEntitiesOverview() {
@@ -1115,7 +1112,7 @@ class GameViewController: UIViewController {
         entitiesVC.gameViewController = self
         entitiesVC.modalPresentationStyle = .fullScreen
         present(entitiesVC, animated: true)
-        print("👥 Opening Entities Overview screen")
+        debugLog("👥 Opening Entities Overview screen")
     }
 
     @objc func showResourcesOverview() {
@@ -1132,7 +1129,7 @@ class GameViewController: UIViewController {
         }
 
         present(resourceVC, animated: true)
-        print("📦 Opening Resources Overview screen")
+        debugLog("📦 Opening Resources Overview screen")
     }
 
     @objc func showGameMenu() {
@@ -1153,7 +1150,7 @@ class GameViewController: UIViewController {
         trainingVC.hexMap = gameScene.hexMap
         trainingVC.modalPresentationStyle = .fullScreen
         present(trainingVC, animated: true)
-        print("🎓 Opening Training Overview screen")
+        debugLog("🎓 Opening Training Overview screen")
     }
 
     @objc func showMilitaryOverview() {
@@ -1164,7 +1161,7 @@ class GameViewController: UIViewController {
         militaryVC.gameViewController = self
         militaryVC.modalPresentationStyle = .fullScreen
         present(militaryVC, animated: true)
-        print("⚔️ Opening Military Overview screen")
+        debugLog("⚔️ Opening Military Overview screen")
     }
 
     func confirmLoad() {
@@ -1223,7 +1220,7 @@ class GameViewController: UIViewController {
     
     func deployArmy(from building: BuildingNode, units: [MilitaryUnitType: Int]) {
         guard let spawnCoord = gameScene.hexMap.findNearestWalkable(to: building.coordinate) else {
-            print("No valid location to deploy army")
+            debugLog("No valid location to deploy army")
             return
         }
         
@@ -1257,7 +1254,7 @@ class GameViewController: UIViewController {
         // Add to player's entity list
         player.addEntity(army)
 
-        print("✅ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
+        debugLog("✅ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
     }
     
     // MARK: - Garrison Management
@@ -1316,41 +1313,6 @@ class GameViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    @objc func sliderValueChanged(_ slider: UISlider) {
-        // Get the stored labels dictionary
-        guard let labelsDict = objc_getAssociatedObject(self, &AssociatedKeys.unitLabels) as? [MilitaryUnitType: UILabel],
-              let garrisonDict = objc_getAssociatedObject(self, &AssociatedKeys.garrisonData) as? [MilitaryUnitType: Int] else {
-            return
-        }
-        
-        // Find which unit type this slider corresponds to
-        for (unitType, label) in labelsDict {
-            let available = garrisonDict[unitType] ?? 0
-            let sliderValue = Int(slider.value)
-            label.text = "\(sliderValue) / \(available) units"
-        }
-    }
-    
-    /// Actually performs the reinforcement transfer
-    func reinforceArmy(_ army: Army, from building: BuildingNode, with units: [MilitaryUnitType: Int]) {
-        var totalTransferred = 0
-        for (unitType, count) in units {
-            let removed = building.removeFromGarrison(unitType: unitType, quantity: count)
-            if removed > 0 {
-                army.addMilitaryUnits(unitType, count: removed)
-                totalTransferred += removed
-            }
-        }
-        
-        if totalTransferred > 0 {
-            showAlert(
-                title: "✅ Reinforcement Complete",
-                message: "Transferred \(totalTransferred) units to \(army.name)\nNew Army Size: \(army.getTotalMilitaryUnits()) units"
-            )
-            print("✅ Reinforced \(army.name) with \(totalTransferred) units from \(building.buildingType.displayName)")
-        }
-    }
-    
     @objc func showCommandersScreen() {
         let commandersVC = CommandersViewController()
         commandersVC.player = player
@@ -1358,7 +1320,7 @@ class GameViewController: UIViewController {
         commandersVC.gameScene = gameScene      // ✅ ADD THIS
         commandersVC.modalPresentationStyle = .fullScreen
         present(commandersVC, animated: true)
-        print("👤 Opening Commanders screen")
+        debugLog("👤 Opening Commanders screen")
     }
 
     /// Focuses the camera on a specific coordinate, optionally zooming in
@@ -1371,7 +1333,7 @@ class GameViewController: UIViewController {
         let combatHistoryVC = CombatHistoryViewController()
         combatHistoryVC.modalPresentationStyle = .fullScreen
         present(combatHistoryVC, animated: true)
-        print("⚔️ Opening Combat History screen")
+        debugLog("⚔️ Opening Combat History screen")
     }
     
     func setupAutoSave() {
@@ -1379,7 +1341,7 @@ class GameViewController: UIViewController {
         autoSaveTimer = Timer.scheduledTimer(withTimeInterval: autoSaveInterval, repeats: true) { [weak self] _ in
             self?.autoSaveGame()
         }
-        print("⏰ Auto-save enabled (every \(Int(autoSaveInterval))s)")
+        debugLog("⏰ Auto-save enabled (every \(Int(autoSaveInterval))s)")
     }
 
     func autoSaveGame() {
@@ -1389,7 +1351,7 @@ class GameViewController: UIViewController {
         guard let player = player,
               let hexMap = gameScene.hexMap,
               !gameScene.allGamePlayers.isEmpty else {
-            print("⚠️ Cannot auto-save - game not ready")
+            debugLog("⚠️ Cannot auto-save - game not ready")
             return
         }
 
@@ -1404,9 +1366,9 @@ class GameViewController: UIViewController {
         )
 
         if success {
-            print("✅ Auto-save complete")
+            debugLog("✅ Auto-save complete")
         } else {
-            print("❌ Auto-save failed")
+            debugLog("❌ Auto-save failed")
         }
     }
 
@@ -1446,13 +1408,13 @@ class GameViewController: UIViewController {
 
         // ✅ FIX: Verify scene is ready before loading
         guard gameScene != nil else {
-            print("❌ Cannot load game - gameScene is nil")
+            debugLog("❌ Cannot load game - gameScene is nil")
             showSimpleAlert(title: "Load Error", message: "Game scene not initialized.")
             return
         }
 
         guard gameScene.isSceneReady else {
-            print("❌ Cannot load game - scene not ready")
+            debugLog("❌ Cannot load game - scene not ready")
             showSimpleAlert(title: "Load Error", message: "Please wait for scene to initialize.")
             return
         }
@@ -1487,7 +1449,7 @@ class GameViewController: UIViewController {
         
         // ✅ DEBUG: Check fog stats after everything is loaded
         if let fogOfWar = player.fogOfWar {
-            print("\n🔍 POST-LOAD FOG CHECK:")
+            debugLog("\n🔍 POST-LOAD FOG CHECK:")
             fogOfWar.printFogStats()
             
             // Check a few specific tiles
@@ -1499,7 +1461,7 @@ class GameViewController: UIViewController {
             
             for coord in testCoords {
                 let vis = player.getVisibilityLevel(at: coord)
-                print("  Tile (\(coord.q), \(coord.r)): \(vis)")
+                debugLog("  Tile (\(coord.q), \(coord.r)): \(vis)")
             }
         }
         
@@ -1519,7 +1481,7 @@ class GameViewController: UIViewController {
         // This must be called after the map is rebuilt and players are configured
         gameScene.initializeEngineArchitecture()
 
-        print("✅ Game loaded successfully")
+        debugLog("✅ Game loaded successfully")
         showSimpleAlert(title: "✅ Game Loaded", message: "Your saved game has been restored.")
     }
 
@@ -1534,7 +1496,7 @@ class GameViewController: UIViewController {
 
         // ✅ Guard: Ensure scene and critical nodes are ready
         guard gameScene != nil else {
-            print("❌ Cannot rebuild scene - gameScene is nil")
+            debugLog("❌ Cannot rebuild scene - gameScene is nil")
             showSimpleAlert(title: "Load Error", message: "Game scene not ready. Please try again.")
             return
         }
@@ -1542,10 +1504,10 @@ class GameViewController: UIViewController {
         guard gameScene.mapNode != nil,
               gameScene.buildingsNode != nil,
               gameScene.entitiesNode != nil else {
-            print("❌ Cannot rebuild scene - critical nodes are nil")
-            print("   mapNode: \(gameScene.mapNode != nil)")
-            print("   buildingsNode: \(gameScene.buildingsNode != nil)")
-            print("   entitiesNode: \(gameScene.entitiesNode != nil)")
+            debugLog("❌ Cannot rebuild scene - critical nodes are nil")
+            debugLog("   mapNode: \(gameScene.mapNode != nil)")
+            debugLog("   buildingsNode: \(gameScene.buildingsNode != nil)")
+            debugLog("   entitiesNode: \(gameScene.entitiesNode != nil)")
             showSimpleAlert(title: "Load Error", message: "Scene not fully initialized. Please try again.")
             return
         }
@@ -1632,7 +1594,7 @@ class GameViewController: UIViewController {
         }
 
         // ✅ FIX: Reconnect villager tasks to resource points (handles both gathering AND hunting)
-        print("🔗 Reconnecting villager tasks to resources...")
+        debugLog("🔗 Reconnecting villager tasks to resources...")
         for entity in hexMap.entities {
             if let villagerGroup = entity.entity as? VillagerGroup,
                let targetCoord = villagerGroup.taskTarget {
@@ -1647,27 +1609,27 @@ class GameViewController: UIViewController {
                         villagerGroup.currentTask = .hunting(resourcePoint)
                         villagerGroup.taskTarget = nil
                         entity.isMoving = true
-                        print("🏹 Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to hunt \(resourcePoint.resourceType.displayName)")
+                        debugLog("🏹 Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to hunt \(resourcePoint.resourceType.displayName)")
                     } else if resourcePoint.resourceType.isGatherable {
                         // Re-establish the gathering relationship
                         resourcePoint.startGathering(by: villagerGroup)
                         villagerGroup.currentTask = .gatheringResource(resourcePoint)
                         villagerGroup.taskTarget = nil
                         entity.isMoving = true
-                        print("⛏️ Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourcePoint.resourceType.displayName)")
+                        debugLog("⛏️ Reconnected \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourcePoint.resourceType.displayName)")
                     } else {
                         // Resource can't be gathered or hunted (shouldn't happen)
                         villagerGroup.currentTask = .idle
                         villagerGroup.taskTarget = nil
                         entity.isMoving = false
-                        print("⚠️ Resource at (\(targetCoord.q), \(targetCoord.r)) cannot be gathered or hunted, \(villagerGroup.name) is now idle")
+                        debugLog("⚠️ Resource at (\(targetCoord.q), \(targetCoord.r)) cannot be gathered or hunted, \(villagerGroup.name) is now idle")
                     }
                 } else {
                     // Resource no longer exists (depleted), clear the task
                     villagerGroup.currentTask = .idle
                     villagerGroup.taskTarget = nil
                     entity.isMoving = false
-                    print("⚠️ Resource at (\(targetCoord.q), \(targetCoord.r)) no longer exists, \(villagerGroup.name) is now idle")
+                    debugLog("⚠️ Resource at (\(targetCoord.q), \(targetCoord.r)) no longer exists, \(villagerGroup.name) is now idle")
                 }
             }
         }
@@ -1685,7 +1647,7 @@ class GameViewController: UIViewController {
         player.updateVision(allPlayers: allPlayers)
         
         if let fogOfWar = player.fogOfWar {
-            print("🔍 After updateVision - Explored: \(fogOfWar.getExploredCount()), Visible: \(fogOfWar.getVisibleCount())")
+            debugLog("🔍 After updateVision - Explored: \(fogOfWar.getExploredCount()), Visible: \(fogOfWar.getVisibleCount())")
         }
         
         // Apply fog overlay visuals
@@ -1708,23 +1670,23 @@ class GameViewController: UIViewController {
         // Update resource display
         updateResourceDisplay()
 
-        print("🔄 Scene rebuilt with loaded data")
-        print("   Tiles: \(hexMap.tiles.count)")
-        print("   Buildings: \(hexMap.buildings.count)")
-        print("   Entities: \(hexMap.entities.count)")
-        print("   Resources: \(hexMap.resourcePoints.count)")
-        print("   Explored tiles: \(player.fogOfWar?.getExploredCount() ?? 0)")
+        debugLog("🔄 Scene rebuilt with loaded data")
+        debugLog("   Tiles: \(hexMap.tiles.count)")
+        debugLog("   Buildings: \(hexMap.buildings.count)")
+        debugLog("   Entities: \(hexMap.entities.count)")
+        debugLog("   Resources: \(hexMap.resourcePoints.count)")
+        debugLog("   Explored tiles: \(player.fogOfWar?.getExploredCount() ?? 0)")
     }
 
     func restoreReinforcements(_ reinforcements: [ReinforcementGroup.SaveData], hexMap: HexMap, allPlayers: [Player]) {
         guard !reinforcements.isEmpty else { return }
 
-        print("🚶 Restoring \(reinforcements.count) reinforcements...")
+        debugLog("🚶 Restoring \(reinforcements.count) reinforcements...")
 
         for saveData in reinforcements {
             // Reconstruct reinforcement group
             guard let reinforcement = ReinforcementGroup.fromSaveData(saveData) else {
-                print("❌ Failed to restore reinforcement \(saveData.id)")
+                debugLog("❌ Failed to restore reinforcement \(saveData.id)")
                 continue
             }
 
@@ -1751,16 +1713,16 @@ class GameViewController: UIViewController {
             // Calculate remaining path from current position to target
             guard let targetArmy = reinforcement.targetArmy,
                   let remainingPath = hexMap.findPath(from: reinforcement.coordinate, to: targetArmy.coordinate) else {
-                print("⚠️ No path for reinforcement \(saveData.id) - units will be lost")
+                debugLog("⚠️ No path for reinforcement \(saveData.id) - units will be lost")
                 continue
             }
 
             // Spawn the reinforcement node and continue movement
             gameScene.spawnReinforcementNode(reinforcement: reinforcement, path: remainingPath) { success in
-                print("✅ Restored reinforcement arrived: \(success)")
+                debugLog("✅ Restored reinforcement arrived: \(success)")
             }
 
-            print("   ✅ Restored reinforcement to \(reinforcement.targetArmy?.name ?? "unknown army")")
+            debugLog("   ✅ Restored reinforcement to \(reinforcement.targetArmy?.name ?? "unknown army")")
         }
     }
 
@@ -1788,13 +1750,13 @@ class GameViewController: UIViewController {
         guard let player = player,
               let hexMap = gameScene.hexMap,
               !gameScene.allGamePlayers.isEmpty else {
-            print("⚠️ Cannot process background time - game not ready")
+            debugLog("⚠️ Cannot process background time - game not ready")
             return
         }
         
         // Get elapsed time
         guard let elapsedSeconds = BackgroundTimeManager.shared.getElapsedTime() else {
-            print("⏰ No background time to process")
+            debugLog("⏰ No background time to process")
             return
         }
         
@@ -1803,11 +1765,11 @@ class GameViewController: UIViewController {
         let cappedElapsed = min(elapsedSeconds, maxOfflineSeconds)
         
         guard cappedElapsed > 1 else {
-            print("⏰ Less than 1 second elapsed, skipping")
+            debugLog("⏰ Less than 1 second elapsed, skipping")
             return
         }
         
-        print("⏰ Processing background time: \(Int(cappedElapsed)) seconds...")
+        debugLog("⏰ Processing background time: \(Int(cappedElapsed)) seconds...")
         
         // Track changes for summary
         var resourcesGathered: [ResourceType: Int] = [:]
@@ -1830,8 +1792,8 @@ class GameViewController: UIViewController {
                 let actualGathered = min(wouldGather, resourcePoint.remainingAmount)
                 let newRemaining = resourcePoint.remainingAmount - actualGathered
                 
-                print("   ⛏️ \(villagerGroup.name): depleted \(actualGathered) from \(resourcePoint.resourceType.displayName)")
-                print("      \(resourcePoint.remainingAmount) → \(newRemaining)")
+                debugLog("   ⛏️ \(villagerGroup.name): depleted \(actualGathered) from \(resourcePoint.resourceType.displayName)")
+                debugLog("      \(resourcePoint.remainingAmount) → \(newRemaining)")
                 
                 // Apply depletion
                 resourcePoint.setRemainingAmount(newRemaining)
@@ -1854,20 +1816,20 @@ class GameViewController: UIViewController {
                     resourcePoint.removeFromParent()
                     hexMap.resourcePoints.removeAll { $0.coordinate == resourcePoint.coordinate }
                     
-                    print("   ⚠️ Resource depleted! \(villagerGroup.name) is now idle")
+                    debugLog("   ⚠️ Resource depleted! \(villagerGroup.name) is now idle")
                 }
             }
         }
         
         // Step 2: Apply resource accumulation from collection rates
-        print("   💰 Resource accumulation:")
+        debugLog("   💰 Resource accumulation:")
         for type in ResourceType.allCases {
             let rate = player.getCollectionRate(type)
             let accumulated = Int(rate * cappedElapsed)
             
             if accumulated > 0 {
                 player.addResource(type, amount: accumulated)
-                print("      \(type.displayName): +\(accumulated)")
+                debugLog("      \(type.displayName): +\(accumulated)")
             }
         }
         
@@ -1892,7 +1854,7 @@ class GameViewController: UIViewController {
         let summary = summaryParts.joined(separator: "\n")
         showSimpleAlert(title: "Welcome Back!", message: summary)
         
-        print("✅ Background time processed")
+        debugLog("✅ Background time processed")
     }
 
     // Helper to format duration nicely
@@ -2092,7 +2054,7 @@ class GameViewController: UIViewController {
             message: "Created new group with \(splitCount) villagers\nOriginal group has \(villagerGroup.villagerCount) villagers remaining"
         )
         
-        print("✅ Split villager group: \(splitCount) → new group, \(villagerGroup.villagerCount) → original")
+        debugLog("✅ Split villager group: \(splitCount) → new group, \(villagerGroup.villagerCount) → original")
     }
     
     func deployVillagersFromBuilding(_ building: BuildingNode) {
@@ -2177,7 +2139,7 @@ class GameViewController: UIViewController {
         gameScene.entitiesNode.addChild(entityNode)
         player.addEntity(villagerGroup)
         
-        print("✅ Deployed \(removed) villagers from \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
+        debugLog("✅ Deployed \(removed) villagers from \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
         
         showSimpleAlert(
             title: "✅ Villagers Deployed",
@@ -2341,7 +2303,7 @@ class GameViewController: UIViewController {
             overlay.transform = .identity
         }
 
-        print("🔄 Rotation preview UI shown for \(buildingType.displayName)")
+        debugLog("🔄 Rotation preview UI shown for \(buildingType.displayName)")
     }
 
     func hideRotationPreviewUI() {
@@ -2358,7 +2320,7 @@ class GameViewController: UIViewController {
         rotationBuildingLabel = nil
         rotationDirectionLabel = nil
 
-        print("🔄 Rotation preview UI hidden")
+        debugLog("🔄 Rotation preview UI hidden")
     }
 
     func updateRotationDirectionLabel() {
@@ -2406,7 +2368,7 @@ extension GameViewController: NotificationBannerDelegate {
         // Jump to the notification's coordinate if available
         if let coordinate = notification.coordinate {
             gameScene.focusCamera(on: coordinate, zoom: 0.7, animated: true)
-            print("📍 Jumped to coordinate: \(coordinate)")
+            debugLog("📍 Jumped to coordinate: \(coordinate)")
         }
     }
 }
@@ -2444,7 +2406,7 @@ extension GameViewController: GameSceneDelegate {
 
     func showArmyDetailScreen(for entityNode: EntityNode) {
         guard let army = entityNode.armyReference else {
-            print("❌ No army reference found in entity node")
+            debugLog("❌ No army reference found in entity node")
             return
         }
 

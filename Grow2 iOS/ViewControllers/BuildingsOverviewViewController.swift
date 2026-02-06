@@ -143,7 +143,7 @@ class BuildingsOverviewViewController: UIViewController, UITableViewDelegate, UI
         guard !filteredBuildings.isEmpty else { return }
 
         let building = filteredBuildings[indexPath.row]
-        print("Selected building: \(building.buildingType.displayName) at (\(building.coordinate.q), \(building.coordinate.r))")
+        debugLog("Selected building: \(building.buildingType.displayName) at (\(building.coordinate.q), \(building.coordinate.r))")
 
         // Open BuildingDetailViewController
         let detailVC = BuildingDetailViewController()

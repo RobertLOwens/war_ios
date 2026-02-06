@@ -104,20 +104,20 @@ struct DemolishCommand: GameCommand, Codable {
                 // Mark building as "pending demolition" - demolition will start when villagers arrive
                 building.pendingDemolition = true
 
-                print("🚶 Villagers moving to \(building.buildingType.displayName) for demolition")
-                print("   From: (\(villagers.coordinate.q), \(villagers.coordinate.r))")
-                print("   To: (\(building.coordinate.q), \(building.coordinate.r))")
+                debugLog("🚶 Villagers moving to \(building.buildingType.displayName) for demolition")
+                debugLog("   From: (\(villagers.coordinate.q), \(villagers.coordinate.r))")
+                debugLog("   To: (\(building.coordinate.q), \(building.coordinate.r))")
             } else {
                 // Villagers already at building - start immediately
                 villagers.assignTask(.demolishing(building), target: building.coordinate)
                 demolisherEntity.isMoving = true
                 building.startDemolition(demolishers: villagers.villagerCount)
-                print("🏚️ Started demolishing \(building.buildingType.displayName)")
+                debugLog("🏚️ Started demolishing \(building.buildingType.displayName)")
             }
         } else {
             // No demolisher assigned - start demolition immediately
             building.startDemolition()
-            print("🏚️ Started demolishing \(building.buildingType.displayName)")
+            debugLog("🏚️ Started demolishing \(building.buildingType.displayName)")
         }
 
         return .success
@@ -171,7 +171,7 @@ struct CancelDemolitionCommand: GameCommand, Codable {
         // Cancel demolition
         building.cancelDemolition()
 
-        print("🚫 Cancelled demolition for \(building.buildingType.displayName)")
+        debugLog("🚫 Cancelled demolition for \(building.buildingType.displayName)")
 
         return .success
     }

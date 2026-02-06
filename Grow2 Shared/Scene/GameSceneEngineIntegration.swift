@@ -43,7 +43,7 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
     /// Call this after the scene is set up to enable the new architecture
     func initializeEngineArchitecture() {
         guard let player = player, let hexMap = hexMap else {
-            print("Cannot initialize engine - scene not ready")
+            debugLog("Cannot initialize engine - scene not ready")
             return
         }
 
@@ -80,7 +80,7 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
         // Enable the engine
         isEngineEnabled = true
 
-        print("Engine architecture initialized")
+        debugLog("Engine architecture initialized")
     }
 
     /// Disable the engine and revert to legacy mode
@@ -89,7 +89,7 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
         visualLayer = nil
         GameEngine.shared.reset()
 
-        print("Engine architecture disabled - using legacy mode")
+        debugLog("Engine architecture disabled - using legacy mode")
     }
 
     // MARK: - Engine Update
@@ -140,9 +140,9 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
     func gameEngine(_ engine: GameEngine, didCompleteCommand commandID: UUID, result: EngineCommandResult) {
         // Log command completion
         if result.succeeded {
-            print("Command \(commandID) completed with \(result.changes.count) changes")
+            debugLog("Command \(commandID) completed with \(result.changes.count) changes")
         } else if let reason = result.failureReason {
-            print("Command \(commandID) failed: \(reason)")
+            debugLog("Command \(commandID) failed: \(reason)")
         }
     }
 

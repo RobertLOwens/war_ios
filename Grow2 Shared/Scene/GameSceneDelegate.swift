@@ -136,9 +136,6 @@ extension GameSceneDelegate {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let updateFogOfWar = Notification.Name("UpdateFogOfWar")
-    static let resourcesDidChange = Notification.Name("ResourcesDidChange")
-    static let entityDidMove = Notification.Name("EntityDidMove")
     static let buildingDidComplete = Notification.Name("BuildingDidComplete")
     static let trainingDidComplete = Notification.Name("TrainingDidComplete")
     static let phasedCombatStarted = Notification.Name("PhasedCombatStarted")

@@ -92,7 +92,7 @@ class AdjacencyBonusManager {
             recalculateBonusesForBuilding(building)
         }
 
-        print("🔄 Recalculated adjacency bonuses for \(nearbyBuildings.count) buildings near (\(coordinate.q), \(coordinate.r))")
+        debugLog("🔄 Recalculated adjacency bonuses for \(nearbyBuildings.count) buildings near (\(coordinate.q), \(coordinate.r))")
     }
 
     /// Recalculates all bonuses for all buildings
@@ -105,7 +105,7 @@ class AdjacencyBonusManager {
             recalculateBonusesForBuilding(building)
         }
 
-        print("🔄 Recalculated all adjacency bonuses for \(hexMap.buildings.count) buildings")
+        debugLog("🔄 Recalculated all adjacency bonuses for \(hexMap.buildings.count) buildings")
     }
 
     /// Recalculates bonuses for a specific building
@@ -214,13 +214,13 @@ class AdjacencyBonusManager {
     // MARK: - Debug
 
     func printStatus() {
-        print("\n🏘️ Adjacency Bonus Status:")
+        debugLog("\n🏘️ Adjacency Bonus Status:")
         for (buildingID, bonusData) in cachedBonuses {
-            print("   Building \(buildingID.uuidString.prefix(8)):")
-            print("      Gather Rate Bonus: +\(Int(bonusData.gatherRateBonus * 100))%")
-            print("      Training Cost Reduction: -\(Int(bonusData.trainingCostReduction * 100))%")
+            debugLog("   Building \(buildingID.uuidString.prefix(8)):")
+            debugLog("      Gather Rate Bonus: +\(Int(bonusData.gatherRateBonus * 100))%")
+            debugLog("      Training Cost Reduction: -\(Int(bonusData.trainingCostReduction * 100))%")
             for source in bonusData.bonusSources {
-                print("      - \(source)")
+                debugLog("      - \(source)")
             }
         }
     }

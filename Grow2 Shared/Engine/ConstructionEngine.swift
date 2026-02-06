@@ -11,7 +11,7 @@ import Foundation
 class ConstructionEngine {
 
     // MARK: - Constants
-    private let progressChangeThreshold: Double = 0.01
+    private let progressChangeThreshold = GameConfig.Construction.progressChangeThreshold
 
     // MARK: - State
     private weak var gameState: GameState?

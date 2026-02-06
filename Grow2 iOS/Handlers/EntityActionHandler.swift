@@ -149,7 +149,7 @@ class EntityActionHandler {
         guard let player = player,
               let hexMap = hexMap,
               let gameScene = gameScene else {
-            print("⚠️ Missing game references - commander not deployed")
+            debugLog("⚠️ Missing game references - commander not deployed")
             delegate?.showSimpleAlert(
                 title: "Error",
                 message: "Cannot deploy commander - missing game references"
@@ -165,7 +165,7 @@ class EntityActionHandler {
         }
         
         guard let cityCenter = cityCenters.first else {
-            print("⚠️ No city center found - commander not deployed")
+            debugLog("⚠️ No city center found - commander not deployed")
             delegate?.showSimpleAlert(
                 title: "Error",
                 message: "No City Center found. Build one first!"
@@ -178,7 +178,7 @@ class EntityActionHandler {
         
         // Check if there's already an entity on the city center
         if let existingEntity = hexMap.getEntity(at: spawnCoord) {
-            print("❌ City center occupied by entity: \(existingEntity.entityType)")
+            debugLog("❌ City center occupied by entity: \(existingEntity.entityType)")
             delegate?.showSimpleAlert(
                 title: "Error",
                 message: "City Center is occupied. Move units away first."
@@ -217,7 +217,7 @@ class EntityActionHandler {
         // Link commander to army
         commander.assignToArmy(army)
         
-        print("✅ Deployed commander \(commander.name) with army at (\(spawnCoord.q), \(spawnCoord.r))")
+        debugLog("✅ Deployed commander \(commander.name) with army at (\(spawnCoord.q), \(spawnCoord.r))")
     }
     
     // =========================================================================

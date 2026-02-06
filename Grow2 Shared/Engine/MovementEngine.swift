@@ -14,9 +14,9 @@ class MovementEngine {
     private weak var gameState: GameState?
 
     // MARK: - Movement Constants
-    private let baseMovementSpeed: Double = 0.75  // Hexes per second on roads
-    private let terrainSpeedMultiplier: Double = 0.33  // Off-road speed penalty
-    private let retreatSpeedBonus: Double = 1.1  // 10% faster when retreating
+    private let baseMovementSpeed = GameConfig.Movement.baseSpeed
+    private let terrainSpeedMultiplier = GameConfig.Movement.terrainSpeedMultiplier
+    private let retreatSpeedBonus = GameConfig.Movement.retreatSpeedBonus
 
     // MARK: - Setup
 
@@ -123,12 +123,12 @@ class MovementEngine {
         let targetCoord = path[group.pathIndex]
 
         // Calculate movement speed (villagers are slower)
-        var speed = baseMovementSpeed * 0.8  // 80% of base speed
+        let villagerMultiplier = GameConfig.Movement.villagerSpeedMultiplier
+        var speed = baseMovementSpeed * villagerMultiplier
         if state.mapData.getBuildingID(at: targetCoord) != nil {
-            // On road
-            speed = baseMovementSpeed * 0.8
+            speed = baseMovementSpeed * villagerMultiplier
         } else {
-            speed = baseMovementSpeed * 0.8 * terrainSpeedMultiplier
+            speed = baseMovementSpeed * villagerMultiplier * terrainSpeedMultiplier
         }
 
         // Update progress
@@ -185,12 +185,13 @@ class MovementEngine {
 
             // Calculate movement speed for reinforcements
             let targetCoord = reinforcement.path[reinforcement.pathIndex]
-            var speed = baseMovementSpeed * 0.7  // 70% of base speed
+            let reinforcementMultiplier = GameConfig.Movement.reinforcementSpeedMultiplier
+            var speed = baseMovementSpeed * reinforcementMultiplier
 
             if state.mapData.getBuildingID(at: targetCoord) != nil {
-                speed = baseMovementSpeed * 0.7
+                speed = baseMovementSpeed * reinforcementMultiplier
             } else {
-                speed = baseMovementSpeed * 0.7 * terrainSpeedMultiplier
+                speed = baseMovementSpeed * reinforcementMultiplier * terrainSpeedMultiplier
             }
 
             // Simple progress update
@@ -199,12 +200,6 @@ class MovementEngine {
 
             // Update in army using helper method
             army.updatePendingReinforcement(at: i, with: reinforcement)
-
-            changes.append(.reinforcementProgress(
-                reinforcementID: reinforcement.reinforcementID,
-                currentCoordinate: targetCoord,
-                progress: Double(reinforcement.pathIndex) / Double(reinforcement.path.count)
-            ))
 
             // Check if arrived at target
             if reinforcement.currentCoordinate == army.coordinate || reinforcement.pathIndex >= reinforcement.path.count {
@@ -222,11 +217,6 @@ class MovementEngine {
 
                 // Remove from pending using helper method
                 army.removePendingReinforcement(id: reinforcementID)
-
-                changes.append(.reinforcementArrived(
-                    reinforcementID: reinforcementID,
-                    targetArmyID: army.id
-                ))
 
                 // Update army composition change
                 var compositionDict: [String: Int] = [:]

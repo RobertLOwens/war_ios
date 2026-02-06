@@ -68,7 +68,7 @@ class EntityNode: SKSpriteNode {
 
         // Warn if army created without proper reference
         if entityType == .army && self.armyReference == nil {
-            print("⚠️ WARNING: EntityNode for army but armyReference is nil. Entity type: \(type(of: entity))")
+            debugLog("⚠️ WARNING: EntityNode for army but armyReference is nil. Entity type: \(type(of: entity))")
         }
 
         let texture = EntityNode.createEntityTexture(for: entityType, entity: entity, currentPlayer: currentPlayer)
@@ -248,13 +248,6 @@ class EntityNode: SKSpriteNode {
                     self.updateMovementTimer(remainingPath: remainingPath, hexMap: map)
                 }
 
-                // Trigger fog of war update
-                if let owner = self.entity.owner {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("UpdateFogOfWar"),
-                        object: owner
-                    )
-                }
             }
             actions.append(updateAction)
         }
@@ -268,12 +261,12 @@ class EntityNode: SKSpriteNode {
 
                 if let army = self.entity as? Army {
                     army.coordinate = lastCoord
-                    print("✅ Updated Army coordinate to (\(lastCoord.q), \(lastCoord.r))")
+                    debugLog("✅ Updated Army coordinate to (\(lastCoord.q), \(lastCoord.r))")
 
                     // Clear retreating flag when movement completes
                     if army.isRetreating {
                         army.isRetreating = false
-                        print("🏠 Army \(army.name) retreat completed")
+                        debugLog("🏠 Army \(army.name) retreat completed")
                     }
 
                     // Check if arrived at a valid home base building and update
@@ -282,19 +275,19 @@ class EntityNode: SKSpriteNode {
                     }
                 } else if let villagers = self.entity as? VillagerGroup {
                     villagers.coordinate = lastCoord
-                    print("✅ Updated VillagerGroup coordinate to (\(lastCoord.q), \(lastCoord.r))")
+                    debugLog("✅ Updated VillagerGroup coordinate to (\(lastCoord.q), \(lastCoord.r))")
 
                     // ✅ FIX: Check if villagers have a hunting task to execute
                     if case .hunting(let target) = villagers.currentTask {
-                        print("🏹 Villagers arrived at hunting target!")
+                        debugLog("🏹 Villagers arrived at hunting target!")
                         // Notify the scene to execute the hunt
                         if let gameScene = self.scene as? GameScene {
                             gameScene.villagerArrivedForHunt(villagerGroup: villagers, target: target, entityNode: self)
                         } else {
-                            print("❌ ERROR: Could not get GameScene for hunt execution (scene: \(String(describing: self.scene)))")
+                            debugLog("❌ ERROR: Could not get GameScene for hunt execution (scene: \(String(describing: self.scene)))")
                         }
                     } else if case .upgrading = villagers.currentTask {
-                        print("🔨 Villagers arrived at building for upgrade!")
+                        debugLog("🔨 Villagers arrived at building for upgrade!")
                         if let gameScene = self.scene as? GameScene {
                             gameScene.checkPendingUpgradeArrival(entity: self)
                         }
@@ -307,7 +300,7 @@ class EntityNode: SKSpriteNode {
             if let villagers = self.entity as? VillagerGroup,
                case .gatheringResource = villagers.currentTask {
                 // Keep isMoving = true since villagers are now gathering
-                print("🥩 Villagers transitioned to gathering, staying busy")
+                debugLog("🥩 Villagers transitioned to gathering, staying busy")
             } else {
                 self.isMoving = false
             }

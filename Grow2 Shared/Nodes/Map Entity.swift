@@ -141,9 +141,9 @@ class Army: MapEntity {
     func setHomeBase(_ buildingID: UUID?) {
         data.homeBaseID = buildingID
         if let id = buildingID {
-            print("🏠 Army \(name) home base set to building \(id)")
+            debugLog("🏠 Army \(name) home base set to building \(id)")
         } else {
-            print("🏠 Army \(name) home base cleared")
+            debugLog("🏠 Army \(name) home base cleared")
         }
     }
 
@@ -164,7 +164,7 @@ class Army: MapEntity {
             path: []  // Path would need to be provided
         )
         data.addPendingReinforcement(dataReinforcement)
-        print("🚶 Army \(name) now awaiting \(reinforcement.getTotalUnits()) reinforcements")
+        debugLog("🚶 Army \(name) now awaiting \(reinforcement.getTotalUnits()) reinforcements")
     }
 
     /// Removes a pending reinforcement by ID
@@ -180,7 +180,7 @@ class Army: MapEntity {
         }
         data.receiveReinforcement(dataUnits)
         let total = units.values.reduce(0, +)
-        print("✅ Army \(name) received \(total) reinforcement units!")
+        debugLog("✅ Army \(name) received \(total) reinforcement units!")
     }
 
     /// Gets total pending reinforcement units

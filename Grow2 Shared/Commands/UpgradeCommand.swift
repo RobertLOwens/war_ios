@@ -114,20 +114,20 @@ struct UpgradeCommand: GameCommand, Codable {
                 // ✅ Mark building as "pending upgrade" - upgrade will start when villagers arrive
                 building.pendingUpgrade = true
                 
-                print("🚶 Villagers moving to \(building.buildingType.displayName) for upgrade")
-                print("   From: (\(villagers.coordinate.q), \(villagers.coordinate.r))")
-                print("   To: (\(building.coordinate.q), \(building.coordinate.r))")
+                debugLog("🚶 Villagers moving to \(building.buildingType.displayName) for upgrade")
+                debugLog("   From: (\(villagers.coordinate.q), \(villagers.coordinate.r))")
+                debugLog("   To: (\(building.coordinate.q), \(building.coordinate.r))")
             } else {
                 // Villagers already at building - start immediately
                 villagers.assignTask(.upgrading(building), target: building.coordinate)
                 upgraderEntity.isMoving = true
                 building.startUpgrade()
-                print("⬆️ Started upgrading \(building.buildingType.displayName) to Lv.\(building.level + 1)")
+                debugLog("⬆️ Started upgrading \(building.buildingType.displayName) to Lv.\(building.level + 1)")
             }
         } else {
             // No upgrader assigned - start upgrade immediately (for buildings that don't need workers)
             building.startUpgrade()
-            print("⬆️ Started upgrading \(building.buildingType.displayName) to Lv.\(building.level + 1)")
+            debugLog("⬆️ Started upgrading \(building.buildingType.displayName) to Lv.\(building.level + 1)")
         }
         
         context.onResourcesChanged?()
@@ -193,7 +193,7 @@ struct CancelUpgradeCommand: GameCommand, Codable {
         
         context.onResourcesChanged?()
         
-        print("🚫 Cancelled upgrade for \(building.buildingType.displayName)")
+        debugLog("🚫 Cancelled upgrade for \(building.buildingType.displayName)")
         
         return .success
     }

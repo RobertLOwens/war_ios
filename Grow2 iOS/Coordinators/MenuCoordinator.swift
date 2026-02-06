@@ -31,650 +31,15 @@ class MenuCoordinator {
     weak var viewController: UIViewController?
     weak var delegate: MenuCoordinatorDelegate?
     
-    private var player: Player? { delegate?.player }
-    private var gameScene: GameScene? { delegate?.gameScene }
-    private var hexMap: HexMap? { gameScene?.hexMap }
+    var player: Player? { delegate?.player }
+    var gameScene: GameScene? { delegate?.gameScene }
+    var hexMap: HexMap? { gameScene?.hexMap }
     
     // MARK: - Initialization
     
     init(viewController: UIViewController, delegate: MenuCoordinatorDelegate) {
         self.viewController = viewController
         self.delegate = delegate
-    }
-    
-    // MARK: - Tile Menus
-    
-    func showTileActionMenu(for coordinate: HexCoordinate) {
-        guard let player = player,
-              let hexMap = hexMap,
-              let vc = viewController else { return }
-
-        let visibility = player.getVisibilityLevel(at: coordinate)
-        var title = "Tile (\(coordinate.q), \(coordinate.r))"
-        var message = ""
-        var actions: [AlertAction] = []
-
-        // -------------------------
-        // MARK: - Terrain Info
-        // -------------------------
-        if let tile = hexMap.getTile(at: coordinate) {
-            var terrainInfo = "🗺️ \(tile.terrain.displayName)"
-            if tile.elevation > 0 {
-                terrainInfo += " (Elevation: \(tile.elevation))"
-            }
-            message = terrainInfo
-        }
-
-        // -------------------------
-        // MARK: - Building Info
-        // -------------------------
-        if let building = hexMap.getBuilding(at: coordinate) {
-            if visibility == .visible || building.owner?.id == player.id {
-                title = "\(building.buildingType.icon) \(building.buildingType.displayName)"
-                message = building.buildingType.description
-                message += "\nOwner: \(building.owner?.name ?? "Unknown")"
-                message += "\nHealth: \(Int(building.health))/\(Int(building.maxHealth))"
-                message += "\n⭐ Level: \(building.level)/\(building.maxLevel)"
-                
-                if building.state == .constructing {
-                    let progress = Int(building.constructionProgress * 100)
-                    message += "\n🔨 Construction: \(progress)%"
-                    if let startTime = building.constructionStartTime {
-                        let remaining = getRemainingTime(startTime: startTime, totalTime: building.buildingType.buildTime)
-                        message += " (\(formatTime(remaining)))"
-                    }
-                }
-                
-                if building.state == .upgrading {
-                    let progress = Int(building.upgradeProgress * 100)
-                    message += "\n⬆️ Upgrading to Lv.\(building.level + 1): \(progress)%"
-                    if let startTime = building.upgradeStartTime,
-                       let upgradeTime = building.getUpgradeTime() {
-                        let remaining = getRemainingTime(startTime: startTime, totalTime: upgradeTime)
-                        message += " (\(formatTime(remaining)))"
-                    }
-                }
-
-                if building.state == .demolishing {
-                    let progress = Int(building.demolitionProgress * 100)
-                    message += "\n🏚️ Demolishing: \(progress)%"
-                    let currentTime = Date().timeIntervalSince1970
-                    if let remainingTime = building.data.getRemainingDemolitionTime(currentTime: currentTime) {
-                        message += " (\(formatTime(remainingTime)))"
-                    }
-                }
-
-                // Open Building action (only for completed, upgrading, or demolishing player-owned buildings)
-                if (building.state == .completed || building.state == .upgrading || building.state == .demolishing) && building.owner?.id == player.id {
-                    let buildingName = building.buildingType.displayName
-                    actions.append(AlertAction(title: "🏗️ Open \(buildingName)", style: .default) { [weak self] in
-                        self?.presentBuildingDetail(for: building)
-                    })
-                }
-            } else if visibility == .explored {
-                message = "Explored - Last seen: Building here"
-            }
-        }
-        
-        // -------------------------
-        // MARK: - Resource Info
-        // -------------------------
-        if let resourcePoint = hexMap.getResourcePoint(at: coordinate), (visibility == .visible || visibility == .explored) {
-            // Check if there's a building (camp) at this location
-            let buildingAtLocation = hexMap.getBuilding(at: coordinate)
-
-            if resourcePoint.resourceType.isHuntable {
-                // Huntable animal - show hunt action
-                title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
-                message = "Health: \(Int(resourcePoint.currentHealth))/\(Int(resourcePoint.resourceType.health))"
-                message += "\nFood: \(resourcePoint.remainingAmount)"
-
-                actions.append(AlertAction(title: "🏹 Hunt \(resourcePoint.resourceType.displayName)") { [weak self] in
-                    self?.showVillagerSelectionForHunt(resourcePoint: resourcePoint)
-                })
-            } else if resourcePoint.resourceType.isGatherable {
-                // Gatherable resource - show gather action
-                title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
-
-                let gatherers = resourcePoint.getTotalVillagersGathering()
-                message = "Remaining: \(resourcePoint.remainingAmount)"
-                if gatherers > 0 {
-                    message += "\n👷 \(gatherers) villager(s) gathering"
-                }
-
-                // Check if camp is required
-                if resourcePoint.resourceType.requiresCamp {
-                    // Check if camp coverage exists (adjacent OR via roads)
-                    if hexMap.hasExtendedCampCoverage(at: coordinate, forResourceType: resourcePoint.resourceType) {
-                        // Camp in range - can gather
-                        if resourcePoint.getRemainingCapacity() > 0 {
-                            let actionVerb = resourcePoint.resourceType == .farmland ? "Work" : "Gather"
-                            actions.append(AlertAction(title: "⛏️ \(actionVerb) \(resourcePoint.resourceType.displayName)") { [weak self] in
-                                self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
-                            })
-                        } else {
-                            message += "\n\n⚠️ Max villagers reached (\(ResourcePointNode.maxVillagersPerTile))"
-                        }
-                    } else {
-                        // No camp in range - show what's needed
-                        let campName = resourcePoint.resourceType == .trees ? "Lumber Camp" : "Mining Camp"
-                        message += "\n\n⚠️ Build a \(campName) adjacent or connect with roads"
-                    }
-                } else {
-                    // No camp required (berries, carcasses, farmland)
-                    if resourcePoint.getRemainingCapacity() > 0 {
-                        let actionVerb = resourcePoint.resourceType == .farmland ? "Work" : "Gather"
-                        actions.append(AlertAction(title: "⛏️ \(actionVerb) \(resourcePoint.resourceType.displayName)") { [weak self] in
-                            self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
-                        })
-                    } else {
-                        message += "\n\n⚠️ Max villagers reached (\(ResourcePointNode.maxVillagersPerTile))"
-                    }
-                }
-            }
-
-        }
-        
-        // -------------------------
-        // MARK: - Entities on Tile
-        // -------------------------
-        let entitiesAtTile = hexMap.entities.filter { $0.coordinate == coordinate }
-        
-        let visibleEntities: [EntityNode]
-        if visibility == .visible {
-            visibleEntities = entitiesAtTile.filter { entity in
-                if let fogOfWar = player.fogOfWar {
-                    return fogOfWar.shouldShowEntity(entity.entity, at: coordinate)
-                }
-                return true
-            }
-        } else {
-            visibleEntities = []
-        }
-        
-        if !visibleEntities.isEmpty {
-            if !message.isEmpty { message += "\n" }
-            message += "\n📍 \(visibleEntities.count) unit(s) on this tile"
-        }
-        
-        // -------------------------
-        // MARK: - Attack Option (Enemy Buildings or Entities)
-        // -------------------------
-        // If there's a building at this coordinate, show building attack only
-        // (any defending army will participate in building defense)
-        // Otherwise, show entity attack if there are enemy entities
-
-        let buildingAtCoordinate = hexMap.getBuilding(at: coordinate)
-
-        // Building attack option
-        if let building = buildingAtCoordinate,
-           let buildingOwner = building.owner,
-           visibility == .visible {
-            let diplomacyStatus = player.getDiplomacyStatus(with: buildingOwner)
-            if diplomacyStatus == .enemy && building.state == .completed {
-                let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
-                if !playerArmies.isEmpty {
-                    actions.append(AlertAction(title: "⚔️ Attack \(building.buildingType.displayName)", style: .destructive) { [weak self] in
-                        self?.showAttackerSelectionForBuilding(building: building, at: coordinate)
-                    })
-                }
-            }
-        }
-
-        // Entity attack option (independent of building presence)
-        let enemyEntities = visibleEntities.filter { entity in
-            guard entity.entity.owner != nil else { return false }
-            let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
-            return diplomacyStatus == .enemy
-        }
-
-        if !enemyEntities.isEmpty {
-            let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
-            if !playerArmies.isEmpty {
-                actions.append(AlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] in
-                    self?.showAttackerSelectionForTile(enemies: enemyEntities, at: coordinate)
-                })
-            }
-        }
-
-        // Add action for each visible entity
-        for entity in visibleEntities {
-            var buttonTitle = ""
-
-            if entity.entityType == .villagerGroup {
-                if let villagers = entity.entity as? VillagerGroup {
-                    buttonTitle = "👷 \(villagers.name) (\(villagers.villagerCount) villagers)"
-                    
-                    switch villagers.currentTask {
-                    case .gatheringResource:
-                        buttonTitle += " ⛏️"
-                    case .hunting:
-                        buttonTitle += " 🏹"
-                    case .building:
-                        buttonTitle += " 🔨"
-                    case .upgrading:
-                        buttonTitle += " ⬆️"
-                    case .demolishing:
-                        buttonTitle += " 🏚️"
-                    case .idle:
-                        buttonTitle += " 💤"
-                    default:
-                        break
-                    }
-                } else {
-                    buttonTitle = "👷 Villager Group"
-                }
-                
-            } else if entity.entityType == .army {
-                if let army = entity.entity as? Army {
-                    let totalUnits = army.getTotalMilitaryUnits()
-                    buttonTitle = "🛡️ \(army.name) (\(totalUnits) units)"
-                } else {
-                    buttonTitle = "🛡️ Army"
-                }
-            }
-            
-            if let villagers = entity.entity as? VillagerGroup {
-                if villagers.owner?.id != player.id {
-                    // Enemy villager - destructive style, triggers attack selection
-                    actions.append(AlertAction(title: buttonTitle, style: .destructive) { [weak self] in
-                        self?.showAttackerSelectionForTile(enemies: [entity], at: coordinate)
-                    })
-                } else {
-                    // Own villager - normal menu
-                    actions.append(AlertAction(title: buttonTitle) { [weak self] in
-                        switch villagers.currentTask {
-                        case .gatheringResource, .hunting:
-                            self?.showVillagerOptionsMenu(villagerGroup: villagers, entityNode: entity)
-                        default:
-                            self?.showVillagerMenu(at: coordinate, villagerGroup: entity)
-                        }
-                    })
-                }
-            } else {
-                actions.append(AlertAction(title: buttonTitle) { [weak self] in
-                    self?.showEntityActionMenu(for: entity, at: coordinate)
-                })
-            }
-        }
-        
-        // -------------------------
-        // MARK: - Build Here Option
-        // -------------------------
-        // Show build option if tile is empty and buildable (no building, walkable terrain)
-        if visibility == .visible || visibility == .explored {
-            let existingBuilding = hexMap.getBuilding(at: coordinate)
-            let canBuildHere = hexMap.isWalkable(coordinate) && (existingBuilding == nil || existingBuilding?.buildingType.isRoad == true)
-
-            if canBuildHere {
-                actions.append(AlertAction(title: "🏗️ Build Here", style: .default) { [weak self] in
-                    self?.showBuildingMenuWithVillagerSelection(at: coordinate)
-                })
-            }
-        }
-
-        // -------------------------
-        // MARK: - Movement Action
-        // -------------------------
-        if visibility == .visible || visibility == .explored || visibility == .unexplored {
-            let hasHostileEntities = entitiesAtTile.contains { entity in
-                let diplomacyStatus = player.getDiplomacyStatus(with: entity.entity.owner)
-                return diplomacyStatus == .neutral || diplomacyStatus == .enemy
-            }
-
-            if !hasHostileEntities {
-                let moveTitle = visibility == .unexplored ? "🔭 Scout This Location" : "🚶 Move Unit Here"
-                actions.append(AlertAction(title: moveTitle, style: .default) { [weak self] in
-                    self?.gameScene?.initiateMove(to: coordinate)
-                })
-            } else {
-                if !message.isEmpty { message += "\n" }
-                message += "\n⚠️ Cannot move here - hostile units present"
-            }
-        }
-        
-        // -------------------------
-        // MARK: - Show Menu
-        // -------------------------
-        vc.showActionSheet(
-            title: title,
-            message: message.isEmpty ? nil : message,
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
-    }
-
-    // MARK: - Unexplored Tile Menu
-
-    /// Shows a simplified menu for unexplored tiles with only move/scout option
-    func showUnexploredTileMenu(for coordinate: HexCoordinate) {
-        guard let vc = viewController,
-              let hexMap = hexMap else { return }
-
-        var title = "Unexplored Area"
-        var message = "🌫️ This area has not been explored.\n\nSend a unit to reveal what lies here."
-
-        // Check terrain if available
-        if let tile = hexMap.getTile(at: coordinate) {
-            message = "🗺️ \(tile.terrain.displayName)\n\n🌫️ This area has not been explored.\n\nSend a unit to reveal what lies here."
-        }
-
-        var actions: [AlertAction] = []
-
-        actions.append(AlertAction(title: "🔭 Scout This Location", style: .default) { [weak self] in
-            self?.gameScene?.initiateMove(to: coordinate)
-        })
-
-        vc.showActionSheet(
-            title: title,
-            message: message,
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
-    }
-
-    // MARK: - Entity Selection Menus
-
-    func showEntityActionMenu(for entity: EntityNode, at coordinate: HexCoordinate) {
-        guard let player = player,
-              let vc = viewController else { return }
-
-        if entity.entityType == .villagerGroup {
-            showVillagerMenu(at: coordinate, villagerGroup: entity)
-            return
-        }
-
-        // For armies, show the detail screen directly
-        if entity.entityType == .army,
-           let army = entity.armyReference {
-            presentArmyDetail(for: army, entityNode: entity)
-            return
-        }
-
-        var actions: [AlertAction] = []
-
-        // Move action
-        actions.append(AlertAction(title: "🚶 Move") { [weak self] in
-            self?.gameScene?.selectEntity(entity)
-            vc.showAlert(title: "Select Destination", message: "Tap a tile to move this entity.")
-        })
-
-        actions.append(AlertAction(title: "← Back") { [weak self] in
-            self?.showTileActionMenu(for: coordinate)
-        })
-
-        vc.showActionSheet(
-            title: "Entity Actions",
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
-    }
-
-    // MARK: - Army Detail
-
-    func presentArmyDetail(for army: Army, entityNode: EntityNode) {
-        guard let vc = viewController as? GameViewController,
-              let player = player,
-              let hexMap = hexMap,
-              let gameScene = gameScene else { return }
-
-        let armyDetailVC = ArmyDetailViewController()
-        armyDetailVC.army = army
-        armyDetailVC.player = player
-        armyDetailVC.hexMap = hexMap
-        armyDetailVC.gameScene = gameScene
-        armyDetailVC.modalPresentationStyle = .pageSheet
-
-        if let sheet = armyDetailVC.sheetPresentationController {
-            sheet.detents = [.medium(), .large()]
-            sheet.prefersGrabberVisible = true
-        }
-
-        vc.present(armyDetailVC, animated: true)
-    }
-    
-    // MARK: - Move Selection
-
-    func showMoveSelectionMenu(to coordinate: HexCoordinate, from entities: [EntityNode]) {
-        guard let player = player,
-              let vc = viewController,
-              let hexMap = hexMap,
-              let gameScene = gameScene else { return }
-
-        // Filter entities:
-        // - Must be owned by player
-        // - Must not be currently moving
-        // - Armies: exclude only if isInCombat == true
-        // - Villagers: INCLUDE all (even busy ones - panel shows warning)
-        let playerEntities = entities.filter { entity in
-            guard entity.entity.owner?.id == player.id else { return false }
-            guard !entity.isMoving else { return false }
-
-            // If it's an army, must not be in active combat
-            if let army = entity.armyReference {
-                guard !GameEngine.shared.combatEngine.isInCombat(armyID: army.id) else { return false }
-            }
-
-            return true
-        }
-
-        guard !playerEntities.isEmpty else {
-            vc.showAlert(title: "No Units Available", message: "You don't have any units that can move.")
-            return
-        }
-
-        // Sort entities by distance to destination
-        let sortedEntities = playerEntities.sorted { e1, e2 in
-            e1.coordinate.distance(to: coordinate) < e2.coordinate.distance(to: coordinate)
-        }
-
-        // Check if destination is unexplored
-        let visibility = player.getVisibilityLevel(at: coordinate)
-        let isUnexplored = (visibility == .unexplored)
-
-        // Present the MoveEntityPanelViewController
-        let panelVC = MoveEntityPanelViewController()
-        panelVC.destinationCoordinate = coordinate
-        panelVC.availableEntities = sortedEntities
-        panelVC.isDestinationUnexplored = isUnexplored
-        panelVC.hexMap = hexMap
-        panelVC.gameScene = gameScene
-        panelVC.player = player
-        panelVC.modalPresentationStyle = .overFullScreen
-        panelVC.modalTransitionStyle = .crossDissolve
-
-        panelVC.onConfirm = { [weak self] selectedEntity in
-            self?.executeMoveCommand(entity: selectedEntity, to: coordinate)
-        }
-
-        panelVC.onCancel = { [weak self] in
-            self?.delegate?.deselectAll()
-        }
-
-        vc.present(panelVC, animated: false)
-    }
-    
-    // MARK: - Villager Menu
-    
-    func showVillagerMenu(at coordinate: HexCoordinate, villagerGroup: EntityNode) {
-        guard let villagers = villagerGroup.entity as? VillagerGroup,
-              let hexMap = hexMap,
-              let player = player,
-              let vc = viewController else { return }
-        
-        var message = "👷 Villagers: \(villagers.villagerCount)\n"
-        message += "📍 Status: \(villagers.currentTask.displayName)"
-        
-        var actions: [AlertAction] = []
-        
-        let isIdle = villagers.currentTask == .idle
-        
-        // -------------------------
-        // NON-IDLE: Cancel Task Only
-        // -------------------------
-        if !isIdle {
-            switch villagers.currentTask {
-            case .gatheringResource(let resourcePoint):
-                message += "\n\n⛏️ Gathering: \(resourcePoint.resourceType.displayName)"
-                message += "\n📦 Remaining: \(resourcePoint.remainingAmount)"
-                
-                actions.append(AlertAction(title: "🛑 Cancel Gathering", style: .destructive) { [weak self] in
-                    self?.executeStopGatheringCommand(villagerGroup: villagers)
-                })
-                
-            case .hunting(let target):
-                message += "\n\n🎯 Hunting: \(target.resourceType.displayName)"
-                
-                actions.append(AlertAction(title: "🛑 Cancel Hunt", style: .destructive) { [weak self] in
-                    self?.cancelHunting(villagerGroup: villagers)
-                })
-                
-            case .building(let building):
-                message += "\n\n🏗️ Constructing: \(building.buildingType.displayName)"
-                
-                actions.append(AlertAction(title: "🛑 Cancel Building", style: .destructive) { [weak self] in
-                    self?.cancelBuilding(villagerGroup: villagers, building: building)
-                })
-                
-            case .upgrading(let building):
-                message += "\n\n⬆️ Upgrading: \(building.buildingType.displayName)"
-
-                actions.append(AlertAction(title: "🛑 Cancel Upgrade", style: .destructive) { [weak self] in
-                    self?.executeCancelUpgradeCommand(building: building)
-                })
-
-            case .demolishing(let building):
-                message += "\n\n🏚️ Demolishing: \(building.buildingType.displayName)"
-
-                actions.append(AlertAction(title: "🛑 Cancel Demolition", style: .destructive) { [weak self] in
-                    self?.executeCancelDemolitionCommand(building: building)
-                })
-
-            default:
-                actions.append(AlertAction(title: "🛑 Cancel Task", style: .destructive) { [weak self] in
-                    villagers.clearTask()
-                    if let entityNode = hexMap.entities.first(where: {
-                        ($0.entity as? VillagerGroup)?.id == villagers.id
-                    }) {
-                        entityNode.isMoving = false
-                    }
-                    self?.delegate?.deselectAll()
-                })
-            }
-            
-            message += "\n\n⚠️ Cancel task to move or assign new tasks."
-        }
-        
-        // -------------------------
-        // IDLE: Full Options
-        // -------------------------
-        if isIdle {
-            // Move
-            actions.append(AlertAction(title: "🚶 Move") { [weak self] in
-                self?.gameScene?.initiateMove(to: coordinate)
-            })
-            
-            // Build (only if no building on tile)
-            let buildingExists = hexMap.getBuilding(at: coordinate) != nil
-            if !buildingExists {
-                actions.append(AlertAction(title: "🏗️ Build") { [weak self] in
-                    self?.showBuildingMenu(at: coordinate, villagerGroup: villagerGroup)
-                })
-            }
-            
-            // Upgrade (if on a player-owned building)
-            if let building = hexMap.getBuilding(at: coordinate),
-               building.owner?.id == player.id,
-               building.canUpgrade {
-                actions.append(AlertAction(title: "⬆️ Upgrade \(building.buildingType.displayName)") { [weak self] in
-                    self?.showUpgradeConfirmation(for: building, villagerEntity: villagerGroup)
-                })
-            }
-            
-            // Merge (only if another villager group on same tile)
-            let otherVillagerGroups = hexMap.entities.filter {
-                $0.coordinate == coordinate &&
-                $0.entityType == .villagerGroup &&
-                ($0.entity as? VillagerGroup)?.id != villagers.id &&
-                $0.entity.owner?.id == player.id
-            }
-            
-            if let otherGroup = otherVillagerGroups.first {
-                if let otherVillagers = otherGroup.entity as? VillagerGroup {
-                    actions.append(AlertAction(title: "🔀 Merge with \(otherVillagers.name) (\(otherVillagers.villagerCount))") { [weak self] in
-                        self?.delegate?.showMergeMenu(group1: villagerGroup, group2: otherGroup)
-                    })
-                }
-            }
-            
-            // Split (only if more than 1 villager)
-            if villagers.villagerCount > 1 {
-                actions.append(AlertAction(title: "✂️ Split Group") { [weak self] in
-                    self?.delegate?.showSplitVillagerMenu(villagerGroup: villagers, entityNode: villagerGroup)
-                })
-            }
-            
-            // Gather (only if on a gatherable resource tile)
-            if let resourcePoint = hexMap.getResourcePoint(at: coordinate) {
-                if resourcePoint.resourceType.isGatherable && !resourcePoint.isDepleted() {
-                    // ✅ FIX: Use "Work" for farms, "Gather" for other resources
-                    let actionVerb = resourcePoint.resourceType == .farmland ? "Work" : "Gather"
-                    
-                    actions.append(AlertAction(title: "\(actionVerb) \(resourcePoint.resourceType.displayName)") { [weak self] in
-                        self?.executeGatherCommand(villagerGroup: villagers, resourcePoint: resourcePoint)
-                    })
-                }
-            }
-        }
-        
-        vc.showActionSheet(
-            title: "👷 \(villagers.name)",
-            message: message,
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
-    }
-    
-    func showVillagerOptionsMenu(villagerGroup: VillagerGroup, entityNode: EntityNode) {
-        guard let vc = viewController else { return }
-        
-        var actions: [AlertAction] = []
-        var message = "Villagers: \(villagerGroup.villagerCount)\n"
-        message += "Status: \(villagerGroup.currentTask.displayName)"
-        
-        if case .gatheringResource(let resourcePoint) = villagerGroup.currentTask {
-            message += "\n\nGathering: \(resourcePoint.resourceType.displayName)"
-            message += "\nRemaining: \(resourcePoint.remainingAmount)"
-            
-            actions.append(AlertAction(title: "🛑 Cancel Gathering", style: .destructive) { [weak self] in
-                self?.executeStopGatheringCommand(villagerGroup: villagerGroup)
-            })
-        }
-        
-        if case .hunting(let target) = villagerGroup.currentTask {
-            message += "\n\nHunting: \(target.resourceType.displayName)"
-            
-            actions.append(AlertAction(title: "🛑 Cancel Hunt", style: .destructive) { [weak self] in
-                self?.cancelHunting(villagerGroup: villagerGroup)
-            })
-        }
-        
-        vc.showActionSheet(
-            title: "👷 \(villagerGroup.name)",
-            message: message,
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
     }
     
     // MARK: - Building Menu
@@ -1003,54 +368,6 @@ class MenuCoordinator {
         }
 
         vc.present(panelVC, animated: false)
-    }
-
-    /// Shows rotation options for multi-tile buildings (DEPRECATED - use interactive rotation preview instead)
-    /// Kept for backwards compatibility, but enterRotationPreviewModeForBuilding is preferred
-    func showRotationSelectionForBuilding(buildingType: BuildingType, at coordinate: HexCoordinate) {
-        guard let hexMap = hexMap,
-              let vc = viewController else { return }
-
-        var actions: [AlertAction] = []
-        let directions = ["East ➡️", "Northeast ↗️", "Northwest ↖️", "West ⬅️", "Southwest ↙️", "Southeast ↘️"]
-
-        for rotation in 0..<6 {
-            // Check if this rotation is valid (all tiles can be placed)
-            let canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: buildingType, rotation: rotation)
-
-            if canPlace {
-                let title = "🔄 \(directions[rotation])"
-                actions.append(AlertAction(title: title) { [weak self] in
-                    self?.showIdleVillagerSelectionForBuildingWithRotation(
-                        buildingType: buildingType,
-                        at: coordinate,
-                        rotation: rotation
-                    )
-                })
-            } else {
-                // Show as disabled with reason
-                actions.append(AlertAction(title: "❌ \(directions[rotation]) (blocked)", handler: nil))
-            }
-        }
-
-        // Get the tiles that would be occupied for visual reference
-        let message = """
-        \(buildingType.displayName) is a 3-tile building.
-        Choose which direction it should face.
-
-        The building will occupy:
-        • Anchor tile at (\(coordinate.q), \(coordinate.r))
-        • Two adjacent tiles based on rotation
-        """
-
-        vc.showActionSheet(
-            title: "🔄 Select Rotation",
-            message: message,
-            actions: actions,
-            onCancel: { [weak self] in
-                self?.delegate?.deselectAll()
-            }
-        )
     }
 
     /// Shows villager selection after rotation has been chosen (uses slide-out panel)
@@ -1392,7 +709,7 @@ class MenuCoordinator {
     }
 
     /// Executes an AttackCommand
-    private func executeAttackCommand(attacker: Army, targetCoordinate: HexCoordinate, targetEntityID: UUID? = nil) {
+    func executeAttackCommand(attacker: Army, targetCoordinate: HexCoordinate, targetEntityID: UUID? = nil) {
         guard let player = player else { return }
 
         let command = AttackCommand(
@@ -1540,7 +857,7 @@ class MenuCoordinator {
     // =========================================================================
     
     /// Executes a MoveCommand
-    private func executeMoveCommand(entity: EntityNode, to destination: HexCoordinate) {
+    func executeMoveCommand(entity: EntityNode, to destination: HexCoordinate) {
         guard let player = player else { return }
         
         let command = MoveCommand(
@@ -1559,7 +876,7 @@ class MenuCoordinator {
     }
     
     /// Executes a BuildCommand
-    private func executeBuildCommand(buildingType: BuildingType, at coordinate: HexCoordinate, builder: EntityNode?, rotation: Int = 0) {
+    func executeBuildCommand(buildingType: BuildingType, at coordinate: HexCoordinate, builder: EntityNode?, rotation: Int = 0) {
         guard let player = player else { return }
 
         let command = BuildCommand(
@@ -1581,7 +898,7 @@ class MenuCoordinator {
     }
     
     /// Executes a GatherCommand
-    private func executeGatherCommand(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
+    func executeGatherCommand(villagerGroup: VillagerGroup, resourcePoint: ResourcePointNode) {
         guard let player = player else { return }
         
         let command = GatherCommand(
@@ -1601,7 +918,7 @@ class MenuCoordinator {
     }
     
     /// Executes a StopGatheringCommand
-    private func executeStopGatheringCommand(villagerGroup: VillagerGroup) {
+    func executeStopGatheringCommand(villagerGroup: VillagerGroup) {
         guard let player = player else { return }
         
         let command = StopGatheringCommand(
@@ -1625,7 +942,7 @@ class MenuCoordinator {
     }
     
     /// Executes an UpgradeCommand
-    private func executeUpgradeCommand(building: BuildingNode, villagerEntity: EntityNode) {
+    func executeUpgradeCommand(building: BuildingNode, villagerEntity: EntityNode) {
         guard let player = player else { return }
         
         let command = UpgradeCommand(
@@ -1645,7 +962,7 @@ class MenuCoordinator {
     }
     
     /// Executes a CancelUpgradeCommand
-    private func executeCancelUpgradeCommand(building: BuildingNode) {
+    func executeCancelUpgradeCommand(building: BuildingNode) {
         guard let player = player else { return }
 
         let command = CancelUpgradeCommand(
@@ -1666,7 +983,7 @@ class MenuCoordinator {
     }
 
     /// Executes a CancelDemolitionCommand
-    private func executeCancelDemolitionCommand(building: BuildingNode) {
+    func executeCancelDemolitionCommand(building: BuildingNode) {
         guard let player = player else { return }
 
         let command = CancelDemolitionCommand(
@@ -1687,7 +1004,7 @@ class MenuCoordinator {
     }
 
     /// Executes a ReinforceArmyCommand
-    private func executeReinforcementCommand(from building: BuildingNode, to army: Army, sliders: [MilitaryUnitType: UISlider]) {
+    func executeReinforcementCommand(from building: BuildingNode, to army: Army, sliders: [MilitaryUnitType: UISlider]) {
         guard let player = player else { return }
         
         var units: [MilitaryUnitType: Int] = [:]
@@ -1739,20 +1056,20 @@ class MenuCoordinator {
         // Check if already at target location
         if entityNode.coordinate == target.coordinate {
             // Already at target - execute hunt immediately
-            print("🏹 \(villagerGroup.name) already at hunt target, executing hunt")
+            debugLog("🏹 \(villagerGroup.name) already at hunt target, executing hunt")
             gameScene.villagerArrivedForHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
         } else if let path = hexMap.findPath(from: entityNode.coordinate, to: target.coordinate), !path.isEmpty {
             // Move to target
             entityNode.moveTo(path: path) { [weak self, weak gameScene] in
                 // Only trigger hunt if task is still .hunting (hasn't already been handled by EntityNode)
                 guard case .hunting = villagerGroup.currentTask else {
-                    print("🏹 Hunt already processed or task changed, skipping completion handler")
+                    debugLog("🏹 Hunt already processed or task changed, skipping completion handler")
                     return
                 }
-                print("🏹 Movement completed, triggering hunt from completion handler")
+                debugLog("🏹 Movement completed, triggering hunt from completion handler")
                 gameScene?.villagerArrivedForHunt(villagerGroup: villagerGroup, target: target, entityNode: entityNode)
             }
-            print("🏹 \(villagerGroup.name) heading to hunt \(target.resourceType.displayName)")
+            debugLog("🏹 \(villagerGroup.name) heading to hunt \(target.resourceType.displayName)")
         } else {
             // No valid path - can't reach target
             villagerGroup.clearTask()
@@ -1788,7 +1105,7 @@ class MenuCoordinator {
         let damageToAnimal = max(1.0, villagerAttack - animalDefense)
         let isDead = target.takeDamage(damageToAnimal)
         
-        print("⚔️ Villagers dealt \(damageToAnimal) damage to \(target.resourceType.displayName)")
+        debugLog("⚔️ Villagers dealt \(damageToAnimal) damage to \(target.resourceType.displayName)")
         
         // Damage to villagers (animal fights back)
         let damageToVillagers = max(0.0, animalAttack - Double(villagerGroup.villagerCount) * 0.5)
@@ -1796,7 +1113,7 @@ class MenuCoordinator {
         
         if villagersLost > 0 {
             let actualLost = villagerGroup.removeVillagers(count: villagersLost)
-            print("⚠️ \(actualLost) villagers were injured/killed by \(target.resourceType.displayName)")
+            debugLog("⚠️ \(actualLost) villagers were injured/killed by \(target.resourceType.displayName)")
         }
         
         if isDead {
@@ -1833,7 +1150,7 @@ class MenuCoordinator {
                                     ownerID: player.id
                                 )
                                 engineState.addVillagerGroup(groupData)
-                                print("➕ Added VillagerGroupData to engine for \(villagerGroup.name)")
+                                debugLog("➕ Added VillagerGroupData to engine for \(villagerGroup.name)")
                             }
 
                             // Start gathering in engine using carcass's ID (matches visual layer)
@@ -1845,7 +1162,7 @@ class MenuCoordinator {
                             // Sync villager task state to engine's data layer
                             if let groupData = engineState.getVillagerGroup(id: villagerGroup.id) {
                                 groupData.currentTask = .gatheringResource(resourcePointID: carcass.id)
-                                print("🔄 Synced VillagerGroupData task to gathering carcass \(carcass.id)")
+                                debugLog("🔄 Synced VillagerGroupData task to gathering carcass \(carcass.id)")
                             }
                         }
                     }
@@ -1858,7 +1175,7 @@ class MenuCoordinator {
 
                     vc.showAlert(title: "🎯 Hunt Successful!", message: message)
 
-                    print("✅ Villagers hunted \(target.resourceType.displayName) - now gathering from carcass")
+                    debugLog("✅ Villagers hunted \(target.resourceType.displayName) - now gathering from carcass")
                 }
             }
         } else {
@@ -1883,7 +1200,7 @@ class MenuCoordinator {
             hexMap.removeEntity(entityNode)
             entityNode.removeFromParent()
             player.removeEntity(villagerGroup)
-            print("💀 Villager group wiped out during hunt")
+            debugLog("💀 Villager group wiped out during hunt")
         }
         
         delegate?.updateResourceDisplay()
@@ -1891,7 +1208,7 @@ class MenuCoordinator {
   
     
     /// Cancels a hunting task (not yet a command)
-    private func cancelHunting(villagerGroup: VillagerGroup) {
+    func cancelHunting(villagerGroup: VillagerGroup) {
         guard let hexMap = hexMap,
               let vc = viewController else { return }
         
@@ -1908,7 +1225,7 @@ class MenuCoordinator {
             entityNode.isMoving = false
         }
         
-        print("✅ Cancelled hunting for \(villagerGroup.name)")
+        debugLog("✅ Cancelled hunting for \(villagerGroup.name)")
         
         vc.showAlert(
             title: "✅ Hunt Cancelled",
@@ -1919,7 +1236,7 @@ class MenuCoordinator {
     }
     
     /// Cancels a building task (not yet a command)
-    private func cancelBuilding(villagerGroup: VillagerGroup, building: BuildingNode) {
+    func cancelBuilding(villagerGroup: VillagerGroup, building: BuildingNode) {
         guard let hexMap = hexMap,
               let player = player,
               let vc = viewController else { return }
@@ -1947,14 +1264,14 @@ class MenuCoordinator {
             building.clearTileOverlays()  // Clean up multi-tile overlays
             building.removeFromParent()
 
-            print("✅ Building cancelled and removed, resources refunded")
+            debugLog("✅ Building cancelled and removed, resources refunded")
 
             vc.showAlert(
                 title: "✅ Building Cancelled",
                 message: "\(building.buildingType.displayName) construction cancelled. Resources refunded."
             )
         } else {
-            print("✅ Cancelled building for \(villagerGroup.name)")
+            debugLog("✅ Cancelled building for \(villagerGroup.name)")
 
             vc.showAlert(
                 title: "✅ Builder Removed",
@@ -1967,10 +1284,10 @@ class MenuCoordinator {
     }
     
     // =========================================================================
-    // MARK: - Private Helpers
+    // MARK: - Helpers
     // =========================================================================
-    
-    private func formatEntityTitle(_ entity: EntityNode) -> String {
+
+    func formatEntityTitle(_ entity: EntityNode) -> String {
         var title = "\(entity.entityType.icon) "
         
         if entity.entityType == .army, let army = entity.entity as? Army {
@@ -1983,11 +1300,11 @@ class MenuCoordinator {
         return title
     }
     
-    private func formatCost(_ cost: [ResourceType: Int]) -> String {
+    func formatCost(_ cost: [ResourceType: Int]) -> String {
         cost.map { "\($0.key.icon)\($0.value)" }.joined(separator: " ")
     }
     
-    private func formatArmyComposition(_ army: Army) -> String {
+    func formatArmyComposition(_ army: Army) -> String {
         var message = ""
         let totalUnits = army.getTotalMilitaryUnits()
         message += "Total Units: \(totalUnits)\n\n"
@@ -2000,13 +1317,13 @@ class MenuCoordinator {
         return message
     }
     
-    private func getRemainingTime(startTime: TimeInterval, totalTime: TimeInterval) -> TimeInterval {
+    func getRemainingTime(startTime: TimeInterval, totalTime: TimeInterval) -> TimeInterval {
         let currentTime = Date().timeIntervalSince1970
         let elapsed = currentTime - startTime
         return max(0, totalTime - elapsed)
     }
     
-    private func formatTime(_ seconds: TimeInterval) -> String {
+    func formatTime(_ seconds: TimeInterval) -> String {
         let minutes = Int(seconds) / 60
         let secs = Int(seconds) % 60
         return String(format: "%d:%02d", minutes, secs)

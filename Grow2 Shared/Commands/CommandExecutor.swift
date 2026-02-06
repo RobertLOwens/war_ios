@@ -52,7 +52,7 @@ class CommandExecutor {
         let validationResult = command.validate(in: context)
         guard validationResult.succeeded else {
             if loggingEnabled {
-                print("❌ Command \(T.commandType) validation failed: \(validationResult.failureReason ?? "unknown")")
+                debugLog("❌ Command \(T.commandType) validation failed: \(validationResult.failureReason ?? "unknown")")
             }
             return validationResult
         }
@@ -72,11 +72,11 @@ class CommandExecutor {
             }
             
             if loggingEnabled {
-                print("✅ Command \(T.commandType) executed successfully")
+                debugLog("✅ Command \(T.commandType) executed successfully")
             }
         } else {
             if loggingEnabled {
-                print("❌ Command \(T.commandType) execution failed: \(executeResult.failureReason ?? "unknown")")
+                debugLog("❌ Command \(T.commandType) execution failed: \(executeResult.failureReason ?? "unknown")")
             }
         }
         

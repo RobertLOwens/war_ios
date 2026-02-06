@@ -30,8 +30,7 @@
 		3F6225AE2F2BE74300A6F7D4 /* BuildingPlacementController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6225A92F2BE74300A6F7D4 /* BuildingPlacementController.swift */; };
 		3F6225AF2F2BE74300A6F7D4 /* ReinforcementManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6225AA2F2BE74300A6F7D4 /* ReinforcementManager.swift */; };
 		3F6AE4482F18189A00C885D6 /* ResearchViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */; };
-		3F6AE44D2F1818C200C885D6 /* ResearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */; };
-		3F6AE44E2F1818C200C885D6 /* ResearchType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44C2F1818C200C885D6 /* ResearchType.swift */; };
+		3F6AE44D2F1818C200C885D6 /* ResearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE4502F18228000C885D6 /* ResearchManager.swift */; };
 		3F6AE4512F18228000C885D6 /* ResearchType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6AE44F2F18228000C885D6 /* ResearchType.swift */; };
 		3F98926C2F21DB81008A24E7 /* EntitiesOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F98926B2F21DB81008A24E7 /* EntitiesOverviewViewController.swift */; };
 		3F98926E2F21DB9C008A24E7 /* DemolishCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F98926D2F21DB9C008A24E7 /* DemolishCommand.swift */; };
@@ -57,6 +56,7 @@
 		3FD1D5E42ED514BD001398FB /* MilitaryUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */; };
 		3FDATA0001000000000ARMYD /* ArmyData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000ARMYD /* ArmyData.swift */; };
 		3FDATA0001000000000GMEST /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000GMEST /* GameState.swift */; };
+		3FDATA0001000000000GSQRY /* GameStateQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000GSQRY /* GameStateQueries.swift */; };
 		3FDATA0001000000000MAPDT /* MapData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000MAPDT /* MapData.swift */; };
 		3FDATA0001000000000PLRST /* PlayerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000PLRST /* PlayerState.swift */; };
 		3FDATA0001000000000RSPNT /* ResourcePointData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000RSPNT /* ResourcePointData.swift */; };
@@ -71,9 +71,15 @@
 		3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2082F006EE800341AEE /* FogOfWar.swift */; };
 		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
 		3FENGN0001000000000AICNT /* AIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AICNT /* AIController.swift */; };
+		3FENGN0001000000000AIECP /* AIEconomyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIECP /* AIEconomyPlanner.swift */; };
+		3FENGN0001000000000AIMLP /* AIMilitaryPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIMLP /* AIMilitaryPlanner.swift */; };
+		3FENGN0001000000000AIDFP /* AIDefensePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */; };
+		3FENGN0001000000000AIRSP /* AIResearchPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIRSP /* AIResearchPlanner.swift */; };
 		3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CMENG /* CombatEngine.swift */; };
 		3FENGN0001000000000CNENG /* ConstructionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CNENG /* ConstructionEngine.swift */; };
 		3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DMGCL /* DamageCalculator.swift */; };
+		3FENGN0001000000000DBLOG /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DBLOG /* DebugLog.swift */; };
+		3FENGN0001000000000GMCFG /* GameConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GMCFG /* GameConfig.swift */; };
 		3FENGN0001000000000GMENG /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GMENG /* GameEngine.swift */; };
 		3FENGN0001000000000GRDEF /* GarrisonDefenseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */; };
 		3FENGN0001000000000MVENG /* MovementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000MVENG /* MovementEngine.swift */; };
@@ -91,10 +97,17 @@
 		3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */; };
 		3FF8CF572F0B8002002FA5D7 /* TrainingOverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */; };
 		3FF8CF592F0B810D002FA5D7 /* BuildingDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */; };
+		3FBDVC0001000000000TRAIN /* BuildingDetailViewController+Training.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */; };
+		3FBDVC0001000000000MARKT /* BuildingDetailViewController+Market.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000MARKT /* BuildingDetailViewController+Market.swift */; };
+		3FBDVC0001000000000GARRI /* BuildingDetailViewController+Garrison.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */; };
+		3FBDVC0001000000000UPGRD /* BuildingDetailViewController+Upgrades.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */; };
+		3FGSCN0001000000000INPTH /* GameScene+InputHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */; };
 		3FF8CF5B2F0D92CE002FA5D7 /* VillagerMergeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */; };
 		3FF8CF5D2F0DA5CC002FA5D7 /* AlertHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */; };
 		3FF8CF5F2F0DA5E3002FA5D7 /* GameSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */; };
 		3FF8CF612F0DA5F4002FA5D7 /* MenuCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */; };
+		3FMNCRD0001000000000TILE /* MenuCoordinator+TileMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNCRD0002000000000TILE /* MenuCoordinator+TileMenus.swift */; };
+		3FMNCRD0001000000000ENTM /* MenuCoordinator+EntityMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNCRD0002000000000ENTM /* MenuCoordinator+EntityMenus.swift */; };
 		3FF8CF632F0DA614002FA5D7 /* EntityActionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF622F0DA614002FA5D7 /* EntityActionHandler.swift */; };
 		3FGMOVERVC12F29D00100GMOV /* GameOverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */; };
 		3FGMOVRSN12F29E00100GMOV /* GameOverReason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */; };
@@ -150,8 +163,6 @@
 		3F6225A92F2BE74300A6F7D4 /* BuildingPlacementController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuildingPlacementController.swift; sourceTree = "<group>"; };
 		3F6225AA2F2BE74300A6F7D4 /* ReinforcementManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReinforcementManager.swift; sourceTree = "<group>"; };
 		3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResearchViewController.swift; sourceTree = "<group>"; };
-		3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ResearchManager.swift; path = "Grow2 Shared/ResearchManager.swift"; sourceTree = SOURCE_ROOT; };
-		3F6AE44C2F1818C200C885D6 /* ResearchType.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ResearchType.swift; path = "Grow2 Shared/ResearchType.swift"; sourceTree = SOURCE_ROOT; };
 		3F6AE44F2F18228000C885D6 /* ResearchType.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResearchType.swift; sourceTree = "<group>"; };
 		3F6AE4502F18228000C885D6 /* ResearchManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResearchManager.swift; sourceTree = "<group>"; };
 		3F98926B2F21DB81008A24E7 /* EntitiesOverviewViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EntitiesOverviewViewController.swift; sourceTree = "<group>"; };
@@ -179,6 +190,7 @@
 		3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilitaryUnit.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000ARMYD /* ArmyData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArmyData.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000GMEST /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
+		3FDATA0002000000000GSQRY /* GameStateQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStateQueries.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000MAPDT /* MapData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapData.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000PLRST /* PlayerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerState.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000RSPNT /* ResourcePointData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourcePointData.swift; sourceTree = "<group>"; };
@@ -193,9 +205,15 @@
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000AICNT /* AIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIController.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000AIECP /* AIEconomyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEconomyPlanner.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000AIMLP /* AIMilitaryPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMilitaryPlanner.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDefensePlanner.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000AIRSP /* AIResearchPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResearchPlanner.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CMENG /* CombatEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CNENG /* ConstructionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstructionEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000DMGCL /* DamageCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageCalculator.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000DBLOG /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000GMCFG /* GameConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameConfig.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GMENG /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarrisonDefenseEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000MVENG /* MovementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovementEngine.swift; sourceTree = "<group>"; };
@@ -213,10 +231,17 @@
 		3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTimeManager.swift; sourceTree = "<group>"; };
 		3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingOverViewController.swift; sourceTree = "<group>"; };
 		3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingDetailViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Training.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000MARKT /* BuildingDetailViewController+Market.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Market.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Garrison.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Upgrades.swift"; sourceTree = "<group>"; };
+		3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameScene+InputHandling.swift"; sourceTree = "<group>"; };
 		3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerMergeViewController.swift; sourceTree = "<group>"; };
 		3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHelper.swift; sourceTree = "<group>"; };
 		3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneDelegate.swift; sourceTree = "<group>"; };
 		3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuCoordinator.swift; sourceTree = "<group>"; };
+		3FMNCRD0002000000000TILE /* MenuCoordinator+TileMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MenuCoordinator+TileMenus.swift"; sourceTree = "<group>"; };
+		3FMNCRD0002000000000ENTM /* MenuCoordinator+EntityMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MenuCoordinator+EntityMenus.swift"; sourceTree = "<group>"; };
 		3FF8CF622F0DA614002FA5D7 /* EntityActionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityActionHandler.swift; sourceTree = "<group>"; };
 		3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverViewController.swift; sourceTree = "<group>"; };
 		3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverReason.swift; sourceTree = "<group>"; };
@@ -294,52 +319,16 @@
 		3FC0F0F32EC7965C007C0782 /* Grow2 Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3F286A0E2F196114004636ED /* Commands */,
 				3FDATA0003000000000DTAGP /* Data */,
 				3FENGN0003000000000ENGGP /* Engine */,
+				3FORG00030000000000MNGRS /* Managers */,
+				3FORG00030000000000MPGEN /* MapGenerators */,
+				3FORG00030000000000MODLS /* Models */,
+				3FORG00030000000000NODES /* Nodes */,
 				3FNOTIF0003000000000NOTGP /* Notifications */,
+				3FORG00030000000000SCENE /* Scene */,
 				3FVISL0003000000000VSLGP /* Visual */,
-				3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */,
-				3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */,
-				3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */,
-				3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */,
-				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
-				3F34D5B02ECA5CD900AE6DF0 /* Building.swift */,
-				3F6225A92F2BE74300A6F7D4 /* BuildingPlacementController.swift */,
-				3F9892722F21DBC0008A24E7 /* CombatState.swift */,
-				3F286A0E2F196114004636ED /* Commands */,
-				3FEBD2002EF360E200341AEE /* CombatRecord.swift */,
-				3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */,
-				3FEBD1FC2EEF5C6400341AEE /* Commander.swift */,
-				3FEBD2062EF3B10200341AEE /* Diplomacy.swift */,
-				3F34D5B22ECABDFF00AE6DF0 /* Entity Node.swift */,
-				3FEBD2082F006EE800341AEE /* FogOfWar.swift */,
-				3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */,
-				3FC0F0F62EC7965C007C0782 /* GameScene.swift */,
-				3F6225A82F2BE74300A6F7D4 /* GameSceneCameraController.swift */,
-				3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */,
-				3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */,
-				3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */,
-				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
-				3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */,
-				3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */,
-				3FA12B022F27A00000MAPGEN /* MapGenerator.swift */,
-				3F34D5B42ECBB6B200AE6DF0 /* Map Entity.swift */,
-				3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */,
-				3F6225A62F2BE74300A6F7D4 /* MovementPathRenderer.swift */,
-				3F34D5AC2ECA584A00AE6DF0 /* Player.swift */,
-				3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */,
-				3F6225AA2F2BE74300A6F7D4 /* ReinforcementManager.swift */,
-				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
-				3F6AE4502F18228000C885D6 /* ResearchManager.swift */,
-				3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */,
-				3F6AE44F2F18228000C885D6 /* ResearchType.swift */,
-				3FMRCHVLRG20000000100MRVG /* MarchingVillagerGroup.swift */,
-				3FMRCHVLRN20000000100MRVN /* MarchingVillagerNode.swift */,
-				3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */,
-				3FBLDENTPNL2000000100BLDE /* BuildEntityPanelViewController.swift */,
-				3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */,
-				3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */,
-				3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */,
 				3FC0F0F42EC7965C007C0782 /* Actions.sks */,
 				3FC0F0F72EC7965F007C0782 /* Assets.xcassets */,
 			);
@@ -377,6 +366,7 @@
 				3FDATA0002000000000ARMYD /* ArmyData.swift */,
 				3F286A042F195A5B004636ED /* BuildingData.swift */,
 				3FDATA0002000000000GMEST /* GameState.swift */,
+				3FDATA0002000000000GSQRY /* GameStateQueries.swift */,
 				3FDATA0002000000000MAPDT /* MapData.swift */,
 				3FDATA0002000000000PLRST /* PlayerState.swift */,
 				3FDATA0002000000000RSPNT /* ResourcePointData.swift */,
@@ -390,9 +380,15 @@
 			isa = PBXGroup;
 			children = (
 				3FENGN0002000000000AICNT /* AIController.swift */,
+				3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */,
+				3FENGN0002000000000AIECP /* AIEconomyPlanner.swift */,
+				3FENGN0002000000000AIMLP /* AIMilitaryPlanner.swift */,
+				3FENGN0002000000000AIRSP /* AIResearchPlanner.swift */,
 				3FENGN0002000000000CMENG /* CombatEngine.swift */,
 				3FENGN0002000000000CNENG /* ConstructionEngine.swift */,
+				3FENGN0002000000000DBLOG /* DebugLog.swift */,
 				3FENGN0002000000000DMGCL /* DamageCalculator.swift */,
+				3FENGN0002000000000GMCFG /* GameConfig.swift */,
 				3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */,
 				3FENGN0002000000000GMENG /* GameEngine.swift */,
 				3FENGN0002000000000MVENG /* MovementEngine.swift */,
@@ -418,27 +414,33 @@
 				3FF8CF502F083158002FA5D7 /* AboutViewController.swift */,
 				3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */,
 				3FATKENTPNL2000000100ATKE /* AttackEntityPanelViewController.swift */,
+				3FBLDENTPNL2000000100BLDE /* BuildEntityPanelViewController.swift */,
 				3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */,
-				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
+				3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */,
+				3FBDVC0002000000000MARKT /* BuildingDetailViewController+Market.swift */,
+				3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */,
+				3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */,
+				3F39A62D2F14728500E9F506 /* BuildingsOverviewViewController.swift */,
+				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
 				3FCMBTDTL22F28C00100CMBTD /* CombatDetailViewController.swift */,
+				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
 				3F98926B2F21DB81008A24E7 /* EntitiesOverviewViewController.swift */,
 				3FGTHENTPNL2000000100GTHE /* GatherEntityPanelViewController.swift */,
 				3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */,
-				3F39A62D2F14728500E9F506 /* BuildingsOverviewViewController.swift */,
-				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
-				3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */,
 				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
 				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
+				3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */,
 				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
 				3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */,
 				3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */,
 				3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */,
 				3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */,
-				3F6AE44B2F1818C200C885D6 /* ResearchManager.swift */,
 				3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */,
-				3F6AE44C2F1818C200C885D6 /* ResearchType.swift */,
+				3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */,
 				3FF8CF4E2F08313F002FA5D7 /* SettingsViewController.swift */,
+				3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */,
 				3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */,
+				3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */,
 				3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */,
 			);
 			path = ViewControllers;
@@ -482,8 +484,83 @@
 			isa = PBXGroup;
 			children = (
 				3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */,
+				3FMNCRD0002000000000ENTM /* MenuCoordinator+EntityMenus.swift */,
+				3FMNCRD0002000000000TILE /* MenuCoordinator+TileMenus.swift */,
 			);
 			path = Coordinators;
+			sourceTree = "<group>";
+		};
+		3FORG00030000000000MNGRS /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */,
+				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
+				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
+				3F6225AA2F2BE74300A6F7D4 /* ReinforcementManager.swift */,
+				3F6AE4502F18228000C885D6 /* ResearchManager.swift */,
+				3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		3FORG00030000000000MPGEN /* MapGenerators */ = {
+			isa = PBXGroup;
+			children = (
+				3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */,
+				3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */,
+				3FA12B022F27A00000MAPGEN /* MapGenerator.swift */,
+			);
+			path = MapGenerators;
+			sourceTree = "<group>";
+		};
+		3FORG00030000000000MODLS /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				3F34D5B02ECA5CD900AE6DF0 /* Building.swift */,
+				3FEBD2002EF360E200341AEE /* CombatRecord.swift */,
+				3F9892722F21DBC0008A24E7 /* CombatState.swift */,
+				3FEBD1FC2EEF5C6400341AEE /* Commander.swift */,
+				3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */,
+				3FEBD2062EF3B10200341AEE /* Diplomacy.swift */,
+				3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */,
+				3F34D5B82ECC057900AE6DF0 /* HexCoordinate.swift */,
+				3F34D5B62ECBB7B800AE6DF0 /* HexMap.swift */,
+				3FMRCHVLRG20000000100MRVG /* MarchingVillagerGroup.swift */,
+				3FD1D5E32ED514BD001398FB /* MilitaryUnit.swift */,
+				3FNOTIF0002000000000NSTNG /* NotificationSettings.swift */,
+				3F34D5AC2ECA584A00AE6DF0 /* Player.swift */,
+				3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */,
+				3F6AE44F2F18228000C885D6 /* ResearchType.swift */,
+				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		3FORG00030000000000NODES /* Nodes */ = {
+			isa = PBXGroup;
+			children = (
+				3F34D5B22ECABDFF00AE6DF0 /* Entity Node.swift */,
+				3FEBD2082F006EE800341AEE /* FogOfWar.swift */,
+				3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */,
+				3F34D5B42ECBB6B200AE6DF0 /* Map Entity.swift */,
+				3FMRCHVLRN20000000100MRVN /* MarchingVillagerNode.swift */,
+				3F6225A62F2BE74300A6F7D4 /* MovementPathRenderer.swift */,
+				3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */,
+			);
+			path = Nodes;
+			sourceTree = "<group>";
+		};
+		3FORG00030000000000SCENE /* Scene */ = {
+			isa = PBXGroup;
+			children = (
+				3F6225A92F2BE74300A6F7D4 /* BuildingPlacementController.swift */,
+				3FC0F0F62EC7965C007C0782 /* GameScene.swift */,
+				3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */,
+				3F6225A82F2BE74300A6F7D4 /* GameSceneCameraController.swift */,
+				3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */,
+				3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */,
+			);
+			path = Scene;
 			sourceTree = "<group>";
 		};
 		3FNOTIF0003000000000NOTGP /* Notifications */ = {
@@ -592,7 +669,6 @@
 				3FF8CF632F0DA614002FA5D7 /* EntityActionHandler.swift in Sources */,
 				3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */,
 				3FC0F10B2EC7965F007C0782 /* GameScene.swift in Sources */,
-				3F6AE44E2F1818C200C885D6 /* ResearchType.swift in Sources */,
 				3F286A092F1960C0004636ED /* CommandExecutor.swift in Sources */,
 				3F286A142F19615D004636ED /* UpgradeCommand.swift in Sources */,
 				3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */,
@@ -608,10 +684,17 @@
 				3F6225AB2F2BE74300A6F7D4 /* MovementPathRenderer.swift in Sources */,
 				3F286A0B2F1960D9004636ED /* MoveCommand.swift in Sources */,
 				3FF8CF612F0DA5F4002FA5D7 /* MenuCoordinator.swift in Sources */,
+				3FMNCRD0001000000000TILE /* MenuCoordinator+TileMenus.swift in Sources */,
+				3FMNCRD0001000000000ENTM /* MenuCoordinator+EntityMenus.swift in Sources */,
 				3FD1D5E42ED514BD001398FB /* MilitaryUnit.swift in Sources */,
 				3FEBD1FD2EEF5C6400341AEE /* Commander.swift in Sources */,
 				3F34D5AD2ECA584A00AE6DF0 /* Player.swift in Sources */,
 				3FF8CF592F0B810D002FA5D7 /* BuildingDetailViewController.swift in Sources */,
+				3FBDVC0001000000000TRAIN /* BuildingDetailViewController+Training.swift in Sources */,
+				3FBDVC0001000000000MARKT /* BuildingDetailViewController+Market.swift in Sources */,
+				3FBDVC0001000000000GARRI /* BuildingDetailViewController+Garrison.swift in Sources */,
+				3FBDVC0001000000000UPGRD /* BuildingDetailViewController+Upgrades.swift in Sources */,
+				3FGSCN0001000000000INPTH /* GameScene+InputHandling.swift in Sources */,
 				3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */,
 				3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */,
 				3F286A0D2F1960FF004636ED /* BuildCommand.swift in Sources */,
@@ -668,8 +751,15 @@
 				3FDATA0001000000000VLGRD /* VillagerGroupData.swift in Sources */,
 				3FDATA0001000000000RSPNT /* ResourcePointData.swift in Sources */,
 				3FDATA0001000000000GMEST /* GameState.swift in Sources */,
+				3FDATA0001000000000GSQRY /* GameStateQueries.swift in Sources */,
+				3FENGN0001000000000DBLOG /* DebugLog.swift in Sources */,
+				3FENGN0001000000000GMCFG /* GameConfig.swift in Sources */,
 				3FENGN0001000000000GMENG /* GameEngine.swift in Sources */,
 				3FENGN0001000000000AICNT /* AIController.swift in Sources */,
+				3FENGN0001000000000AIECP /* AIEconomyPlanner.swift in Sources */,
+				3FENGN0001000000000AIMLP /* AIMilitaryPlanner.swift in Sources */,
+				3FENGN0001000000000AIDFP /* AIDefensePlanner.swift in Sources */,
+				3FENGN0001000000000AIRSP /* AIResearchPlanner.swift in Sources */,
 				3FENGN0001000000000MVENG /* MovementEngine.swift in Sources */,
 				3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */,
 				3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */,

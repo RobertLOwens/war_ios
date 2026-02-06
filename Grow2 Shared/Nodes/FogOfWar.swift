@@ -307,7 +307,7 @@ class FogOfWarManager {
         
         // Debug logging
         if !shouldShow && entity.owner?.id == player.id {
-            print("⚠️ Hiding own entity at (\(coord.q), \(coord.r)) - visibility: \(visibility)")
+            debugLog("⚠️ Hiding own entity at (\(coord.q), \(coord.r)) - visibility: \(visibility)")
         }
         
         return shouldShow
@@ -341,7 +341,7 @@ class FogOfWarManager {
         
         // ✅ DEBUG: Log every 100th tile to avoid spam
         if coord.q % 10 == 0 && coord.r % 10 == 0 {
-            print("  Marking (\(coord.q), \(coord.r)) as explored (was: \(previousState ?? .unexplored))")
+            debugLog("  Marking (\(coord.q), \(coord.r)) as explored (was: \(previousState ?? .unexplored))")
         }
     }
     
@@ -357,7 +357,7 @@ class FogOfWarManager {
                 }
             }
         }
-        print("🗺️ Restored \(coordinates.count) explored tiles from save")
+        debugLog("🗺️ Restored \(coordinates.count) explored tiles from save")
     }
     
     func getExploredCount() -> Int {
@@ -373,11 +373,11 @@ class FogOfWarManager {
     }
 
     func printFogStats() {
-        print("📊 Fog of War Stats:")
-        print("   Unexplored: \(getUnexploredCount())")
-        print("   Explored: \(getExploredCount())")
-        print("   Visible: \(getVisibleCount())")
-        print("   Total: \(visionMap.count)")
+        debugLog("📊 Fog of War Stats:")
+        debugLog("   Unexplored: \(getUnexploredCount())")
+        debugLog("   Explored: \(getExploredCount())")
+        debugLog("   Visible: \(getVisibleCount())")
+        debugLog("   Total: \(visionMap.count)")
     }
 
     /// Reveals all tiles on the map (for fully visible mode)
@@ -386,7 +386,7 @@ class FogOfWarManager {
             visionMap[coord] = .visible
             saveToMemory(coord)
         }
-        print("👁️ Revealed all \(visionMap.count) tiles")
+        debugLog("👁️ Revealed all \(visionMap.count) tiles")
     }
 
 }

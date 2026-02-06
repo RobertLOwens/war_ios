@@ -14,7 +14,7 @@ class TrainingEngine {
     private weak var gameState: GameState?
 
     // MARK: - Constants
-    private let villagerTrainingTime: TimeInterval = 10.0  // 10 seconds per villager
+    private let villagerTrainingTime = GameConfig.Training.villagerTrainingTime
 
     // MARK: - Setup
 

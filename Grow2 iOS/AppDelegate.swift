@@ -34,11 +34,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if granted {
-                print("📱 Push notification permissions granted")
+                debugLog("📱 Push notification permissions granted")
             } else if let error = error {
-                print("📱 Push notification permission error: \(error.localizedDescription)")
+                debugLog("📱 Push notification permission error: \(error.localizedDescription)")
             } else {
-                print("📱 Push notification permissions denied")
+                debugLog("📱 Push notification permissions denied")
             }
         }
     }
@@ -56,11 +56,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Also save the game
         saveCurrentGame()
         
-        print("📱 App entered background - game saved")
+        debugLog("📱 App entered background - game saved")
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
-        print("📱 App returning to foreground")
+        debugLog("📱 App returning to foreground")
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -70,7 +70,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Final save before termination
         saveCurrentGame()
         
-        print("📱 App terminating - game saved")
+        debugLog("📱 App terminating - game saved")
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
@@ -111,7 +111,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         if let q = userInfo["coordinateQ"] as? Int,
            let r = userInfo["coordinateR"] as? Int {
             let coordinate = HexCoordinate(q: q, r: r)
-            print("📱 Notification tapped - jumping to coordinate: \(coordinate)")
+            debugLog("📱 Notification tapped - jumping to coordinate: \(coordinate)")
 
             // Post notification for GameViewController to handle
             DispatchQueue.main.async {

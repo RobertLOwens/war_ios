@@ -589,9 +589,9 @@ class GameVisualLayer {
 
     private func handleCombatStarted(attackerID: UUID, defenderID: UUID, coordinate: HexCoordinate) {
         // Debug logging for building combat HP bar
-        print("🎯 Combat started - defenderID: \(defenderID)")
-        print("🎯 buildingNodes count: \(buildingNodes.count)")
-        print("🎯 buildingNodes keys: \(buildingNodes.keys.map { $0.uuidString.prefix(8) })")
+        debugLog("🎯 Combat started - defenderID: \(defenderID)")
+        debugLog("🎯 buildingNodes count: \(buildingNodes.count)")
+        debugLog("🎯 buildingNodes keys: \(buildingNodes.keys.map { $0.uuidString.prefix(8) })")
 
         entityNodes[attackerID]?.updateTexture(currentPlayer: localPlayer)
 
@@ -599,19 +599,19 @@ class GameVisualLayer {
         if let defenderEntity = entityNodes[defenderID] {
             // Army vs Army combat
             defenderEntity.updateTexture(currentPlayer: localPlayer)
-            print("✅ Found defender entity (army)")
+            debugLog("✅ Found defender entity (army)")
         } else if let defenderBuilding = buildingNodes[defenderID] ?? hexMap?.buildings.first(where: { $0.data.id == defenderID }) {
             // Army vs Building combat - set up health bar on building
             // Register if found via hexMap fallback (e.g., arena buildings)
             if buildingNodes[defenderID] == nil {
                 buildingNodes[defenderID] = defenderBuilding
-                print("📝 Registered building from hexMap fallback: \(defenderBuilding.buildingType.displayName)")
+                debugLog("📝 Registered building from hexMap fallback: \(defenderBuilding.buildingType.displayName)")
             }
             defenderBuilding.setupHealthBar()
-            print("✅ Found building: \(defenderBuilding.buildingType.displayName)")
-            print("🏰 Building health bar set up for \(defenderBuilding.buildingType.displayName)")
+            debugLog("✅ Found building: \(defenderBuilding.buildingType.displayName)")
+            debugLog("🏰 Building health bar set up for \(defenderBuilding.buildingType.displayName)")
         } else {
-            print("❌ Defender not found in entityNodes or buildingNodes for ID: \(defenderID)")
+            debugLog("❌ Defender not found in entityNodes or buildingNodes for ID: \(defenderID)")
         }
     }
 
@@ -625,7 +625,7 @@ class GameVisualLayer {
         } else if let defenderBuilding = buildingNodes[defenderID] {
             // Army vs Building combat - remove health bar
             defenderBuilding.removeHealthBar()
-            print("🏰 Building health bar removed for \(defenderBuilding.buildingType.displayName)")
+            debugLog("🏰 Building health bar removed for \(defenderBuilding.buildingType.displayName)")
         }
     }
 
@@ -659,14 +659,6 @@ class GameVisualLayer {
     }
 
     // MARK: - Node Access
-
-    func getBuildingNode(id: UUID) -> BuildingNode? {
-        return buildingNodes[id]
-    }
-
-    func getEntityNode(id: UUID) -> EntityNode? {
-        return entityNodes[id]
-    }
 
     /// Register a building node created outside the visual layer (e.g. by BuildCommand)
     func registerBuildingNode(id: UUID, node: BuildingNode) {

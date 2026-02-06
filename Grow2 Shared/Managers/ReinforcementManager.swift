@@ -77,7 +77,7 @@ class ReinforcementManager {
             completion(true)
         }
 
-        print("Spawned reinforcement with \(reinforcement.getTotalUnits()) units")
+        debugLog("Spawned reinforcement with \(reinforcement.getTotalUnits()) units")
     }
 
     // MARK: - Arrival Handling
@@ -111,7 +111,7 @@ class ReinforcementManager {
 
         // Find path back to source
         guard let path = hexMap.findPath(from: reinforcement.coordinate, to: reinforcement.sourceCoordinate) else {
-            print("No path back to source for reinforcement")
+            debugLog("No path back to source for reinforcement")
             // Just add units back to building garrison directly
             if let building = reinforcement.sourceBuilding {
                 for (unitType, count) in reinforcement.unitComposition {
@@ -137,7 +137,7 @@ class ReinforcementManager {
                 for (unitType, count) in reinforcement.unitComposition {
                     building.addToGarrison(unitType: unitType, quantity: count)
                 }
-                print("Reinforcements returned to \(building.buildingType.displayName)")
+                debugLog("Reinforcements returned to \(building.buildingType.displayName)")
             }
 
             node.cleanup()
@@ -153,7 +153,7 @@ class ReinforcementManager {
     /// Cancels a reinforcement and returns it to source
     func cancelReinforcement(id: UUID) {
         guard let node = getReinforcementNode(id: id) else {
-            print("Reinforcement not found: \(id)")
+            debugLog("Reinforcement not found: \(id)")
             return
         }
 
@@ -173,7 +173,7 @@ class ReinforcementManager {
         let targetingNodes = reinforcementNodes.filter { $0.reinforcement.targetArmyID == army.id }
 
         for node in targetingNodes {
-            print("Army destroyed - returning reinforcement to source")
+            debugLog("Army destroyed - returning reinforcement to source")
             returnReinforcementToSource(node)
         }
     }
@@ -201,7 +201,7 @@ class ReinforcementManager {
             guard diplomacy == .enemy else { continue }
 
             // Interception triggered!
-            print("Reinforcements intercepted by \(army.name) at (\(coord.q), \(coord.r))!")
+            debugLog("Reinforcements intercepted by \(army.name) at (\(coord.q), \(coord.r))!")
 
             // Stop reinforcement movement
             node.removeAllActions()
@@ -244,7 +244,7 @@ class ReinforcementManager {
             applyReinforcementLosses(reinforcement, lossRatio: lossRatio)
 
             // Army is destroyed
-            print("Reinforcements defeated intercepting army (took \(Int(lossRatio * 100))% losses)")
+            debugLog("Reinforcements defeated intercepting army (took \(Int(lossRatio * 100))% losses)")
             delegate?.reinforcementManager(self, showAlert: "Interception Repelled", message: "Reinforcements defeated enemy but took losses")
 
             // Continue to destination (will need to restart movement)
@@ -256,7 +256,7 @@ class ReinforcementManager {
             }
         } else {
             // Army wins - reinforcements are destroyed
-            print("Reinforcements destroyed by intercepting army")
+            debugLog("Reinforcements destroyed by intercepting army")
             delegate?.reinforcementManager(self, showAlert: "Reinforcements Lost", message: "\(reinforcement.getTotalUnits()) units lost to enemy interception")
 
             // Remove pending from target army

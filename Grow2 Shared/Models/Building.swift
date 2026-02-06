@@ -261,15 +261,6 @@ enum BuildingType: String, CaseIterable, Codable {
         ]
     }
 
-    /// Returns a description of the current rotation for UI display
-    /// Directions are clockwise from East:
-    /// 0: East, 1: Southeast, 2: Southwest, 3: West, 4: Northwest, 5: Northeast
-    static func rotationDescription(_ rotation: Int) -> String {
-        let directions = ["East", "Southeast", "Southwest", "West", "Northwest", "Northeast"]
-        let normalizedRotation = ((rotation % 6) + 6) % 6
-        return "Pointing \(directions[normalizedRotation])"
-    }
-    
     var description: String {
         switch self {
         case .cityCenter: return "Main hub for economy and villagers"
@@ -617,50 +608,50 @@ class BuildingNode: SKSpriteNode {
     
     func startTraining(unitType: MilitaryUnitType, quantity: Int, at time: TimeInterval) {
         data.startTraining(unitType: unitType, quantity: quantity, at: time)
-        print("✅ Started training \(quantity)x \(unitType.displayName) in \(buildingType.displayName)")
+        debugLog("✅ Started training \(quantity)x \(unitType.displayName) in \(buildingType.displayName)")
     }
     
     func updateTraining(currentTime: TimeInterval) {
         let completed = data.updateTraining(currentTime: currentTime)
         for entry in completed {
-            print("✅ Training complete: \(entry.quantity)x \(entry.unitType.displayName)")
+            debugLog("✅ Training complete: \(entry.quantity)x \(entry.unitType.displayName)")
         }
     }
     
     func startVillagerTraining(quantity: Int, at time: TimeInterval) {
         data.startVillagerTraining(quantity: quantity, at: time)
-        print("✅ Started training \(quantity)x Villagers in \(buildingType.displayName)")
+        debugLog("✅ Started training \(quantity)x Villagers in \(buildingType.displayName)")
     }
     
     func updateVillagerTraining(currentTime: TimeInterval) {
         let completed = data.updateVillagerTraining(currentTime: currentTime)
         for entry in completed {
-            print("✅ Villager training complete: \(entry.quantity) villagers")
+            debugLog("✅ Villager training complete: \(entry.quantity) villagers")
         }
     }
     
     func addToGarrison(unitType: MilitaryUnitType, quantity: Int) {
         data.addToGarrison(unitType: unitType, quantity: quantity)
-        print("✅ \(buildingType.displayName) garrison: +\(quantity)x \(unitType.displayName)")
+        debugLog("✅ \(buildingType.displayName) garrison: +\(quantity)x \(unitType.displayName)")
     }
     
     func removeFromGarrison(unitType: MilitaryUnitType, quantity: Int) -> Int {
         let removed = data.removeFromGarrison(unitType: unitType, quantity: quantity)
         if removed > 0 {
-            print("✅ Removed \(removed)x \(unitType.displayName) from \(buildingType.displayName) garrison")
+            debugLog("✅ Removed \(removed)x \(unitType.displayName) from \(buildingType.displayName) garrison")
         }
         return removed
     }
     
     func addVillagersToGarrison(quantity: Int) {
         data.addVillagersToGarrison(quantity: quantity)
-        print("✅ \(buildingType.displayName) garrison: +\(quantity) villagers")
+        debugLog("✅ \(buildingType.displayName) garrison: +\(quantity) villagers")
     }
     
     func removeVillagersFromGarrison(quantity: Int) -> Int {
         let removed = data.removeVillagersFromGarrison(quantity: quantity)
         if removed > 0 {
-            print("✅ Removed \(removed) villagers from \(buildingType.displayName) garrison")
+            debugLog("✅ Removed \(removed) villagers from \(buildingType.displayName) garrison")
         }
         return removed
     }
@@ -678,12 +669,12 @@ class BuildingNode: SKSpriteNode {
     func startConstruction(builders: Int = 1) {
         data.startConstruction(builders: builders)
         updateAppearance()
-        print("🏗️ Started construction of \(buildingType.displayName)")
+        debugLog("🏗️ Started construction of \(buildingType.displayName)")
     }
     
     func startUpgrade() {
         data.startUpgrade()
-        print("⬆️ Started upgrading \(buildingType.displayName) to level \(level + 1)")
+        debugLog("⬆️ Started upgrading \(buildingType.displayName) to level \(level + 1)")
         updateAppearance()
         updateLevelLabel()
     }
@@ -707,7 +698,7 @@ class BuildingNode: SKSpriteNode {
         }
         upgraderEntity = nil
         
-        print("🎉 UPGRADE COMPLETE: \(buildingType.displayName) → Lv.\(level)")
+        debugLog("🎉 UPGRADE COMPLETE: \(buildingType.displayName) → Lv.\(level)")
         
         updateAppearance()
         updateLevelLabel()
@@ -735,7 +726,7 @@ class BuildingNode: SKSpriteNode {
 
         updateAppearance()
         updateLevelLabel()
-        print("🚫 Upgrade cancelled for \(buildingType.displayName)")
+        debugLog("🚫 Upgrade cancelled for \(buildingType.displayName)")
 
         return refund
     }
@@ -744,7 +735,7 @@ class BuildingNode: SKSpriteNode {
 
     func startDemolition(demolishers: Int = 1) {
         data.startDemolition(demolishers: demolishers)
-        print("🏚️ Started demolition of \(buildingType.displayName)")
+        debugLog("🏚️ Started demolition of \(buildingType.displayName)")
         updateAppearance()
     }
 
@@ -768,7 +759,7 @@ class BuildingNode: SKSpriteNode {
         pendingDemolition = false
 
         updateAppearance()
-        print("🚫 Demolition cancelled for \(buildingType.displayName)")
+        debugLog("🚫 Demolition cancelled for \(buildingType.displayName)")
     }
 
     /// Returns the resources to refund after demolition
@@ -790,7 +781,7 @@ class BuildingNode: SKSpriteNode {
         }
         demolisherEntity = nil
 
-        print("🏚️ Demolition complete: \(buildingType.displayName) - refunding resources")
+        debugLog("🏚️ Demolition complete: \(buildingType.displayName) - refunding resources")
 
         return refund
     }
@@ -1668,14 +1659,14 @@ class BuildingNode: SKSpriteNode {
         if let builder = builderEntity {
             if buildingType == .farm || buildingType == .miningCamp || buildingType == .lumberCamp {
                 // For farms and camps, don't clear task - they'll start gathering automatically
-                print("✅ \(buildingType.displayName) completed - villagers will start gathering")
+                debugLog("✅ \(buildingType.displayName) completed - villagers will start gathering")
             } else {
                 builder.isMoving = false
 
                 // Clear the task for the villager group
                 if let villagerGroup = builder.entity as? VillagerGroup {
                     villagerGroup.clearTask()
-                    print("✅ Villagers unlocked and available for new tasks")
+                    debugLog("✅ Villagers unlocked and available for new tasks")
                 }
             }
         }
@@ -1708,7 +1699,7 @@ class BuildingNode: SKSpriteNode {
             )
         }
 
-        print("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
+        debugLog("✅ \(buildingType.displayName) construction completed at (\(coordinate.q), \(coordinate.r))")
     }
 
     func updateConstruction() {
@@ -1726,12 +1717,12 @@ class BuildingNode: SKSpriteNode {
         constructionProgress = min(1.0, elapsed / effectiveBuildTime)
 
         // Add debug logging
-        print("Building: \(buildingType.displayName)")
-        print("  Start time: \(startTime)")
-        print("  Current time: \(currentTime)")
-        print("  Elapsed: \(elapsed)s")
-        print("  Effective build time: \(effectiveBuildTime)s")
-        print("  Progress: \(constructionProgress * 100)%")
+        debugLog("Building: \(buildingType.displayName)")
+        debugLog("  Start time: \(startTime)")
+        debugLog("  Current time: \(currentTime)")
+        debugLog("  Elapsed: \(elapsed)s")
+        debugLog("  Effective build time: \(effectiveBuildTime)s")
+        debugLog("  Progress: \(constructionProgress * 100)%")
 
         if constructionProgress >= 1.0 {
             completeConstruction()
@@ -1775,24 +1766,6 @@ class BuildingNode: SKSpriteNode {
         updateTileOverlayVisibility(displayMode: displayMode)
     }
     
-    func getAssociatedResource(from hexMap: HexMap) -> ResourcePointNode? {
-        guard buildingType == .miningCamp || buildingType == .lumberCamp else { return nil }
-        return hexMap.getResourcePoint(at: coordinate)
-    }
-    
-    func getResourceGatheringSummary(from hexMap: HexMap) -> String? {
-        guard let resource = getAssociatedResource(from: hexMap) else { return nil }
-        
-        var summary = "\(resource.resourceType.icon) \(resource.remainingAmount)"
-        
-        let villagerCount = resource.getTotalVillagersGathering()
-        if villagerCount > 0 {
-            summary += " 👷\(villagerCount)"
-        }
-        
-        return summary
-    }
-    
     func updateUpgrade() {
         guard state == .upgrading,
               let startTime = upgradeStartTime,
@@ -1825,12 +1798,12 @@ class BuildingNode: SKSpriteNode {
         }
 
         guard let startTime = upgradeStartTime else {
-            print("⚠️ Upgrading but no start time set!")
+            debugLog("⚠️ Upgrading but no start time set!")
             return
         }
 
         guard let baseUpgradeTime = getUpgradeTime() else {
-            print("⚠️ Could not get upgrade time for level \(level)")
+            debugLog("⚠️ Could not get upgrade time for level \(level)")
             return
         }
 
@@ -1846,14 +1819,14 @@ class BuildingNode: SKSpriteNode {
         let newProgress = min(1.0, max(0.0, elapsed / totalUpgradeTime))
 
         // Debug logging
-        print("⬆️ Upgrade Update: \(buildingType.displayName)")
-        print("   Elapsed: \(String(format: "%.1f", elapsed))s / \(String(format: "%.1f", totalUpgradeTime))s")
-        print("   Progress: \(String(format: "%.1f", newProgress * 100))%")
-        print("   Remaining: \(String(format: "%.1f", remaining))s")
+        debugLog("⬆️ Upgrade Update: \(buildingType.displayName)")
+        debugLog("   Elapsed: \(String(format: "%.1f", elapsed))s / \(String(format: "%.1f", totalUpgradeTime))s")
+        debugLog("   Progress: \(String(format: "%.1f", newProgress * 100))%")
+        debugLog("   Remaining: \(String(format: "%.1f", remaining))s")
 
         // ✅ FIX: Check completion BEFORE updating progress to avoid race condition
         if newProgress >= 1.0 || remaining <= 0 {
-            print("✅ Upgrade complete! Calling completeUpgrade()")
+            debugLog("✅ Upgrade complete! Calling completeUpgrade()")
             completeUpgrade()
             return
         }
@@ -1919,7 +1892,7 @@ class BuildingNode: SKSpriteNode {
         // They'll still be visible since only the sprite itself is hidden
 
         hasCreatedTileOverlays = true
-        print("✅ Created \(tileOverlays.count) tile overlays for \(buildingType.displayName)")
+        debugLog("✅ Created \(tileOverlays.count) tile overlays for \(buildingType.displayName)")
     }
 
     /// Creates a single hex-shaped overlay for one tile (isometric)

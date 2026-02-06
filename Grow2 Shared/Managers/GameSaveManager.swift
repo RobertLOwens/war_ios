@@ -218,7 +218,7 @@ class GameSaveManager {
     // MARK: - Save Game
 
     func saveGame(hexMap: HexMap, player: Player, allPlayers: [Player], reinforcements: [ReinforcementGroup] = []) -> Bool {
-        print("💾 Starting game save...")
+        debugLog("💾 Starting game save...")
 
         // Create save data
         let mapData = createMapSaveData(from: hexMap, player: player, reinforcements: reinforcements)
@@ -242,21 +242,21 @@ class GameSaveManager {
             // Write to file
             try jsonData.write(to: saveFileURL)
             
-            print("✅ Game saved successfully to: \(saveFileURL.path)")
-            print("📊 Save size: \(jsonData.count / 1024) KB")
+            debugLog("✅ Game saved successfully to: \(saveFileURL.path)")
+            debugLog("📊 Save size: \(jsonData.count / 1024) KB")
             return true
             
         } catch {
-            print("❌ Failed to save game: \(error)")
+            debugLog("❌ Failed to save game: \(error)")
             return false
         }
     }
 
     func loadGame() -> (hexMap: HexMap, player: Player, allPlayers: [Player], reinforcements: [ReinforcementGroup.SaveData])? {
-        print("📂 Loading game...")
+        debugLog("📂 Loading game...")
         
         guard FileManager.default.fileExists(atPath: saveFileURL.path) else {
-            print("❌ No save file found")
+            debugLog("❌ No save file found")
             return nil
         }
         
@@ -266,13 +266,13 @@ class GameSaveManager {
             decoder.dateDecodingStrategy = .iso8601
             let saveData = try decoder.decode(GameSaveData.self, from: jsonData)
             
-            print("✅ Save file loaded - Version: \(saveData.version), Date: \(saveData.saveDate)")
+            debugLog("✅ Save file loaded - Version: \(saveData.version), Date: \(saveData.saveDate)")
             
             // Reconstruct all players first (without buildings - we'll add those after)
             let allPlayers = saveData.allPlayersData.map { reconstructPlayer(from: $0) }
             
             guard let player = allPlayers.first(where: { $0.id.uuidString == saveData.playerData.id }) else {
-                print("❌ Could not find player in allPlayers array")
+                debugLog("❌ Could not find player in allPlayers array")
                 return nil
             }
             
@@ -280,8 +280,8 @@ class GameSaveManager {
             let hexMap = reconstructHexMap(from: saveData.mapData, player: player, allPlayers: allPlayers)
             
             // ✅ DEBUG: Verify explored tiles were loaded
-            print("\n🔍 FOG DEBUG after reconstructHexMap:")
-            print("   exploredTiles in save data: \(saveData.mapData.exploredTiles.count)")
+            debugLog("\n🔍 FOG DEBUG after reconstructHexMap:")
+            debugLog("   exploredTiles in save data: \(saveData.mapData.exploredTiles.count)")
             if let fogOfWar = player.fogOfWar {
                 fogOfWar.printFogStats()
             }
@@ -318,7 +318,7 @@ class GameSaveManager {
                 // Add to owner's building list
                 owner?.addBuilding(building)
                 
-                print("   ✅ Restored \(buildingData.buildingType.description) Lv.\(buildingData.level) at (\(buildingData.coordinate.q), \(buildingData.coordinate.r))")
+                debugLog("   ✅ Restored \(buildingData.buildingType.description) Lv.\(buildingData.level) at (\(buildingData.coordinate.q), \(buildingData.coordinate.r))")
             }
             
             // Reconstruct resource points
@@ -334,18 +334,18 @@ class GameSaveManager {
             // Get reinforcement save data
             let reinforcements = saveData.mapData.reinforcements ?? []
 
-            print("✅ Game loaded successfully")
-            print("   Map: \(hexMap.width)x\(hexMap.height)")
-            print("   Player: \(player.name)")
-            print("   Player Buildings: \(player.buildings.count)")
-            print("   HexMap Buildings: \(hexMap.buildings.count)")
-            print("   Entities: \(player.entities.count)")
-            print("   Reinforcements: \(reinforcements.count)")
+            debugLog("✅ Game loaded successfully")
+            debugLog("   Map: \(hexMap.width)x\(hexMap.height)")
+            debugLog("   Player: \(player.name)")
+            debugLog("   Player Buildings: \(player.buildings.count)")
+            debugLog("   HexMap Buildings: \(hexMap.buildings.count)")
+            debugLog("   Entities: \(player.entities.count)")
+            debugLog("   Reinforcements: \(reinforcements.count)")
 
             return (hexMap, player, allPlayers, reinforcements)
             
         } catch {
-            print("❌ Failed to load game: \(error)")
+            debugLog("❌ Failed to load game: \(error)")
             return nil
         }
     }
@@ -377,10 +377,10 @@ class GameSaveManager {
         
         do {
             try FileManager.default.removeItem(at: saveFileURL)
-            print("🗑️ Save file deleted")
+            debugLog("🗑️ Save file deleted")
             return true
         } catch {
-            print("❌ Failed to delete save: \(error)")
+            debugLog("❌ Failed to delete save: \(error)")
             return false
         }
     }
@@ -452,9 +452,9 @@ class GameSaveManager {
         }
         
         // ✅ DEBUG: Print what we're saving
-        print("💾 Saving player \(player.name):")
+        debugLog("💾 Saving player \(player.name):")
         for type in ResourceType.allCases {
-            print("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
+            debugLog("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
         }
         
         let entities = player.entities.compactMap { entity -> EntitySaveData? in
@@ -468,9 +468,9 @@ class GameSaveManager {
         
         let armies = player.armies.map { createArmySaveData(from: $0) }
         let commanders = player.commanders.map { createCommanderSaveData(from: $0) }
-        print("💾 SAVE: Player \(player.name) has \(commanders.count) commanders to save")
+        debugLog("💾 SAVE: Player \(player.name) has \(commanders.count) commanders to save")
         for cmd in player.commanders {
-            print("   💾 Commander: \(cmd.name) (rank: \(cmd.rank.rawValue), specialty: \(cmd.specialty.rawValue))")
+            debugLog("   💾 Commander: \(cmd.name) (rank: \(cmd.rank.rawValue), specialty: \(cmd.specialty.rawValue))")
         }
         
         var diplomacy: [String: String] = [:]
@@ -517,7 +517,7 @@ class GameSaveManager {
             taskString = "gatheringResource"
             taskQ = resourcePoint.coordinate.q
             taskR = resourcePoint.coordinate.r
-            print("💾 Saving villager \(villagers.name) gathering at (\(taskQ!), \(taskR!))")
+            debugLog("💾 Saving villager \(villagers.name) gathering at (\(taskQ!), \(taskR!))")
         case .repairing(let building):
             taskString = "repairing"
             taskQ = building.coordinate.q
@@ -542,7 +542,7 @@ class GameSaveManager {
         if taskQ == nil, let target = villagers.taskTarget {
             taskQ = target.q
             taskR = target.r
-            print("💾 Saving villager \(villagers.name) taskTarget at (\(taskQ!), \(taskR!))")
+            debugLog("💾 Saving villager \(villagers.name) taskTarget at (\(taskQ!), \(taskR!))")
         }
         
         return EntitySaveData(
@@ -648,7 +648,7 @@ class GameSaveManager {
                 let coord = HexCoordinate(q: exploredTile.q, r: exploredTile.r)
                 fogOfWar.markAsExplored(coord)
             }
-            print("   ✅ Restored \(data.exploredTiles.count) explored tiles")
+            debugLog("   ✅ Restored \(data.exploredTiles.count) explored tiles")
         }
         
         // NOTE: Buildings and resources are reconstructed in loadGame() after this returns
@@ -685,23 +685,23 @@ class GameSaveManager {
         }
         
         // ✅ DEBUG: Print restored values
-        print("📊 Restored player \(player.name):")
+        debugLog("📊 Restored player \(player.name):")
         for type in ResourceType.allCases {
-            print("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
+            debugLog("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
         }
         
         // Restore commanders
-        print("📂 LOAD: Found \(data.commanders.count) commanders to restore for player \(data.name)")
+        debugLog("📂 LOAD: Found \(data.commanders.count) commanders to restore for player \(data.name)")
         for commanderData in data.commanders {
-            print("   📂 Loading commander: \(commanderData.name) (rank: \(commanderData.rank), specialty: \(commanderData.specialty))")
+            debugLog("   📂 Loading commander: \(commanderData.name) (rank: \(commanderData.rank), specialty: \(commanderData.specialty))")
             if let commander = reconstructCommander(from: commanderData) {
                 player.addCommander(commander)
-                print("   ✅ Commander \(commander.name) restored successfully")
+                debugLog("   ✅ Commander \(commander.name) restored successfully")
             } else {
-                print("   ❌ Failed to reconstruct commander \(commanderData.name)")
+                debugLog("   ❌ Failed to reconstruct commander \(commanderData.name)")
             }
         }
-        print("📂 LOAD: Player now has \(player.commanders.count) commanders")
+        debugLog("📂 LOAD: Player now has \(player.commanders.count) commanders")
         
         // Restore armies
         for armyData in data.armies {
@@ -794,7 +794,7 @@ class GameSaveManager {
             for pending in pendingData {
                 army.addPendingReinforcement(pending)
             }
-            print("   📦 Restored \(pendingData.count) pending reinforcements for \(army.name)")
+            debugLog("   📦 Restored \(pendingData.count) pending reinforcements for \(army.name)")
         }
 
         return army
@@ -826,16 +826,16 @@ class GameSaveManager {
                 if let q = data.taskTargetQ, let r = data.taskTargetR {
                     villagers.taskTarget = HexCoordinate(q: q, r: r)
                     villagers.currentTask = .idle  // Will be reconnected later
-                    print("📂 Restored villager \(villagers.name) with taskTarget at (\(q), \(r))")
+                    debugLog("📂 Restored villager \(villagers.name) with taskTarget at (\(q), \(r))")
                 } else {
-                    print("⚠️ gatheringResource task but no coordinates for \(villagers.name)")
+                    debugLog("⚠️ gatheringResource task but no coordinates for \(villagers.name)")
                 }
                 
             case "hunting":
                 if let q = data.taskTargetQ, let r = data.taskTargetR {
                     villagers.taskTarget = HexCoordinate(q: q, r: r)
                     villagers.currentTask = .idle
-                    print("📂 Restored villager \(villagers.name) hunting target at (\(q), \(r))")
+                    debugLog("📂 Restored villager \(villagers.name) hunting target at (\(q), \(r))")
                 }
                 
             case "building", "repairing":
@@ -864,13 +864,13 @@ class GameSaveManager {
     
     private func reconstructResourcePoint(from data: ResourcePointSaveData) -> ResourcePointNode? {
         guard let resourceType = ResourcePointType(rawValue: data.resourceType) else {
-            print("❌ Unknown resource type: \(data.resourceType)")
+            debugLog("❌ Unknown resource type: \(data.resourceType)")
             return nil
         }
         
         // ✅ FIX: Skip depleted resources
         if data.remainingAmount <= 0 {
-            print("⏭️ Skipping depleted resource at (\(data.q), \(data.r))")
+            debugLog("⏭️ Skipping depleted resource at (\(data.q), \(data.r))")
             return nil
         }
         
@@ -881,7 +881,7 @@ class GameSaveManager {
         resource.setRemainingAmount(data.remainingAmount)
         resource.setCurrentHealth(data.currentHealth)
         
-        print("📦 Restored \(resourceType.displayName) at (\(coord.q), \(coord.r)) with \(data.remainingAmount) remaining")
+        debugLog("📦 Restored \(resourceType.displayName) at (\(coord.q), \(coord.r)) with \(data.remainingAmount) remaining")
         
         return resource
     }
@@ -944,13 +944,13 @@ class GameSaveManager {
         let cappedElapsed = min(elapsedSeconds, maxOfflineSeconds)
         
         guard cappedElapsed > 1 else {
-            print("⏰ Less than 1 second elapsed, skipping offline progress")
+            debugLog("⏰ Less than 1 second elapsed, skipping offline progress")
             return
         }
         
-        print("⏰ Applying offline progress for \(Int(cappedElapsed)) seconds...")
-        print("   📊 Player entities count: \(player.entities.count)")
-        print("   📊 HexMap resource points count: \(hexMap.resourcePoints.count)")
+        debugLog("⏰ Applying offline progress for \(Int(cappedElapsed)) seconds...")
+        debugLog("   📊 Player entities count: \(player.entities.count)")
+        debugLog("   📊 HexMap resource points count: \(hexMap.resourcePoints.count)")
         
         // Track which resources need rate adjustments due to depletion
         var rateReductions: [ResourceType: Double] = [:]
@@ -964,11 +964,11 @@ class GameSaveManager {
             }
             
             // Debug: Print villager info
-            print("   🔍 Checking villager: \(villagerGroup.name)")
-            print("      currentTask: \(villagerGroup.currentTask.displayName)")
+            debugLog("   🔍 Checking villager: \(villagerGroup.name)")
+            debugLog("      currentTask: \(villagerGroup.currentTask.displayName)")
             
             guard let targetCoord = villagerGroup.taskTarget else {
-                print("      ❌ No taskTarget, skipping")
+                debugLog("      ❌ No taskTarget, skipping")
                 continue
             }
             
@@ -976,18 +976,18 @@ class GameSaveManager {
             guard let resourcePoint = hexMap.resourcePoints.first(where: {
                 $0.coordinate == targetCoord
             }) else {
-                print("      ❌ No resource found at (\(targetCoord.q), \(targetCoord.r))")
+                debugLog("      ❌ No resource found at (\(targetCoord.q), \(targetCoord.r))")
                 // List all resource coordinates for debugging
-                print("      Available resources:")
+                debugLog("      Available resources:")
                 for rp in hexMap.resourcePoints.prefix(5) {
-                    print("         - (\(rp.coordinate.q), \(rp.coordinate.r)): \(rp.resourceType.displayName)")
+                    debugLog("         - (\(rp.coordinate.q), \(rp.coordinate.r)): \(rp.resourceType.displayName)")
                 }
                 continue
             }
             
             villagersFoundGathering += 1
-            print("      ✅ Found resource: \(resourcePoint.resourceType.displayName) at (\(targetCoord.q), \(targetCoord.r))")
-            print("      📦 Resource before: \(resourcePoint.remainingAmount)")
+            debugLog("      ✅ Found resource: \(resourcePoint.resourceType.displayName) at (\(targetCoord.q), \(targetCoord.r))")
+            debugLog("      📦 Resource before: \(resourcePoint.remainingAmount)")
             
             var gatherRatePerSecond = 0.2 * Double(villagerGroup.villagerCount)
             
@@ -1009,16 +1009,16 @@ class GameSaveManager {
             let actualGathered = min(wouldGather, resourcePoint.remainingAmount)
             let newRemaining = resourcePoint.remainingAmount - actualGathered
             
-            print("      ⛏️ \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers)")
-            print("         Rate: \(gatherRatePerSecond)/s × \(Int(cappedElapsed))s = \(wouldGather) potential")
-            print("         Actually depleted: \(actualGathered)")
-            print("         Resource: \(resourcePoint.remainingAmount) → \(newRemaining)")
+            debugLog("      ⛏️ \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers)")
+            debugLog("         Rate: \(gatherRatePerSecond)/s × \(Int(cappedElapsed))s = \(wouldGather) potential")
+            debugLog("         Actually depleted: \(actualGathered)")
+            debugLog("         Resource: \(resourcePoint.remainingAmount) → \(newRemaining)")
             
             // Update resource remaining amount
             resourcePoint.setRemainingAmount(newRemaining)
             
             // Verify it was set
-            print("      📦 Resource after setRemainingAmount: \(resourcePoint.remainingAmount)")
+            debugLog("      📦 Resource after setRemainingAmount: \(resourcePoint.remainingAmount)")
             
             // Check if resource is now depleted
             if newRemaining <= 0 {
@@ -1032,16 +1032,16 @@ class GameSaveManager {
                 // Clear villager task
                 villagerGroup.clearTask()
                 
-                print("      ⚠️ Resource DEPLETED! \(villagerGroup.name) is now idle")
+                debugLog("      ⚠️ Resource DEPLETED! \(villagerGroup.name) is now idle")
             }
         }
         
-        print("   📊 Found \(villagersFoundGathering) villager(s) that were gathering")
+        debugLog("   📊 Found \(villagersFoundGathering) villager(s) that were gathering")
         
         // Step 2: Apply rate reductions for depleted resources BEFORE calculating accumulation
         for (resourceType, reduction) in rateReductions {
             player.decreaseCollectionRate(resourceType, amount: reduction)
-            print("   📉 \(resourceType.displayName) rate reduced by \(reduction)/s due to depletion")
+            debugLog("   📉 \(resourceType.displayName) rate reduced by \(reduction)/s due to depletion")
         }
         
         // Step 3: Calculate resource accumulation using (potentially adjusted) rates
@@ -1058,11 +1058,11 @@ class GameSaveManager {
                 
                 if actualAdded > 0 {
                     player.addResource(type, amount: actualAdded)
-                    print("      \(type.displayName): +\(actualAdded) (rate \(rate)/s × \(Int(cappedElapsed))s)")
+                    debugLog("      \(type.displayName): +\(actualAdded) (rate \(rate)/s × \(Int(cappedElapsed))s)")
                 }
                 
                 if actualAdded < accumulated {
-                    print("      ⚠️ \(type.displayName) capped! Would have added \(accumulated) but only \(actualAdded) space available")
+                    debugLog("      ⚠️ \(type.displayName) capped! Would have added \(accumulated) but only \(actualAdded) space available")
                 }
             }
         }
@@ -1073,13 +1073,13 @@ class GameSaveManager {
         }
         
         if !depletedResources.isEmpty {
-            print("   🗑️ Removed \(depletedResources.count) depleted resource(s)")
+            debugLog("   🗑️ Removed \(depletedResources.count) depleted resource(s)")
         }
         
         // Final summary
-        print("📊 Final resources after offline progress:")
+        debugLog("📊 Final resources after offline progress:")
         for type in ResourceType.allCases {
-            print("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
+            debugLog("   \(type.displayName): \(player.getResource(type)) (rate: \(player.getCollectionRate(type))/s)")
         }
     }
 }

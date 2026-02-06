@@ -204,7 +204,7 @@ class HexMap {
             fogOverlays[coord] = overlay
         }
         
-        print("✅ Created \(fogOverlays.count) fog overlays")
+        debugLog("✅ Created \(fogOverlays.count) fog overlays")
     }
 
     func updateFogOverlays(for player: Player) {
@@ -298,7 +298,7 @@ class HexMap {
             }
         }
         
-        print("✅ Spawned \(resourcePoints.count) resource points")
+        debugLog("✅ Spawned \(resourcePoints.count) resource points")
     }
     
     func generateMap(terrain: TerrainType = .plains) {
@@ -504,7 +504,7 @@ class HexMap {
         addResourcePoint(carcass)
         scene.addChild(carcass)
 
-        print("✅ Created \(carcassType.displayName) at (\(huntedAnimal.coordinate.q), \(huntedAnimal.coordinate.r)) with \(huntedAnimal.remainingAmount) food")
+        debugLog("✅ Created \(carcassType.displayName) at (\(huntedAnimal.coordinate.q), \(huntedAnimal.coordinate.r)) with \(huntedAnimal.remainingAmount) food")
         
         return carcass
     }
@@ -512,7 +512,7 @@ class HexMap {
     func addBuilding(_ building: BuildingNode) {
         // Check for duplicates before adding
         guard !buildings.contains(where: { $0.data.id == building.data.id }) else {
-            print("⚠️ Attempted to add duplicate building: \(building.buildingType.displayName) (ID: \(building.data.id))")
+            debugLog("⚠️ Attempted to add duplicate building: \(building.buildingType.displayName) (ID: \(building.data.id))")
             return
         }
         buildings.append(building)
@@ -525,7 +525,7 @@ class HexMap {
     func addEntity(_ entity: EntityNode) {
         // ✅ FIX: Check for duplicates before adding
         guard !entities.contains(where: { $0.entity.id == entity.entity.id }) else {
-            print("⚠️ Attempted to add duplicate entity: \(entity.entity.name) (ID: \(entity.entity.id))")
+            debugLog("⚠️ Attempted to add duplicate entity: \(entity.entity.name) (ID: \(entity.entity.id))")
             return
         }
         entities.append(entity)
@@ -785,7 +785,7 @@ class HexMap {
             }
         }
         
-        print("✅ Spawned \(resourcePoints.count) resource points (density: \(densityMultiplier)x)")
+        debugLog("✅ Spawned \(resourcePoints.count) resource points (density: \(densityMultiplier)x)")
     }
     
     func addResourcePoint(_ resource: ResourcePointNode) {
@@ -793,17 +793,17 @@ class HexMap {
         // This prevents crashes when iterating resourcePoints with stale nodes
         let validResources = resourcePoints.filter { $0.parent != nil }
         if validResources.count != resourcePoints.count {
-            print("⚠️ Cleaning up \(resourcePoints.count - validResources.count) orphaned resource points")
+            debugLog("⚠️ Cleaning up \(resourcePoints.count - validResources.count) orphaned resource points")
             resourcePoints = validResources
         }
 
         // Check for duplicates at same coordinate
         guard !resourcePoints.contains(where: { $0.coordinate == resource.coordinate }) else {
-            print("⚠️ Resource point already exists at (\(resource.coordinate.q), \(resource.coordinate.r))")
+            debugLog("⚠️ Resource point already exists at (\(resource.coordinate.q), \(resource.coordinate.r))")
             return
         }
         resourcePoints.append(resource)
-        print("✅ Added resource point: \(resource.resourceType.displayName) at (\(resource.coordinate.q), \(resource.coordinate.r))")
+        debugLog("✅ Added resource point: \(resource.resourceType.displayName) at (\(resource.coordinate.q), \(resource.coordinate.r))")
     }
 
     // MARK: - Adjacency Bonus Support

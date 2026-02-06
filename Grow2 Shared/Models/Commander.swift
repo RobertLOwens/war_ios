@@ -110,9 +110,9 @@ class Commander {
     func consumeStamina(cost: Double = CommanderData.staminaCostPerCommand) -> Bool {
         let result = data.consumeStamina(cost: cost)
         if !result {
-            print("⚡ \(name) doesn't have enough stamina! (\(Int(stamina))/\(Int(CommanderData.maxStamina)))")
+            debugLog("⚡ \(name) doesn't have enough stamina! (\(Int(stamina))/\(Int(CommanderData.maxStamina)))")
         } else {
-            print("⚡ \(name) used \(Int(cost)) stamina. Remaining: \(Int(stamina))/\(Int(CommanderData.maxStamina))")
+            debugLog("⚡ \(name) used \(Int(cost)) stamina. Remaining: \(Int(stamina))/\(Int(CommanderData.maxStamina))")
         }
         return result
     }
@@ -123,7 +123,7 @@ class Commander {
 
         // Only log when stamina actually increased by a meaningful amount
         if Int(stamina) > Int(oldStamina) {
-            print("⚡ \(name) regenerated stamina: \(Int(stamina))/\(Int(CommanderData.maxStamina))")
+            debugLog("⚡ \(name) regenerated stamina: \(Int(stamina))/\(Int(CommanderData.maxStamina))")
         }
     }
 
@@ -139,10 +139,10 @@ class Commander {
         data.addExperience(amount)
 
         if level > oldLevel {
-            print("🎉 \(name) leveled up to Level \(level)!")
+            debugLog("🎉 \(name) leveled up to Level \(level)!")
         }
         if rank != oldRank {
-            print("⭐ \(name) promoted to \(rank.displayName)!")
+            debugLog("⭐ \(name) promoted to \(rank.displayName)!")
         }
     }
 
@@ -248,7 +248,7 @@ class Commander {
         data.assignedArmyID = army.id
         army.data.commanderID = self.id
 
-        print("✅ \(name) assigned to \(army.name)")
+        debugLog("✅ \(name) assigned to \(army.name)")
     }
 
     func removeFromArmy() {
@@ -257,7 +257,7 @@ class Commander {
             army.data.commanderID = nil
             assignedArmy = nil
             data.assignedArmyID = nil
-            print("✅ \(name) removed from army")
+            debugLog("✅ \(name) removed from army")
         }
     }
 

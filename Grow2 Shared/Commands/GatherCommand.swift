@@ -75,7 +75,7 @@ struct GatherCommand: GameCommand {
                 destination: resourceCoordinate
             )
             let _ = moveCommand.execute(in: context)
-            print("🚶 Moving \(villagers.name) to resource at (\(resourceCoordinate.q), \(resourceCoordinate.r))")
+            debugLog("🚶 Moving \(villagers.name) to resource at (\(resourceCoordinate.q), \(resourceCoordinate.r))")
         }
 
         // Add villagers to resource's assigned list
@@ -92,7 +92,7 @@ struct GatherCommand: GameCommand {
                 // Add resource point data if not already present
                 if engineState.getResourcePoint(id: resource.id) == nil {
                     engineState.addResourcePoint(resource.data)
-                    print("➕ Added ResourcePointData to engine for \(resource.resourceType.displayName)")
+                    debugLog("➕ Added ResourcePointData to engine for \(resource.resourceType.displayName)")
                 }
 
                 // Ensure villager group exists in engine state
@@ -105,7 +105,7 @@ struct GatherCommand: GameCommand {
                         ownerID: player.id
                     )
                     engineState.addVillagerGroup(groupData)
-                    print("➕ Added VillagerGroupData to engine for \(villagers.name)")
+                    debugLog("➕ Added VillagerGroupData to engine for \(villagers.name)")
                 }
 
                 // Start gathering in the resource engine
@@ -118,22 +118,22 @@ struct GatherCommand: GameCommand {
                     // Sync villager task state to engine's data layer
                     if let groupData = engineState.getVillagerGroup(id: villagers.id) {
                         groupData.currentTask = .gatheringResource(resourcePointID: resource.id)
-                        print("🔄 Synced VillagerGroupData task to gathering \(resource.resourceType.displayName)")
+                        debugLog("🔄 Synced VillagerGroupData task to gathering \(resource.resourceType.displayName)")
                     }
 
                     // Update collection rates to include adjacency bonuses
                     GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
 
-                    print("✅ Registered gathering with ResourceEngine")
+                    debugLog("✅ Registered gathering with ResourceEngine")
                 } else {
-                    print("⚠️ Failed to register gathering with ResourceEngine")
+                    debugLog("⚠️ Failed to register gathering with ResourceEngine")
                 }
             }
         }
 
         context.onResourcesChanged?()
 
-        print("⛏️ Assigned \(villagers.villagerCount) villagers to gather \(resource.resourceType.displayName)")
+        debugLog("⛏️ Assigned \(villagers.villagerCount) villagers to gather \(resource.resourceType.displayName)")
 
         return .success
     }
@@ -197,7 +197,7 @@ struct StopGatheringCommand: GameCommand {
                 // Update collection rates to reflect removed gatherers
                 GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
 
-                print("✅ Unregistered gathering from ResourceEngine")
+                debugLog("✅ Unregistered gathering from ResourceEngine")
             }
         }
 
@@ -207,7 +207,7 @@ struct StopGatheringCommand: GameCommand {
 
         context.onResourcesChanged?()
 
-        print("🛑 Stopped gathering for \(villagers.name)")
+        debugLog("🛑 Stopped gathering for \(villagers.name)")
 
         return .success
     }

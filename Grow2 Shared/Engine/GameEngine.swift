@@ -61,7 +61,7 @@ class GameEngine {
 
     // MARK: - Tick Timing
     private var lastTickTime: TimeInterval = 0
-    private let tickInterval: TimeInterval = 0.1  // 10 ticks per second
+    private let tickInterval = GameConfig.EngineIntervals.tick
 
     // MARK: - Update Intervals
     private var lastVisionUpdate: TimeInterval = 0
@@ -72,13 +72,13 @@ class GameEngine {
     private var lastMovementUpdate: TimeInterval = 0
     private var lastAIUpdate: TimeInterval = 0
 
-    private let visionUpdateInterval: TimeInterval = 0.25  // 4x per second
-    private let buildingUpdateInterval: TimeInterval = 0.5  // 2x per second
-    private let trainingUpdateInterval: TimeInterval = 1.0  // 1x per second
-    private let combatUpdateInterval: TimeInterval = 1.0    // 1x per second
-    private let resourceUpdateInterval: TimeInterval = 0.5  // 2x per second
-    private let movementUpdateInterval: TimeInterval = 0.1  // 10x per second
-    private let aiUpdateInterval: TimeInterval = 0.5        // AI decisions 2x per second
+    private let visionUpdateInterval = GameConfig.EngineIntervals.visionUpdate
+    private let buildingUpdateInterval = GameConfig.EngineIntervals.buildingUpdate
+    private let trainingUpdateInterval = GameConfig.EngineIntervals.trainingUpdate
+    private let combatUpdateInterval = GameConfig.EngineIntervals.combatUpdate
+    private let resourceUpdateInterval = GameConfig.EngineIntervals.resourceUpdate
+    private let movementUpdateInterval = GameConfig.EngineIntervals.movementUpdate
+    private let aiUpdateInterval = GameConfig.EngineIntervals.aiUpdate
 
     // MARK: - Initialization
 
@@ -108,7 +108,7 @@ class GameEngine {
         aiController.setup(gameState: gameState)
 
         let aiCount = gameState.getAIPlayers().count
-        print("GameEngine initialized with \(gameState.players.count) players (\(aiCount) AI)")
+        debugLog("GameEngine initialized with \(gameState.players.count) players (\(aiCount) AI)")
     }
 
     func reset() {
@@ -186,7 +186,7 @@ class GameEngine {
                     // AI command failed - this is expected sometimes (e.g., not enough resources)
                     // Just log it at debug level
                     if let reason = result.failureReason {
-                        print("🤖 AI command failed: \(reason)")
+                        debugLog("🤖 AI command failed: \(reason)")
                     }
                 } else {
                     allChanges.append(contentsOf: result.changes)
@@ -238,9 +238,9 @@ class GameEngine {
                 ))
 
                 if player.isAI {
-                    print("🤖 AI completed research: \(researchType.displayName)")
+                    debugLog("🤖 AI completed research: \(researchType.displayName)")
                 } else {
-                    print("🔬 Player completed research: \(researchType.displayName)")
+                    debugLog("🔬 Player completed research: \(researchType.displayName)")
                 }
             }
         }

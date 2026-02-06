@@ -361,15 +361,6 @@ class PlayerState: Codable {
         return activeResearchType != nil
     }
 
-    /// Get progress of active research (0.0 to 1.0), returns nil if no active research
-    func getActiveResearchProgress(currentTime: TimeInterval, researchTime: TimeInterval) -> Double? {
-        guard let startTime = activeResearchStartTime, activeResearchType != nil else {
-            return nil
-        }
-        let elapsed = currentTime - startTime
-        return min(1.0, max(0.0, elapsed / researchTime))
-    }
-
     /// Get a research bonus multiplier
     func getResearchBonus(_ bonusTypeRawValue: String) -> Double {
         return cachedResearchBonuses[bonusTypeRawValue] ?? 0.0
@@ -413,28 +404,3 @@ enum VisibilityLevelData: String, Codable {
     case visible
 }
 
-// MARK: - Player State Extensions
-
-extension PlayerState {
-    /// Creates a copy of the player state
-    func copy() -> PlayerState {
-        let copy = PlayerState(id: id, name: name, colorHex: colorHex, isAI: isAI)
-        copy.resources = resources
-        copy.collectionRates = collectionRates
-        copy.resourceAccumulators = resourceAccumulators
-        copy.ownedBuildingIDs = ownedBuildingIDs
-        copy.ownedArmyIDs = ownedArmyIDs
-        copy.ownedVillagerGroupIDs = ownedVillagerGroupIDs
-        copy.ownedCommanderIDs = ownedCommanderIDs
-        copy.diplomacyRelations = diplomacyRelations
-        copy.visibleCoordinates = visibleCoordinates
-        copy.exploredCoordinates = exploredCoordinates
-        copy.lastUpdateTime = lastUpdateTime
-        copy.foodConsumptionAccumulator = foodConsumptionAccumulator
-        copy.completedResearch = completedResearch
-        copy.activeResearchType = activeResearchType
-        copy.activeResearchStartTime = activeResearchStartTime
-        copy.cachedResearchBonuses = cachedResearchBonuses
-        return copy
-    }
-}

@@ -89,9 +89,9 @@ struct TrainMilitaryCommand: GameCommand {
         context.onResourcesChanged?()
 
         if costReduction > 0 {
-            print("🎓 Training \(quantity)x \(unitType.displayName) at \(building.buildingType.displayName) (-\(Int(costReduction * 100))% warehouse bonus)")
+            debugLog("🎓 Training \(quantity)x \(unitType.displayName) at \(building.buildingType.displayName) (-\(Int(costReduction * 100))% warehouse bonus)")
         } else {
-            print("🎓 Training \(quantity)x \(unitType.displayName) at \(building.buildingType.displayName)")
+            debugLog("🎓 Training \(quantity)x \(unitType.displayName) at \(building.buildingType.displayName)")
         }
 
         return .success
@@ -159,7 +159,7 @@ struct TrainVillagerCommand: GameCommand {
         
         context.onResourcesChanged?()
         
-        print("🎓 Training \(quantity)x Villagers at \(building.buildingType.displayName)")
+        debugLog("🎓 Training \(quantity)x Villagers at \(building.buildingType.displayName)")
         
         return .success
     }

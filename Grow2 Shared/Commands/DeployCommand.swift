@@ -105,7 +105,7 @@ struct DeployArmyCommand: GameCommand {
         // Add to player's entity list
         player.addEntity(army)
 
-        print("🛡️ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
+        debugLog("🛡️ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
         
         return .success
     }
@@ -206,7 +206,7 @@ struct DeployVillagersCommand: GameCommand {
         // Add to player's entity list
         player.addEntity(villagers)
         
-        print("👷 Deployed \(removed) villagers from \(building.buildingType.displayName)")
+        debugLog("👷 Deployed \(removed) villagers from \(building.buildingType.displayName)")
         
         return .success
     }

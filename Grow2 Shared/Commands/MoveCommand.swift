@@ -104,10 +104,10 @@ struct MoveCommand: GameCommand {
         }
 
         entity.moveTo(path: path) {
-            print("⚔️ \(String(describing: entity.name)) Moving")
+            debugLog("⚔️ \(String(describing: entity.name)) Moving")
         }
 
-        print("🚶 Moving \(entity.entityType.displayName) to (\(destination.q), \(destination.r))")
+        debugLog("🚶 Moving \(entity.entityType.displayName) to (\(destination.q), \(destination.r))")
 
         return .success
     }

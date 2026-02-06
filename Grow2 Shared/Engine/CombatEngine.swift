@@ -70,8 +70,8 @@ class CombatEngine {
     private(set) var detailedCombatHistory: [DetailedCombatRecord] = []
 
     // MARK: - Combat Constants
-    private let buildingPhaseInterval: TimeInterval = 1.0
-    private let siegeBuildingBonusMultiplier: Double = 1.5
+    private let buildingPhaseInterval = GameConfig.Combat.buildingPhaseInterval
+    private let siegeBuildingBonusMultiplier = GameConfig.Combat.siegeBuildingBonusMultiplier
 
     // MARK: - Setup
 
@@ -141,7 +141,7 @@ class CombatEngine {
             combat.updatePhase()
 
             if combat.phase != previousPhase {
-                print("⚔️ Combat phase changed: \(previousPhase.displayName) -> \(combat.phase.displayName)")
+                debugLog("⚔️ Combat phase changed: \(previousPhase.displayName) -> \(combat.phase.displayName)")
                 changes.append(.combatPhaseCompleted(
                     attackerID: combat.attackerArmies.first?.armyID ?? UUID(),
                     defenderID: combat.defenderArmies.first?.armyID ?? UUID(),
@@ -221,15 +221,15 @@ class CombatEngine {
     /// Start combat between two armies using the 3-phase system
     func startCombat(attackerArmyID: UUID, defenderArmyID: UUID, currentTime: TimeInterval) -> StateChange? {
         guard let state = gameState else {
-            print("❌ CombatEngine: gameState is nil")
+            debugLog("❌ CombatEngine: gameState is nil")
             return nil
         }
         guard let attacker = state.getArmy(id: attackerArmyID) else {
-            print("❌ CombatEngine: Attacker army not found in GameState (ID: \(attackerArmyID))")
+            debugLog("❌ CombatEngine: Attacker army not found in GameState (ID: \(attackerArmyID))")
             return nil
         }
         guard let defender = state.getArmy(id: defenderArmyID) else {
-            print("❌ CombatEngine: Defender army not found in GameState (ID: \(defenderArmyID))")
+            debugLog("❌ CombatEngine: Defender army not found in GameState (ID: \(defenderArmyID))")
             return nil
         }
 
@@ -263,16 +263,16 @@ class CombatEngine {
         defender.combatTargetID = attackerArmyID
 
         // Debug logging for terrain bonuses
-        print("⚔️ Combat started: Phase \(combat.phase.displayName) at \(defender.coordinate)")
-        print("   📍 Terrain: \(terrain.displayName)")
+        debugLog("⚔️ Combat started: Phase \(combat.phase.displayName) at \(defender.coordinate)")
+        debugLog("   📍 Terrain: \(terrain.displayName)")
         if combat.terrainDefenseBonus > 0 {
-            print("   🛡️ Defender defense bonus: +\(Int(combat.terrainDefenseBonus * 100))%")
+            debugLog("   🛡️ Defender defense bonus: +\(Int(combat.terrainDefenseBonus * 100))%")
         }
         if combat.terrainAttackPenalty > 0 {
-            print("   ⚔️ Attacker attack penalty: -\(Int(combat.terrainAttackPenalty * 100))%")
+            debugLog("   ⚔️ Attacker attack penalty: -\(Int(combat.terrainAttackPenalty * 100))%")
         }
         if combat.terrainDefenseBonus == 0 && combat.terrainAttackPenalty == 0 {
-            print("   ⚖️ No terrain modifiers")
+            debugLog("   ⚖️ No terrain modifiers")
         }
 
         return .combatStarted(
@@ -343,7 +343,7 @@ class CombatEngine {
         attacker.isInCombat = true
         attacker.combatTargetID = defenderVillagerGroupID
 
-        print("⚔️ Army vs Villagers combat started: \(attacker.name) attacking \(villagerGroup.villagerCount) villagers")
+        debugLog("⚔️ Army vs Villagers combat started: \(attacker.name) attacking \(villagerGroup.villagerCount) villagers")
 
         return .combatStarted(
             attackerID: attackerArmyID,
@@ -380,8 +380,8 @@ class CombatEngine {
 
     private func processRangedDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from ranged/siege units only, including bonus damage vs enemy composition
-        let attackerRangedDPS = calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
-        let defenderRangedDPS = calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
+        let attackerRangedDPS = DamageCalculator.calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
+        let defenderRangedDPS = DamageCalculator.calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
 
         let attackerDamage = attackerRangedDPS * deltaTime
         let defenderDamage = defenderRangedDPS * deltaTime
@@ -426,8 +426,8 @@ class CombatEngine {
     private func processMeleeDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from infantry/cavalry units, including bonus damage vs enemy composition
         let isCharging = combat.elapsedTime < ActiveCombat.meleeEngagementThreshold + 1.0  // 1 second charge window after melee starts
-        let attackerMeleeDPS = calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
-        let defenderMeleeDPS = calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
+        let attackerMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
+        let defenderMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
 
         let attackerDamage = attackerMeleeDPS * deltaTime
         let defenderDamage = defenderMeleeDPS * deltaTime
@@ -471,8 +471,8 @@ class CombatEngine {
 
     private func processAllDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // In cleanup phase, all units attack, including bonus damage vs enemy composition
-        let attackerTotalDPS = calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
-        let defenderTotalDPS = calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
+        let attackerTotalDPS = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
+        let defenderTotalDPS = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
 
         let attackerDamage = attackerTotalDPS * deltaTime
         let defenderDamage = defenderTotalDPS * deltaTime
@@ -537,20 +537,6 @@ class CombatEngine {
         }
     }
 
-    // MARK: - DPS Calculations (delegating to DamageCalculator)
-
-    private func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
-        DamageCalculator.calculateRangedDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, playerState: playerState)
-    }
-
-    private func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
-        DamageCalculator.calculateMeleeDPS(sideState, enemyState: enemyState, isCharge: isCharge, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, playerState: playerState)
-    }
-
-    private func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
-        DamageCalculator.calculateTotalDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, playerState: playerState)
-    }
-
     // MARK: - Damage Application
 
     private func applyDamageToSide(_ sideState: inout SideCombatState, damage: Double, combat: ActiveCombat, isDefender: Bool, state: GameState) {
@@ -576,7 +562,7 @@ class CombatEngine {
         }
 
         // Start building combat
-        print("⚔️ Auto-starting building attack: \(army.name) vs \(building.buildingType.displayName)")
+        debugLog("⚔️ Auto-starting building attack: \(army.name) vs \(building.buildingType.displayName)")
 
         if let combatChange = startBuildingCombat(attackerArmyID: armyID, buildingID: building.id, currentTime: currentTime) {
             changes.append(combatChange)
@@ -745,7 +731,7 @@ class CombatEngine {
             from: building.coordinate,
             excluding: building.coordinate
         ) else {
-            print("⚠️ No home base available for retreat - defenders have nowhere to go")
+            debugLog("⚠️ No home base available for retreat - defenders have nowhere to go")
             return
         }
 
@@ -760,7 +746,7 @@ class CombatEngine {
                 forPlayerID: buildingOwnerID,
                 gameState: state
             ), !path.isEmpty else {
-                print("🏃 \(army.name) cannot find retreat path from destroyed building")
+                debugLog("🏃 \(army.name) cannot find retreat path from destroyed building")
                 continue
             }
 
@@ -770,7 +756,7 @@ class CombatEngine {
             army.pathIndex = 0
             army.movementProgress = 0.0
 
-            print("🏃 \(army.name) retreating from destroyed \(building.buildingType.displayName) to \(newHomeBase.buildingType.displayName)")
+            debugLog("🏃 \(army.name) retreating from destroyed \(building.buildingType.displayName) to \(newHomeBase.buildingType.displayName)")
         }
     }
 
@@ -859,7 +845,7 @@ class CombatEngine {
                     combat.isComplete = true
                     completedCombats.append(combatID)
 
-                    print("⚔️ Army destroyed by villagers!")
+                    debugLog("⚔️ Army destroyed by villagers!")
 
                     // Save combat record before removing army
                     let record = createVillagerCombatRecord(from: combat, currentTime: currentTime, state: state)
@@ -881,7 +867,7 @@ class CombatEngine {
                 combat.isComplete = true
                 completedCombats.append(combatID)
 
-                print("⚔️ Villager group destroyed: \(combat.villagersKilled) villagers killed")
+                debugLog("⚔️ Villager group destroyed: \(combat.villagersKilled) villagers killed")
 
                 // Save combat record before removing villager group
                 let record = createVillagerCombatRecord(from: combat, currentTime: currentTime, state: state)
@@ -934,8 +920,8 @@ class CombatEngine {
         } else {
             // Combat ended without total destruction - compare remaining strength
             // Use enemy state for bonus damage calculation to get accurate DPS comparison
-            let attackerStrength = calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, playerState: combat.attackerPlayerState)
-            let defenderStrength = calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, playerState: combat.defenderPlayerState)
+            let attackerStrength = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, playerState: combat.attackerPlayerState)
+            let defenderStrength = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, playerState: combat.defenderPlayerState)
 
             if attackerStrength > defenderStrength {
                 winnerID = attackerID
@@ -1322,7 +1308,7 @@ class CombatEngine {
         buildingCombats.removeAll()
         villagerCombats.removeAll()
         garrisonDefenseEngine.reset()
-        print("🗑️ Combat history cleared")
+        debugLog("🗑️ Combat history cleared")
     }
 
     // MARK: - Retreat
@@ -1332,17 +1318,17 @@ class CombatEngine {
         guard let army = state.getArmy(id: armyID),
               !army.isEmpty(),
               let ownerID = army.ownerID else {
-            print("DEBUG: initiateAutoRetreat - Army \(armyID) not found in GameState or is empty/has no owner")
+            debugLog("DEBUG: initiateAutoRetreat - Army \(armyID) not found in GameState or is empty/has no owner")
             return // Army doesn't exist or is destroyed - nothing to retreat
         }
-        print("DEBUG: initiateAutoRetreat - Processing army \(army.name) at \(army.coordinate), homeBaseID: \(String(describing: army.homeBaseID))")
+        debugLog("DEBUG: initiateAutoRetreat - Processing army \(army.name) at \(army.coordinate), homeBaseID: \(String(describing: army.homeBaseID))")
 
         // Check if army is currently at their home base (lost a fight defending it)
         // If so, they stay to defend the building - only retreat when building is destroyed
         if let homeBaseID = army.homeBaseID,
            let homeBase = state.getBuilding(id: homeBaseID),
            homeBase.occupiedCoordinates.contains(army.coordinate) {
-            print("🛡️ \(army.name) staying to defend \(homeBase.buildingType.displayName)")
+            debugLog("🛡️ \(army.name) staying to defend \(homeBase.buildingType.displayName)")
             return
         }
 
@@ -1367,7 +1353,7 @@ class CombatEngine {
             retreatDestination = nearestBase.coordinate
             // Update army's home base reference
             army.homeBaseID = nearestBase.id
-            print("🏠 \(army.name) home base reassigned to \(nearestBase.buildingType.displayName)")
+            debugLog("🏠 \(army.name) home base reassigned to \(nearestBase.buildingType.displayName)")
         }
 
         // 3. Calculate path to destination
@@ -1378,7 +1364,7 @@ class CombatEngine {
                   forPlayerID: ownerID,
                   gameState: state
               ), !path.isEmpty else {
-            print("🏃 \(army.name) cannot find retreat path - staying in place")
+            debugLog("🏃 \(army.name) cannot find retreat path - staying in place")
             return
         }
 
@@ -1389,7 +1375,7 @@ class CombatEngine {
         army.movementProgress = 0.0
 
         let buildingName = retreatBuilding?.buildingType.displayName ?? "unknown"
-        print("🏃 \(army.name) retreating to \(buildingName)")
+        debugLog("🏃 \(army.name) retreating to \(buildingName)")
     }
 
     func retreatFromCombat(armyID: UUID) {

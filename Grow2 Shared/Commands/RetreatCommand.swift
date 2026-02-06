@@ -98,7 +98,7 @@ struct RetreatCommand: GameCommand {
         // If army is in combat, disengage immediately
         if GameEngine.shared.combatEngine.isInCombat(armyID: army.id) {
             GameEngine.shared.combatEngine.retreatFromCombat(armyID: army.id)
-            print("⚔️➡️🏃 Army \(army.name) disengaging from combat to retreat!")
+            debugLog("⚔️➡️🏃 Army \(army.name) disengaging from combat to retreat!")
         }
 
         // Find path to home base (pass owner for wall/gate checks)
@@ -116,10 +116,10 @@ struct RetreatCommand: GameCommand {
 
         // Start movement
         entity.moveTo(path: path) {
-            print("🏠 Army \(army.name) arrived at home base")
+            debugLog("🏠 Army \(army.name) arrived at home base")
         }
 
-        print("🏃 Army \(army.name) retreating to \(homeBase.buildingType.displayName) at (\(homeBase.coordinate.q), \(homeBase.coordinate.r)) with 10% speed bonus")
+        debugLog("🏃 Army \(army.name) retreating to \(homeBase.buildingType.displayName) at (\(homeBase.coordinate.q), \(homeBase.coordinate.r)) with 10% speed bonus")
 
         return .success
     }

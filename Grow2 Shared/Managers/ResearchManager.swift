@@ -143,17 +143,17 @@ class ResearchManager {
     
     func startResearch(_ researchType: ResearchType) -> Bool {
         guard isAvailable(researchType) else {
-            print("❌ Research not available: \(researchType.displayName)")
+            debugLog("❌ Research not available: \(researchType.displayName)")
             return false
         }
         
         guard canAfford(researchType) else {
-            print("❌ Cannot afford research: \(researchType.displayName)")
+            debugLog("❌ Cannot afford research: \(researchType.displayName)")
             return false
         }
         
         guard let player = player else {
-            print("❌ No player set for research")
+            debugLog("❌ No player set for research")
             return false
         }
         
@@ -166,9 +166,9 @@ class ResearchManager {
         activeResearch = ActiveResearch(researchType: researchType)
         player.state.startResearch(researchType.rawValue, at: Date().timeIntervalSince1970)
 
-        print("🔬 Started research: \(researchType.displayName)")
-        print("   Cost: \(researchType.costString)")
-        print("   Time: \(researchType.timeString)")
+        debugLog("🔬 Started research: \(researchType.displayName)")
+        debugLog("   Cost: \(researchType.costString)")
+        debugLog("   Time: \(researchType.timeString)")
         
         return true
     }
@@ -189,7 +189,7 @@ class ResearchManager {
         activeResearch = nil
         player.state.cancelActiveResearch()
 
-        print("❌ Cancelled research: \(active.researchType.displayName)")
+        debugLog("❌ Cancelled research: \(active.researchType.displayName)")
         return true
     }
     
@@ -205,9 +205,9 @@ class ResearchManager {
         recalculateBonuses()
         player?.state.completeResearch(researchType.rawValue)
 
-        print("✅ Research completed: \(researchType.displayName)")
+        debugLog("✅ Research completed: \(researchType.displayName)")
         for bonus in researchType.bonuses {
-            print("   \(bonus.displayString)")
+            debugLog("   \(bonus.displayString)")
         }
         
         // Post notification
@@ -239,9 +239,9 @@ class ResearchManager {
             }
         }
         
-        print("🔬 Recalculated research bonuses:")
+        debugLog("🔬 Recalculated research bonuses:")
         for (type, value) in cachedBonuses {
-            print("   \(type.displayName): +\(Int(value * 100))%")
+            debugLog("   \(type.displayName): +\(Int(value * 100))%")
         }
     }
     
@@ -443,26 +443,26 @@ class ResearchManager {
             }
         }
 
-        print("📂 Loaded research state:")
-        print("   Completed: \(completedResearch.count)")
-        print("   Active: \(activeResearch?.researchType.displayName ?? "None")")
+        debugLog("📂 Loaded research state:")
+        debugLog("   Completed: \(completedResearch.count)")
+        debugLog("   Active: \(activeResearch?.researchType.displayName ?? "None")")
     }
     
     // MARK: - Debug
     
     func printStatus() {
-        print("\n🔬 Research Status:")
-        print("   Completed: \(completedResearch.map { $0.displayName }.joined(separator: ", "))")
+        debugLog("\n🔬 Research Status:")
+        debugLog("   Completed: \(completedResearch.map { $0.displayName }.joined(separator: ", "))")
         if let active = activeResearch {
             let progress = Int(active.getProgress() * 100)
             let remaining = Int(active.getRemainingTime())
-            print("   Active: \(active.researchType.displayName) (\(progress)%, \(remaining)s remaining)")
+            debugLog("   Active: \(active.researchType.displayName) (\(progress)%, \(remaining)s remaining)")
         } else {
-            print("   Active: None")
+            debugLog("   Active: None")
         }
-        print("   Bonuses:")
+        debugLog("   Bonuses:")
         for (type, value) in cachedBonuses {
-            print("      \(type.displayName): +\(Int(value * 100))%")
+            debugLog("      \(type.displayName): +\(Int(value * 100))%")
         }
     }
 }

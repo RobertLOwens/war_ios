@@ -119,9 +119,9 @@ struct AttackCommand: GameCommand {
 
             if let defenderArmy = target.entity as? Army {
                 if let path = hexMap.findPath(from: attacker.coordinate, to: currentCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
-                    print("⚔️ \(attackerArmy.name) attacking army at (\(currentCoordinate.q), \(currentCoordinate.r)) [tracked by ID] - path: \(path.count) steps")
+                    debugLog("⚔️ \(attackerArmy.name) attacking army at (\(currentCoordinate.q), \(currentCoordinate.r)) [tracked by ID] - path: \(path.count) steps")
                     attacker.moveTo(path: path) {
-                        print("⚔️ \(attackerArmy.name) arrived - initiating combat!")
+                        debugLog("⚔️ \(attackerArmy.name) arrived - initiating combat!")
                         let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
                         _ = GameEngine.shared.combatEngine.startCombat(
                             attackerArmyID: attackerArmy.id,
@@ -135,9 +135,9 @@ struct AttackCommand: GameCommand {
                 }
             } else if let defenderVillagers = target.entity as? VillagerGroup {
                 if let path = hexMap.findPath(from: attacker.coordinate, to: currentCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
-                    print("⚔️ \(attackerArmy.name) attacking villagers at (\(currentCoordinate.q), \(currentCoordinate.r)) [tracked by ID] - path: \(path.count) steps")
+                    debugLog("⚔️ \(attackerArmy.name) attacking villagers at (\(currentCoordinate.q), \(currentCoordinate.r)) [tracked by ID] - path: \(path.count) steps")
                     attacker.moveTo(path: path) {
-                        print("⚔️ \(attackerArmy.name) arrived - attacking villagers!")
+                        debugLog("⚔️ \(attackerArmy.name) arrived - attacking villagers!")
                         let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
                         _ = GameEngine.shared.combatEngine.startVillagerCombat(
                             attackerArmyID: attackerArmy.id,
@@ -179,18 +179,18 @@ struct AttackCommand: GameCommand {
             // Use allowImpassableDestination to path onto enemy defensive buildings
             // Pass targetBuilding to allow pathing through all tiles of multi-tile buildings
             if let path = hexMap.findPath(from: attacker.coordinate, to: destinationCoordinate, for: attacker.entity.owner, allowImpassableDestination: true, targetBuilding: targetBuilding) {
-                print("⚔️ \(attackerArmy.name) attacking \(buildingName) at (\(destinationCoordinate.q), \(destinationCoordinate.r)) - path: \(path.count) steps")
+                debugLog("⚔️ \(attackerArmy.name) attacking \(buildingName) at (\(destinationCoordinate.q), \(destinationCoordinate.r)) - path: \(path.count) steps")
 
                 // Capture defender ID for closure
                 let defenderArmyID = defendingArmy?.id
 
                 attacker.moveTo(path: path) {
-                    print("⚔️ \(attackerArmy.name) arrived - attacking \(buildingName)!")
+                    debugLog("⚔️ \(attackerArmy.name) arrived - attacking \(buildingName)!")
                     let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
 
                     if let defenderID = defenderArmyID {
                         // Building has a defending army - start army combat with building context
-                        print("🛡️ Defender army present - they will defend the building!")
+                        debugLog("🛡️ Defender army present - they will defend the building!")
                         _ = GameEngine.shared.combatEngine.startCombat(
                             attackerArmyID: attackerArmy.id,
                             defenderArmyID: defenderID,
@@ -207,7 +207,7 @@ struct AttackCommand: GameCommand {
                 }
                 return .success
             } else {
-                print("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to \(buildingName) at (\(destinationCoordinate.q), \(destinationCoordinate.r))")
+                debugLog("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to \(buildingName) at (\(destinationCoordinate.q), \(destinationCoordinate.r))")
                 return .failure(reason: "No path to \(buildingName)")
             }
         }
@@ -219,10 +219,10 @@ struct AttackCommand: GameCommand {
                 // Army-vs-army combat
                 // Use allowImpassableDestination to handle targets on enemy buildings
                 if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
-                    print("⚔️ \(attackerArmy.name) attacking army at (\(targetCoordinate.q), \(targetCoordinate.r)) - path: \(path.count) steps")
+                    debugLog("⚔️ \(attackerArmy.name) attacking army at (\(targetCoordinate.q), \(targetCoordinate.r)) - path: \(path.count) steps")
                     attacker.moveTo(path: path) {
                         // Initiate combat when army arrives
-                        print("⚔️ \(attackerArmy.name) arrived - initiating combat!")
+                        debugLog("⚔️ \(attackerArmy.name) arrived - initiating combat!")
                         let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
                         _ = GameEngine.shared.combatEngine.startCombat(
                             attackerArmyID: attackerArmy.id,
@@ -232,17 +232,17 @@ struct AttackCommand: GameCommand {
                     }
                     return .success
                 } else {
-                    print("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to enemy army at (\(targetCoordinate.q), \(targetCoordinate.r))")
+                    debugLog("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to enemy army at (\(targetCoordinate.q), \(targetCoordinate.r))")
                     return .failure(reason: "No path to target")
                 }
             } else if let defenderVillagers = target.entity as? VillagerGroup {
                 // Army-vs-villager combat
                 // Use allowImpassableDestination to handle targets on enemy buildings
                 if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
-                    print("⚔️ \(attackerArmy.name) attacking villagers at (\(targetCoordinate.q), \(targetCoordinate.r)) - path: \(path.count) steps")
+                    debugLog("⚔️ \(attackerArmy.name) attacking villagers at (\(targetCoordinate.q), \(targetCoordinate.r)) - path: \(path.count) steps")
                     attacker.moveTo(path: path) {
                         // Initiate villager combat when army arrives
-                        print("⚔️ \(attackerArmy.name) arrived - attacking villagers!")
+                        debugLog("⚔️ \(attackerArmy.name) arrived - attacking villagers!")
                         let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
                         _ = GameEngine.shared.combatEngine.startVillagerCombat(
                             attackerArmyID: attackerArmy.id,
@@ -252,7 +252,7 @@ struct AttackCommand: GameCommand {
                     }
                     return .success
                 } else {
-                    print("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to villagers at (\(targetCoordinate.q), \(targetCoordinate.r))")
+                    debugLog("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to villagers at (\(targetCoordinate.q), \(targetCoordinate.r))")
                     return .failure(reason: "No path to target")
                 }
             }

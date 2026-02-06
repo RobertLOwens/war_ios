@@ -22,32 +22,11 @@ class VisionEngine {
     private weak var gameState: GameState?
 
     // MARK: - Vision Ranges
-    private let baseUnitVisionRange = 3
-    private let baseVillagerVisionRange = 2
+    private let baseUnitVisionRange = GameConfig.Vision.baseUnitRange
+    private let baseVillagerVisionRange = GameConfig.Vision.baseVillagerRange
 
     // Building vision ranges
-    private let buildingVisionRanges: [BuildingType: Int] = [
-        .cityCenter: 5,
-        .tower: 6,
-        .castle: 5,
-        .woodenFort: 4,
-        .barracks: 3,
-        .archeryRange: 3,
-        .stable: 3,
-        .siegeWorkshop: 3,
-        .lumberCamp: 2,
-        .miningCamp: 2,
-        .farm: 1,
-        .mill: 2,
-        .warehouse: 2,
-        .blacksmith: 2,
-        .market: 2,
-        .neighborhood: 2,
-        .university: 3,
-        .wall: 1,
-        .gate: 2,
-        .road: 1
-    ]
+    private let buildingVisionRanges = GameConfig.Vision.buildingRanges
 
     // MARK: - Setup
 

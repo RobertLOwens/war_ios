@@ -56,8 +56,8 @@ class BuildingPlacementController {
         // Highlight valid tiles
         highlightValidPlacementTiles()
 
-        print("Entered building placement mode for \(buildingType.displayName)")
-        print("   Found \(validPlacementCoordinates.count) valid locations")
+        debugLog("Entered building placement mode for \(buildingType.displayName)")
+        debugLog("   Found \(validPlacementCoordinates.count) valid locations")
     }
 
     /// Exits building placement mode and clears highlights
@@ -68,7 +68,7 @@ class BuildingPlacementController {
         validPlacementCoordinates = []
         clearPlacementHighlights()
 
-        print("Exited building placement mode")
+        debugLog("Exited building placement mode")
     }
 
     /// Finds all valid locations for a building type
@@ -175,7 +175,7 @@ class BuildingPlacementController {
 
         // Check if this is a valid placement location
         if validPlacementCoordinates.contains(hexCoord) {
-            print("Valid placement location selected: (\(hexCoord.q), \(hexCoord.r))")
+            debugLog("Valid placement location selected: (\(hexCoord.q), \(hexCoord.r))")
 
             // Notify delegate with selected coordinate
             delegate?.buildingPlacementController(self, didSelectLocation: hexCoord)
@@ -183,7 +183,7 @@ class BuildingPlacementController {
             // Exit placement mode
             exitBuildingPlacementMode()
         } else {
-            print("Invalid placement location: (\(hexCoord.q), \(hexCoord.r))")
+            debugLog("Invalid placement location: (\(hexCoord.q), \(hexCoord.r))")
             // Optionally show feedback that this isn't valid
         }
     }
@@ -206,7 +206,7 @@ class BuildingPlacementController {
         // Notify delegate to show UI buttons
         delegate?.buildingPlacementController(self, didEnterRotationPreviewFor: buildingType, at: anchor)
 
-        print("Entered rotation preview mode for \(buildingType.displayName) at (\(anchor.q), \(anchor.r))")
+        debugLog("Entered rotation preview mode for \(buildingType.displayName) at (\(anchor.q), \(anchor.r))")
     }
 
     /// Updates the rotation preview highlights to show current rotation
@@ -346,7 +346,7 @@ class BuildingPlacementController {
         updateRotationPreview()
 
         let directions = ["East", "Southeast", "Southwest", "West", "Northwest", "Northeast"]
-        print("Rotation changed to \(directions[rotationPreviewRotation]) (\(rotationPreviewRotation))")
+        debugLog("Rotation changed to \(directions[rotationPreviewRotation]) (\(rotationPreviewRotation))")
     }
 
     /// Confirms the current rotation and executes the build
@@ -365,7 +365,7 @@ class BuildingPlacementController {
         }
 
         guard allValid else {
-            print("Cannot build - some tiles are blocked")
+            debugLog("Cannot build - some tiles are blocked")
             delegate?.buildingPlacementController(self, showAlertWithTitle: "Cannot Build", message: "Some tiles in this rotation are blocked. Rotate to find a valid position.")
             return false
         }
@@ -391,7 +391,7 @@ class BuildingPlacementController {
         // Notify delegate to hide UI
         delegate?.buildingPlacementControllerDidExitRotationPreview(self)
 
-        print("Exited rotation preview mode")
+        debugLog("Exited rotation preview mode")
     }
 
     /// Clears all rotation preview highlight nodes

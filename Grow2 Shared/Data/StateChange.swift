@@ -70,31 +70,13 @@ enum StateChange: Codable {
     case resourcePointCreated(coordinate: HexCoordinate, resourceType: String, amount: Int)
     case collectionRateChanged(playerID: UUID, resourceType: String, oldRate: Double, newRate: Double)
 
-    // MARK: - Reinforcement Changes
-    case reinforcementDispatched(reinforcementID: UUID, sourceCoordinate: HexCoordinate, targetArmyID: UUID, units: [String: Int])
-    case reinforcementProgress(reinforcementID: UUID, currentCoordinate: HexCoordinate, progress: Double)
-    case reinforcementArrived(reinforcementID: UUID, targetArmyID: UUID)
-    case reinforcementCancelled(reinforcementID: UUID)
-
     // MARK: - Player Changes
     case playerResourcesUpdated(playerID: UUID, resources: [String: Int])
     case playerVisionUpdated(playerID: UUID, visibleCoordinates: [HexCoordinate], exploredCoordinates: [HexCoordinate])
     case diplomacyChanged(playerID: UUID, otherPlayerID: UUID, newStatus: String)
 
     // MARK: - Map Changes
-    case terrainChanged(coordinate: HexCoordinate, newTerrain: String)
     case fogOfWarUpdated(playerID: UUID, coordinate: HexCoordinate, visibility: String)
-
-    // MARK: - Commander Changes
-    case commanderRecruited(commanderID: UUID, ownerID: UUID, buildingID: UUID)
-    case commanderAssigned(commanderID: UUID, armyID: UUID)
-    case commanderUnassigned(commanderID: UUID, armyID: UUID)
-    case commanderLevelUp(commanderID: UUID, newLevel: Int)
-
-    // MARK: - Hunting Changes
-    case animalDamaged(coordinate: HexCoordinate, currentHealth: Double)
-    case animalKilled(coordinate: HexCoordinate, resourceType: String)
-    case carcassCreated(coordinate: HexCoordinate, resourceType: String, amount: Int)
 
     // MARK: - Research Changes
     case researchStarted(playerID: UUID, researchType: String, startTime: TimeInterval)

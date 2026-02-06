@@ -169,12 +169,12 @@ class ResourcePointNode: SKSpriteNode {
 
         // Debug logging for significant changes
         if abs(oldAmount - data.remainingAmount) > 10 {
-            print("📦 Resource \(resourceType.displayName): \(oldAmount) → \(data.remainingAmount)")
+            debugLog("📦 Resource \(resourceType.displayName): \(oldAmount) → \(data.remainingAmount)")
         }
 
         // Check for depletion
         if data.remainingAmount <= 0 && oldAmount > 0 {
-            print("⚠️ Resource depleted!")
+            debugLog("⚠️ Resource depleted!")
         }
     }
 
@@ -209,12 +209,12 @@ class ResourcePointNode: SKSpriteNode {
 
     func startGathering(by villagerGroup: VillagerGroup) {
         guard !assignedVillagerGroups.contains(where: { $0.id == villagerGroup.id }) else {
-            print("⚠️ Villager group already gathering here")
+            debugLog("⚠️ Villager group already gathering here")
             return
         }
 
         guard canAddVillagers(villagerGroup.villagerCount) else {
-            print("❌ Too many villagers at this resource (max: \(ResourcePointNode.maxVillagersPerTile))")
+            debugLog("❌ Too many villagers at this resource (max: \(ResourcePointNode.maxVillagersPerTile))")
             return
         }
 
@@ -231,11 +231,11 @@ class ResourcePointNode: SKSpriteNode {
             resourcePointID: self.id
         )
         if engineRegistered {
-            print("🔧 Engine: Registered gathering for \(villagerGroup.name)")
+            debugLog("🔧 Engine: Registered gathering for \(villagerGroup.name)")
         }
 
-        print("✅ Added \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourceType.displayName)")
-        print("   Total villagers gathering: \(getTotalVillagersGathering())/\(ResourcePointNode.maxVillagersPerTile)")
+        debugLog("✅ Added \(villagerGroup.name) (\(villagerGroup.villagerCount) villagers) to gather \(resourceType.displayName)")
+        debugLog("   Total villagers gathering: \(getTotalVillagersGathering())/\(ResourcePointNode.maxVillagersPerTile)")
     }
 
     func stopGathering(by villagerGroup: VillagerGroup? = nil) {
@@ -253,7 +253,7 @@ class ResourcePointNode: SKSpriteNode {
             // Notify engine
             GameEngine.shared.resourceEngine.stopGathering(villagerGroupID: group.id)
 
-            print("✅ Removed \(group.name) from gathering")
+            debugLog("✅ Removed \(group.name) from gathering")
         } else {
             // Clear all assigned villagers
             for group in assignedVillagerGroups {

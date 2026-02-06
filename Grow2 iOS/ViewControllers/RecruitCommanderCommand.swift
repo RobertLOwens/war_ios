@@ -130,7 +130,7 @@ struct RecruitCommanderCommand: GameCommand {
         player.addArmy(army)
         player.addEntity(army)
         
-        print("✅ Recruited commander \(newCommander.name) (\(specialty.displayName)) with army at (\(spawnCoord.q), \(spawnCoord.r))")
+        debugLog("✅ Recruited commander \(newCommander.name) (\(specialty.displayName)) with army at (\(spawnCoord.q), \(spawnCoord.r))")
         
         return .success
     }

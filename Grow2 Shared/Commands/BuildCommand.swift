@@ -147,7 +147,7 @@ struct BuildCommand: GameCommand {
                         // When movement completes, start construction
                         if building.state == .planning {
                             building.startConstruction()
-                            print("🏗️ Builder arrived, starting construction of \(building.buildingType.displayName)")
+                            debugLog("🏗️ Builder arrived, starting construction of \(building.buildingType.displayName)")
                         }
                     }
                 } else {
@@ -166,7 +166,7 @@ struct BuildCommand: GameCommand {
         } else {
             // Set to planning state - construction will start when builder arrives
             building.data.state = .planning
-            print("🏗️ Waiting for builder to arrive at \(buildingType.displayName)")
+            debugLog("🏗️ Waiting for builder to arrive at \(buildingType.displayName)")
         }
 
         let position = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
@@ -212,7 +212,7 @@ struct BuildCommand: GameCommand {
 
         context.onResourcesChanged?()
 
-        print("🏗️ Started building \(buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
+        debugLog("🏗️ Started building \(buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
 
         return .success
     }

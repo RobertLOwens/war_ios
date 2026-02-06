@@ -71,7 +71,7 @@ class VillagerJoinManager {
             completion(true)
         }
 
-        print("Spawned marching villagers with \(marchingGroup.villagerCount) villagers heading to join group")
+        debugLog("Spawned marching villagers with \(marchingGroup.villagerCount) villagers heading to join group")
     }
 
     // MARK: - Arrival Handling
@@ -99,7 +99,7 @@ class VillagerJoinManager {
                     GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: owner.id)
                 }
 
-                print("📈 Updated resource collection: +\(marchingGroup.villagerCount) villagers gathering \(resourcePoint.resourceType.displayName)")
+                debugLog("📈 Updated resource collection: +\(marchingGroup.villagerCount) villagers gathering \(resourcePoint.resourceType.displayName)")
             }
 
             // Notify UI
@@ -109,10 +109,10 @@ class VillagerJoinManager {
                 message: "\(marchingGroup.villagerCount) villagers joined \(targetGroup.name)"
             )
 
-            print("Villagers arrived: \(marchingGroup.villagerCount) joined \(targetGroup.name), now has \(targetGroup.villagerCount)")
+            debugLog("Villagers arrived: \(marchingGroup.villagerCount) joined \(targetGroup.name), now has \(targetGroup.villagerCount)")
         } else if success {
             // Target group was destroyed while marching - return to source
-            print("Target villager group no longer exists - returning villagers to source")
+            debugLog("Target villager group no longer exists - returning villagers to source")
             returnMarchingVillagersToSource(node)
             return
         }
@@ -139,7 +139,7 @@ class VillagerJoinManager {
             // Direct return if no path possible
             if let building = building {
                 building.addVillagersToGarrison(quantity: marchingGroup.villagerCount)
-                print("Villagers returned directly to \(building.buildingType.displayName) garrison (no hexMap)")
+                debugLog("Villagers returned directly to \(building.buildingType.displayName) garrison (no hexMap)")
 
                 delegate?.villagerJoinManager(
                     self,
@@ -147,7 +147,7 @@ class VillagerJoinManager {
                     message: "\(marchingGroup.villagerCount) villagers returned to \(building.buildingType.displayName)"
                 )
             } else {
-                print("Warning: Could not return villagers - no building found for ID \(marchingGroup.sourceBuildingID)")
+                debugLog("Warning: Could not return villagers - no building found for ID \(marchingGroup.sourceBuildingID)")
             }
             node.cleanup()
             marchingNodes.removeAll { $0 === node }
@@ -156,11 +156,11 @@ class VillagerJoinManager {
 
         // Find path back to source
         guard let path = hexMap.findPath(from: marchingGroup.coordinate, to: marchingGroup.sourceCoordinate) else {
-            print("No path back to source for marching villagers")
+            debugLog("No path back to source for marching villagers")
             // Just add villagers back to building garrison directly
             if let building = building {
                 building.addVillagersToGarrison(quantity: marchingGroup.villagerCount)
-                print("Villagers returned directly to \(building.buildingType.displayName) garrison")
+                debugLog("Villagers returned directly to \(building.buildingType.displayName) garrison")
 
                 delegate?.villagerJoinManager(
                     self,
@@ -168,7 +168,7 @@ class VillagerJoinManager {
                     message: "\(marchingGroup.villagerCount) villagers returned to \(building.buildingType.displayName)"
                 )
             } else {
-                print("Warning: Could not return villagers - no building found for ID \(marchingGroup.sourceBuildingID)")
+                debugLog("Warning: Could not return villagers - no building found for ID \(marchingGroup.sourceBuildingID)")
             }
             node.cleanup()
             marchingNodes.removeAll { $0 === node }
@@ -188,7 +188,7 @@ class VillagerJoinManager {
             // Add villagers back to building garrison
             if let building = targetBuilding {
                 building.addVillagersToGarrison(quantity: marchingGroup.villagerCount)
-                print("Villagers returned to \(building.buildingType.displayName)")
+                debugLog("Villagers returned to \(building.buildingType.displayName)")
 
                 self?.delegate?.villagerJoinManager(
                     self!,
@@ -196,7 +196,7 @@ class VillagerJoinManager {
                     message: "\(marchingGroup.villagerCount) villagers returned to \(building.buildingType.displayName)"
                 )
             } else {
-                print("Warning: Could not return villagers on arrival - no building found for ID \(marchingGroup.sourceBuildingID)")
+                debugLog("Warning: Could not return villagers on arrival - no building found for ID \(marchingGroup.sourceBuildingID)")
             }
 
             node.cleanup()
@@ -212,7 +212,7 @@ class VillagerJoinManager {
     /// Cancels marching villagers and returns them to source
     func cancelMarchingVillagers(id: UUID) {
         guard let node = getMarchingVillagerNode(id: id) else {
-            print("Marching villager group not found: \(id)")
+            debugLog("Marching villager group not found: \(id)")
             return
         }
 
@@ -232,7 +232,7 @@ class VillagerJoinManager {
         let targetingNodes = marchingNodes.filter { $0.marchingGroup.targetVillagerGroupID == group.id }
 
         for node in targetingNodes {
-            print("Target villager group destroyed - returning marching villagers to source")
+            debugLog("Target villager group destroyed - returning marching villagers to source")
             returnMarchingVillagersToSource(node)
         }
     }
@@ -260,7 +260,7 @@ class VillagerJoinManager {
             guard diplomacy == .enemy else { continue }
 
             // Interception triggered!
-            print("Marching villagers intercepted by \(army.name) at (\(coord.q), \(coord.r))!")
+            debugLog("Marching villagers intercepted by \(army.name) at (\(coord.q), \(coord.r))!")
 
             // Stop villager movement
             node.removeAllActions()
@@ -283,7 +283,7 @@ class VillagerJoinManager {
         let marchingGroup = node.marchingGroup
 
         // Villagers are defenseless - they are killed
-        print("Marching villagers killed by intercepting army")
+        debugLog("Marching villagers killed by intercepting army")
         delegate?.villagerJoinManager(
             self,
             showAlert: "Villagers Lost",

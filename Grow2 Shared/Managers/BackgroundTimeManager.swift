@@ -16,13 +16,13 @@ class BackgroundTimeManager {
     func saveExitTime() {
         let currentTime = Date().timeIntervalSince1970
         UserDefaults.standard.set(currentTime, forKey: lastExitTimeKey)
-        print("📱 App going to background at: \(currentTime)")
+        debugLog("📱 App going to background at: \(currentTime)")
     }
     
     /// Calculate elapsed time since last exit and apply it to game state
     func processBackgroundTime(player: Player, hexMap: HexMap, allPlayers: [Player]) {
         guard let lastExitTime = UserDefaults.standard.object(forKey: lastExitTimeKey) as? TimeInterval else {
-            print("ℹ️ No previous exit time found")
+            debugLog("ℹ️ No previous exit time found")
             return
         }
         
@@ -31,11 +31,11 @@ class BackgroundTimeManager {
         
         // Only process if more than 1 second has passed
         guard elapsedTime > 1.0 else {
-            print("⏱️ Less than 1 second elapsed, skipping background processing")
+            debugLog("⏱️ Less than 1 second elapsed, skipping background processing")
             return
         }
         
-        print("⏰ Processing \(Int(elapsedTime)) seconds of background time...")
+        debugLog("⏰ Processing \(Int(elapsedTime)) seconds of background time...")
         
         // Process resource collection
         processResourceGeneration(player: player, elapsedTime: elapsedTime)
@@ -52,29 +52,29 @@ class BackgroundTimeManager {
         // Clear the saved time
         UserDefaults.standard.removeObject(forKey: lastExitTimeKey)
         
-        print("✅ Background time processing complete")
+        debugLog("✅ Background time processing complete")
     }
     
     private func processResearch(currentTime: TimeInterval) {
-        print("🔬 Processing research...")
+        debugLog("🔬 Processing research...")
         
         let manager = ResearchManager.shared
         
         if let active = manager.activeResearch {
             if active.isComplete(currentTime: currentTime) {
                 manager.completeResearch(active.researchType)
-                print("  ✅ Research completed: \(active.researchType.displayName)")
+                debugLog("  ✅ Research completed: \(active.researchType.displayName)")
             } else {
                 let progress = Int(active.getProgress(currentTime: currentTime) * 100)
-                print("  🔬 \(active.researchType.displayName): \(progress)% complete")
+                debugLog("  🔬 \(active.researchType.displayName): \(progress)% complete")
             }
         } else {
-            print("  No active research")
+            debugLog("  No active research")
         }
     }
     
     private func processResourceGeneration(player: Player, elapsedTime: TimeInterval) {
-        print("💰 Calculating resource generation...")
+        debugLog("💰 Calculating resource generation...")
         
         var resourcesGained: [ResourceType: Int] = [:]
         
@@ -91,7 +91,7 @@ class BackgroundTimeManager {
         
         // Log what was gained
         for (type, amount) in resourcesGained {
-            print("  +\(amount) \(type.icon) \(type.displayName)")
+            debugLog("  +\(amount) \(type.icon) \(type.displayName)")
         }
         
         // Remove food from population
@@ -101,12 +101,12 @@ class BackgroundTimeManager {
             let currentFood = player.getResource(.food)
             let consumed = min(currentFood, wholeConsumption)
             player.removeResource(.food, amount: consumed)
-            print("  -\(consumed) 🌾 Food (population consumption)")
+            debugLog("  -\(consumed) 🌾 Food (population consumption)")
         }
     }
     
     private func processBuildingConstruction(hexMap: HexMap, elapsedTime: TimeInterval, currentTime: TimeInterval) {
-        print("🏗️ Processing building construction...")
+        debugLog("🏗️ Processing building construction...")
         
         var completedBuildings: [BuildingNode] = []
         
@@ -123,17 +123,17 @@ class BackgroundTimeManager {
             if newProgress >= 1.0 {
                 building.completeConstruction()
                 completedBuildings.append(building)
-                print("  ✅ \(building.buildingType.displayName) completed!")
+                debugLog("  ✅ \(building.buildingType.displayName) completed!")
             }
         }
         
         if completedBuildings.isEmpty {
-            print("  No buildings completed")
+            debugLog("  No buildings completed")
         }
     }
     
     private func processUnitTraining(hexMap: HexMap, currentTime: TimeInterval) {
-        print("🎖️ Processing unit training...")
+        debugLog("🎖️ Processing unit training...")
         
         var totalUnitsCompleted = 0
         
@@ -149,7 +149,7 @@ class BackgroundTimeManager {
                         building.addToGarrison(unitType: entry.unitType, quantity: entry.quantity)
                         completedIndices.append(index)
                         totalUnitsCompleted += entry.quantity
-                        print("  ✅ \(entry.quantity)x \(entry.unitType.displayName) trained at \(building.buildingType.displayName)")
+                        debugLog("  ✅ \(entry.quantity)x \(entry.unitType.displayName) trained at \(building.buildingType.displayName)")
                     }
                 }
                 
@@ -169,7 +169,7 @@ class BackgroundTimeManager {
                         building.addVillagersToGarrison(quantity: entry.quantity)
                         completedIndices.append(index)
                         totalUnitsCompleted += entry.quantity
-                        print("  ✅ \(entry.quantity)x Villagers trained at \(building.buildingType.displayName)")
+                        debugLog("  ✅ \(entry.quantity)x Villagers trained at \(building.buildingType.displayName)")
                     }
                 }
                 
@@ -180,7 +180,7 @@ class BackgroundTimeManager {
         }
         
         if totalUnitsCompleted == 0 {
-            print("  No units completed training")
+            debugLog("  No units completed training")
         }
     }
     
@@ -259,11 +259,11 @@ class BackgroundTimeManager {
     /// Clears the saved exit time (call after processing)
     func clearExitTime() {
         UserDefaults.standard.removeObject(forKey: lastExitTimeKey)
-        print("📱 Cleared exit time")
+        debugLog("📱 Cleared exit time")
     }
     
     private func processBuildingUpgrades(hexMap: HexMap, currentTime: TimeInterval) {
-            print("⬆️ Processing building upgrades...")
+            debugLog("⬆️ Processing building upgrades...")
             
             var completedUpgrades: [BuildingNode] = []
             
@@ -278,7 +278,7 @@ class BackgroundTimeManager {
                 if newProgress >= 1.0 {
                     building.completeUpgrade()
                     completedUpgrades.append(building)
-                    print("  ✅ \(building.buildingType.displayName) upgraded to level \(building.level)!")
+                    debugLog("  ✅ \(building.buildingType.displayName) upgraded to level \(building.level)!")
                 }
             }
         }

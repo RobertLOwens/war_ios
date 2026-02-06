@@ -25,8 +25,8 @@ class ResourceEngine {
     private var gatheringAssignments: [UUID: GatheringAssignment] = [:]  // VillagerGroupID -> Assignment
 
     // MARK: - Constants
-    private let baseGatherRatePerVillager: Double = 0.2  // Resources per second per villager
-    private let adjacencyBonusPercent: Double = 0.25     // 25% bonus from adjacent buildings
+    private let baseGatherRatePerVillager = GameConfig.Resources.baseGatherRatePerVillager
+    private let adjacencyBonusPercent = GameConfig.Resources.adjacencyBonusPercent
 
     // MARK: - Setup
 
@@ -276,15 +276,15 @@ class ResourceEngine {
 
     func startGathering(villagerGroupID: UUID, resourcePointID: UUID) -> Bool {
         guard let state = gameState else {
-            print("❌ startGathering failed: No game state")
+            debugLog("❌ startGathering failed: No game state")
             return false
         }
         guard let group = state.getVillagerGroup(id: villagerGroupID) else {
-            print("❌ startGathering failed: VillagerGroup \(villagerGroupID) not found in engine state")
+            debugLog("❌ startGathering failed: VillagerGroup \(villagerGroupID) not found in engine state")
             return false
         }
         guard let resourcePoint = state.getResourcePoint(id: resourcePointID) else {
-            print("❌ startGathering failed: ResourcePoint \(resourcePointID) not found in engine state")
+            debugLog("❌ startGathering failed: ResourcePoint \(resourcePointID) not found in engine state")
             return false
         }
 

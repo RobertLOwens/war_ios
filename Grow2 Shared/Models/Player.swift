@@ -103,7 +103,7 @@ class Player {
 
         // Log when resources are capped
         if added < amount {
-            print("⚠️ \(type.displayName) storage full! Only added \(added)/\(amount). Cap: \(capacity)")
+            debugLog("⚠️ \(type.displayName) storage full! Only added \(added)/\(amount). Cap: \(capacity)")
         }
     }
 
@@ -164,7 +164,7 @@ class Player {
         let current = state.getCollectionRate(type)
         let newRate = current * multiplier
         state.setCollectionRate(type, rate: newRate)
-        print("🔨 \(type.displayName) rate: \(current)/s × \(multiplier) = \(newRate)/s")
+        debugLog("🔨 \(type.displayName) rate: \(current)/s × \(multiplier) = \(newRate)/s")
     }
 
     func increaseCollectionRate(_ type: ResourceType, amount: Double) {
@@ -286,8 +286,8 @@ class Player {
     }
     
     func printStatus() {
-        print(getResourceSummary())
-        print(getEntitySummary())
+        debugLog(getResourceSummary())
+        debugLog(getEntitySummary())
     }
     
     func addArmy(_ army: Army) {
@@ -348,7 +348,7 @@ class Player {
     func decreaseCollectionRate(_ type: ResourceType, amount: Double) {
         let current = state.getCollectionRate(type)
         state.decreaseCollectionRate(type, amount: amount)
-        print("📉 \(type.displayName) rate: \(current)/s → \(state.getCollectionRate(type))/s")
+        debugLog("📉 \(type.displayName) rate: \(current)/s → \(state.getCollectionRate(type))/s")
     }
 
     func setResource(_ type: ResourceType, amount: Int) {

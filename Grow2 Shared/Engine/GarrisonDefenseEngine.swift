@@ -11,10 +11,10 @@ import UIKit
 class GarrisonDefenseEngine {
 
     // MARK: - Garrison Damage Constants
-    private let archerGarrisonDamage: Double = 12.0
-    private let crossbowGarrisonDamage: Double = 14.0
-    private let mangonelGarrisonDamage: Double = 18.0
-    private let trebuchetGarrisonDamage: Double = 25.0
+    private let archerGarrisonDamage = GameConfig.GarrisonDefense.archerDamage
+    private let crossbowGarrisonDamage = GameConfig.GarrisonDefense.crossbowDamage
+    private let mangonelGarrisonDamage = GameConfig.GarrisonDefense.mangonelDamage
+    private let trebuchetGarrisonDamage = GameConfig.GarrisonDefense.trebuchetDamage
 
     // MARK: - State
     private(set) var activeGarrisonEngagements: Set<UUID> = []

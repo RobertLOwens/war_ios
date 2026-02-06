@@ -214,7 +214,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
         // Mark scene as ready and notify
         isSceneReady = true
-        print("📦 Empty node structure created for saved game loading")
+        debugLog("📦 Empty node structure created for saved game loading")
 
         // Notify that scene is ready (on main thread to ensure UI safety)
         DispatchQueue.main.async { [weak self] in
@@ -358,7 +358,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     ///   - players: Array of players to set up (player at index 0 is the human player)
     func setupMapWithGenerator(_ generator: MapGenerator, players: [Player]) {
         guard players.count >= 2 else {
-            print("❌ Arabia map requires at least 2 players")
+            debugLog("❌ Arabia map requires at least 2 players")
             return
         }
 
@@ -456,7 +456,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 spawnResourceAtCoordinate(placement.coordinate, type: placement.resourceType, in: resourcesNode)
             }
 
-            print("✅ Player \(index + 1) (\(currentPlayer.name)) spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
+            debugLog("✅ Player \(index + 1) (\(currentPlayer.name)) spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
         }
 
         // Generate and spawn neutral resources
@@ -466,7 +466,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             spawnResourceAtCoordinate(placement.coordinate, type: placement.resourceType, in: resourcesNode)
         }
 
-        print("✅ Spawned \(neutralResources.count) neutral resources")
+        debugLog("✅ Spawned \(neutralResources.count) neutral resources")
 
         // Set player references
         self.player = players[0]
@@ -487,10 +487,10 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         updateReinforcementManagerReferences()
         updateVillagerJoinManagerReferences()
 
-        print("Arabia map generated!")
-        print("   Map size: \(generator.width)x\(generator.height)")
-        print("   Total tiles: \(hexMap.tiles.count)")
-        print("   Total resources: \(hexMap.resourcePoints.count)")
+        debugLog("Arabia map generated!")
+        debugLog("   Map size: \(generator.width)x\(generator.height)")
+        debugLog("   Total tiles: \(hexMap.tiles.count)")
+        debugLog("   Total resources: \(hexMap.resourcePoints.count)")
     }
 
     /// Helper to find an adjacent walkable coordinate
@@ -528,7 +528,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     ///   - armyConfig: Optional army configuration for unit composition (uses default if nil)
     func setupArenaWithGenerator(_ generator: MapGenerator, players: [Player], armyConfig: ArenaArmyConfiguration? = nil) {
         guard players.count >= 2 else {
-            print("Arena map requires at least 2 players")
+            debugLog("Arena map requires at least 2 players")
             return
         }
 
@@ -629,15 +629,15 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
             // Explicitly ensure army is registered in GameState for combat/retreat systems
             GameEngine.shared.gameState?.addArmy(army.data)
-            print("DEBUG: Army \(army.name) added. In GameState: \(GameEngine.shared.gameState?.getArmy(id: army.id) != nil)")
+            debugLog("DEBUG: Army \(army.name) added. In GameState: \(GameEngine.shared.gameState?.getArmy(id: army.id) != nil)")
 
             // Register commander with player
             currentPlayer.addCommander(commander)
 
-            print("Player \(index + 1) (\(currentPlayer.name)) army spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
-            print("   Commander: \(commander.name)")
+            debugLog("Player \(index + 1) (\(currentPlayer.name)) army spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
+            debugLog("   Commander: \(commander.name)")
             for (unitType, count) in composition where count > 0 {
-                print("   \(unitType.displayName): \(count)")
+                debugLog("   \(unitType.displayName): \(count)")
             }
         }
 
@@ -692,9 +692,9 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         players[1].addBuilding(player2Farm)
         GameEngine.shared.gameState?.addBuilding(player2Farm.data)
 
-        print("Enemy defensive buildings placed:")
-        print("   Wooden Fort: (\(player2FortPos.q), \(player2FortPos.r))")
-        print("   Farm (protected by fort): (\(player2FarmPos.q), \(player2FarmPos.r))")
+        debugLog("Enemy defensive buildings placed:")
+        debugLog("   Wooden Fort: (\(player2FortPos.q), \(player2FortPos.r))")
+        debugLog("   Farm (protected by fort): (\(player2FarmPos.q), \(player2FarmPos.r))")
 
         // Set home bases for armies
         if let player1Army = players[0].armies.first {
@@ -704,9 +704,9 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             player2Army.setHomeBase(player2CityCenter.data.id)
         }
 
-        print("City centers placed at corners for retreat testing")
-        print("   Player 1 city center: (\(player1CityPos.q), \(player1CityPos.r))")
-        print("   Player 2 city center: (\(player2CityPos.q), \(player2CityPos.r))")
+        debugLog("City centers placed at corners for retreat testing")
+        debugLog("   Player 1 city center: (\(player1CityPos.q), \(player1CityPos.r))")
+        debugLog("   Player 2 city center: (\(player2CityPos.q), \(player2CityPos.r))")
 
         // Set player references
         self.player = players[0]
@@ -727,25 +727,25 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         updateBuildingPlacementControllerReferences()
         updateReinforcementManagerReferences()
 
-        print("Arena map generated!")
-        print("   Map size: \(generator.width)x\(generator.height)")
-        print("   Total tiles: \(hexMap.tiles.count)")
+        debugLog("Arena map generated!")
+        debugLog("   Map size: \(generator.width)x\(generator.height)")
+        debugLog("   Total tiles: \(hexMap.tiles.count)")
     }
 
     func debugFogState() {
         guard let player = player else {
-            print("❌ DEBUG: No player")
+            debugLog("❌ DEBUG: No player")
             return
         }
         
-        print("\n🔍 FOG DEBUG INFO:")
-        print("   Player: \(player.name)")
-        print("   FogOfWar exists: \(player.fogOfWar != nil)")
-        print("   AllGamePlayers count: \(allGamePlayers.count)")
-        print("   Total tiles: \(hexMap.tiles.count)")
-        print("   Fog overlays: \(hexMap.fogOverlays.count)")
-        print("   Buildings: \(hexMap.buildings.count)")
-        print("   Entities: \(hexMap.entities.count)")
+        debugLog("\n🔍 FOG DEBUG INFO:")
+        debugLog("   Player: \(player.name)")
+        debugLog("   FogOfWar exists: \(player.fogOfWar != nil)")
+        debugLog("   AllGamePlayers count: \(allGamePlayers.count)")
+        debugLog("   Total tiles: \(hexMap.tiles.count)")
+        debugLog("   Fog overlays: \(hexMap.fogOverlays.count)")
+        debugLog("   Buildings: \(hexMap.buildings.count)")
+        debugLog("   Entities: \(hexMap.entities.count)")
         
         // Check visibility of a few tiles
         let testCoords = [
@@ -756,9 +756,9 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         
         for coord in testCoords {
             let vis = player.getVisibilityLevel(at: coord)
-            print("   Tile (\(coord.q), \(coord.r)): \(vis)")
+            debugLog("   Tile (\(coord.q), \(coord.r)): \(vis)")
         }
-        print()
+        debugLog("")
     }
     
     func spawnTestEntities() {
@@ -853,11 +853,11 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // ✅ Store all players (NO FOG INITIALIZATION HERE)
         self.allGamePlayers = [player, aiPlayer]
         
-        print("✅ Game started!")
-        print("  🔵 Player at (\(playerSpawn.q), \(playerSpawn.r))")
-        print("  🔴 Enemy at (\(aiSpawn.q), \(aiSpawn.r))")
-        print("  🗺️ Map Size: \(mapSize)x\(mapSize)")
-        print("  💎 Resource Density: \(resourceDensity)x")
+        debugLog("✅ Game started!")
+        debugLog("  🔵 Player at (\(playerSpawn.q), \(playerSpawn.r))")
+        debugLog("  🔴 Enemy at (\(aiSpawn.q), \(aiSpawn.r))")
+        debugLog("  🗺️ Map Size: \(mapSize)x\(mapSize)")
+        debugLog("  💎 Resource Density: \(resourceDensity)x")
     }
     
     func selectEntity(_ entity: EntityNode) {
@@ -866,7 +866,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         
         let visibility = player.getVisibilityLevel(at: entity.coordinate)
         guard visibility == .visible else {
-            print("❌ Cannot select entity in fog of war")
+            debugLog("❌ Cannot select entity in fog of war")
             gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible due to fog of war.")
             return
         }
@@ -874,7 +874,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // ✅ FIX: Double-check entity visibility through fog system
         if let fogOfWar = player.fogOfWar {
             guard fogOfWar.shouldShowEntity(entity.entity, at: entity.coordinate) else {
-                print("❌ Entity not visible according to fog of war")
+                debugLog("❌ Entity not visible according to fog of war")
                 gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Select", message:"This unit is not visible.")
                 return
             }
@@ -891,7 +891,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             selectedTile = tile
         }
         
-        print("Selected \(entity.entityType.displayName) at q:\(entity.coordinate.q), r:\(entity.coordinate.r)")
+        debugLog("Selected \(entity.entityType.displayName) at q:\(entity.coordinate.q), r:\(entity.coordinate.r)")
         
         gameDelegate?.gameScene(self, didRequestMenuForTile: entity.coordinate)
     }
@@ -1048,7 +1048,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 let rateContribution = 0.2 * Double(villagers.villagerCount)
                 player.decreaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
 
-                print("🏁 Resource depleted - \(villagers.name) now idle")
+                debugLog("🏁 Resource depleted - \(villagers.name) now idle")
             }
         }
     }
@@ -1122,7 +1122,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             userInfo: ["coordinate": building.coordinate, "refund": refund]
         )
 
-        print("🏚️ Building demolished: \(building.buildingType.displayName) - Refunded: \(refund)")
+        debugLog("🏚️ Building demolished: \(building.buildingType.displayName) - Refunded: \(refund)")
     }
 
     /// Checks if villagers have arrived for a pending demolition
@@ -1136,7 +1136,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         if villagers.coordinate == building.coordinate && !demolisher.isMoving {
             building.pendingDemolition = false
             building.startDemolition(demolishers: villagers.villagerCount)
-            print("✅ Villagers arrived - starting demolition of \(building.buildingType.displayName)")
+            debugLog("✅ Villagers arrived - starting demolition of \(building.buildingType.displayName)")
         }
     }
     
@@ -1175,7 +1175,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
         // Update the army's home base
         army.setHomeBase(building.data.id)
-        print("🏠 Army \(army.name) home base updated to \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
+        debugLog("🏠 Army \(army.name) home base updated to \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
     }
 
     /// Handles building destruction by reassigning home base references for affected armies
@@ -1194,7 +1194,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         for army in player.armies {
             if army.homeBaseID == buildingID {
                 army.setHomeBase(cityCenter.data.id)
-                print("🏠 Army \(army.name) home base reassigned to City Center (building destroyed)")
+                debugLog("🏠 Army \(army.name) home base reassigned to City Center (building destroyed)")
             }
         }
     }
@@ -1215,7 +1215,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             // Start tracking zero food time if not already
             if zeroFoodStartTime == nil {
                 zeroFoodStartTime = currentTime
-                print("Warning: Food reached 0! Starvation timer started.")
+                debugLog("Warning: Food reached 0! Starvation timer started.")
                 // Notify UI immediately so countdown starts without delay
                 NotificationCenter.default.post(name: .starvationStarted, object: nil)
             } else {
@@ -1229,7 +1229,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         } else {
             // Reset timer if food is above 0
             if zeroFoodStartTime != nil {
-                print("Food restored. Starvation timer reset.")
+                debugLog("Food restored. Starvation timer reset.")
                 zeroFoodStartTime = nil
             }
         }
@@ -1247,7 +1247,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         guard !isGameOver else { return }
 
         isGameOver = true
-        print("Game Over! Victory: \(isVictory), Reason: \(reason)")
+        debugLog("Game Over! Victory: \(isVictory), Reason: \(reason)")
 
         // Notify delegate
         onGameOver?(isVictory, reason)
@@ -1258,280 +1258,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         triggerGameOver(isVictory: false, reason: .resignation)
     }
 
-    // MARK: - Touch Handling
-    // Note: Panning is handled by UIPanGestureRecognizer for smooth scrolling
-    // Touch handlers are used for tap detection to interact with tiles/entities
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-        lastTouchPosition = location
-
-        // Check if touch starts on a tile with player-owned entities
-        if let coordinate = getTileCoordinate(at: location) {
-            let entitiesAtCoord = hexMap?.getEntities(at: coordinate) ?? []
-
-            // Filter to player-owned, non-moving entities
-            let ownedEntities = entitiesAtCoord.filter { entity in
-                guard entity.entity.owner?.id == player?.id, !entity.isMoving else { return false }
-                // For armies, check not in combat
-                if let army = entity.armyReference {
-                    return !GameEngine.shared.combatEngine.isInCombat(armyID: army.id)
-                }
-                return true
-            }
-
-            if ownedEntities.count == 1 {
-                // Single entity - proceed with drag
-                dragStartCoordinate = coordinate
-                dragSourceEntity = ownedEntities[0]
-            } else if ownedEntities.count > 1 {
-                // Multiple entities - show warning
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Multiple Units",
-                    message: "There are multiple units on this tile. Tap to select one first.")
-            }
-        }
-    }
-
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first,
-              let startPos = lastTouchPosition,
-              let sourceEntity = dragSourceEntity,
-              let startCoord = dragStartCoordinate else { return }
-
-        let currentPos = touch.location(in: self)
-        let distance = hypot(currentPos.x - startPos.x, currentPos.y - startPos.y)
-
-        // Enter drag mode if distance exceeds threshold
-        if distance > dragThreshold && !isDragging {
-            isDragging = true
-        }
-
-        if isDragging {
-            // Calculate path to current tile under touch
-            if let destCoord = getTileCoordinate(at: currentPos),
-               destCoord != startCoord {
-                if let path = hexMap?.findPath(from: startCoord, to: destCoord) {
-                    updateDragPathPreview(from: startCoord, path: path)
-                } else {
-                    clearDragPathPreview()
-                }
-            } else {
-                clearDragPathPreview()
-            }
-        }
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-
-        // Handle drag-to-move completion
-        if isDragging, let sourceEntity = dragSourceEntity, let startCoord = dragStartCoordinate {
-            clearDragPathPreview()
-
-            if let destCoord = getTileCoordinate(at: location), destCoord != startCoord {
-                executeDragMove(entity: sourceEntity, to: destCoord)
-            }
-
-            // Reset drag state
-            isDragging = false
-            dragSourceEntity = nil
-            dragStartCoordinate = nil
-            lastTouchPosition = nil
-            return
-        }
-
-        // Reset drag state
-        isDragging = false
-        dragSourceEntity = nil
-        dragStartCoordinate = nil
-
-        // Only handle as tap if not panning (gesture recognizer sets isPanning)
-        if !isPanning {
-            handleTouch(at: location)
-        }
-
-        lastTouchPosition = nil
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Clean up drag state
-        clearDragPathPreview()
-        isDragging = false
-        dragSourceEntity = nil
-        dragStartCoordinate = nil
-        lastTouchPosition = nil
-    }
-
-    // MARK: - Drag-to-Move Helpers
-
-    /// Converts a touch point to a hex coordinate
-    func getTileCoordinate(at point: CGPoint) -> HexCoordinate? {
-        let nodesAtPoint = nodes(at: point)
-        for node in nodesAtPoint {
-            if let hexTile = node as? HexTileNode {
-                return hexTile.coordinate
-            }
-        }
-        return nil
-    }
-
-    /// Draws a cyan path preview line during drag
-    func updateDragPathPreview(from start: HexCoordinate, path: [HexCoordinate]) {
-        clearDragPathPreview()
-
-        guard !path.isEmpty else { return }
-
-        let bezierPath = UIBezierPath()
-        let startPos = HexMap.hexToPixel(q: start.q, r: start.r)
-        bezierPath.move(to: startPos)
-
-        for coord in path {
-            let pos = HexMap.hexToPixel(q: coord.q, r: coord.r)
-            bezierPath.addLine(to: pos)
-        }
-
-        let shapeNode = SKShapeNode(path: bezierPath.cgPath)
-        shapeNode.strokeColor = UIColor(red: 0.0, green: 0.8, blue: 1.0, alpha: 0.8)  // Cyan
-        shapeNode.lineWidth = 4
-        shapeNode.lineCap = .round
-        shapeNode.lineJoin = .round
-        shapeNode.zPosition = 150
-        shapeNode.name = "dragPathPreview"
-
-        // Add a glow effect
-        shapeNode.glowWidth = 2
-
-        addChild(shapeNode)
-        dragPathPreview = shapeNode
-    }
-
-    /// Removes the drag path preview node
-    func clearDragPathPreview() {
-        dragPathPreview?.removeFromParent()
-        dragPathPreview = nil
-    }
-
-    /// Cancels any in-progress drag (called by camera controller)
-    func cancelDrag() {
-        clearDragPathPreview()
-        isDragging = false
-        dragSourceEntity = nil
-        dragStartCoordinate = nil
-    }
-
-    /// Executes a move command from a drag gesture
-    func executeDragMove(entity: EntityNode, to destination: HexCoordinate) {
-        guard let player = player else { return }
-
-        // Check if destination is unexplored and show warning
-        let visibility = player.getVisibilityLevel(at: destination)
-        if visibility == .unexplored {
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Scout Unknown Area?",
-                message: "Moving to unexplored territory. Your unit will reveal the fog of war as it travels.")
-        }
-
-        // Check if this is an army - show stamina confirmation
-        if let army = entity.armyReference, let commander = army.commander {
-            let currentStamina = Int(commander.stamina)
-            let cost = Int(Commander.staminaCostPerCommand)
-
-            gameDelegate?.gameScene(self, showConfirmation: "Move Army?",
-                message: "This will cost \(cost) stamina.\nCurrent stamina: \(currentStamina)/100",
-                confirmTitle: "Move",
-                onConfirm: { [weak self] in
-                    self?.performMove(entity: entity, to: destination, player: player)
-                })
-        } else {
-            // Non-army entities move immediately
-            performMove(entity: entity, to: destination, player: player)
-        }
-    }
-
-    private func performMove(entity: EntityNode, to destination: HexCoordinate, player: Player) {
-        let command = MoveCommand(
-            playerID: player.id,
-            entityID: entity.entity.id,
-            destination: destination
-        )
-
-        let result = CommandExecutor.shared.execute(command)
-
-        if !result.succeeded, let reason = result.failureReason {
-            gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message: reason)
-        }
-
-        deselectAll()
-    }
-
-    func handleTouch(at location: CGPoint) {
-        let nodesAtPoint = nodes(at: location)
-
-        print("🔍 Touch at location: \(location)")
-        print("🔍 Found \(nodesAtPoint.count) nodes")
-        for (index, node) in nodesAtPoint.enumerated() {
-            print("   [\(index)] \(type(of: node)) - name: '\(node.name ?? "nil")' - zPos: \(node.zPosition)")
-        }
-
-        // Check if we're in building placement mode
-        if isInBuildingPlacementMode {
-            handleBuildingPlacementTouch(at: location, nodesAtPoint: nodesAtPoint)
-            return
-        }
-
-        // Normal touch handling - ONLY look for HexTileNode - skip ALL other node types
-        for node in nodesAtPoint {
-            // Skip entities, resources, buildings - we ONLY want tiles
-            if node is EntityNode {
-                print("   ⏭️ Skipping EntityNode")
-                continue
-            }
-            if node is ResourcePointNode {
-                print("   ⏭️ Skipping ResourcePointNode")
-                continue
-            }
-            if node is BuildingNode {
-                print("   ⏭️ Skipping BuildingNode")
-                continue
-            }
-
-            if let hexTile = node as? HexTileNode {
-                print("   ✅ Found HexTileNode at (\(hexTile.coordinate.q), \(hexTile.coordinate.r))")
-                guard let player = player else {
-                    print("⚠️ No player reference")
-                    return
-                }
-
-                let visibility = player.getVisibilityLevel(at: hexTile.coordinate)
-
-                if visibility == .visible || visibility == .explored {
-                    selectTile(hexTile)
-                    return
-                } else if visibility == .unexplored {
-                    // Allow selecting unexplored tiles for movement (scouting)
-                    selectUnexploredTile(hexTile)
-                    return
-                }
-            }
-        }
-
-        print("❌ No HexTileNode found in touch")
-    }
-
-    /// Selects an unexplored tile for potential movement/scouting
-    func selectUnexploredTile(_ tile: HexTileNode) {
-        selectedTile?.isSelected = false
-        selectedEntity = nil
-
-        tile.isSelected = true
-        selectedTile = tile
-
-        print("Selected unexplored tile at q:\(tile.coordinate.q), r:\(tile.coordinate.r)")
-
-        // Request unexplored tile menu via delegate
-        gameDelegate?.gameScene(self, didRequestUnexploredTileMenu: tile.coordinate)
-    }
+    // Touch handling, drag-to-move, entity selection: see GameScene+InputHandling.swift
 
     // MARK: - Building Placement Mode
 
@@ -1543,11 +1270,6 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     /// Exits building placement mode and clears highlights
     func exitBuildingPlacementMode() {
         buildingPlacementController.exitBuildingPlacementMode()
-    }
-
-    /// Handles touch during building placement mode
-    private func handleBuildingPlacementTouch(at location: CGPoint, nodesAtPoint: [SKNode]) {
-        buildingPlacementController.handleBuildingPlacementTouch(at: location, nodesAtPoint: nodesAtPoint)
     }
 
     // MARK: - Rotation Preview Mode for Multi-Tile Buildings
@@ -1632,7 +1354,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         tile.isSelected = true
         selectedTile = tile
         
-        print("Selected tile at q:\(tile.coordinate.q), r:\(tile.coordinate.r)")
+        debugLog("Selected tile at q:\(tile.coordinate.q), r:\(tile.coordinate.r)")
         
         gameDelegate?.gameScene(self, didRequestMenuForTile: tile.coordinate)
     }
@@ -1643,8 +1365,8 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     }
     
     func initiateMove(to destination: HexCoordinate) {
-        print("🔍 initiateMove called")
-        print("   Destination: (\(destination.q), \(destination.r))")
+        debugLog("🔍 initiateMove called")
+        debugLog("   Destination: (\(destination.q), \(destination.r))")
 
         let availableEntities = hexMap.entities.filter { entity in
             // Must not be currently moving
@@ -1663,16 +1385,16 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
             return true
         }
-        print("   Available player entities: \(availableEntities.count)")
+        debugLog("   Available player entities: \(availableEntities.count)")
         
         guard !availableEntities.isEmpty else {
-            print("❌ No entities available to move")
+            debugLog("❌ No entities available to move")
             gameDelegate?.gameScene(self, showAlertWithTitle: "Cannot Move", message:"You don't have any units available to move.")
             return
         }
         
         // ✅ Use the dedicated move menu that doesn't open entity action menus
-        print("✅ Calling showMoveSelectionMenu...")
+        debugLog("✅ Calling showMoveSelectionMenu...")
         gameDelegate?.gameScene(self, didRequestMoveSelection: destination, availableEntities: availableEntities)
     }
     
@@ -1724,7 +1446,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     }
     
     func startCombat(attacker: Army, target: Any, location: HexCoordinate) {
-        print("⚔️ COMBAT STARTED!")
+        debugLog("⚔️ COMBAT STARTED!")
 
         let currentTime = GameEngine.shared.gameState?.currentTime ?? 0
 
@@ -1756,7 +1478,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 hexMap.removeEntity(node)
                 node.removeFromParent()
                 attacker.owner?.removeArmy(attacker)
-                print("💀 \(attacker.name) was destroyed")
+                debugLog("💀 \(attacker.name) was destroyed")
             }
         }
         
@@ -1767,7 +1489,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                     hexMap.removeEntity(node)
                     node.removeFromParent()
                     defenderArmy.owner?.removeArmy(defenderArmy)
-                    print("💀 \(defenderArmy.name) was destroyed")
+                    debugLog("💀 \(defenderArmy.name) was destroyed")
                 }
             }
         } else if let building = defender as? BuildingNode {
@@ -1785,7 +1507,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                     GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: owner.id)
                 }
 
-                print("💀 \(building.buildingType.displayName) was destroyed")
+                debugLog("💀 \(building.buildingType.displayName) was destroyed")
             }
         } else if let villagers = defender as? VillagerGroup {
             if !villagers.hasVillagers() {
@@ -1793,7 +1515,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                     hexMap.removeEntity(node)
                     node.removeFromParent()
                     villagers.owner?.removeEntity(villagers)
-                    print("💀 \(villagers.name) was destroyed")
+                    debugLog("💀 \(villagers.name) was destroyed")
                 }
             }
         }
@@ -1811,16 +1533,16 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     
     func initializeFogOfWar(fullyVisible: Bool = false) {
         guard let player = player else {
-            print("❌ Cannot initialize fog: No player")
+            debugLog("❌ Cannot initialize fog: No player")
             return
         }
 
         guard !allGamePlayers.isEmpty else {
-            print("❌ Cannot initialize fog: No players in allGamePlayers")
+            debugLog("❌ Cannot initialize fog: No players in allGamePlayers")
             return
         }
 
-        print("👁️ Initializing fog of war... (fullyVisible: \(fullyVisible))")
+        debugLog("👁️ Initializing fog of war... (fullyVisible: \(fullyVisible))")
 
         // Remove any existing fog node
         childNode(withName: "fogNode")?.removeFromParent()
@@ -1840,7 +1562,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // If fully visible mode, reveal entire map
         if fullyVisible {
             player.fogOfWar?.revealAllTiles()
-            print("👁️ Full visibility mode - revealing entire map")
+            debugLog("👁️ Full visibility mode - revealing entire map")
         } else {
             // Update vision with all players to reveal areas
             player.updateVision(allPlayers: allGamePlayers)
@@ -1861,11 +1583,11 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         }
 
         debugFogState()
-        print("✅ Fog of war initialized successfully")
-        print("   📊 Total tiles: \(hexMap.tiles.count)")
-        print("   👁️ Fog overlays: \(hexMap.fogOverlays.count)")
-        print("   🏢 Buildings: \(hexMap.buildings.count)")
-        print("   🎭 Entities: \(hexMap.entities.count)")
+        debugLog("✅ Fog of war initialized successfully")
+        debugLog("   📊 Total tiles: \(hexMap.tiles.count)")
+        debugLog("   👁️ Fog overlays: \(hexMap.fogOverlays.count)")
+        debugLog("   🏢 Buildings: \(hexMap.buildings.count)")
+        debugLog("   🎭 Entities: \(hexMap.entities.count)")
     }
     
     func debugDrawVisionRange(center: HexCoordinate, radius: Int) {
@@ -1888,7 +1610,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             addChild(circle)
         }
         
-        print("🎯 Debug: \(tiles.count) tiles at radius \(radius) from (\(center.q), \(center.r))")
+        debugLog("🎯 Debug: \(tiles.count) tiles at radius \(radius) from (\(center.q), \(center.r))")
     }
     
     func getVisionTilesForDebug(center: HexCoordinate, radius: Int) -> [HexCoordinate] {
@@ -1906,7 +1628,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     }
     
     func debugPrintVisionPattern(center: HexCoordinate, radius: Int) {
-        print("\n🎯 Vision Pattern for radius \(radius) from (\(center.q), \(center.r)):")
+        debugLog("\n🎯 Vision Pattern for radius \(radius) from (\(center.q), \(center.r)):")
         
         var tilesAtDistance: [Int: [HexCoordinate]] = [:]
         
@@ -1919,14 +1641,14 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         
         for dist in 0...radius {
             let coords = tilesAtDistance[dist] ?? []
-            print("  Distance \(dist): \(coords.count) tiles")
+            debugLog("  Distance \(dist): \(coords.count) tiles")
             if coords.count <= 12 {
                 for coord in coords.sorted(by: { $0.q < $1.q }) {
-                    print("    (\(coord.q), \(coord.r))")
+                    debugLog("    (\(coord.q), \(coord.r))")
                 }
             }
         }
-        print()
+        debugLog("")
     }
     
     func drawStaticMovementPath(from start: HexCoordinate, path: [HexCoordinate]) {
@@ -1953,7 +1675,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     func performMerge(group1: EntityNode, group2: EntityNode, newCount1: Int, newCount2: Int) {
         guard let villagers1 = group1.entity as? VillagerGroup,
               let villagers2 = group2.entity as? VillagerGroup else {
-            print("❌ Error: Cannot merge - not villager groups")
+            debugLog("❌ Error: Cannot merge - not villager groups")
             return
         }
         
@@ -2006,17 +1728,17 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             group2.updateTexture(currentPlayer: player)
         }
         
-        print("✅ Merged villagers: Group 1 now has \(villagers1.villagerCount), Group 2 now has \(villagers2.villagerCount)")
+        debugLog("✅ Merged villagers: Group 1 now has \(villagers1.villagerCount), Group 2 now has \(villagers2.villagerCount)")
     }
     
     func villagerArrivedForHunt(villagerGroup: VillagerGroup, target: ResourcePointNode, entityNode: EntityNode) {
-        print("🏹 GameScene: Villagers arrived for hunt at (\(target.coordinate.q), \(target.coordinate.r))")
+        debugLog("🏹 GameScene: Villagers arrived for hunt at (\(target.coordinate.q), \(target.coordinate.r))")
         
         // Verify target still exists and is valid
         guard target.parent != nil,
               target.resourceType.isHuntable,
               target.currentHealth > 0 else {
-            print("⚠️ Hunt target no longer valid")
+            debugLog("⚠️ Hunt target no longer valid")
             villagerGroup.clearTask()
             entityNode.isMoving = false
             return
@@ -2064,9 +1786,9 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 farmOwner.increaseCollectionRate(.food, amount: rateContribution)
             }
 
-            print("🌾 Farm completed - \(villagerGroup.name) now gathering from farmland at (\(coordinate.q), \(coordinate.r))")
+            debugLog("🌾 Farm completed - \(villagerGroup.name) now gathering from farmland at (\(coordinate.q), \(coordinate.r))")
         } else {
-            print("🌾 Created farmland at (\(coordinate.q), \(coordinate.r))")
+            debugLog("🌾 Created farmland at (\(coordinate.q), \(coordinate.r))")
         }
     }
 
@@ -2091,7 +1813,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         let resourcesInRange = hexMap.getResourcesInCampRange(campCoordinate: coordinate, campType: campType)
 
         guard !resourcesInRange.isEmpty else {
-            print("⚠️ \(campType.displayName) completed but no matching resources in range")
+            debugLog("⚠️ \(campType.displayName) completed but no matching resources in range")
             return
         }
 
@@ -2116,15 +1838,15 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                     campOwner.increaseCollectionRate(yieldType, amount: rateContribution)
                 }
 
-                print("⛏️ \(campType.displayName) completed - \(villagerGroup.name) now gathering from \(targetResource.resourceType.displayName) at (\(targetResource.coordinate.q), \(targetResource.coordinate.r))")
+                debugLog("⛏️ \(campType.displayName) completed - \(villagerGroup.name) now gathering from \(targetResource.resourceType.displayName) at (\(targetResource.coordinate.q), \(targetResource.coordinate.r))")
             } else {
                 // No available resources, unlock the villagers
                 builderEntity.isMoving = false
                 villagerGroup.clearTask()
-                print("⚠️ \(campType.displayName) completed - no available resources to gather")
+                debugLog("⚠️ \(campType.displayName) completed - no available resources to gather")
             }
         } else {
-            print("⛏️ \(campType.displayName) completed - resources in range: \(resourcesInRange.count)")
+            debugLog("⛏️ \(campType.displayName) completed - resources in range: \(resourcesInRange.count)")
         }
     }
 
@@ -2139,7 +1861,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             // Start the actual upgrade now
             building.pendingUpgrade = false
             building.startUpgrade()
-            print("✅ Villagers arrived - starting upgrade of \(building.buildingType.displayName) to Lv.\(building.level + 1)")
+            debugLog("✅ Villagers arrived - starting upgrade of \(building.buildingType.displayName) to Lv.\(building.level + 1)")
         }
     }
 

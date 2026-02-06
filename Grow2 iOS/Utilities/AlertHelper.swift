@@ -182,56 +182,6 @@ extension UIViewController {
         present(alert, animated: true)
     }
     
-    // MARK: - Custom Content Alerts
-    
-    /// Shows an alert with a custom view controller embedded
-    func showAlertWithCustomContent(
-        title: String?,
-        message: String? = nil,
-        contentViewController: UIViewController,
-        actions: [AlertAction]
-    ) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.setValue(contentViewController, forKey: "contentViewController")
-        
-        for action in actions {
-            alert.addAction(UIAlertAction(title: action.title, style: action.style) { _ in
-                action.handler?()
-            })
-        }
-        
-        present(alert, animated: true)
-    }
-    
-    // MARK: - Text Input Alerts
-    
-    /// Shows an alert with a text field
-    func showTextInput(
-        title: String,
-        message: String? = nil,
-        placeholder: String? = nil,
-        initialValue: String? = nil,
-        keyboardType: UIKeyboardType = .default,
-        onSubmit: @escaping (String) -> Void
-    ) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        
-        alert.addTextField { textField in
-            textField.placeholder = placeholder
-            textField.text = initialValue
-            textField.keyboardType = keyboardType
-        }
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-            if let text = alert.textFields?.first?.text {
-                onSubmit(text)
-            }
-        })
-        
-        present(alert, animated: true)
-    }
-    
     // MARK: - Private Helpers
     
     private func configurePopover(
@@ -253,34 +203,3 @@ extension UIViewController {
     }
 }
 
-// MARK: - Sheet Presentation Helper
-
-extension UIViewController {
-    
-    /// Presents a view controller as a sheet with common configuration
-    func presentSheet(
-        _ viewController: UIViewController,
-        detents: [UISheetPresentationController.Detent] = [.large()],
-        prefersGrabber: Bool = true,
-        completion: (() -> Void)? = nil
-    ) {
-        viewController.modalPresentationStyle = .pageSheet
-        
-        if let sheet = viewController.sheetPresentationController {
-            sheet.detents = detents
-            sheet.prefersGrabberVisible = prefersGrabber
-            sheet.selectedDetentIdentifier = detents.last == .large() ? .large : .medium
-            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
-            sheet.prefersEdgeAttachedInCompactHeight = true
-            sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = true
-        }
-        
-        present(viewController, animated: true, completion: completion)
-    }
-    
-    /// Presents a view controller fullscreen
-    func presentFullScreen(_ viewController: UIViewController, completion: (() -> Void)? = nil) {
-        viewController.modalPresentationStyle = .fullScreen
-        present(viewController, animated: true, completion: completion)
-    }
-}

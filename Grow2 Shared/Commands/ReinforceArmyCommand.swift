@@ -122,15 +122,15 @@ struct ReinforceArmyCommand: GameCommand {
         // Spawn reinforcement node and start movement
         gameScene.spawnReinforcementNode(reinforcement: reinforcement, path: path) { success in
             if success {
-                print("✅ Reinforcements arrived at \(army.name)")
+                debugLog("✅ Reinforcements arrived at \(army.name)")
             } else {
-                print("❌ Reinforcement delivery failed")
+                debugLog("❌ Reinforcement delivery failed")
             }
         }
 
-        print("🚶 Sent \(totalTransferred) units to reinforce \(army.name)")
-        print("   Units: \(transferDetails.joined(separator: ", "))")
-        print("   Path length: \(path.count) tiles")
+        debugLog("🚶 Sent \(totalTransferred) units to reinforce \(army.name)")
+        debugLog("   Units: \(transferDetails.joined(separator: ", "))")
+        debugLog("   Path length: \(path.count) tiles")
 
         // Notify UI
         context.onAlert?("Reinforcements Dispatched", "\(totalTransferred) units marching to \(army.name)")

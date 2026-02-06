@@ -387,7 +387,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         guard let player = player,
               let hexMap = hexMap,
               let gameScene = gameScene else {
-            print("⚠️ Missing game references - commander not deployed")
+            debugLog("⚠️ Missing game references - commander not deployed")
             showError(message: "Cannot deploy commander - missing game references")
             return
         }
@@ -400,7 +400,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         }
         
         guard let cityCenter = cityCenters.first else {
-            print("⚠️ No city center found - commander not deployed")
+            debugLog("⚠️ No city center found - commander not deployed")
             showError(message: "No City Center found. Build one first!")
             return
         }
@@ -410,7 +410,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         
         // ✅ Check if there's already an entity on the city center
         if let existingEntity = hexMap.getEntity(at: spawnCoord) {
-            print("❌ City center occupied by entity: \(existingEntity.entityType)")
+            debugLog("❌ City center occupied by entity: \(existingEntity.entityType)")
             showError(message: "City Center is occupied. Move units away first.")
             return
         }
@@ -440,7 +440,7 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         player.addArmy(army)
         player.addEntity(army)
         
-        print("✅ Deployed \(commander.name)'s Army at City Center (\(spawnCoord.q), \(spawnCoord.r))")
+        debugLog("✅ Deployed \(commander.name)'s Army at City Center (\(spawnCoord.q), \(spawnCoord.r))")
     }
 
 }
