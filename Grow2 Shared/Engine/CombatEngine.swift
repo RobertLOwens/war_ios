@@ -253,6 +253,22 @@ class CombatEngine {
             combat.defenderPlayerState = state.getPlayer(id: defenderOwnerID)
         }
 
+        // Look up commander tactics bonuses for terrain scaling
+        if let attackerCommanderID = attacker.commanderID,
+           let attackerCommander = state.getCommander(id: attackerCommanderID) {
+            combat.attackerTacticsBonus = Double(attackerCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+        }
+        if let defenderCommanderID = defender.commanderID,
+           let defenderCommander = state.getCommander(id: defenderCommanderID) {
+            combat.defenderTacticsBonus = Double(defenderCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+        }
+
+        // Apply entrenchment defense bonus to defender
+        if defender.isEntrenched {
+            combat.terrainDefenseBonus += GameConfig.Entrenchment.defenseBonus
+            debugLog("   🪖 Defender is entrenched: +\(Int(GameConfig.Entrenchment.defenseBonus * 100))% defense bonus")
+        }
+
         // Store with combat's own ID
         activeCombats[combat.id] = combat
 
@@ -380,8 +396,8 @@ class CombatEngine {
 
     private func processRangedDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from ranged/siege units only, including bonus damage vs enemy composition
-        let attackerRangedDPS = DamageCalculator.calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
-        let defenderRangedDPS = DamageCalculator.calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
+        let attackerRangedDPS = DamageCalculator.calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
+        let defenderRangedDPS = DamageCalculator.calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
 
         let attackerDamage = attackerRangedDPS * deltaTime
         let defenderDamage = defenderRangedDPS * deltaTime
@@ -426,8 +442,8 @@ class CombatEngine {
     private func processMeleeDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from infantry/cavalry units, including bonus damage vs enemy composition
         let isCharging = combat.elapsedTime < ActiveCombat.meleeEngagementThreshold + 1.0  // 1 second charge window after melee starts
-        let attackerMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
-        let defenderMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
+        let attackerMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
+        let defenderMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
 
         let attackerDamage = attackerMeleeDPS * deltaTime
         let defenderDamage = defenderMeleeDPS * deltaTime
@@ -471,8 +487,8 @@ class CombatEngine {
 
     private func processAllDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // In cleanup phase, all units attack, including bonus damage vs enemy composition
-        let attackerTotalDPS = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
-        let defenderTotalDPS = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
+        let attackerTotalDPS = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
+        let defenderTotalDPS = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
 
         let attackerDamage = attackerTotalDPS * deltaTime
         let defenderDamage = defenderTotalDPS * deltaTime

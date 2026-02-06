@@ -1,6 +1,6 @@
 // ============================================================================
 // FILE: ReinforcementNode.swift
-// PURPOSE: Visual node for marching reinforcement units with timer and arrow
+// PURPOSE: Visual node for marching reinforcement units with timer and path line
 // ============================================================================
 
 import Foundation
@@ -23,19 +23,18 @@ class ReinforcementNode: SKSpriteNode {
     /// Timer label showing remaining travel time
     private var timerLabel: SKLabelNode?
 
-    /// Arrow pointing to target army
-    private var directionArrow: SKShapeNode?
-
-    /// Reference to the target army (for arrow direction)
-    private weak var targetArmy: Army?
-
     /// Reference to current player (for visibility)
     private weak var currentPlayerReference: Player?
+
+    /// Path line showing remaining route (added to parent container, not self)
+    private var pathLineNode: SKShapeNode?
+
+    /// Reference to parent container for path line
+    private weak var pathContainer: SKNode?
 
     init(reinforcement: ReinforcementGroup, currentPlayer: Player? = nil) {
         self.reinforcement = reinforcement
         self.coordinate = reinforcement.coordinate
-        self.targetArmy = reinforcement.targetArmy
         self.currentPlayerReference = currentPlayer
 
         let texture = ReinforcementNode.createTexture(for: reinforcement, currentPlayer: currentPlayer)
@@ -46,8 +45,6 @@ class ReinforcementNode: SKSpriteNode {
         self.name = "reinforcement"
 
         setupTimerLabel()
-        setupDirectionArrow()
-        updateArrowDirection()
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -119,72 +116,76 @@ class ReinforcementNode: SKSpriteNode {
         }
     }
 
-    // MARK: - Direction Arrow
+    // MARK: - Path Visualization
 
-    private func setupDirectionArrow() {
-        directionArrow = SKShapeNode()
-        directionArrow?.strokeColor = .cyan
-        directionArrow?.lineWidth = 1.0
-        directionArrow?.lineCap = .round
-        directionArrow?.zPosition = 14
-        directionArrow?.name = "directionArrow"
-        addChild(directionArrow!)
+    /// Sets up path line rendering (call after adding node to parent container)
+    func setupPathLine(parentContainer: SKNode) {
+        pathContainer = parentContainer
+        drawRemainingPath()
     }
 
-    /// Updates the arrow to point toward the target army
-    func updateArrowDirection() {
-        guard let arrow = directionArrow,
-              let targetCoord = targetArmy?.coordinate else {
-            directionArrow?.isHidden = true
-            return
-        }
+    /// Draws a translucent line from current position through remaining waypoints
+    func drawRemainingPath() {
+        // Only draw for own player's reinforcements
+        guard reinforcement.owner?.id == currentPlayerReference?.id else { return }
 
-        // Calculate direction to target
-        let targetPos = HexMap.hexToPixel(q: targetCoord.q, r: targetCoord.r)
-        let myPos = HexMap.hexToPixel(q: coordinate.q, r: coordinate.r)
+        // Remove old path line
+        pathLineNode?.removeFromParent()
+        pathLineNode = nil
 
-        let dx = targetPos.x - myPos.x
-        let dy = targetPos.y - myPos.y
-        let angle = atan2(dy, dx)
-
-        // Create arrow path
-        let arrowLength: CGFloat = 10
-        let arrowHeadSize: CGFloat = 3
+        guard !movementPath.isEmpty else { return }
 
         let path = UIBezierPath()
+        let startPos = self.position
+        path.move(to: startPos)
 
-        // Arrow line (starting from edge of circle)
-        let startOffset: CGFloat = 9  // Start just outside the circle
-        let startPoint = CGPoint(
-            x: cos(angle) * startOffset,
-            y: sin(angle) * startOffset
-        )
-        let endPoint = CGPoint(
-            x: cos(angle) * (startOffset + arrowLength),
-            y: sin(angle) * (startOffset + arrowLength)
-        )
+        var lastPos = startPos
+        for coord in movementPath {
+            let pos = HexMap.hexToPixel(q: coord.q, r: coord.r)
+            path.addLine(to: pos)
+            lastPos = pos
+        }
 
-        path.move(to: startPoint)
-        path.addLine(to: endPoint)
+        // Add arrowhead at destination
+        if movementPath.count >= 1 {
+            let secondLastPos: CGPoint
+            if movementPath.count >= 2 {
+                let secondLast = movementPath[movementPath.count - 2]
+                secondLastPos = HexMap.hexToPixel(q: secondLast.q, r: secondLast.r)
+            } else {
+                secondLastPos = startPos
+            }
 
-        // Arrow head
-        let headAngle1 = angle + .pi * 0.8
-        let headAngle2 = angle - .pi * 0.8
+            let dx = lastPos.x - secondLastPos.x
+            let dy = lastPos.y - secondLastPos.y
+            let angle = atan2(dy, dx)
+            let arrowSize: CGFloat = 5
 
-        path.move(to: endPoint)
-        path.addLine(to: CGPoint(
-            x: endPoint.x + cos(headAngle1) * arrowHeadSize,
-            y: endPoint.y + sin(headAngle1) * arrowHeadSize
-        ))
+            let headAngle1 = angle + .pi * 0.8
+            let headAngle2 = angle - .pi * 0.8
 
-        path.move(to: endPoint)
-        path.addLine(to: CGPoint(
-            x: endPoint.x + cos(headAngle2) * arrowHeadSize,
-            y: endPoint.y + sin(headAngle2) * arrowHeadSize
-        ))
+            path.move(to: lastPos)
+            path.addLine(to: CGPoint(
+                x: lastPos.x + cos(headAngle1) * arrowSize,
+                y: lastPos.y + sin(headAngle1) * arrowSize
+            ))
+            path.move(to: lastPos)
+            path.addLine(to: CGPoint(
+                x: lastPos.x + cos(headAngle2) * arrowSize,
+                y: lastPos.y + sin(headAngle2) * arrowSize
+            ))
+        }
 
-        arrow.path = path.cgPath
-        arrow.isHidden = false
+        let lineNode = SKShapeNode(path: path.cgPath)
+        lineNode.strokeColor = UIColor.cyan.withAlphaComponent(0.4)
+        lineNode.lineWidth = 1.5
+        lineNode.lineCap = .round
+        lineNode.lineJoin = .round
+        lineNode.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: HexTileNode.ZLayer.entity) - 1
+        lineNode.name = "reinforcementPath"
+
+        pathContainer?.addChild(lineNode)
+        pathLineNode = lineNode
     }
 
     // MARK: - Movement
@@ -240,6 +241,18 @@ class ReinforcementNode: SKSpriteNode {
         isMoving = true
         movementPath = path
 
+        // Draw initial path visualization
+        drawRemainingPath()
+
+        // Periodically redraw path so it follows the node between waypoints
+        let pathUpdateAction = SKAction.repeatForever(
+            SKAction.sequence([
+                SKAction.wait(forDuration: 0.1),
+                SKAction.run { [weak self] in self?.drawRemainingPath() }
+            ])
+        )
+        run(pathUpdateAction, withKey: "pathUpdate")
+
         // Calculate initial time estimate
         let totalTime = calculateTravelTime(path: path, hexMap: map)
         updateTimer(remaining: totalTime)
@@ -289,13 +302,14 @@ class ReinforcementNode: SKSpriteNode {
                 self.zPosition = HexTileNode.isometricZPosition(q: coord.q, r: coord.r, baseLayer: HexTileNode.ZLayer.entity)
 
                 remainingPath.removeFirst()
+                self.movementPath = remainingPath
 
                 // Update timer
                 let remaining = self.calculateTravelTime(path: remainingPath, hexMap: map)
                 self.updateTimer(remaining: remaining)
 
-                // Update arrow direction
-                self.updateArrowDirection()
+                // Update path visualization
+                self.drawRemainingPath()
 
                 // Check for interception (callback returns false to stop movement)
                 if let onTileEntered = self.onTileEntered {
@@ -315,7 +329,10 @@ class ReinforcementNode: SKSpriteNode {
             guard let self = self else { return }
             self.isMoving = false
             self.movementPath = []
+            self.removeAction(forKey: "pathUpdate")
             self.timerLabel?.isHidden = true
+            self.pathLineNode?.removeFromParent()
+            self.pathLineNode = nil
             completion()
         }
     }
@@ -334,8 +351,10 @@ class ReinforcementNode: SKSpriteNode {
     // MARK: - Cleanup
 
     func cleanup() {
+        removeAction(forKey: "pathUpdate")
         timerLabel?.removeFromParent()
-        directionArrow?.removeFromParent()
+        pathLineNode?.removeFromParent()
+        pathLineNode = nil
         self.removeFromParent()
     }
 }

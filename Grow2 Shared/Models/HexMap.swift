@@ -370,6 +370,10 @@ class HexMap {
         return entities.filter { $0.coordinate == coordinate }
     }
 
+    func getEntityCount(at coordinate: HexCoordinate) -> Int {
+        return entities.filter { $0.coordinate == coordinate }.count
+    }
+
     // ✅ NEW METHOD
     func getResourcePoint(at coordinate: HexCoordinate) -> ResourcePointNode? {
         return resourcePoints.first { $0.coordinate == coordinate }
@@ -610,8 +614,8 @@ class HexMap {
         
     
     func findNearestWalkable(to target: HexCoordinate, maxDistance: Int = 5, for requestingOwner: Player? = nil) -> HexCoordinate? {
-        // Check if target itself is passable and unoccupied
-        if isPassable(at: target, for: requestingOwner) && getEntity(at: target) == nil && getBuilding(at: target) == nil {
+        // Check if target itself is passable and has room
+        if isPassable(at: target, for: requestingOwner) && getEntityCount(at: target) < GameConfig.Stacking.maxEntitiesPerTile && getBuilding(at: target) == nil {
             return target
         }
 
@@ -623,7 +627,7 @@ class HexMap {
             for (coord, _) in tiles {
                 // Use proper hex distance calculation
                 if coord.distance(to: target) == distance {
-                    if isPassable(at: coord, for: requestingOwner) && getEntity(at: coord) == nil && getBuilding(at: coord) == nil {
+                    if isPassable(at: coord, for: requestingOwner) && getEntityCount(at: coord) < GameConfig.Stacking.maxEntitiesPerTile && getBuilding(at: coord) == nil {
                         candidates.append(coord)
                     }
                 }

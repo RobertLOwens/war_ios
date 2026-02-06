@@ -50,7 +50,7 @@ Buildings unlock progressively based on City Center level, creating meaningful t
 
 ### ⚔️ Military Units & Commanders
 - **Entity-based system** — Armies and Villager Groups instead of individual unit micromanagement
-- **Commander system** — Leaders with ranks, specialties, and army size bonuses
+- **Commander system** — Leaders with 5 stats, 10 specialties, 6 ranks, and leveling progression
 - **Unit composition** — Infantry, archers, cavalry, and siege weapons with rock-paper-scissors counters
 - **Garrison mechanics** — Station units in buildings for defense
 
@@ -242,6 +242,62 @@ Combat terrain effects based on defender's position:
 - Mountains slow attackers and reduce their damage
 - Roads negate terrain movement penalties (cost reduced to 1)
 
+### 🎖️ Commander System
+
+Commanders are leaders assigned to armies. They level up through combat experience, gain ranks, and provide meaningful gameplay bonuses through 5 core stats.
+
+#### Ranks
+
+Commanders progress through 6 ranks as they level up:
+
+| Rank | Level Required | Icon |
+|------|---------------|------|
+| Recruit | 1 | ⭐ |
+| Sergeant | 5 | ⭐⭐ |
+| Captain | 10 | ⭐⭐⭐ |
+| Major | 15 | 🎖️ |
+| Colonel | 20 | 🎖️🎖️ |
+| General | 25 | 👑 |
+
+Leveling requires `level × 100` XP. Each level and rank increase boosts all 5 stats.
+
+#### Stats
+
+Each stat directly impacts gameplay:
+
+| Stat | Effect | Formula |
+|------|--------|---------|
+| **Leadership** | Max army size | `20 + leadership × 2` |
+| **Tactics** | Scales terrain combat bonuses | Multiplier on terrain defense/attack modifiers |
+| **Logistics** | Army movement speed | `1.0 + logistics × 0.005` speed multiplier |
+| **Rationing** | Reduces army food consumption | `1.0 - min(0.5, rationing × 0.005)` cost multiplier |
+| **Endurance** | Stamina regeneration rate | `1.0 + endurance × 0.02` regen multiplier |
+
+Stats are computed as: `base + (level - 1) × perLevel + rankIndex × perRank`, where base values and scaling rates come from the commander's specialty.
+
+#### Specialties
+
+10 specialties across 4 unit-type pairs plus 2 standalone:
+
+| Specialty | Bonus | Boosted Stats |
+|-----------|-------|---------------|
+| Infantry (Aggressive) | +1 infantry attack | Endurance, Leadership |
+| Infantry (Defensive) | +1 armor | Leadership |
+| Cavalry (Aggressive) | +1 cavalry attack | Endurance, Logistics |
+| Cavalry (Defensive) | +1 armor | Logistics |
+| Ranged (Aggressive) | +1 ranged attack | Endurance, Tactics |
+| Ranged (Defensive) | +1 armor | Tactics |
+| Siege (Aggressive) | +1 siege attack | Endurance, Rationing |
+| Siege (Defensive) | +1 armor | Rationing |
+| Defensive | +1 armor | Tactics, Rationing, Leadership |
+| Logistics | — | Leadership, Logistics |
+
+Aggressive specialties provide +1 base attack to their matching unit type. Defensive variants (and the standalone Defensive specialty) provide +1 armor to all units.
+
+#### Stamina
+
+Commanders have a stamina pool (max 100) that is consumed by issuing commands (5 per action). Stamina regenerates over time at a base rate of 1/60 per second, scaled by the Endurance stat.
+
 ### ⏰ Flexible Time Formats
 Designed for real-life schedules:
 - **Quick matches** — 10-15 minute tactical battles
@@ -294,7 +350,7 @@ Grow2/
 - Complete building system with construction progress
 - Resource gathering with villager capacity and depletion
 - Military training queues with slider-based quantity selection
-- Commander recruitment with rank progression
+- Commander system with 5 stats, 10 specialties, leveling, and rank progression
 - Fog of war with diplomatic vision sharing
 - Research system with background timers
 - Save/load with offline progress calculation

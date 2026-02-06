@@ -95,6 +95,12 @@ struct RetreatCommand: GameCommand {
             return .failure(reason: "Required objects not found")
         }
 
+        // Clear entrenchment when retreating
+        if army.isEntrenching || army.isEntrenched {
+            army.clearEntrenchment()
+            debugLog("🪖 Army \(army.name) entrenchment cancelled due to retreat")
+        }
+
         // If army is in combat, disengage immediately
         if GameEngine.shared.combatEngine.isInCombat(armyID: army.id) {
             GameEngine.shared.combatEngine.retreatFromCombat(armyID: army.id)

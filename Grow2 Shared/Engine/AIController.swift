@@ -895,6 +895,11 @@ class AIMoveCommand: BaseEngineCommand {
             return .failure(reason: "Invalid destination")
         }
 
+        // Check stacking limit
+        if state.mapData.getEntityCount(at: destination) >= GameConfig.Stacking.maxEntitiesPerTile {
+            return .failure(reason: "Tile is full")
+        }
+
         return .success(changes: [])
     }
 

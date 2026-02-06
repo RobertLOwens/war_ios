@@ -175,8 +175,8 @@ class ArmyDetailViewController: UIViewController {
         currentY += 35
 
         if let commander = army.commander {
-            // Commander card (expanded height for stamina)
-            let commanderCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 175))
+            // Commander card
+            let commanderCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 270))
             commanderCard.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
             commanderCard.layer.cornerRadius = 12
             contentView.addSubview(commanderCard)
@@ -204,36 +204,108 @@ class ArmyDetailViewController: UIViewController {
 
             // Specialty bonus description
             let bonusLabel = UILabel(frame: CGRect(x: 15, y: 75, width: contentWidth - 30, height: 18))
-            bonusLabel.text = commander.specialty.description
+            bonusLabel.text = commander.specialty.detailedDescription
             bonusLabel.font = UIFont.systemFont(ofSize: 12)
             bonusLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
             commanderCard.addSubview(bonusLabel)
 
-            // Leadership & Tactics
-            let statsLabel = UILabel(frame: CGRect(x: 15, y: 95, width: contentWidth - 30, height: 20))
-            statsLabel.text = "📊 Leadership: \(commander.leadership) • Tactics: \(commander.tactics)"
-            statsLabel.font = UIFont.systemFont(ofSize: 14)
-            statsLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
-            commanderCard.addSubview(statsLabel)
+            // Commander stats with gameplay benefits
+            let statLabelWidth: CGFloat = 170
+            let benefitX: CGFloat = statLabelWidth + 15
+            let benefitWidth: CGFloat = contentWidth - benefitX - 15
+            let benefitColor = UIColor(red: 0.5, green: 0.85, blue: 0.5, alpha: 1.0)
+            let statFont = UIFont.systemFont(ofSize: 14)
+            let benefitFont = UIFont.systemFont(ofSize: 12)
+            let statColor = UIColor(white: 0.7, alpha: 1.0)
+
+            // Leadership
+            let leadershipLabel = UILabel(frame: CGRect(x: 15, y: 97, width: statLabelWidth, height: 20))
+            leadershipLabel.text = "👑 Leadership: \(commander.leadership)"
+            leadershipLabel.font = statFont
+            leadershipLabel.textColor = statColor
+            commanderCard.addSubview(leadershipLabel)
+
+            let maxArmy = GameConfig.Commander.leadershipToArmySizeBase + commander.leadership * GameConfig.Commander.leadershipToArmySizePerPoint
+            let leadershipBenefit = UILabel(frame: CGRect(x: benefitX, y: 97, width: benefitWidth, height: 20))
+            leadershipBenefit.text = "Max Army: \(maxArmy) units"
+            leadershipBenefit.font = benefitFont
+            leadershipBenefit.textColor = benefitColor
+            commanderCard.addSubview(leadershipBenefit)
+
+            // Tactics
+            let tacticsLabel = UILabel(frame: CGRect(x: 15, y: 119, width: statLabelWidth, height: 20))
+            tacticsLabel.text = "🎯 Tactics: \(commander.tactics)"
+            tacticsLabel.font = statFont
+            tacticsLabel.textColor = statColor
+            commanderCard.addSubview(tacticsLabel)
+
+            let terrainBonus = Double(commander.tactics) * GameConfig.Commander.tacticsTerrainScaling * 100
+            let tacticsBenefit = UILabel(frame: CGRect(x: benefitX, y: 119, width: benefitWidth, height: 20))
+            tacticsBenefit.text = "+\(Int(terrainBonus))% terrain bonus"
+            tacticsBenefit.font = benefitFont
+            tacticsBenefit.textColor = benefitColor
+            commanderCard.addSubview(tacticsBenefit)
+
+            // Logistics
+            let logisticsLabel = UILabel(frame: CGRect(x: 15, y: 141, width: statLabelWidth, height: 20))
+            logisticsLabel.text = "📦 Logistics: \(commander.logistics)"
+            logisticsLabel.font = statFont
+            logisticsLabel.textColor = statColor
+            commanderCard.addSubview(logisticsLabel)
+
+            let speedBonus = Double(commander.logistics) * GameConfig.Commander.logisticsSpeedScaling * 100
+            let logisticsBenefit = UILabel(frame: CGRect(x: benefitX, y: 141, width: benefitWidth, height: 20))
+            logisticsBenefit.text = String(format: "+%.1f%% move speed", speedBonus)
+            logisticsBenefit.font = benefitFont
+            logisticsBenefit.textColor = benefitColor
+            commanderCard.addSubview(logisticsBenefit)
+
+            // Rationing
+            let rationingLabel = UILabel(frame: CGRect(x: 15, y: 163, width: statLabelWidth, height: 20))
+            rationingLabel.text = "🍞 Rationing: \(commander.rationing)"
+            rationingLabel.font = statFont
+            rationingLabel.textColor = statColor
+            commanderCard.addSubview(rationingLabel)
+
+            let foodReduction = min(GameConfig.Commander.rationingReductionCap, Double(commander.rationing) * GameConfig.Commander.rationingReductionScaling) * 100
+            let rationingBenefit = UILabel(frame: CGRect(x: benefitX, y: 163, width: benefitWidth, height: 20))
+            rationingBenefit.text = String(format: "-%.1f%% food cost", foodReduction)
+            rationingBenefit.font = benefitFont
+            rationingBenefit.textColor = benefitColor
+            commanderCard.addSubview(rationingBenefit)
+
+            // Endurance
+            let enduranceLabel = UILabel(frame: CGRect(x: 15, y: 185, width: statLabelWidth, height: 20))
+            enduranceLabel.text = "💪 Endurance: \(commander.endurance)"
+            enduranceLabel.font = statFont
+            enduranceLabel.textColor = statColor
+            commanderCard.addSubview(enduranceLabel)
+
+            let staminaRegenBonus = Double(commander.endurance) * GameConfig.Commander.enduranceRegenScaling * 100
+            let enduranceBenefit = UILabel(frame: CGRect(x: benefitX, y: 185, width: benefitWidth, height: 20))
+            enduranceBenefit.text = "+\(Int(staminaRegenBonus))% stamina regen"
+            enduranceBenefit.font = benefitFont
+            enduranceBenefit.textColor = benefitColor
+            commanderCard.addSubview(enduranceBenefit)
 
             // Level and XP
             let requiredXP = commander.level * 100
             let xpProgress = Double(commander.experience) / Double(requiredXP)
-            let levelLabel = UILabel(frame: CGRect(x: 15, y: 115, width: contentWidth - 30, height: 20))
+            let levelLabel = UILabel(frame: CGRect(x: 15, y: 210, width: contentWidth - 30, height: 20))
             levelLabel.text = "⭐ Level \(commander.level) • XP: \(commander.experience)/\(requiredXP) (\(Int(xpProgress * 100))%)"
             levelLabel.font = UIFont.systemFont(ofSize: 14)
             levelLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
             commanderCard.addSubview(levelLabel)
 
             // Stamina bar background
-            let staminaBarBg = UIView(frame: CGRect(x: 15, y: 140, width: contentWidth - 30, height: 8))
+            let staminaBarBg = UIView(frame: CGRect(x: 15, y: 235, width: contentWidth - 30, height: 8))
             staminaBarBg.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
             staminaBarBg.layer.cornerRadius = 4
             commanderCard.addSubview(staminaBarBg)
 
             // Stamina bar fill
             let staminaPercentage = commander.staminaPercentage
-            let staminaBarFill = UIView(frame: CGRect(x: 15, y: 140, width: (contentWidth - 30) * staminaPercentage, height: 8))
+            let staminaBarFill = UIView(frame: CGRect(x: 15, y: 235, width: (contentWidth - 30) * staminaPercentage, height: 8))
             staminaBarFill.backgroundColor = staminaPercentage > 0.3 ?
                 UIColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0) :
                 UIColor(red: 1.0, green: 0.4, blue: 0.3, alpha: 1.0)
@@ -241,13 +313,13 @@ class ArmyDetailViewController: UIViewController {
             commanderCard.addSubview(staminaBarFill)
 
             // Stamina label
-            let staminaLabel = UILabel(frame: CGRect(x: 15, y: 150, width: contentWidth - 30, height: 18))
+            let staminaLabel = UILabel(frame: CGRect(x: 15, y: 245, width: contentWidth - 30, height: 18))
             staminaLabel.text = "⚡ Stamina: \(Int(commander.stamina))/\(Int(Commander.maxStamina)) (regen: 1/min)"
             staminaLabel.font = UIFont.systemFont(ofSize: 12)
             staminaLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
             commanderCard.addSubview(staminaLabel)
 
-            currentY += 185
+            currentY += 280
         } else {
             // No commander
             let noCommanderLabel = createLabel(
@@ -305,7 +377,8 @@ class ArmyDetailViewController: UIViewController {
                     count: count,
                     yOffset: currentY,
                     contentWidth: contentWidth,
-                    leftMargin: leftMargin
+                    leftMargin: leftMargin,
+                    commander: army.commander
                 )
             }
         }
@@ -313,8 +386,10 @@ class ArmyDetailViewController: UIViewController {
         return currentY
     }
 
-    func createUnitRow(unitType: MilitaryUnitType, count: Int, yOffset: CGFloat, contentWidth: CGFloat, leftMargin: CGFloat) -> CGFloat {
-        let rowHeight: CGFloat = 80
+    func createUnitRow(unitType: MilitaryUnitType, count: Int, yOffset: CGFloat, contentWidth: CGFloat, leftMargin: CGFloat, commander: Commander? = nil) -> CGFloat {
+        // Determine if we need extra height for commander bonus line
+        let commanderBonusText = getCommanderBonusText(for: unitType, commander: commander)
+        let rowHeight: CGFloat = commanderBonusText != nil ? 100 : 80
 
         let container = UIView(frame: CGRect(x: leftMargin, y: yOffset, width: contentWidth, height: rowHeight))
         container.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
@@ -359,7 +434,55 @@ class ArmyDetailViewController: UIViewController {
         bonusLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
         container.addSubview(bonusLabel)
 
+        // Commander bonus line
+        if let (text, color) = commanderBonusText {
+            let cmdBonusLabel = UILabel(frame: CGRect(x: 15, y: 72, width: contentWidth - 30, height: 18))
+            cmdBonusLabel.text = text
+            cmdBonusLabel.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+            cmdBonusLabel.textColor = color
+            container.addSubview(cmdBonusLabel)
+        }
+
         return yOffset + rowHeight + 10
+    }
+
+    private func getCommanderBonusText(for unitType: MilitaryUnitType, commander: Commander?) -> (String, UIColor)? {
+        guard let commander = commander else { return nil }
+
+        var parts: [String] = []
+
+        // Attack bonus - show for aggressive specialties matching this unit's category
+        let attackBonus = commander.specialty.attackBonus(for: unitType.category)
+        if attackBonus > 0 {
+            parts.append("+\(attackBonus) attack")
+        }
+
+        // Defense bonus - show for defensive variants
+        let armorBonus = commander.specialty.armorBonus
+        if armorBonus > 0 {
+            parts.append("+\(armorBonus) armor")
+        }
+
+        // Stats summary
+        let speedBonus = Int(Double(commander.logistics) * GameConfig.Commander.logisticsSpeedScaling * 100)
+        if speedBonus > 0 {
+            parts.append("+\(speedBonus)% speed")
+        }
+
+        guard !parts.isEmpty else { return nil }
+
+        let text = "Commander: " + parts.joined(separator: " | ")
+
+        let color: UIColor
+        if commander.specialty == .defensive || commander.specialty.isDefensiveVariant {
+            color = UIColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1.0) // blue
+        } else if commander.specialty == .logistics {
+            color = UIColor(red: 1.0, green: 0.85, blue: 0.3, alpha: 1.0) // yellow
+        } else {
+            color = UIColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1.0) // green
+        }
+
+        return (text, color)
     }
 
     // MARK: - Combat Stats Section
@@ -590,6 +713,9 @@ class ArmyDetailViewController: UIViewController {
         contentView.addSubview(reinforceButton)
         currentY += 65
 
+        // Entrenchment section
+        currentY = setupEntrenchmentSection(yOffset: currentY, contentWidth: contentWidth, leftMargin: leftMargin)
+
         return currentY
     }
 
@@ -715,6 +841,116 @@ class ArmyDetailViewController: UIViewController {
         } else {
             let alert = UIAlertController(
                 title: "Reinforcement Failed",
+                message: result.failureReason ?? "Unknown error",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
+    }
+
+    // MARK: - Entrenchment Section
+
+    func setupEntrenchmentSection(yOffset: CGFloat, contentWidth: CGFloat, leftMargin: CGFloat) -> CGFloat {
+        var currentY = yOffset
+
+        if army.isEntrenched {
+            // Show entrenched status
+            let entrenchedCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 50))
+            entrenchedCard.backgroundColor = UIColor(red: 0.3, green: 0.2, blue: 0.1, alpha: 1.0)
+            entrenchedCard.layer.cornerRadius = 12
+            contentView.addSubview(entrenchedCard)
+
+            let statusLabel = UILabel(frame: CGRect(x: 15, y: 15, width: contentWidth - 30, height: 20))
+            statusLabel.text = "🪖 Entrenched (+\(Int(GameConfig.Entrenchment.defenseBonus * 100))% Defense)"
+            statusLabel.font = UIFont.boldSystemFont(ofSize: 16)
+            statusLabel.textColor = UIColor(red: 0.8, green: 0.6, blue: 0.3, alpha: 1.0)
+            entrenchedCard.addSubview(statusLabel)
+
+            currentY += 60
+        } else if army.isEntrenching {
+            // Show progress
+            let progressCard = UIView(frame: CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 60))
+            progressCard.backgroundColor = UIColor(red: 0.25, green: 0.18, blue: 0.1, alpha: 1.0)
+            progressCard.layer.cornerRadius = 12
+            contentView.addSubview(progressCard)
+
+            let progressLabel = UILabel(frame: CGRect(x: 15, y: 10, width: contentWidth - 30, height: 20))
+            progressLabel.text = "🪖 Building entrenchment..."
+            progressLabel.font = UIFont.boldSystemFont(ofSize: 16)
+            progressLabel.textColor = UIColor(red: 0.8, green: 0.6, blue: 0.3, alpha: 1.0)
+            progressCard.addSubview(progressLabel)
+
+            // Progress bar
+            let barBg = UIView(frame: CGRect(x: 15, y: 38, width: contentWidth - 30, height: 8))
+            barBg.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+            barBg.layer.cornerRadius = 4
+            progressCard.addSubview(barBg)
+
+            if let startTime = army.data.entrenchmentStartTime,
+               let currentTime = GameEngine.shared.gameState?.currentTime {
+                let elapsed = currentTime - startTime
+                let progress = min(1.0, elapsed / GameConfig.Entrenchment.buildTime)
+                let barFill = UIView(frame: CGRect(x: 15, y: 38, width: (contentWidth - 30) * progress, height: 8))
+                barFill.backgroundColor = UIColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1.0)
+                barFill.layer.cornerRadius = 4
+                progressCard.addSubview(barFill)
+            }
+
+            currentY += 70
+        } else {
+            // Show entrench button
+            let isInCombat = GameEngine.shared.combatEngine.isInCombat(armyID: army.id)
+            let isMoving = army.data.currentPath != nil && army.data.pathIndex < (army.data.currentPath?.count ?? 0)
+            let hasEnoughWood = (player?.getResource(.wood) ?? 0) >= GameConfig.Entrenchment.woodCost
+            let canEntrench = !isInCombat && !isMoving && !army.isRetreating && !army.isAwaitingReinforcements && hasEnoughWood
+
+            let buttonColor = canEntrench ?
+                UIColor(red: 0.4, green: 0.3, blue: 0.15, alpha: 1.0) :
+                UIColor(white: 0.25, alpha: 1.0)
+
+            let entrenchButton = createActionButton(
+                title: "🪖 Entrench (\(GameConfig.Entrenchment.woodCost) Wood)",
+                y: currentY,
+                width: contentWidth,
+                leftMargin: leftMargin,
+                color: buttonColor,
+                action: #selector(entrenchTapped)
+            )
+            entrenchButton.isEnabled = canEntrench
+            entrenchButton.alpha = canEntrench ? 1.0 : 0.5
+            contentView.addSubview(entrenchButton)
+            currentY += 65
+        }
+
+        return currentY
+    }
+
+    @objc func entrenchTapped() {
+        guard let player = player else { return }
+
+        // Create and execute entrench command
+        let command = EntrenchCommand(playerID: player.id, armyID: army.id)
+        let context = CommandContext(hexMap: hexMap, player: player, allPlayers: gameScene.allGamePlayers, gameScene: gameScene)
+
+        let validationResult = command.validate(in: context)
+        if !validationResult.succeeded {
+            let alert = UIAlertController(
+                title: "Cannot Entrench",
+                message: validationResult.failureReason ?? "Unknown error",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        let result = command.execute(in: context)
+        if result.succeeded {
+            dismiss(animated: true)
+        } else {
+            let alert = UIAlertController(
+                title: "Entrenchment Failed",
                 message: result.failureReason ?? "Unknown error",
                 preferredStyle: .alert
             )

@@ -171,6 +171,9 @@ struct CommanderSaveData: Codable {
     let level: Int
     let baseLeadership: Int
     let baseTactics: Int
+    let baseLogistics: Int?
+    let baseRationing: Int?
+    let baseEndurance: Int?
     let colorRed: CGFloat
     let colorGreen: CGFloat
     let colorBlue: CGFloat
@@ -612,6 +615,9 @@ class GameSaveManager {
             level: commander.level,
             baseLeadership: commander.getBaseLeadership(),
             baseTactics: commander.getBaseTactics(),
+            baseLogistics: commander.getBaseLogistics(),
+            baseRationing: commander.getBaseRationing(),
+            baseEndurance: commander.getBaseEndurance(),
             colorRed: red,
             colorGreen: green,
             colorBlue: blue,
@@ -729,18 +735,23 @@ class GameSaveManager {
     }
     
     private func reconstructCommander(from data: CommanderSaveData) -> Commander? {
-        guard let rank = CommanderRank(rawValue: data.rank),
-              let specialty = CommanderSpecialty(rawValue: data.specialty) else {
+        guard let rank = CommanderRank(rawValue: data.rank) else {
             return nil
         }
-        
+
+        // Handle legacy specialty rawValues (pre-rework saves)
+        guard let specialty = CommanderSpecialty(rawValue: data.specialty)
+                ?? CommanderSpecialty.fromLegacy(data.specialty) else {
+            return nil
+        }
+
         let color = UIColor(
             red: data.colorRed,
             green: data.colorGreen,
             blue: data.colorBlue,
             alpha: data.colorAlpha
         )
-        
+
         let commander = Commander(
             id: UUID(uuidString: data.id) ?? UUID(),
             name: data.name,
@@ -748,14 +759,17 @@ class GameSaveManager {
             specialty: specialty,
             baseLeadership: data.baseLeadership,
             baseTactics: data.baseTactics,
+            baseLogistics: data.baseLogistics,
+            baseRationing: data.baseRationing,
+            baseEndurance: data.baseEndurance,
             portraitColor: color
         )
-        
+
         // Manually set experience and level (need to expose these as settable)
         // For now, add experience to reach the saved level
         let targetXP = data.level * 100 + data.experience
         commander.addExperience(targetXP)
-        
+
         return commander
     }
     

@@ -98,6 +98,33 @@ enum GameConfig {
         static let trebuchetDamage: Double = 25.0
     }
 
+    // MARK: - Commander Stat Scaling
+
+    enum Commander {
+        static let leadershipToArmySizeBase: Int = 20
+        static let leadershipToArmySizePerPoint: Int = 2
+        static let tacticsTerrainScaling: Double = 0.01
+        static let logisticsSpeedScaling: Double = 0.005
+        static let rationingReductionScaling: Double = 0.005
+        static let rationingReductionCap: Double = 0.5
+        static let enduranceRegenScaling: Double = 0.02
+    }
+
+    // MARK: - Entrenchment
+
+    enum Entrenchment {
+        static let buildTime: TimeInterval = 10.0
+        static let woodCost: Int = 100
+        static let defenseBonus: Double = 0.10
+        static let checkInterval: TimeInterval = 0.5
+    }
+
+    // MARK: - Entity Stacking
+
+    enum Stacking {
+        static let maxEntitiesPerTile: Int = 5
+    }
+
     // MARK: - AI Decision Intervals
 
     enum AI {

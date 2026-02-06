@@ -15,8 +15,9 @@ struct DamageCalculator {
 
     // MARK: - Terrain Modifier
 
-    static func applyTerrainModifier(to dps: Double, terrainPenalty: Double, terrainBonus: Double) -> Double {
-        let modifier = 1.0 - terrainPenalty + terrainBonus
+    static func applyTerrainModifier(to dps: Double, terrainPenalty: Double, terrainBonus: Double, tacticsBonus: Double = 0) -> Double {
+        let scaledTerrainBonus = terrainBonus * (1.0 + tacticsBonus)
+        let modifier = 1.0 - terrainPenalty + scaledTerrainBonus
         return dps * modifier
     }
 
@@ -92,7 +93,7 @@ struct DamageCalculator {
 
     // MARK: - DPS Calculations
 
-    static func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
+    static func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -107,10 +108,10 @@ struct DamageCalculator {
             totalDPS += unitDPS * Double(count)
         }
 
-        return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
+        return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, tacticsBonus: tacticsBonus)
     }
 
-    static func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
+    static func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -134,10 +135,10 @@ struct DamageCalculator {
             totalDPS += unitDPS * Double(count)
         }
 
-        return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
+        return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, tacticsBonus: tacticsBonus)
     }
 
-    static func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
+    static func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -151,7 +152,7 @@ struct DamageCalculator {
             totalDPS += unitDPS * Double(count)
         }
 
-        return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
+        return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, tacticsBonus: tacticsBonus)
     }
 
     // MARK: - Damage Application

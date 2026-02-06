@@ -204,6 +204,19 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
             }
         }
 
+        // Update stack badges on all entity coordinates
+        var entityCoordinates: Set<HexCoordinate> = []
+        for entity in hexMap.entities {
+            entityCoordinates.insert(entity.coordinate)
+        }
+        for coord in entityCoordinates {
+            let entitiesAtCoord = hexMap.getEntities(at: coord)
+            let count = entitiesAtCoord.count
+            for entity in entitiesAtCoord {
+                entity.updateStackBadge(count: count)
+            }
+        }
+
         // Sync player resources
         if let localPlayerID = state.localPlayerID,
            let playerState = state.getPlayer(id: localPlayerID),

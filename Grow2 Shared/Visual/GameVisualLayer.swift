@@ -404,17 +404,26 @@ class GameVisualLayer {
             SKAction.scale(to: 1.0, duration: animationDuration)
         ])
         entityNode.run(spawnAction)
+
+        // Update stack badges at spawn coordinate
+        updateStackBadges(at: coordinate)
     }
 
     private func handleArmyMoved(armyID: UUID, to: HexCoordinate) {
         guard let entityNode = entityNodes[armyID] else { return }
 
+        let oldCoord = entityNode.coordinate
         let targetPosition = HexMap.hexToPixel(q: to.q, r: to.r)
         let moveAction = SKAction.move(to: targetPosition, duration: animationDuration)
         moveAction.timingMode = .easeInEaseOut
 
-        entityNode.run(moveAction)
+        entityNode.run(moveAction) { [weak self] in
+            self?.updateStackBadges(at: to)
+        }
         entityNode.coordinate = to
+
+        // Update badges at old coordinate (one fewer entity there now)
+        updateStackBadges(at: oldCoord)
     }
 
     private func handleArmyCompositionChanged(armyID: UUID) {
@@ -425,6 +434,8 @@ class GameVisualLayer {
     private func handleArmyDestroyed(armyID: UUID) {
         guard let entityNode = entityNodes[armyID],
               let hexMap = hexMap else { return }
+
+        let coord = entityNode.coordinate
 
         // Remove from owner's tracking arrays
         if let army = entityNode.armyReference, let owner = army.owner {
@@ -442,6 +453,7 @@ class GameVisualLayer {
             entityNode.removeFromParent()
             hexMap.removeEntity(entityNode)
             self?.entityNodes.removeValue(forKey: armyID)
+            self?.updateStackBadges(at: coord)
         }
     }
 
@@ -478,17 +490,26 @@ class GameVisualLayer {
         entityNode.alpha = 0
         let spawnAction = SKAction.fadeIn(withDuration: animationDuration)
         entityNode.run(spawnAction)
+
+        // Update stack badges at spawn coordinate
+        updateStackBadges(at: coordinate)
     }
 
     private func handleVillagerGroupMoved(groupID: UUID, to: HexCoordinate) {
         guard let entityNode = entityNodes[groupID] else { return }
 
+        let oldCoord = entityNode.coordinate
         let targetPosition = HexMap.hexToPixel(q: to.q, r: to.r)
         let moveAction = SKAction.move(to: targetPosition, duration: animationDuration)
         moveAction.timingMode = .easeInEaseOut
 
-        entityNode.run(moveAction)
+        entityNode.run(moveAction) { [weak self] in
+            self?.updateStackBadges(at: to)
+        }
         entityNode.coordinate = to
+
+        // Update badges at old coordinate
+        updateStackBadges(at: oldCoord)
     }
 
     private func handleVillagerGroupCountChanged(groupID: UUID) {
@@ -499,6 +520,8 @@ class GameVisualLayer {
     private func handleVillagerGroupDestroyed(groupID: UUID) {
         guard let entityNode = entityNodes[groupID],
               let hexMap = hexMap else { return }
+
+        let coord = entityNode.coordinate
 
         // Remove from owner's tracking arrays
         if let villagers = entityNode.villagerReference, let owner = villagers.owner {
@@ -511,6 +534,7 @@ class GameVisualLayer {
             entityNode.removeFromParent()
             hexMap.removeEntity(entityNode)
             self?.entityNodes.removeValue(forKey: groupID)
+            self?.updateStackBadges(at: coord)
         }
     }
 
@@ -656,6 +680,18 @@ class GameVisualLayer {
             SKAction.colorize(withColorBlendFactor: 0, duration: 0.1)
         ])
         targetNode.run(flash)
+    }
+
+    // MARK: - Stack Badge Updates
+
+    /// Updates stack badges for all entities at the given coordinate
+    private func updateStackBadges(at coordinate: HexCoordinate) {
+        guard let hexMap = hexMap else { return }
+        let entitiesAtCoord = hexMap.getEntities(at: coordinate)
+        let count = entitiesAtCoord.count
+        for entity in entitiesAtCoord {
+            entity.updateStackBadge(count: count)
+        }
     }
 
     // MARK: - Node Access

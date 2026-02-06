@@ -380,6 +380,17 @@ class ArmyData: Codable {
     var isInCombat: Bool = false
     var combatTargetID: UUID?
 
+    // Entrenchment state (transient - not saved)
+    var isEntrenching: Bool = false
+    var isEntrenched: Bool = false
+    var entrenchmentStartTime: TimeInterval?
+
+    func clearEntrenchment() {
+        isEntrenching = false
+        isEntrenched = false
+        entrenchmentStartTime = nil
+    }
+
     // Stats cache
     var currentStamina: Double = 100.0
     var maxStamina: Double = 100.0
@@ -551,8 +562,9 @@ class ArmyData: Codable {
 
     // MARK: - Capacity
 
-    func getMaxArmySize(commanderMaxSize: Int?) -> Int {
-        return commanderMaxSize ?? 200
+    func getMaxArmySize(commanderLeadership: Int?) -> Int {
+        guard let leadership = commanderLeadership else { return 40 }
+        return GameConfig.Commander.leadershipToArmySizeBase + leadership * GameConfig.Commander.leadershipToArmySizePerPoint
     }
 
     // MARK: - Codable
@@ -569,16 +581,45 @@ class ArmyData: Codable {
     }
 }
 
+// MARK: - Commander Stat Profile
+
+/// Defines how a commander's stats scale with level and rank
+struct CommanderStatProfile {
+    let baseLeadership: Int
+    let leadershipPerLevel: Int
+    let leadershipPerRank: Int
+
+    let baseTactics: Int
+    let tacticsPerLevel: Int
+    let tacticsPerRank: Int
+
+    let baseLogistics: Int
+    let logisticsPerLevel: Int
+    let logisticsPerRank: Int
+
+    let baseRationing: Int
+    let rationingPerLevel: Int
+    let rationingPerRank: Int
+
+    let baseEndurance: Int
+    let endurancePerLevel: Int
+    let endurancePerRank: Int
+}
+
 // MARK: - Commander Specialty Data
 
 /// Type alias for backward compatibility
 typealias CommanderSpecialty = CommanderSpecialtyData
 
 enum CommanderSpecialtyData: String, Codable, CaseIterable {
-    case infantry = "Infantry"
-    case cavalry = "Cavalry"
-    case ranged = "Ranged"
-    case siege = "Siege"
+    case infantryAggressive = "Infantry (Aggressive)"
+    case infantryDefensive = "Infantry (Defensive)"
+    case cavalryAggressive = "Cavalry (Aggressive)"
+    case cavalryDefensive = "Cavalry (Defensive)"
+    case rangedAggressive = "Ranged (Aggressive)"
+    case rangedDefensive = "Ranged (Defensive)"
+    case siegeAggressive = "Siege (Aggressive)"
+    case siegeDefensive = "Siege (Defensive)"
     case defensive = "Defensive"
     case logistics = "Logistics"
 
@@ -588,10 +629,14 @@ enum CommanderSpecialtyData: String, Codable, CaseIterable {
 
     var icon: String {
         switch self {
-        case .infantry: return "🗡️"
-        case .cavalry: return "🐴"
-        case .ranged: return "🏹"
-        case .siege: return "🎯"
+        case .infantryAggressive: return "🗡️"
+        case .infantryDefensive: return "🛡️"
+        case .cavalryAggressive: return "🐴"
+        case .cavalryDefensive: return "🐴"
+        case .rangedAggressive: return "🏹"
+        case .rangedDefensive: return "🏹"
+        case .siegeAggressive: return "🎯"
+        case .siegeDefensive: return "🎯"
         case .defensive: return "🛡️"
         case .logistics: return "📦"
         }
@@ -599,27 +644,162 @@ enum CommanderSpecialtyData: String, Codable, CaseIterable {
 
     var description: String {
         switch self {
-        case .infantry: return "Bonus to infantry attack and defense"
-        case .cavalry: return "Bonus to cavalry speed and attack"
-        case .ranged: return "Bonus to ranged unit damage and range"
-        case .siege: return "Bonus to siege weapons and building damage"
-        case .defensive: return "Bonus to all unit defense"
-        case .logistics: return "Reduced movement time and resource costs"
+        case .infantryAggressive: return "+1 infantry attack, boosted endurance"
+        case .infantryDefensive: return "+1 armor, boosted leadership"
+        case .cavalryAggressive: return "+1 cavalry attack, boosted endurance"
+        case .cavalryDefensive: return "+1 armor, boosted logistics"
+        case .rangedAggressive: return "+1 ranged attack, boosted endurance"
+        case .rangedDefensive: return "+1 armor, boosted tactics"
+        case .siegeAggressive: return "+1 siege attack, boosted endurance"
+        case .siegeDefensive: return "+1 armor, boosted rationing"
+        case .defensive: return "Strong tactics and rationing, better leadership"
+        case .logistics: return "Strong leadership and logistics"
         }
     }
 
-    func getBonus(for category: UnitCategoryData) -> Double {
-        switch (self, category) {
-        case (.infantry, .infantry):
-            return 0.20  // +20% to infantry units
-        case (.cavalry, .cavalry):
-            return 0.25  // +25% to cavalry units
-        case (.ranged, .ranged):
-            return 0.20  // +20% to ranged units
-        case (.siege, .siege):
-            return 0.25  // +25% to siege units
+    var detailedDescription: String {
+        switch self {
+        case .infantryAggressive: return "+1 base attack to Infantry units"
+        case .infantryDefensive: return "+1 armor to all units, strong Leadership"
+        case .cavalryAggressive: return "+1 base attack to Cavalry units"
+        case .cavalryDefensive: return "+1 armor to all units, strong Logistics"
+        case .rangedAggressive: return "+1 base attack to Ranged units"
+        case .rangedDefensive: return "+1 armor to all units, strong Tactics"
+        case .siegeAggressive: return "+1 base attack to Siege units"
+        case .siegeDefensive: return "+1 armor to all units, strong Rationing"
+        case .defensive: return "Strong Tactics & Rationing growth, good Leadership"
+        case .logistics: return "Strong Leadership & Logistics growth"
+        }
+    }
+
+    /// The unit category this specialty focuses on (nil for standalone specialties)
+    var unitCategory: UnitCategoryData? {
+        switch self {
+        case .infantryAggressive, .infantryDefensive: return .infantry
+        case .cavalryAggressive, .cavalryDefensive: return .cavalry
+        case .rangedAggressive, .rangedDefensive: return .ranged
+        case .siegeAggressive, .siegeDefensive: return .siege
+        case .defensive, .logistics: return nil
+        }
+    }
+
+    /// Whether this is an aggressive variant
+    var isAggressive: Bool {
+        switch self {
+        case .infantryAggressive, .cavalryAggressive, .rangedAggressive, .siegeAggressive:
+            return true
         default:
-            return 0.0
+            return false
+        }
+    }
+
+    /// Whether this is a defensive variant (unit-type defensive, not standalone)
+    var isDefensiveVariant: Bool {
+        switch self {
+        case .infantryDefensive, .cavalryDefensive, .rangedDefensive, .siegeDefensive:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// +1 base attack bonus for matching aggressive specialty
+    func attackBonus(for category: UnitCategoryData) -> Int {
+        guard isAggressive, unitCategory == category else { return 0 }
+        return 1
+    }
+
+    /// +1 armor bonus for defensive variants
+    var armorBonus: Int {
+        return isDefensiveVariant || self == .defensive ? 1 : 0
+    }
+
+    /// Stat profile defining base values and per-level/per-rank scaling
+    var statProfile: CommanderStatProfile {
+        switch self {
+        case .infantryAggressive:
+            return CommanderStatProfile(
+                baseLeadership: 10, leadershipPerLevel: 2, leadershipPerRank: 4,
+                baseTactics: 8, tacticsPerLevel: 1, tacticsPerRank: 3,
+                baseLogistics: 8, logisticsPerLevel: 1, logisticsPerRank: 3,
+                baseRationing: 8, rationingPerLevel: 1, rationingPerRank: 3,
+                baseEndurance: 10, endurancePerLevel: 2, endurancePerRank: 4)
+        case .infantryDefensive:
+            return CommanderStatProfile(
+                baseLeadership: 10, leadershipPerLevel: 2, leadershipPerRank: 4,
+                baseTactics: 8, tacticsPerLevel: 1, tacticsPerRank: 3,
+                baseLogistics: 8, logisticsPerLevel: 1, logisticsPerRank: 3,
+                baseRationing: 8, rationingPerLevel: 1, rationingPerRank: 3,
+                baseEndurance: 8, endurancePerLevel: 1, endurancePerRank: 3)
+        case .cavalryAggressive:
+            return CommanderStatProfile(
+                baseLeadership: 8, leadershipPerLevel: 1, leadershipPerRank: 3,
+                baseTactics: 8, tacticsPerLevel: 1, tacticsPerRank: 3,
+                baseLogistics: 10, logisticsPerLevel: 2, logisticsPerRank: 4,
+                baseRationing: 8, rationingPerLevel: 1, rationingPerRank: 3,
+                baseEndurance: 10, endurancePerLevel: 2, endurancePerRank: 4)
+        case .cavalryDefensive:
+            return CommanderStatProfile(
+                baseLeadership: 8, leadershipPerLevel: 1, leadershipPerRank: 3,
+                baseTactics: 8, tacticsPerLevel: 1, tacticsPerRank: 3,
+                baseLogistics: 10, logisticsPerLevel: 2, logisticsPerRank: 4,
+                baseRationing: 8, rationingPerLevel: 1, rationingPerRank: 3,
+                baseEndurance: 8, endurancePerLevel: 1, endurancePerRank: 3)
+        case .rangedAggressive:
+            return CommanderStatProfile(
+                baseLeadership: 8, leadershipPerLevel: 1, leadershipPerRank: 3,
+                baseTactics: 10, tacticsPerLevel: 2, tacticsPerRank: 4,
+                baseLogistics: 8, logisticsPerLevel: 1, logisticsPerRank: 3,
+                baseRationing: 8, rationingPerLevel: 1, rationingPerRank: 3,
+                baseEndurance: 10, endurancePerLevel: 2, endurancePerRank: 4)
+        case .rangedDefensive:
+            return CommanderStatProfile(
+                baseLeadership: 8, leadershipPerLevel: 1, leadershipPerRank: 3,
+                baseTactics: 10, tacticsPerLevel: 2, tacticsPerRank: 4,
+                baseLogistics: 8, logisticsPerLevel: 1, logisticsPerRank: 3,
+                baseRationing: 8, rationingPerLevel: 1, rationingPerRank: 3,
+                baseEndurance: 8, endurancePerLevel: 1, endurancePerRank: 3)
+        case .siegeAggressive:
+            return CommanderStatProfile(
+                baseLeadership: 8, leadershipPerLevel: 1, leadershipPerRank: 3,
+                baseTactics: 8, tacticsPerLevel: 1, tacticsPerRank: 3,
+                baseLogistics: 8, logisticsPerLevel: 1, logisticsPerRank: 3,
+                baseRationing: 10, rationingPerLevel: 2, rationingPerRank: 4,
+                baseEndurance: 10, endurancePerLevel: 2, endurancePerRank: 4)
+        case .siegeDefensive:
+            return CommanderStatProfile(
+                baseLeadership: 8, leadershipPerLevel: 1, leadershipPerRank: 3,
+                baseTactics: 8, tacticsPerLevel: 1, tacticsPerRank: 3,
+                baseLogistics: 8, logisticsPerLevel: 1, logisticsPerRank: 3,
+                baseRationing: 10, rationingPerLevel: 2, rationingPerRank: 4,
+                baseEndurance: 8, endurancePerLevel: 1, endurancePerRank: 3)
+        case .defensive:
+            return CommanderStatProfile(
+                baseLeadership: 10, leadershipPerLevel: 2, leadershipPerRank: 4,
+                baseTactics: 12, tacticsPerLevel: 3, tacticsPerRank: 5,
+                baseLogistics: 6, logisticsPerLevel: 1, logisticsPerRank: 2,
+                baseRationing: 10, rationingPerLevel: 2, rationingPerRank: 4,
+                baseEndurance: 8, endurancePerLevel: 1, endurancePerRank: 3)
+        case .logistics:
+            return CommanderStatProfile(
+                baseLeadership: 10, leadershipPerLevel: 2, leadershipPerRank: 4,
+                baseTactics: 6, tacticsPerLevel: 1, tacticsPerRank: 2,
+                baseLogistics: 12, logisticsPerLevel: 3, logisticsPerRank: 5,
+                baseRationing: 8, rationingPerLevel: 1, rationingPerRank: 3,
+                baseEndurance: 8, endurancePerLevel: 1, endurancePerRank: 3)
+        }
+    }
+
+    /// Migrate from legacy specialty rawValues (pre-rework saves)
+    static func fromLegacy(_ rawValue: String) -> CommanderSpecialtyData? {
+        switch rawValue {
+        case "Infantry": return .infantryAggressive
+        case "Cavalry": return .cavalryAggressive
+        case "Ranged": return .rangedAggressive
+        case "Siege": return .siegeAggressive
+        case "Defensive": return .defensive
+        case "Logistics": return .logistics
+        default: return CommanderSpecialtyData(rawValue: rawValue)
         }
     }
 }
@@ -639,9 +819,12 @@ class CommanderData: Codable {
     var specialty: CommanderSpecialtyData
     var rank: CommanderRankData = .recruit
 
-    // Base stats (set at creation)
+    // Base stats (set at creation, derived from specialty profile)
     let baseLeadership: Int
     let baseTactics: Int
+    let baseLogistics: Int
+    let baseRationing: Int
+    let baseEndurance: Int
 
     // Stamina system
     var stamina: Double = 100.0
@@ -654,12 +837,19 @@ class CommanderData: Codable {
     // Portrait color stored as hex
     var portraitColorHex: String = "#0000FF"
 
-    init(id: UUID = UUID(), name: String, specialty: CommanderSpecialtyData, baseLeadership: Int = 10, baseTactics: Int = 10, ownerID: UUID? = nil) {
+    init(id: UUID = UUID(), name: String, specialty: CommanderSpecialtyData,
+         baseLeadership: Int? = nil, baseTactics: Int? = nil,
+         baseLogistics: Int? = nil, baseRationing: Int? = nil, baseEndurance: Int? = nil,
+         ownerID: UUID? = nil) {
+        let profile = specialty.statProfile
         self.id = id
         self.name = name
         self.specialty = specialty
-        self.baseLeadership = baseLeadership
-        self.baseTactics = baseTactics
+        self.baseLeadership = baseLeadership ?? profile.baseLeadership
+        self.baseTactics = baseTactics ?? profile.baseTactics
+        self.baseLogistics = baseLogistics ?? profile.baseLogistics
+        self.baseRationing = baseRationing ?? profile.baseRationing
+        self.baseEndurance = baseEndurance ?? profile.baseEndurance
         self.ownerID = ownerID
         self.lastStaminaUpdateTime = Date().timeIntervalSince1970
     }
@@ -667,11 +857,28 @@ class CommanderData: Codable {
     // MARK: - Computed Stats
 
     var leadership: Int {
-        return baseLeadership + (level - 1) * 2
+        let profile = specialty.statProfile
+        return baseLeadership + (level - 1) * profile.leadershipPerLevel + rank.index * profile.leadershipPerRank
     }
 
     var tactics: Int {
-        return baseTactics + (level - 1) * 2
+        let profile = specialty.statProfile
+        return baseTactics + (level - 1) * profile.tacticsPerLevel + rank.index * profile.tacticsPerRank
+    }
+
+    var logistics: Int {
+        let profile = specialty.statProfile
+        return baseLogistics + (level - 1) * profile.logisticsPerLevel + rank.index * profile.logisticsPerRank
+    }
+
+    var rationing: Int {
+        let profile = specialty.statProfile
+        return baseRationing + (level - 1) * profile.rationingPerLevel + rank.index * profile.rationingPerRank
+    }
+
+    var endurance: Int {
+        let profile = specialty.statProfile
+        return baseEndurance + (level - 1) * profile.endurancePerLevel + rank.index * profile.endurancePerRank
     }
 
     var staminaPercentage: Double {
@@ -698,7 +905,8 @@ class CommanderData: Codable {
         }
 
         let elapsed = currentTime - lastStaminaUpdateTime
-        let regenAmount = elapsed * CommanderData.staminaRegenPerSecond
+        let enduranceMultiplier = 1.0 + Double(endurance) * GameConfig.Commander.enduranceRegenScaling
+        let regenAmount = elapsed * CommanderData.staminaRegenPerSecond * enduranceMultiplier
 
         if stamina < CommanderData.maxStamina {
             stamina = min(CommanderData.maxStamina, stamina + regenAmount)
@@ -740,7 +948,7 @@ class CommanderData: Codable {
         default: newRank = nil
         }
 
-        if let newRank = newRank, newRank.maxArmySize > rank.maxArmySize {
+        if let newRank = newRank, newRank.index > rank.index {
             rank = newRank
         }
     }
@@ -748,28 +956,19 @@ class CommanderData: Codable {
     // MARK: - Combat Bonuses
 
     func getAttackBonus(for category: UnitCategoryData) -> Double {
-        let specialtyBonus = specialty.getBonus(for: category)
-        let rankBonus = rank.leadershipBonus
+        let specialtyAttackBonus = Double(specialty.attackBonus(for: category))
         let levelBonus = Double(level) * 0.01
-        return specialtyBonus + rankBonus + levelBonus
+        return specialtyAttackBonus * 0.1 + levelBonus
     }
 
     func getDefenseBonus() -> Double {
-        let rankBonus = rank.leadershipBonus
+        let armorBonus = Double(specialty.armorBonus)
         let levelBonus = Double(level) * 0.01
-
-        if specialty == .defensive {
-            return rankBonus + levelBonus + 0.15
-        }
-
-        return rankBonus + levelBonus
+        return armorBonus * 0.1 + levelBonus
     }
 
     func getSpeedBonus() -> Double {
-        if specialty == .logistics {
-            return 0.20
-        }
-        return 0.0
+        return 1.0 + Double(logistics) * GameConfig.Commander.logisticsSpeedScaling
     }
 
     // MARK: - Codable
@@ -779,8 +978,36 @@ class CommanderData: Codable {
         case level, experience
         case specialty, rank
         case baseLeadership, baseTactics
+        case baseLogistics, baseRationing, baseEndurance
         case stamina, lastStaminaUpdateTime
         case portraitColorHex
+    }
+
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        ownerID = try container.decodeIfPresent(UUID.self, forKey: .ownerID)
+        assignedArmyID = try container.decodeIfPresent(UUID.self, forKey: .assignedArmyID)
+        level = try container.decode(Int.self, forKey: .level)
+        experience = try container.decode(Int.self, forKey: .experience)
+        rank = try container.decode(CommanderRankData.self, forKey: .rank)
+        stamina = try container.decode(Double.self, forKey: .stamina)
+        lastStaminaUpdateTime = try container.decode(TimeInterval.self, forKey: .lastStaminaUpdateTime)
+        portraitColorHex = try container.decodeIfPresent(String.self, forKey: .portraitColorHex) ?? "#0000FF"
+
+        // Handle specialty migration from legacy rawValues
+        let specialtyRaw = try container.decode(String.self, forKey: .specialty)
+        specialty = CommanderSpecialtyData(rawValue: specialtyRaw) ?? CommanderSpecialtyData.fromLegacy(specialtyRaw) ?? .infantryAggressive
+
+        baseLeadership = try container.decode(Int.self, forKey: .baseLeadership)
+        baseTactics = try container.decode(Int.self, forKey: .baseTactics)
+
+        // New stats with backward compatibility defaults
+        let profile = specialty.statProfile
+        baseLogistics = try container.decodeIfPresent(Int.self, forKey: .baseLogistics) ?? profile.baseLogistics
+        baseRationing = try container.decodeIfPresent(Int.self, forKey: .baseRationing) ?? profile.baseRationing
+        baseEndurance = try container.decodeIfPresent(Int.self, forKey: .baseEndurance) ?? profile.baseEndurance
     }
 }
 
@@ -812,40 +1039,15 @@ enum CommanderRankData: String, Codable, CaseIterable {
         }
     }
 
-    var maxArmySize: Int {
+    /// Rank index used for stat scaling (Recruit=0 through General=5)
+    var index: Int {
         switch self {
-        case .recruit: return 50
-        case .sergeant: return 100
-        case .captain: return 150
-        case .major: return 200
-        case .colonel: return 300
-        case .general: return 500
-        }
-    }
-
-    var leadershipBonus: Double {
-        switch self {
-        case .recruit: return 0.0
-        case .sergeant: return 0.05
-        case .captain: return 0.10
-        case .major: return 0.15
-        case .colonel: return 0.20
-        case .general: return 0.30
-        }
-    }
-
-    var baseAttackBonus: Double {
-        return leadershipBonus
-    }
-
-    var baseDefenseBonus: Double {
-        switch self {
-        case .recruit: return 0.0
-        case .sergeant: return 0.02
-        case .captain: return 0.05
-        case .major: return 0.08
-        case .colonel: return 0.12
-        case .general: return 0.18
+        case .recruit: return 0
+        case .sergeant: return 1
+        case .captain: return 2
+        case .major: return 3
+        case .colonel: return 4
+        case .general: return 5
         }
     }
 }

@@ -100,6 +100,7 @@ enum CommandType: String, Codable, CaseIterable {
     case cancelDemolition
     case retreat
     case joinVillagerGroup
+    case entrench
 }
 
 // MARK: - Command Context
@@ -191,6 +192,8 @@ struct AnyCommand: Codable {
             return try decoder.decode(RetreatCommand.self, from: data)
         case .joinVillagerGroup:
             return try decoder.decode(JoinVillagerGroupCommand.self, from: data)
+        case .entrench:
+            return try decoder.decode(EntrenchCommand.self, from: data)
         }
     }
 }

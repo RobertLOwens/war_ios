@@ -63,6 +63,9 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     var skipInitialSetup: Bool = false
     var isLoading: Bool = false
 
+    // Entrenchment overlays
+    var entrenchmentOverlays: [UUID: [SKShapeNode]] = [:]
+
     private var lastVisionUpdateTime: TimeInterval = 0
     private var lastBuildingTimerUpdateTime: TimeInterval = 0
     private var lastTrainingUpdateTime: TimeInterval = 0
@@ -497,7 +500,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     private func findAdjacentWalkableCoordinate(near coord: HexCoordinate) -> HexCoordinate {
         for neighbor in coord.neighbors() {
             if hexMap.isValidCoordinate(neighbor) && hexMap.isWalkable(neighbor) {
-                if hexMap.getBuilding(at: neighbor) == nil && hexMap.getEntity(at: neighbor) == nil {
+                if hexMap.getBuilding(at: neighbor) == nil && hexMap.getEntityCount(at: neighbor) < GameConfig.Stacking.maxEntitiesPerTile {
                     return neighbor
                 }
             }
@@ -592,9 +595,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             // Create a level 1 infantry commander for the arena
             let commander = Commander(
                 name: Commander.randomName(),
-                specialty: .infantry,
-                baseLeadership: 10,
-                baseTactics: 10,
+                specialty: .infantryAggressive,
                 portraitColor: Commander.randomColor(),
                 owner: currentPlayer
             )
@@ -918,6 +919,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // =========================================================================
         if currentTime - lastVisionUpdateTime >= visionUpdateInterval {
             updateVisionAndFog()
+            updateEntrenchmentOverlays()
             lastVisionUpdateTime = currentTime
         }
         
@@ -988,23 +990,147 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     /// Updates vision and fog of war - runs 4x per second
     private func updateVisionAndFog() {
         guard let player = player else { return }
-        
+
         // Update player's vision based on unit positions
         player.updateVision(allPlayers: allGamePlayers)
-        
+
+        // Grant 1-tile visibility to own reinforcements
+        var reinforcementCoords: [HexCoordinate] = []
+        for node in reinforcementNodes {
+            guard node.reinforcement.owner?.id == player.id else { continue }
+            reinforcementCoords.append(node.coordinate)
+        }
+        player.fogOfWar?.addReinforcementVision(coordinates: reinforcementCoords)
+
+        // Sync reinforcement positions to GameState for VisionEngine (AI use)
+        syncReinforcementPositionsToGameState()
+
         // Update fog overlay visuals
         hexMap.updateFogOverlays(for: player)
-        
+
         // Update entity visibility
         for entity in hexMap.entities {
             entity.updateVisibility(for: player)
         }
-        
+
         // Update building visibility
         for building in hexMap.buildings {
             let displayMode = player.fogOfWar?.shouldShowBuilding(building, at: building.coordinate) ?? .hidden
             building.updateVisibility(displayMode: displayMode)
         }
+    }
+
+    /// Syncs reinforcement positions to GameState for VisionEngine calculations
+    private func syncReinforcementPositionsToGameState() {
+        guard let gameState = GameEngine.shared.gameState else { return }
+        gameState.activeReinforcementPositions.removeAll()
+        for node in reinforcementNodes {
+            guard let ownerID = node.reinforcement.owner?.id else { continue }
+            gameState.activeReinforcementPositions[ownerID, default: []].insert(node.coordinate)
+        }
+    }
+
+    // MARK: - Entrenchment Overlays
+
+    /// Updates entrenchment visual overlays for entrenched armies
+    private func updateEntrenchmentOverlays() {
+        guard let player = player else { return }
+
+        // Collect currently entrenched army IDs
+        var currentlyEntrenched: Set<UUID> = []
+
+        for entity in hexMap.entities {
+            guard let army = entity.entity as? Army, army.isEntrenched else { continue }
+            currentlyEntrenched.insert(army.id)
+
+            // Skip if overlays already exist for this army
+            if entrenchmentOverlays[army.id] != nil { continue }
+
+            // Create neighbor hex outlines
+            let neighbors = army.coordinate.neighbors()
+            var overlayNodes: [SKShapeNode] = []
+
+            for neighbor in neighbors {
+                // Only show overlays for tiles that exist on the map
+                guard hexMap.getTile(at: neighbor) != nil else { continue }
+
+                // Check visibility - only show if tile is visible to local player
+                guard player.isVisible(neighbor) else { continue }
+
+                let position = HexMap.hexToPixel(q: neighbor.q, r: neighbor.r)
+                let shape = createEntrenchmentHexOutline(at: position)
+                mapNode.addChild(shape)
+                overlayNodes.append(shape)
+            }
+
+            entrenchmentOverlays[army.id] = overlayNodes
+        }
+
+        // Remove overlays for armies that are no longer entrenched
+        let staleIDs = entrenchmentOverlays.keys.filter { !currentlyEntrenched.contains($0) }
+        for armyID in staleIDs {
+            removeEntrenchmentOverlays(for: armyID)
+        }
+
+        // Update visibility of existing overlays based on fog of war
+        for (armyID, nodes) in entrenchmentOverlays {
+            // Find the army to get its coordinate
+            guard let entity = hexMap.entities.first(where: { $0.entity.id == armyID }),
+                  let army = entity.entity as? Army else {
+                continue
+            }
+            let neighbors = army.coordinate.neighbors()
+            for (index, node) in nodes.enumerated() {
+                if index < neighbors.count {
+                    node.isHidden = !player.isVisible(neighbors[index])
+                }
+            }
+        }
+    }
+
+    /// Creates a hex outline shape for entrenchment neighbor tiles
+    private func createEntrenchmentHexOutline(at position: CGPoint) -> SKShapeNode {
+        let radius: CGFloat = HexTileNode.hexRadius - 2
+        let isoRatio = HexTileNode.isoRatio
+        let path = UIBezierPath()
+
+        for i in 0..<6 {
+            let angle = CGFloat(i) * CGFloat.pi / 3 - CGFloat.pi / 6
+            let x = radius * cos(angle)
+            let y = radius * sin(angle) * isoRatio
+
+            if i == 0 {
+                path.move(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+        path.close()
+
+        let shape = SKShapeNode(path: path.cgPath)
+        shape.position = position
+        shape.strokeColor = UIColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 0.8)
+        shape.lineWidth = 3
+        shape.fillColor = UIColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 0.1)
+        shape.glowWidth = 1
+        shape.zPosition = 50
+
+        // Pulsing animation
+        let fadeOut = SKAction.fadeAlpha(to: 0.4, duration: 0.8)
+        let fadeIn = SKAction.fadeAlpha(to: 1.0, duration: 0.8)
+        let pulse = SKAction.sequence([fadeOut, fadeIn])
+        shape.run(SKAction.repeatForever(pulse))
+
+        return shape
+    }
+
+    /// Removes all entrenchment overlays for a specific army
+    func removeEntrenchmentOverlays(for armyID: UUID) {
+        guard let nodes = entrenchmentOverlays[armyID] else { return }
+        for node in nodes {
+            node.removeFromParent()
+        }
+        entrenchmentOverlays.removeValue(forKey: armyID)
     }
 
     // Garrison defense is now handled by CombatEngine.processGarrisonDefense()

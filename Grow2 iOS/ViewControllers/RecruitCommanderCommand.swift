@@ -77,14 +77,12 @@ struct RecruitCommanderCommand: GameCommand {
             alpha: 1.0
         )
         
-        // Create new commander with random name
+        // Create new commander with random name, stats derived from specialty profile
         let commanderName = Commander.randomName()
         let newCommander = Commander(
             name: commanderName,
             rank: .recruit,
             specialty: specialty,
-            baseLeadership: Int.random(in: 8...12),
-            baseTactics: Int.random(in: 8...12),
             portraitColor: randomColor
         )
         

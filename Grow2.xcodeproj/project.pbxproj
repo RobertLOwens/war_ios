@@ -128,6 +128,7 @@
 		3FREINGRP12F29A00100REINF /* ReinforcementGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */; };
 		3FREINNODE12F29B00100REIN /* ReinforcementNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */; };
 		3FREINPNL10000000100REINP /* ReinforcePanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */; };
+		3FENTRCH1000000000ENTCMD /* EntrenchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENTRCH2000000000ENTCMD /* EntrenchCommand.swift */; };
 		3FRETREAT12F2AA00100RETRT /* RetreatCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */; };
 		3FROOT0001000000000GSINT /* GameSceneEngineIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */; };
 		3FRSRCOVW10000000100RSRCO /* ResourceOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */; };
@@ -262,6 +263,7 @@
 		3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementGroup.swift; sourceTree = "<group>"; };
 		3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementNode.swift; sourceTree = "<group>"; };
 		3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcePanelViewController.swift; sourceTree = "<group>"; };
+		3FENTRCH2000000000ENTCMD /* EntrenchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntrenchCommand.swift; sourceTree = "<group>"; };
 		3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetreatCommand.swift; sourceTree = "<group>"; };
 		3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneEngineIntegration.swift; sourceTree = "<group>"; };
 		3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceOverviewViewController.swift; sourceTree = "<group>"; };
@@ -300,6 +302,7 @@
 				3F286A192F199C93004636ED /* ReinforceArmyCommand.swift */,
 				3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */,
 				3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */,
+				3FENTRCH2000000000ENTCMD /* EntrenchCommand.swift */,
 				3F286A132F19615D004636ED /* UpgradeCommand.swift */,
 				3F286A0F2F19613C004636ED /* TrainCommand.swift */,
 				3FJNVLRCMD20000000100JNVL /* JoinVillagerGroupCommand.swift */,
@@ -728,6 +731,7 @@
 				3FF8CF532F099148002FA5D7 /* GameSaveManager.swift in Sources */,
 				3F286A162F19616F004636ED /* DeployCommand.swift in Sources */,
 				3FRETREAT12F2AA00100RETRT /* RetreatCommand.swift in Sources */,
+				3FENTRCH1000000000ENTCMD /* EntrenchCommand.swift in Sources */,
 				3F34D5B32ECABDFF00AE6DF0 /* Entity Node.swift in Sources */,
 				3FF8CF5B2F0D92CE002FA5D7 /* VillagerMergeViewController.swift in Sources */,
 				3F34D5B72ECBB7B800AE6DF0 /* HexMap.swift in Sources */,

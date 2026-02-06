@@ -54,6 +54,10 @@ struct AttackCommand: GameCommand {
             guard diplomacy == .enemy else {
                 return .failure(reason: "Target is not an enemy")
             }
+            // Block direct attacks on entrenched armies
+            if let targetArmy = targetEntity.entity as? Army, targetArmy.isEntrenched {
+                return .failure(reason: "Army is entrenched! Attack from an adjacent tile.")
+            }
             return .success
         }
 
@@ -92,7 +96,24 @@ struct AttackCommand: GameCommand {
             guard diplomacy == .enemy else {
                 return .failure(reason: "Target is not an enemy")
             }
+            // Block direct attacks on entrenched armies - must attack from neighbor tile
+            if let targetArmy = target.entity as? Army, targetArmy.isEntrenched {
+                return .failure(reason: "Army is entrenched! Attack from an adjacent tile.")
+            }
             return .success
+        }
+
+        // Check if clicking a neighbor tile of an entrenched enemy army
+        let neighbors = targetCoordinate.neighbors()
+        for neighbor in neighbors {
+            if let entity = context.hexMap.getEntity(at: neighbor),
+               let army = entity.entity as? Army,
+               army.isEntrenched {
+                let diplomacy = player?.getDiplomacyStatus(with: entity.entity.owner) ?? .neutral
+                if diplomacy == .enemy {
+                    return .success
+                }
+            }
         }
 
         return .failure(reason: "No target at this location")
@@ -254,6 +275,33 @@ struct AttackCommand: GameCommand {
                 } else {
                     debugLog("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to villagers at (\(targetCoordinate.q), \(targetCoordinate.r))")
                     return .failure(reason: "No path to target")
+                }
+            }
+        }
+
+        // Check if clicking a neighbor tile of an entrenched enemy army
+        let neighbors = targetCoordinate.neighbors()
+        for neighbor in neighbors {
+            if let entity = context.hexMap.getEntity(at: neighbor),
+               let defenderArmy = entity.entity as? Army,
+               defenderArmy.isEntrenched,
+               defenderArmy.owner?.id != playerID {
+                // Path to the clicked neighbor tile, then start combat with entrenched army
+                if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
+                    let defenderID = defenderArmy.id
+                    debugLog("⚔️ \(attackerArmy.name) attacking entrenched army from neighbor tile (\(targetCoordinate.q), \(targetCoordinate.r))")
+                    attacker.moveTo(path: path) {
+                        debugLog("⚔️ \(attackerArmy.name) arrived at neighbor - attacking entrenched army!")
+                        let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
+                        _ = GameEngine.shared.combatEngine.startCombat(
+                            attackerArmyID: attackerArmy.id,
+                            defenderArmyID: defenderID,
+                            currentTime: combatTime
+                        )
+                    }
+                    return .success
+                } else {
+                    return .failure(reason: "No path to attack position")
                 }
             }
         }

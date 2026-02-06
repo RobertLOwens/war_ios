@@ -91,6 +91,25 @@ class Army: MapEntity {
         set { data.isRetreating = newValue }
     }
 
+    var isEntrenching: Bool {
+        get { data.isEntrenching }
+        set { data.isEntrenching = newValue }
+    }
+
+    var isEntrenched: Bool {
+        get { data.isEntrenched }
+        set { data.isEntrenched = newValue }
+    }
+
+    var entrenchmentStartTime: TimeInterval? {
+        get { data.entrenchmentStartTime }
+        set { data.entrenchmentStartTime = newValue }
+    }
+
+    func clearEntrenchment() {
+        data.clearEntrenchment()
+    }
+
     var isAwaitingReinforcements: Bool {
         return data.isAwaitingReinforcements
     }
@@ -218,7 +237,8 @@ class Army: MapEntity {
     
     // MARK: - Capacity
     func getMaxArmySize() -> Int {
-        return commander?.rank.maxArmySize ?? 200  // Default 200 if no commander
+        guard let commander = commander else { return 40 }
+        return GameConfig.Commander.leadershipToArmySizeBase + commander.leadership * GameConfig.Commander.leadershipToArmySizePerPoint
     }
 
     func isAtCapacity() -> Bool {

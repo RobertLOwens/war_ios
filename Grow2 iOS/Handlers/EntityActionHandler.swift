@@ -193,7 +193,10 @@ class EntityActionHandler {
             commander: commander,
             owner: player
         )
-        
+
+        // Set the city center as the army's home base
+        army.setHomeBase(cityCenter.data.id)
+
         // Create entity node
         let entityNode = EntityNode(
             coordinate: spawnCoord,

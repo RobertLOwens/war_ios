@@ -61,6 +61,14 @@ class MovementEngine {
         guard let state = gameState else { return [] }
 
         var changes: [StateChange] = []
+
+        // Clear entrenchment when army moves
+        if army.isEntrenching || army.isEntrenched {
+            let coord = army.coordinate
+            army.clearEntrenchment()
+            changes.append(.armyEntrenchmentCancelled(armyID: army.id, coordinate: coord))
+            debugLog("🪖 Army \(army.name) entrenchment cancelled due to movement")
+        }
         let targetCoord = path[army.pathIndex]
 
         // Calculate movement speed based on slowest unit in army
@@ -78,6 +86,13 @@ class MovementEngine {
 
         if army.isRetreating {
             speed *= retreatSpeedBonus
+        }
+
+        // Apply commander logistics bonus
+        if let commanderID = army.commanderID,
+           let commander = state.getCommander(id: commanderID) {
+            let logisticsBonus = 1.0 + Double(commander.logistics) * GameConfig.Commander.logisticsSpeedScaling
+            speed *= logisticsBonus
         }
 
         // Update progress
@@ -192,6 +207,13 @@ class MovementEngine {
                 speed = baseMovementSpeed * reinforcementMultiplier
             } else {
                 speed = baseMovementSpeed * reinforcementMultiplier * terrainSpeedMultiplier
+            }
+
+            // Apply commander logistics bonus to reinforcement speed
+            if let commanderID = army.commanderID,
+               let commander = state.getCommander(id: commanderID) {
+                let logisticsBonus = 1.0 + Double(commander.logistics) * GameConfig.Commander.logisticsSpeedScaling
+                speed *= logisticsBonus
             }
 
             // Simple progress update

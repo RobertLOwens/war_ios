@@ -216,6 +216,14 @@ class MapData: Codable {
         return villagerGroupCoordinates[id]
     }
 
+    // MARK: - Entity Stacking
+
+    func getEntityCount(at coordinate: HexCoordinate) -> Int {
+        let armyCount = armyCoordinates.values.filter { $0 == coordinate }.count
+        let villagerCount = villagerGroupCoordinates.values.filter { $0 == coordinate }.count
+        return armyCount + villagerCount
+    }
+
     // MARK: - Resource Point Management
 
     func registerResourcePoint(id: UUID, at coordinate: HexCoordinate) {
@@ -346,8 +354,7 @@ class MapData: Codable {
 
     func findNearestWalkable(to target: HexCoordinate, maxDistance: Int = 5, forPlayerID playerID: UUID?, gameState: GameState) -> HexCoordinate? {
         if isPassable(at: target, forPlayerID: playerID, gameState: gameState) &&
-           getArmyID(at: target) == nil &&
-           getVillagerGroupID(at: target) == nil &&
+           getEntityCount(at: target) < GameConfig.Stacking.maxEntitiesPerTile &&
            getBuildingID(at: target) == nil {
             return target
         }
@@ -358,8 +365,7 @@ class MapData: Codable {
             for (coord, _) in tiles {
                 if coord.distance(to: target) == distance {
                     if isPassable(at: coord, forPlayerID: playerID, gameState: gameState) &&
-                       getArmyID(at: coord) == nil &&
-                       getVillagerGroupID(at: coord) == nil &&
+                       getEntityCount(at: coord) < GameConfig.Stacking.maxEntitiesPerTile &&
                        getBuildingID(at: coord) == nil {
                         candidates.append(coord)
                     }

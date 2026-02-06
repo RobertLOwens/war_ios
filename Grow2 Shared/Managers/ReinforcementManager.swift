@@ -53,6 +53,11 @@ class ReinforcementManager {
         reinforcementNodes.append(node)
         reinforcementsNode?.addChild(node)
 
+        // Set up path visualization
+        if let container = reinforcementsNode {
+            node.setupPathLine(parentContainer: container)
+        }
+
         // Register pending reinforcement on the target army
         if let targetArmy = reinforcement.targetArmy {
             let travelTime = node.calculateTravelTime(path: path, hexMap: hexMap)
@@ -130,7 +135,7 @@ class ReinforcementManager {
             targetArmy.removePendingReinforcement(id: reinforcement.id)
         }
 
-        // Move back to source
+        // Move back to source (moveTo handles path visualization)
         node.moveTo(path: path, hexMap: hexMap) { [weak self] in
             // Add units back to building garrison
             if let building = reinforcement.sourceBuilding {

@@ -426,7 +426,7 @@ class ActiveCombat: Codable {
 
     /// Terrain at combat location
     let terrainType: TerrainType
-    let terrainDefenseBonus: Double
+    var terrainDefenseBonus: Double
     let terrainAttackPenalty: Double
 
     /// Phase transition threshold (seconds)
@@ -439,6 +439,10 @@ class ActiveCombat: Codable {
     /// Player states for research bonus application (not saved)
     var attackerPlayerState: PlayerState?
     var defenderPlayerState: PlayerState?
+
+    /// Commander tactics bonuses for terrain scaling (not saved)
+    var attackerTacticsBonus: Double = 0
+    var defenderTacticsBonus: Double = 0
 
     // MARK: - Phase Tracking for Detailed Combat Records
 

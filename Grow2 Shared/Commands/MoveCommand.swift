@@ -71,9 +71,13 @@ struct MoveCommand: GameCommand {
             return .failure(reason: "Invalid destination")
         }
         
-        // Check destination isn't blocked by enemy
-        if let entityAtDest = context.hexMap.getEntity(at: destination) {
-            let player = context.getPlayer(by: playerID)
+        // Check destination stacking limit and enemy presence
+        let entitiesAtDest = context.hexMap.getEntities(at: destination)
+        if entitiesAtDest.count >= GameConfig.Stacking.maxEntitiesPerTile {
+            return .failure(reason: "Tile is full (max \(GameConfig.Stacking.maxEntitiesPerTile) entities)")
+        }
+        let player = context.getPlayer(by: playerID)
+        for entityAtDest in entitiesAtDest {
             let diplomacy = player?.getDiplomacyStatus(with: entityAtDest.entity.owner) ?? .neutral
             if diplomacy == .enemy {
                 return .failure(reason: "Cannot move onto enemy-occupied tile")
@@ -98,9 +102,16 @@ struct MoveCommand: GameCommand {
             return .failure(reason: "No valid path")
         }
 
-        // Consume commander stamina for army movement
-        if let army = entity.entity as? Army, let commander = army.commander {
-            commander.consumeStamina()
+        // Clear entrenchment when moving
+        if let army = entity.entity as? Army {
+            if army.isEntrenching || army.isEntrenched {
+                army.clearEntrenchment()
+                debugLog("🪖 Army \(army.name) entrenchment cancelled due to move command")
+            }
+            // Consume commander stamina for army movement
+            if let commander = army.commander {
+                commander.consumeStamina()
+            }
         }
 
         entity.moveTo(path: path) {

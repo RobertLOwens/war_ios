@@ -106,6 +106,11 @@ class VisionEngine {
             visibleCoords.formUnion(coords)
         }
 
+        // Vision from reinforcements (just their tile)
+        if let coords = state.activeReinforcementPositions[playerID] {
+            visibleCoords.formUnion(coords)
+        }
+
         return visibleCoords
     }
 

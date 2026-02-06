@@ -99,8 +99,15 @@ class ResourceEngine {
             let consumptionInfo = state.getFoodConsumptionRate(forPlayer: player.id)
             if consumptionInfo.rate > 0 {
                 let deltaTime: TimeInterval = 0.5  // Match resource update interval
+
+                // Apply rationing reduction from player's best commander
+                let commanders = state.getCommandersForPlayer(id: player.id)
+                let bestRationing = commanders.map { $0.rationing }.max() ?? 0
+                let rationingReduction = min(GameConfig.Commander.rationingReductionCap, Double(bestRationing) * GameConfig.Commander.rationingReductionScaling)
+                let adjustedRate = consumptionInfo.rate * (1.0 - rationingReduction)
+
                 let oldFood = player.getResource(.food)
-                let consumed = player.consumeFood(consumptionRate: consumptionInfo.rate, deltaTime: deltaTime)
+                let consumed = player.consumeFood(consumptionRate: adjustedRate, deltaTime: deltaTime)
 
                 if consumed > 0 {
                     changes.append(.resourcesChanged(

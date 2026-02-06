@@ -71,6 +71,7 @@ class GameEngine {
     private var lastResourceUpdate: TimeInterval = 0
     private var lastMovementUpdate: TimeInterval = 0
     private var lastAIUpdate: TimeInterval = 0
+    private var lastEntrenchmentUpdate: TimeInterval = 0
 
     private let visionUpdateInterval = GameConfig.EngineIntervals.visionUpdate
     private let buildingUpdateInterval = GameConfig.EngineIntervals.buildingUpdate
@@ -79,6 +80,7 @@ class GameEngine {
     private let resourceUpdateInterval = GameConfig.EngineIntervals.resourceUpdate
     private let movementUpdateInterval = GameConfig.EngineIntervals.movementUpdate
     private let aiUpdateInterval = GameConfig.EngineIntervals.aiUpdate
+    private let entrenchmentCheckInterval = GameConfig.Entrenchment.checkInterval
 
     // MARK: - Initialization
 
@@ -121,6 +123,7 @@ class GameEngine {
         lastResourceUpdate = 0
         lastMovementUpdate = 0
         lastAIUpdate = 0
+        lastEntrenchmentUpdate = 0
         aiController.reset()
     }
 
@@ -195,6 +198,13 @@ class GameEngine {
             lastAIUpdate = adjustedTime
         }
 
+        // Entrenchment progress updates
+        if adjustedTime - lastEntrenchmentUpdate >= entrenchmentCheckInterval {
+            let entrenchmentChanges = updateEntrenchmentProgress(currentTime: adjustedTime)
+            allChanges.append(contentsOf: entrenchmentChanges)
+            lastEntrenchmentUpdate = adjustedTime
+        }
+
         // Research completion updates (check all players)
         let researchChanges = updateResearchCompletion(currentTime: adjustedTime)
         allChanges.append(contentsOf: researchChanges)
@@ -208,6 +218,39 @@ class GameEngine {
         // Notify tick
         delegate?.gameEngineDidTick(self, currentTime: adjustedTime)
         lastTickTime = adjustedTime
+    }
+
+    // MARK: - Entrenchment Progress
+
+    /// Check and update entrenchment progress for all entrenching armies
+    private func updateEntrenchmentProgress(currentTime: TimeInterval) -> [StateChange] {
+        guard let state = gameState else { return [] }
+
+        var changes: [StateChange] = []
+
+        for army in state.armies.values {
+            guard army.isEntrenching,
+                  let startTime = army.entrenchmentStartTime else {
+                continue
+            }
+
+            let elapsed = currentTime - startTime
+            let progress = min(1.0, elapsed / GameConfig.Entrenchment.buildTime)
+
+            if progress >= 1.0 {
+                // Entrenchment complete
+                army.isEntrenching = false
+                army.isEntrenched = true
+                army.entrenchmentStartTime = nil
+
+                changes.append(.armyEntrenched(armyID: army.id, coordinate: army.coordinate))
+                debugLog("🪖 Army \(army.name) is now entrenched at (\(army.coordinate.q), \(army.coordinate.r))")
+            } else {
+                changes.append(.armyEntrenchmentProgress(armyID: army.id, progress: progress))
+            }
+        }
+
+        return changes
     }
 
     // MARK: - Research Completion

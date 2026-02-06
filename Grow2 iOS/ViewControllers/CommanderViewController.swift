@@ -21,8 +21,17 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
     var xpProgressBar: UIView!
     var leadershipLabel: UILabel!
     var tacticsLabel: UILabel!
+    var logisticsLabel: UILabel!
+    var rationingLabel: UILabel!
+    var enduranceLabel: UILabel!
+    var leadershipBenefitLabel: UILabel!
+    var tacticsBenefitLabel: UILabel!
+    var logisticsBenefitLabel: UILabel!
+    var rationingBenefitLabel: UILabel!
+    var enduranceBenefitLabel: UILabel!
     var armyLabel: UILabel!
     var locationLabel: UILabel!
+    var homeBaseLabel: UILabel!
     var portraitView: UIView!
     var recruitButton: UIButton!
     
@@ -162,42 +171,95 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         statsTitleLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
         detailView.addSubview(statsTitleLabel)
         
+        let benefitX: CGFloat = 220
+        let benefitWidth: CGFloat = detailView.bounds.width - benefitX - 20
+        let benefitColor = UIColor(red: 0.5, green: 0.85, blue: 0.5, alpha: 1.0)
+
         leadershipLabel = UILabel(frame: CGRect(x: 20, y: 325, width: 200, height: 25))
         leadershipLabel.font = UIFont.systemFont(ofSize: 18)
         leadershipLabel.textColor = .white
         leadershipLabel.text = "👑 Leadership: 10"
         detailView.addSubview(leadershipLabel)
-        
+
+        leadershipBenefitLabel = UILabel(frame: CGRect(x: benefitX, y: 325, width: benefitWidth, height: 25))
+        leadershipBenefitLabel.font = UIFont.systemFont(ofSize: 14)
+        leadershipBenefitLabel.textColor = benefitColor
+        detailView.addSubview(leadershipBenefitLabel)
+
         tacticsLabel = UILabel(frame: CGRect(x: 20, y: 355, width: 200, height: 25))
         tacticsLabel.font = UIFont.systemFont(ofSize: 18)
         tacticsLabel.textColor = .white
         tacticsLabel.text = "🎯 Tactics: 10"
         detailView.addSubview(tacticsLabel)
-        
+
+        tacticsBenefitLabel = UILabel(frame: CGRect(x: benefitX, y: 355, width: benefitWidth, height: 25))
+        tacticsBenefitLabel.font = UIFont.systemFont(ofSize: 14)
+        tacticsBenefitLabel.textColor = benefitColor
+        detailView.addSubview(tacticsBenefitLabel)
+
+        logisticsLabel = UILabel(frame: CGRect(x: 20, y: 385, width: 200, height: 25))
+        logisticsLabel.font = UIFont.systemFont(ofSize: 18)
+        logisticsLabel.textColor = .white
+        logisticsLabel.text = "📦 Logistics: 10"
+        detailView.addSubview(logisticsLabel)
+
+        logisticsBenefitLabel = UILabel(frame: CGRect(x: benefitX, y: 385, width: benefitWidth, height: 25))
+        logisticsBenefitLabel.font = UIFont.systemFont(ofSize: 14)
+        logisticsBenefitLabel.textColor = benefitColor
+        detailView.addSubview(logisticsBenefitLabel)
+
+        rationingLabel = UILabel(frame: CGRect(x: 20, y: 415, width: 200, height: 25))
+        rationingLabel.font = UIFont.systemFont(ofSize: 18)
+        rationingLabel.textColor = .white
+        rationingLabel.text = "🍞 Rationing: 10"
+        detailView.addSubview(rationingLabel)
+
+        rationingBenefitLabel = UILabel(frame: CGRect(x: benefitX, y: 415, width: benefitWidth, height: 25))
+        rationingBenefitLabel.font = UIFont.systemFont(ofSize: 14)
+        rationingBenefitLabel.textColor = benefitColor
+        detailView.addSubview(rationingBenefitLabel)
+
+        enduranceLabel = UILabel(frame: CGRect(x: 20, y: 445, width: 200, height: 25))
+        enduranceLabel.font = UIFont.systemFont(ofSize: 18)
+        enduranceLabel.textColor = .white
+        enduranceLabel.text = "💪 Endurance: 10"
+        detailView.addSubview(enduranceLabel)
+
+        enduranceBenefitLabel = UILabel(frame: CGRect(x: benefitX, y: 445, width: benefitWidth, height: 25))
+        enduranceBenefitLabel.font = UIFont.systemFont(ofSize: 14)
+        enduranceBenefitLabel.textColor = benefitColor
+        detailView.addSubview(enduranceBenefitLabel)
+
         // Divider
-        let divider3 = UIView(frame: CGRect(x: 20, y: 400, width: detailView.bounds.width - 40, height: 1))
+        let divider3 = UIView(frame: CGRect(x: 20, y: 490, width: detailView.bounds.width - 40, height: 1))
         divider3.backgroundColor = UIColor(white: 0.4, alpha: 1.0)
         detailView.addSubview(divider3)
-        
+
         // Assignment Section
-        let assignmentTitleLabel = UILabel(frame: CGRect(x: 20, y: 420, width: 200, height: 25))
+        let assignmentTitleLabel = UILabel(frame: CGRect(x: 20, y: 510, width: 200, height: 25))
         assignmentTitleLabel.text = "Current Assignment"
         assignmentTitleLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
         assignmentTitleLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
         detailView.addSubview(assignmentTitleLabel)
         
-        armyLabel = UILabel(frame: CGRect(x: 20, y: 455, width: detailView.bounds.width - 40, height: 25))
+        armyLabel = UILabel(frame: CGRect(x: 20, y: 545, width: detailView.bounds.width - 40, height: 25))
         armyLabel.font = UIFont.systemFont(ofSize: 18)
         armyLabel.textColor = .white
         armyLabel.text = "🛡️ Army: None"
         armyLabel.numberOfLines = 2
         detailView.addSubview(armyLabel)
-        
-        locationLabel = UILabel(frame: CGRect(x: 20, y: 485, width: detailView.bounds.width - 40, height: 25))
+
+        locationLabel = UILabel(frame: CGRect(x: 20, y: 575, width: detailView.bounds.width - 40, height: 25))
         locationLabel.font = UIFont.systemFont(ofSize: 16)
         locationLabel.textColor = UIColor(white: 0.8, alpha: 1.0)
         locationLabel.text = "📍 Location: —"
         detailView.addSubview(locationLabel)
+
+        homeBaseLabel = UILabel(frame: CGRect(x: 20, y: 605, width: detailView.bounds.width - 40, height: 25))
+        homeBaseLabel.font = UIFont.systemFont(ofSize: 16)
+        homeBaseLabel.textColor = UIColor(white: 0.8, alpha: 1.0)
+        homeBaseLabel.text = "🏠 Home Base: —"
+        detailView.addSubview(homeBaseLabel)
     }
     
     func updateDetailView() {
@@ -224,18 +286,44 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         let maxBarWidth = detailView.bounds.width - 40
         xpProgressBar.frame.size.width = maxBarWidth * CGFloat(xpProgress)
         
-        // Stats
+        // Stats with gameplay benefits
         leadershipLabel.text = "👑 Leadership: \(commander.leadership)"
+        let maxArmy = GameConfig.Commander.leadershipToArmySizeBase + commander.leadership * GameConfig.Commander.leadershipToArmySizePerPoint
+        leadershipBenefitLabel.text = "Max Army: \(maxArmy) units"
+
         tacticsLabel.text = "🎯 Tactics: \(commander.tactics)"
+        let terrainBonus = Double(commander.tactics) * GameConfig.Commander.tacticsTerrainScaling * 100
+        tacticsBenefitLabel.text = "+\(Int(terrainBonus))% terrain bonus"
+
+        logisticsLabel.text = "📦 Logistics: \(commander.logistics)"
+        let speedBonus = Double(commander.logistics) * GameConfig.Commander.logisticsSpeedScaling * 100
+        logisticsBenefitLabel.text = String(format: "+%.1f%% move speed", speedBonus)
+
+        rationingLabel.text = "🍞 Rationing: \(commander.rationing)"
+        let foodReduction = min(GameConfig.Commander.rationingReductionCap, Double(commander.rationing) * GameConfig.Commander.rationingReductionScaling) * 100
+        rationingBenefitLabel.text = String(format: "-%.1f%% food cost", foodReduction)
+
+        enduranceLabel.text = "💪 Endurance: \(commander.endurance)"
+        let staminaBonus = Double(commander.endurance) * GameConfig.Commander.enduranceRegenScaling * 100
+        enduranceBenefitLabel.text = "+\(Int(staminaBonus))% stamina regen"
         
         // Find assigned army
         if let army = player?.armies.first(where: { $0.commander?.id == commander.id }) {
             let unitCount = army.getTotalMilitaryUnits()
             armyLabel.text = "🛡️ Army: \(army.name) (\(unitCount) units)"
             locationLabel.text = "📍 Location: (\(army.coordinate.q), \(army.coordinate.r))"
+
+            // Show home base
+            if let homeBaseID = army.homeBaseID,
+               let homeBase = hexMap?.buildings.first(where: { $0.data.id == homeBaseID }) {
+                homeBaseLabel.text = "🏠 Home Base: \(homeBase.buildingType.icon) \(homeBase.buildingType.displayName) (\(homeBase.coordinate.q), \(homeBase.coordinate.r))"
+            } else {
+                homeBaseLabel.text = "🏠 Home Base: None"
+            }
         } else {
             armyLabel.text = "🛡️ Army: Unassigned"
             locationLabel.text = "📍 Location: —"
+            homeBaseLabel.text = "🏠 Home Base: —"
         }
     }
     
@@ -303,58 +391,18 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
         showSpecialtySelection(recruitmentCost: recruitmentCost)
     }
 
-    func showRecruitmentMenu() {
-        let recruitmentCost: [ResourceType: Int] = [
-            .food: 200,
-            .wood: 100,
-            .ore: 50
-        ]
-        
-        // Check if player can afford
-        guard let player = player else { return }
-        
-        var canAfford = true
-        var costMessage = "Recruitment Cost:\n"
-        
-        for (resourceType, amount) in recruitmentCost.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            let current = player.getResource(resourceType)
-            let statusIcon = current >= amount ? "✅" : "❌"
-            costMessage += "\(statusIcon) \(resourceType.icon) \(resourceType.displayName): \(amount) (You have: \(current))\n"
-            
-            if current < amount {
-                canAfford = false
-            }
-        }
-        
-        if !canAfford {
-            let alert = UIAlertController(
-                title: "Insufficient Resources",
-                message: costMessage,
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            present(alert, animated: true)
-            return
-        }
-        
-        // Show specialty selection
-        showSpecialtySelection(recruitmentCost: recruitmentCost)
-    }
-
     func showSpecialtySelection(recruitmentCost: [ResourceType: Int]) {
-        var actions: [AlertAction] = []
-        
-        for specialty in CommanderSpecialty.allCases {
-            actions.append(AlertAction(title: "\(specialty.icon) \(specialty.displayName) - \(specialty.description)") { [weak self] in
-                self?.recruitCommander(specialty: specialty)
-            })
+        let selectionVC = SpecialtySelectionViewController()
+        selectionVC.recruitmentCost = recruitmentCost
+        selectionVC.onSpecialtySelected = { [weak self] specialty in
+            self?.recruitCommander(specialty: specialty)
         }
-        
-        showActionSheet(
-            title: "🎖️ Choose Commander Specialty",
-            message: "Select the specialty for your new commander:",
-            actions: actions
-        )
+        selectionVC.modalPresentationStyle = .pageSheet
+        if let sheet = selectionVC.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(selectionVC, animated: true)
     }
 
     func recruitCommander(specialty: CommanderSpecialty) {
@@ -422,7 +470,10 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
             commander: commander,
             owner: player
         )
-        
+
+        // Set the city center as the army's home base
+        army.setHomeBase(cityCenter.data.id)
+
         // Create entity node
         let armyNode = EntityNode(
             coordinate: spawnCoord,
@@ -430,16 +481,16 @@ class CommandersViewController: UIViewController, UITableViewDelegate, UITableVi
             entity: army,
             currentPlayer: player
         )
-        
+
         let position = HexMap.hexToPixel(q: spawnCoord.q, r: spawnCoord.r)
         armyNode.position = position
-        
+
         // Add to game
         hexMap.addEntity(armyNode)
         gameScene.entitiesNode.addChild(armyNode)
         player.addArmy(army)
         player.addEntity(army)
-        
+
         debugLog("✅ Deployed \(commander.name)'s Army at City Center (\(spawnCoord.q), \(spawnCoord.r))")
     }
 
@@ -496,9 +547,329 @@ class CommanderCell: UITableViewCell {
         nameLabel.text = commander.name
         rankLabel.text = "\(commander.rank.icon) \(commander.rank.displayName)"
         levelLabel.text = "Level \(commander.level) • \(commander.specialty.icon) \(commander.specialty.displayName)"
-        
+
         contentView.backgroundColor = isSelected ? UIColor(white: 0.3, alpha: 1.0) : .clear
     }
-    
-    
+}
+
+// MARK: - Specialty Selection View Controller
+
+class SpecialtySelectionViewController: UIViewController {
+
+    var recruitmentCost: [ResourceType: Int] = [:]
+    var onSpecialtySelected: ((CommanderSpecialty) -> Void)?
+
+    private var scrollView: UIScrollView!
+
+    /// Category groupings for the two-phase selection
+    enum SpecialtyCategory: String, CaseIterable {
+        case infantry = "Infantry"
+        case cavalry = "Cavalry"
+        case ranged = "Ranged"
+        case siege = "Siege"
+        case defensive = "Defensive"
+        case logistics = "Logistics"
+
+        var icon: String {
+            switch self {
+            case .infantry: return "🗡️"
+            case .cavalry: return "🐴"
+            case .ranged: return "🏹"
+            case .siege: return "🎯"
+            case .defensive: return "🛡️"
+            case .logistics: return "📦"
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .infantry: return "Infantry-focused commander"
+            case .cavalry: return "Cavalry-focused commander"
+            case .ranged: return "Ranged-focused commander"
+            case .siege: return "Siege-focused commander"
+            case .defensive: return "Strong tactics and rationing, better leadership"
+            case .logistics: return "Strong leadership and logistics"
+            }
+        }
+
+        /// Returns the specialties available for this category
+        var specialties: [CommanderSpecialty] {
+            switch self {
+            case .infantry: return [.infantryAggressive, .infantryDefensive]
+            case .cavalry: return [.cavalryAggressive, .cavalryDefensive]
+            case .ranged: return [.rangedAggressive, .rangedDefensive]
+            case .siege: return [.siegeAggressive, .siegeDefensive]
+            case .defensive: return [.defensive]
+            case .logistics: return [.logistics]
+            }
+        }
+
+        /// Whether this category has sub-choices (aggressive/defensive)
+        var hasVariants: Bool {
+            return specialties.count > 1
+        }
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+    }
+
+    private func setupUI() {
+        view.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+
+        let contentWidth = view.bounds.width - 40
+
+        // Header
+        let titleLabel = UILabel(frame: CGRect(x: 20, y: 20, width: contentWidth - 60, height: 30))
+        titleLabel.text = "Choose Commander Specialty"
+        titleLabel.font = UIFont.boldSystemFont(ofSize: 22)
+        titleLabel.textColor = .white
+        view.addSubview(titleLabel)
+
+        let cancelButton = UIButton(frame: CGRect(x: view.bounds.width - 70, y: 15, width: 50, height: 40))
+        cancelButton.setTitle("✕", for: .normal)
+        cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 24)
+        cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
+        view.addSubview(cancelButton)
+
+        // Cost banner
+        let costBanner = UIView(frame: CGRect(x: 20, y: 60, width: contentWidth, height: 35))
+        costBanner.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
+        costBanner.layer.cornerRadius = 8
+        view.addSubview(costBanner)
+
+        var costText = "Recruitment Cost:"
+        let sortedCost = recruitmentCost.sorted { $0.key.rawValue < $1.key.rawValue }
+        for (resource, amount) in sortedCost {
+            costText += "  \(resource.icon) \(amount)"
+        }
+        let costLabel = UILabel(frame: CGRect(x: 12, y: 0, width: contentWidth - 24, height: 35))
+        costLabel.text = costText
+        costLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        costLabel.textColor = UIColor(red: 1.0, green: 0.85, blue: 0.4, alpha: 1.0)
+        costBanner.addSubview(costLabel)
+
+        // Scroll view for category cards
+        scrollView = UIScrollView(frame: CGRect(x: 0, y: 105, width: view.bounds.width, height: view.bounds.height - 105))
+        scrollView.showsVerticalScrollIndicator = true
+        scrollView.alwaysBounceVertical = true
+        view.addSubview(scrollView)
+
+        var yOffset: CGFloat = 10
+        let cardHeight: CGFloat = 120
+
+        for (index, category) in SpecialtyCategory.allCases.enumerated() {
+            let card = createCategoryCard(
+                category: category,
+                tag: index,
+                yOffset: yOffset,
+                width: contentWidth,
+                height: cardHeight
+            )
+            scrollView.addSubview(card)
+            yOffset += cardHeight + 10
+        }
+
+        scrollView.contentSize = CGSize(width: view.bounds.width, height: yOffset + 20)
+    }
+
+    private func createCategoryCard(category: SpecialtyCategory, tag: Int, yOffset: CGFloat, width: CGFloat, height: CGFloat) -> UIView {
+        let card = UIView(frame: CGRect(x: 20, y: yOffset, width: width, height: height))
+        card.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
+        card.layer.cornerRadius = 12
+
+        // Row 1: Icon + name
+        let nameLabel = UILabel(frame: CGRect(x: 15, y: 10, width: width - 30, height: 24))
+        nameLabel.text = "\(category.icon) \(category.rawValue)"
+        nameLabel.font = UIFont.boldSystemFont(ofSize: 18)
+        nameLabel.textColor = .white
+        card.addSubview(nameLabel)
+
+        // Row 2: Description
+        let descLabel = UILabel(frame: CGRect(x: 15, y: 38, width: width - 30, height: 20))
+        descLabel.text = category.description
+        descLabel.font = UIFont.systemFont(ofSize: 14)
+        descLabel.textColor = UIColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1.0)
+        card.addSubview(descLabel)
+
+        // Row 3: Variant info or stat preview
+        let infoLabel = UILabel(frame: CGRect(x: 15, y: 62, width: width - 30, height: 18))
+        if category.hasVariants {
+            infoLabel.text = "Choose Aggressive or Defensive variant"
+        } else {
+            infoLabel.text = category.specialties.first?.detailedDescription ?? ""
+        }
+        infoLabel.font = UIFont.systemFont(ofSize: 12)
+        infoLabel.textColor = UIColor(white: 0.55, alpha: 1.0)
+        card.addSubview(infoLabel)
+
+        // Row 4: Stat preview
+        if let specialty = category.specialties.first {
+            let profile = specialty.statProfile
+            let statsLabel = UILabel(frame: CGRect(x: 15, y: 84, width: width - 30, height: 18))
+            statsLabel.text = "Lead \(profile.baseLeadership) | Tac \(profile.baseTactics) | Log \(profile.baseLogistics) | Rat \(profile.baseRationing) | End \(profile.baseEndurance)"
+            statsLabel.font = UIFont.systemFont(ofSize: 12)
+            statsLabel.textColor = UIColor(white: 0.45, alpha: 1.0)
+            card.addSubview(statsLabel)
+        }
+
+        // Tap gesture
+        card.tag = tag
+        card.isUserInteractionEnabled = true
+        let tap = UITapGestureRecognizer(target: self, action: #selector(categoryCardTapped(_:)))
+        card.addGestureRecognizer(tap)
+
+        return card
+    }
+
+    @objc private func categoryCardTapped(_ gesture: UITapGestureRecognizer) {
+        guard let tag = gesture.view?.tag else { return }
+        let allCategories = SpecialtyCategory.allCases
+        guard tag < allCategories.count else { return }
+
+        let category = allCategories[allCategories.index(allCategories.startIndex, offsetBy: tag)]
+
+        if category.hasVariants {
+            // Show sub-choice for aggressive/defensive
+            showVariantSelection(for: category)
+        } else {
+            // Standalone specialty - select immediately
+            guard let specialty = category.specialties.first else { return }
+            dismiss(animated: true) { [weak self] in
+                self?.onSpecialtySelected?(specialty)
+            }
+        }
+    }
+
+    private func showVariantSelection(for category: SpecialtyCategory) {
+        let variantVC = VariantSelectionViewController()
+        variantVC.category = category
+        variantVC.onSpecialtySelected = { [weak self] specialty in
+            self?.dismiss(animated: true) {
+                self?.onSpecialtySelected?(specialty)
+            }
+        }
+        variantVC.modalPresentationStyle = .pageSheet
+        if let sheet = variantVC.sheetPresentationController {
+            sheet.detents = [.medium()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(variantVC, animated: true)
+    }
+
+    @objc private func cancelTapped() {
+        dismiss(animated: true)
+    }
+}
+
+// MARK: - Variant Selection (Aggressive/Defensive sub-choice)
+
+class VariantSelectionViewController: UIViewController {
+
+    var category: SpecialtySelectionViewController.SpecialtyCategory!
+    var onSpecialtySelected: ((CommanderSpecialty) -> Void)?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+    }
+
+    private func setupUI() {
+        view.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+
+        let contentWidth = view.bounds.width - 40
+
+        // Header
+        let titleLabel = UILabel(frame: CGRect(x: 20, y: 20, width: contentWidth - 60, height: 30))
+        titleLabel.text = "\(category.icon) \(category.rawValue) - Choose Style"
+        titleLabel.font = UIFont.boldSystemFont(ofSize: 22)
+        titleLabel.textColor = .white
+        view.addSubview(titleLabel)
+
+        let cancelButton = UIButton(frame: CGRect(x: view.bounds.width - 70, y: 15, width: 50, height: 40))
+        cancelButton.setTitle("✕", for: .normal)
+        cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 24)
+        cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
+        view.addSubview(cancelButton)
+
+        var yOffset: CGFloat = 70
+        let cardHeight: CGFloat = 140
+
+        for (index, specialty) in category.specialties.enumerated() {
+            let card = createVariantCard(
+                specialty: specialty,
+                tag: index,
+                yOffset: yOffset,
+                width: contentWidth,
+                height: cardHeight
+            )
+            view.addSubview(card)
+            yOffset += cardHeight + 15
+        }
+    }
+
+    private func createVariantCard(specialty: CommanderSpecialty, tag: Int, yOffset: CGFloat, width: CGFloat, height: CGFloat) -> UIView {
+        let card = UIView(frame: CGRect(x: 20, y: yOffset, width: width, height: height))
+        card.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
+        card.layer.cornerRadius = 12
+
+        let variantName = specialty.isAggressive ? "Aggressive" : "Defensive"
+        let variantIcon = specialty.isAggressive ? "⚔️" : "🛡️"
+
+        // Row 1: Icon + variant name
+        let nameLabel = UILabel(frame: CGRect(x: 15, y: 10, width: width - 30, height: 24))
+        nameLabel.text = "\(variantIcon) \(variantName)"
+        nameLabel.font = UIFont.boldSystemFont(ofSize: 18)
+        nameLabel.textColor = .white
+        card.addSubview(nameLabel)
+
+        // Row 2: Bonus
+        let bonusLabel = UILabel(frame: CGRect(x: 15, y: 38, width: width - 30, height: 20))
+        bonusLabel.text = specialty.detailedDescription
+        bonusLabel.font = UIFont.systemFont(ofSize: 14)
+        bonusLabel.textColor = specialty.isAggressive
+            ? UIColor(red: 1.0, green: 0.5, blue: 0.3, alpha: 1.0)
+            : UIColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1.0)
+        card.addSubview(bonusLabel)
+
+        // Row 3: Description
+        let descLabel = UILabel(frame: CGRect(x: 15, y: 62, width: width - 30, height: 36))
+        descLabel.text = specialty.description
+        descLabel.font = UIFont.systemFont(ofSize: 12)
+        descLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+        descLabel.numberOfLines = 2
+        card.addSubview(descLabel)
+
+        // Row 4: Stat profile
+        let profile = specialty.statProfile
+        let statsLabel = UILabel(frame: CGRect(x: 15, y: 102, width: width - 30, height: 18))
+        statsLabel.text = "Lead \(profile.baseLeadership) | Tac \(profile.baseTactics) | Log \(profile.baseLogistics) | Rat \(profile.baseRationing) | End \(profile.baseEndurance)"
+        statsLabel.font = UIFont.systemFont(ofSize: 12)
+        statsLabel.textColor = UIColor(white: 0.45, alpha: 1.0)
+        card.addSubview(statsLabel)
+
+        // Tap gesture
+        card.tag = tag
+        card.isUserInteractionEnabled = true
+        let tap = UITapGestureRecognizer(target: self, action: #selector(variantCardTapped(_:)))
+        card.addGestureRecognizer(tap)
+
+        return card
+    }
+
+    @objc private func variantCardTapped(_ gesture: UITapGestureRecognizer) {
+        guard let tag = gesture.view?.tag else { return }
+        let specialties = category.specialties
+        guard tag < specialties.count else { return }
+
+        let specialty = specialties[tag]
+        dismiss(animated: true) { [weak self] in
+            self?.onSpecialtySelected?(specialty)
+        }
+    }
+
+    @objc private func cancelTapped() {
+        dismiss(animated: true)
+    }
 }

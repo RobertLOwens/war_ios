@@ -41,6 +41,10 @@ class GameState: Codable {
     var isPaused: Bool = false
     var gameSpeed: Double = 1.0
 
+    // MARK: - Transient State (not saved)
+    /// Active reinforcement positions per player (synced from visual layer)
+    var activeReinforcementPositions: [UUID: Set<HexCoordinate>] = [:]
+
     // MARK: - Initialization
 
     init(mapWidth: Int, mapHeight: Int) {

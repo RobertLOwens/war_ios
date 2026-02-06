@@ -33,6 +33,10 @@ enum StateChange: Codable {
     case armyDestroyed(armyID: UUID, coordinate: HexCoordinate)
     case armyMerged(sourceArmyID: UUID, targetArmyID: UUID)
     case armyRetreating(armyID: UUID, to: HexCoordinate)
+    case armyEntrenchmentStarted(armyID: UUID, coordinate: HexCoordinate)
+    case armyEntrenchmentProgress(armyID: UUID, progress: Double)
+    case armyEntrenched(armyID: UUID, coordinate: HexCoordinate)
+    case armyEntrenchmentCancelled(armyID: UUID, coordinate: HexCoordinate)
 
     case villagerGroupCreated(groupID: UUID, ownerID: UUID, coordinate: HexCoordinate, count: Int)
     case villagerGroupMoved(groupID: UUID, from: HexCoordinate, to: HexCoordinate, path: [HexCoordinate])

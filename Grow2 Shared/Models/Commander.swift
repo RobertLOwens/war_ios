@@ -56,6 +56,18 @@ class Commander {
         return data.tactics
     }
 
+    var logistics: Int {
+        return data.logistics
+    }
+
+    var rationing: Int {
+        return data.rationing
+    }
+
+    var endurance: Int {
+        return data.endurance
+    }
+
     var stamina: Double {
         return data.stamina
     }
@@ -81,7 +93,9 @@ class Commander {
     // MARK: - Initialization
 
     init(id: UUID = UUID(), name: String, rank: CommanderRank = .recruit, specialty: CommanderSpecialty,
-         baseLeadership: Int = 10, baseTactics: Int = 10, portraitColor: UIColor = .blue, owner: Player? = nil, data: CommanderData? = nil) {
+         baseLeadership: Int? = nil, baseTactics: Int? = nil,
+         baseLogistics: Int? = nil, baseRationing: Int? = nil, baseEndurance: Int? = nil,
+         portraitColor: UIColor = .blue, owner: Player? = nil, data: CommanderData? = nil) {
         // Use provided data or create new
         if let existingData = data {
             self.data = existingData
@@ -92,6 +106,9 @@ class Commander {
                 specialty: specialty,
                 baseLeadership: baseLeadership,
                 baseTactics: baseTactics,
+                baseLogistics: baseLogistics,
+                baseRationing: baseRationing,
+                baseEndurance: baseEndurance,
                 ownerID: owner?.id
             )
             self.data.rank = rank
@@ -173,8 +190,12 @@ class Commander {
         desc += "Level: \(level) (XP: \(experience)/\(level * 100))\n"
         desc += "Leadership: \(leadership)\n"
         desc += "Tactics: \(tactics)\n"
+        desc += "Logistics: \(logistics)\n"
+        desc += "Rationing: \(rationing)\n"
+        desc += "Endurance: \(endurance)\n"
         desc += "Stamina: \(Int(stamina))/\(Int(CommanderData.maxStamina)) ⚡\n"
-        desc += "Max Army Size: \(rank.maxArmySize)\n"
+        let maxArmy = GameConfig.Commander.leadershipToArmySizeBase + leadership * GameConfig.Commander.leadershipToArmySizePerPoint
+        desc += "Max Army Size: \(maxArmy)\n"
         desc += "\n\(specialty.description)"
         return desc
     }
@@ -216,15 +237,11 @@ class Commander {
     static func createRandom(name: String? = nil, owner: Player? = nil) -> Commander {
         let commanderName = name ?? randomName()
         let specialty = CommanderSpecialty.allCases.randomElement()!
-        let baseLeadership = Int.random(in: 8...15)
-        let baseTactics = Int.random(in: 8...15)
         let color = randomColor()
 
         return Commander(
             name: commanderName,
             specialty: specialty,
-            baseLeadership: baseLeadership,
-            baseTactics: baseTactics,
             portraitColor: color,
             owner: owner
         )
@@ -267,5 +284,17 @@ class Commander {
 
     func getBaseTactics() -> Int {
         return data.baseTactics
+    }
+
+    func getBaseLogistics() -> Int {
+        return data.baseLogistics
+    }
+
+    func getBaseRationing() -> Int {
+        return data.baseRationing
+    }
+
+    func getBaseEndurance() -> Int {
+        return data.baseEndurance
     }
 }

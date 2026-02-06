@@ -381,6 +381,13 @@ class FogOfWarManager {
     }
 
     /// Reveals all tiles on the map (for fully visible mode)
+    /// Grants visibility to reinforcement positions (just their tile)
+    func addReinforcementVision(coordinates: [HexCoordinate]) {
+        for coord in coordinates {
+            setVisible(coord)
+        }
+    }
+
     func revealAllTiles() {
         for coord in visionMap.keys {
             visionMap[coord] = .visible

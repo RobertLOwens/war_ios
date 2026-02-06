@@ -45,6 +45,10 @@ class EntityNode: SKSpriteNode {
     private var pathLine: SKShapeNode?
 
 
+    // Stack badge UI elements
+    private var stackBadge: SKShapeNode?
+    private var stackLabel: SKLabelNode?
+
     // Movement timer UI elements
     private var movementTimerLabel: SKLabelNode?
     private var estimatedRemainingTime: TimeInterval = 0
@@ -532,4 +536,45 @@ class EntityNode: SKSpriteNode {
         updateMovementTimerDisplay(remaining: estimatedRemainingTime)
     }
 
+    // MARK: - Stack Badge
+
+    private func setupStackBadge() {
+        guard stackBadge == nil else { return }
+
+        let badgeRadius: CGFloat = 6
+        let badge = SKShapeNode(circleOfRadius: badgeRadius)
+        badge.fillColor = UIColor(red: 0.85, green: 0.15, blue: 0.15, alpha: 1.0)
+        badge.strokeColor = .white
+        badge.lineWidth = 0.75
+        badge.position = CGPoint(x: 10, y: 10)
+        badge.zPosition = 16
+        badge.isHidden = true
+        addChild(badge)
+        stackBadge = badge
+
+        let label = SKLabelNode(fontNamed: "Menlo-Bold")
+        label.fontSize = 7
+        label.fontColor = .white
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        label.position = CGPoint(x: 10, y: 10)
+        label.zPosition = 17
+        label.isHidden = true
+        addChild(label)
+        stackLabel = label
+    }
+
+    func updateStackBadge(count: Int) {
+        if count > 1 {
+            if stackBadge == nil {
+                setupStackBadge()
+            }
+            stackBadge?.isHidden = false
+            stackLabel?.isHidden = false
+            stackLabel?.text = "\(count)"
+        } else {
+            stackBadge?.isHidden = true
+            stackLabel?.isHidden = true
+        }
+    }
 }
