@@ -24,6 +24,8 @@ class GameVisualLayer {
     weak var delegate: GameVisualLayerDelegate?
     weak var gameState: GameState?
     weak var hexMap: HexMap?
+    weak var localPlayer: Player?
+    var allPlayers: [Player] = []
     private let nodeFactory: NodeFactory
 
     // MARK: - Scene References
@@ -84,6 +86,12 @@ class GameVisualLayer {
             // Resource nodes don't have UUIDs in current implementation
             // Would need to add IDs to ResourcePointNode for full sync
         }
+    }
+
+    // MARK: - Player Lookup
+
+    private func findPlayer(by ownerID: UUID) -> Player? {
+        return allPlayers.first { $0.id == ownerID }
     }
 
     // MARK: - State Change Processing
@@ -237,6 +245,11 @@ class GameVisualLayer {
         hexMap.addBuilding(buildingNode)
         buildingNodes[buildingID] = buildingNode
 
+        // Link ownership so diplomacy colors and player tracking work
+        if let ownerPlayer = findPlayer(by: ownerID) {
+            ownerPlayer.addBuilding(buildingNode)
+        }
+
         // Show HP bar if building is damaged (e.g., loaded from save)
         buildingNode.showHealthBarIfDamaged()
 
@@ -329,6 +342,11 @@ class GameVisualLayer {
         guard let buildingNode = buildingNodes[buildingID],
               let hexMap = hexMap else { return }
 
+        // Remove from owner's tracking arrays
+        if let owner = buildingNode.owner {
+            owner.removeBuilding(buildingNode)
+        }
+
         // Remove health bar before destruction
         buildingNode.removeHealthBar()
 
@@ -368,6 +386,16 @@ class GameVisualLayer {
         hexMap.addEntity(entityNode)
         entityNodes[armyID] = entityNode
 
+        // Link ownership so diplomacy colors and player tracking work
+        if let ownerPlayer = findPlayer(by: ownerID) {
+            if let army = entityNode.armyReference {
+                ownerPlayer.addArmy(army)
+                ownerPlayer.addEntity(army)
+            }
+        }
+
+        entityNode.updateTexture(currentPlayer: localPlayer)
+
         // Spawn animation
         entityNode.alpha = 0
         entityNode.setScale(0.5)
@@ -391,12 +419,18 @@ class GameVisualLayer {
 
     private func handleArmyCompositionChanged(armyID: UUID) {
         guard let entityNode = entityNodes[armyID] else { return }
-        entityNode.updateTexture()
+        entityNode.updateTexture(currentPlayer: localPlayer)
     }
 
     private func handleArmyDestroyed(armyID: UUID) {
         guard let entityNode = entityNodes[armyID],
               let hexMap = hexMap else { return }
+
+        // Remove from owner's tracking arrays
+        if let army = entityNode.armyReference, let owner = army.owner {
+            owner.removeArmy(army)
+            owner.removeEntity(army)
+        }
 
         // Death animation
         let deathAction = SKAction.group([
@@ -431,6 +465,15 @@ class GameVisualLayer {
         hexMap.addEntity(entityNode)
         entityNodes[groupID] = entityNode
 
+        // Link ownership so diplomacy colors and player tracking work
+        if let ownerPlayer = findPlayer(by: ownerID) {
+            if let villagers = entityNode.villagerReference {
+                ownerPlayer.addEntity(villagers)
+            }
+        }
+
+        entityNode.updateTexture(currentPlayer: localPlayer)
+
         // Spawn animation
         entityNode.alpha = 0
         let spawnAction = SKAction.fadeIn(withDuration: animationDuration)
@@ -450,12 +493,17 @@ class GameVisualLayer {
 
     private func handleVillagerGroupCountChanged(groupID: UUID) {
         guard let entityNode = entityNodes[groupID] else { return }
-        entityNode.updateTexture()
+        entityNode.updateTexture(currentPlayer: localPlayer)
     }
 
     private func handleVillagerGroupDestroyed(groupID: UUID) {
         guard let entityNode = entityNodes[groupID],
               let hexMap = hexMap else { return }
+
+        // Remove from owner's tracking arrays
+        if let villagers = entityNode.villagerReference, let owner = villagers.owner {
+            owner.removeEntity(villagers)
+        }
 
         let deathAction = SKAction.fadeOut(withDuration: animationDuration)
 
@@ -545,14 +593,12 @@ class GameVisualLayer {
         print("🎯 buildingNodes count: \(buildingNodes.count)")
         print("🎯 buildingNodes keys: \(buildingNodes.keys.map { $0.uuidString.prefix(8) })")
 
-        entityNodes[attackerID]?.updateTexture()
+        entityNodes[attackerID]?.updateTexture(currentPlayer: localPlayer)
 
         // Check if defender is an army or a building
         if let defenderEntity = entityNodes[defenderID] {
             // Army vs Army combat
-            defenderEntity.updateTexture()
-            entityNodes[attackerID]?.updateHealthBarCombatPosition(isAttacker: true)
-            defenderEntity.updateHealthBarCombatPosition(isAttacker: false)
+            defenderEntity.updateTexture(currentPlayer: localPlayer)
             print("✅ Found defender entity (army)")
         } else if let defenderBuilding = buildingNodes[defenderID] ?? hexMap?.buildings.first(where: { $0.data.id == defenderID }) {
             // Army vs Building combat - set up health bar on building
@@ -570,14 +616,12 @@ class GameVisualLayer {
     }
 
     private func handleCombatEnded(attackerID: UUID, defenderID: UUID) {
-        entityNodes[attackerID]?.updateTexture()
+        entityNodes[attackerID]?.updateTexture(currentPlayer: localPlayer)
 
         // Check if defender was an army or a building
         if let defenderEntity = entityNodes[defenderID] {
             // Army vs Army combat
-            defenderEntity.updateTexture()
-            entityNodes[attackerID]?.resetHealthBarPosition()
-            defenderEntity.resetHealthBarPosition()
+            defenderEntity.updateTexture(currentPlayer: localPlayer)
         } else if let defenderBuilding = buildingNodes[defenderID] {
             // Army vs Building combat - remove health bar
             defenderBuilding.removeHealthBar()

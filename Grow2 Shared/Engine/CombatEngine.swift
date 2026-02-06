@@ -39,6 +39,7 @@ struct VillagerCombatData {
     var villagersKilled: Int = 0
     let initialVillagerCount: Int
     var accumulatedDamage: Double = 0.0
+    let initialAttackerUnitCount: Int
 }
 
 // MARK: - Combat Engine
@@ -244,6 +245,14 @@ class CombatEngine {
             gameStartTime: currentTime
         )
 
+        // Look up player states for research bonus application
+        if let attackerOwnerID = attacker.ownerID {
+            combat.attackerPlayerState = state.getPlayer(id: attackerOwnerID)
+        }
+        if let defenderOwnerID = defender.ownerID {
+            combat.defenderPlayerState = state.getPlayer(id: defenderOwnerID)
+        }
+
         // Store with combat's own ID
         activeCombats[combat.id] = combat
 
@@ -325,7 +334,8 @@ class CombatEngine {
             coordinate: villagerGroup.coordinate,
             startTime: currentTime,
             lastTickTime: currentTime,
-            initialVillagerCount: villagerGroup.villagerCount
+            initialVillagerCount: villagerGroup.villagerCount,
+            initialAttackerUnitCount: attacker.getTotalUnits()
         )
 
         villagerCombats[combatID] = combat
@@ -370,8 +380,8 @@ class CombatEngine {
 
     private func processRangedDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from ranged/siege units only, including bonus damage vs enemy composition
-        let attackerRangedDPS = calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty)
-        let defenderRangedDPS = calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus)
+        let attackerRangedDPS = calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
+        let defenderRangedDPS = calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
 
         let attackerDamage = attackerRangedDPS * deltaTime
         let defenderDamage = defenderRangedDPS * deltaTime
@@ -416,8 +426,8 @@ class CombatEngine {
     private func processMeleeDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from infantry/cavalry units, including bonus damage vs enemy composition
         let isCharging = combat.elapsedTime < ActiveCombat.meleeEngagementThreshold + 1.0  // 1 second charge window after melee starts
-        let attackerMeleeDPS = calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty)
-        let defenderMeleeDPS = calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus)
+        let attackerMeleeDPS = calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
+        let defenderMeleeDPS = calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
 
         let attackerDamage = attackerMeleeDPS * deltaTime
         let defenderDamage = defenderMeleeDPS * deltaTime
@@ -461,8 +471,8 @@ class CombatEngine {
 
     private func processAllDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // In cleanup phase, all units attack, including bonus damage vs enemy composition
-        let attackerTotalDPS = calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty)
-        let defenderTotalDPS = calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus)
+        let attackerTotalDPS = calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState)
+        let defenderTotalDPS = calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState)
 
         let attackerDamage = attackerTotalDPS * deltaTime
         let defenderDamage = defenderTotalDPS * deltaTime
@@ -529,16 +539,16 @@ class CombatEngine {
 
     // MARK: - DPS Calculations (delegating to DamageCalculator)
 
-    private func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
-        DamageCalculator.calculateRangedDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
+    private func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
+        DamageCalculator.calculateRangedDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, playerState: playerState)
     }
 
-    private func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
-        DamageCalculator.calculateMeleeDPS(sideState, enemyState: enemyState, isCharge: isCharge, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
+    private func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
+        DamageCalculator.calculateMeleeDPS(sideState, enemyState: enemyState, isCharge: isCharge, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, playerState: playerState)
     }
 
-    private func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
-        DamageCalculator.calculateTotalDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
+    private func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
+        DamageCalculator.calculateTotalDPS(sideState, enemyState: enemyState, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, playerState: playerState)
     }
 
     // MARK: - Damage Application
@@ -851,6 +861,10 @@ class CombatEngine {
 
                     print("⚔️ Army destroyed by villagers!")
 
+                    // Save combat record before removing army
+                    let record = createVillagerCombatRecord(from: combat, currentTime: currentTime, state: state)
+                    addCombatRecord(record)
+
                     changes.append(.armyDestroyed(
                         armyID: combat.attackerArmyID,
                         coordinate: attacker.coordinate
@@ -868,6 +882,10 @@ class CombatEngine {
                 completedCombats.append(combatID)
 
                 print("⚔️ Villager group destroyed: \(combat.villagersKilled) villagers killed")
+
+                // Save combat record before removing villager group
+                let record = createVillagerCombatRecord(from: combat, currentTime: currentTime, state: state)
+                addCombatRecord(record)
 
                 changes.append(.villagerGroupDestroyed(
                     groupID: combat.defenderVillagerGroupID,
@@ -916,8 +934,8 @@ class CombatEngine {
         } else {
             // Combat ended without total destruction - compare remaining strength
             // Use enemy state for bonus damage calculation to get accurate DPS comparison
-            let attackerStrength = calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState)
-            let defenderStrength = calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState)
+            let attackerStrength = calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, playerState: combat.attackerPlayerState)
+            let defenderStrength = calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, playerState: combat.defenderPlayerState)
 
             if attackerStrength > defenderStrength {
                 winnerID = attackerID
@@ -1019,6 +1037,63 @@ class CombatEngine {
             defenderCasualties: defenderCasualties,
             location: combat.location,
             duration: combat.elapsedTime
+        )
+    }
+
+    /// Creates a CombatRecord from a completed VillagerCombatData for battle history
+    private func createVillagerCombatRecord(from combat: VillagerCombatData, currentTime: TimeInterval, state: GameState) -> CombatRecord {
+        // Get attacker info
+        let attackerArmy = state.getArmy(id: combat.attackerArmyID)
+        let attackerOwner = attackerArmy?.ownerID.flatMap { state.getPlayer(id: $0) }
+        let commanderName = attackerArmy?.commanderID.flatMap { state.getCommander(id: $0)?.name }
+
+        let attackerParticipant = CombatParticipant(
+            name: attackerArmy?.name ?? "Unknown Army",
+            type: .army,
+            ownerName: attackerOwner?.name ?? "Unknown",
+            ownerColor: attackerOwner.flatMap { UIColor(hex: $0.colorHex) } ?? .gray,
+            commanderName: commanderName
+        )
+
+        // Get defender info
+        let defenderOwner = combat.defenderOwnerID.flatMap { state.getPlayer(id: $0) }
+        let villagerGroup = state.getVillagerGroup(id: combat.defenderVillagerGroupID)
+
+        let defenderParticipant = CombatParticipant(
+            name: villagerGroup?.name ?? "Villagers",
+            type: .villagerGroup,
+            ownerName: defenderOwner?.name ?? "Unknown",
+            ownerColor: defenderOwner.flatMap { UIColor(hex: $0.colorHex) } ?? .gray,
+            commanderName: nil
+        )
+
+        // Calculate casualties
+        let attackerFinalUnits = attackerArmy?.getTotalUnits() ?? 0
+        let attackerCasualties = combat.initialAttackerUnitCount - attackerFinalUnits
+        let defenderFinalUnits = villagerGroup?.villagerCount ?? 0
+
+        // Determine winner
+        let winner: CombatResult
+        if attackerFinalUnits == 0 {
+            winner = .defenderVictory
+        } else if defenderFinalUnits == 0 {
+            winner = .attackerVictory
+        } else {
+            winner = .draw
+        }
+
+        return CombatRecord(
+            attacker: attackerParticipant,
+            defender: defenderParticipant,
+            attackerInitialStrength: Double(combat.initialAttackerUnitCount),
+            defenderInitialStrength: Double(combat.initialVillagerCount),
+            attackerFinalStrength: Double(attackerFinalUnits),
+            defenderFinalStrength: Double(defenderFinalUnits),
+            winner: winner,
+            attackerCasualties: attackerCasualties,
+            defenderCasualties: combat.villagersKilled,
+            location: combat.coordinate,
+            duration: currentTime - combat.startTime
         )
     }
 

@@ -43,9 +43,56 @@ struct DamageCalculator {
              + attackerStats.bonusVsSiege * siegeRatio
     }
 
+    // MARK: - Research Bonus Lookup
+
+    /// Returns the flat damage bonus for a unit type from player research
+    static func getResearchDamageBonus(for unitType: MilitaryUnitType, playerState: PlayerState?) -> Double {
+        guard let ps = playerState else { return 0 }
+        switch unitType.category {
+        case .infantry:
+            return ps.getResearchBonus(ResearchBonusType.infantryMeleeAttack.rawValue)
+        case .cavalry:
+            return ps.getResearchBonus(ResearchBonusType.cavalryMeleeAttack.rawValue)
+        case .ranged:
+            return ps.getResearchBonus(ResearchBonusType.piercingDamage.rawValue)
+        case .siege:
+            return ps.getResearchBonus(ResearchBonusType.siegeBludgeonDamage.rawValue)
+        }
+    }
+
+    /// Returns the flat melee armor bonus for a unit category from player research
+    static func getResearchMeleeArmorBonus(for category: UnitCategoryData, playerState: PlayerState?) -> Double {
+        guard let ps = playerState else { return 0 }
+        switch category {
+        case .infantry:
+            return ps.getResearchBonus(ResearchBonusType.infantryMeleeArmor.rawValue)
+        case .cavalry:
+            return ps.getResearchBonus(ResearchBonusType.cavalryMeleeArmor.rawValue)
+        case .ranged:
+            return ps.getResearchBonus(ResearchBonusType.archerMeleeArmor.rawValue)
+        case .siege:
+            return 0
+        }
+    }
+
+    /// Returns the flat pierce armor bonus for a unit category from player research
+    static func getResearchPierceArmorBonus(for category: UnitCategoryData, playerState: PlayerState?) -> Double {
+        guard let ps = playerState else { return 0 }
+        switch category {
+        case .infantry:
+            return ps.getResearchBonus(ResearchBonusType.infantryPierceArmor.rawValue)
+        case .cavalry:
+            return ps.getResearchBonus(ResearchBonusType.cavalryPierceArmor.rawValue)
+        case .ranged:
+            return ps.getResearchBonus(ResearchBonusType.archerPierceArmor.rawValue)
+        case .siege:
+            return 0
+        }
+    }
+
     // MARK: - DPS Calculations
 
-    static func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
+    static func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -53,16 +100,17 @@ struct DamageCalculator {
             guard unitType.category == .ranged || unitType.category == .siege else { continue }
 
             let stats = unitType.combatStats
-            let baseDamage = stats.totalDamage
+            let researchBonus = getResearchDamageBonus(for: unitType, playerState: playerState)
+            let baseDamage = stats.totalDamage + researchBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            let unitDPS = (baseDamage + bonusDamage) / unitType.attackSpeed
+            let unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
             totalDPS += unitDPS * Double(count)
         }
 
         return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
     }
 
-    static func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
+    static func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -70,9 +118,10 @@ struct DamageCalculator {
             guard unitType.category == .infantry || unitType.category == .cavalry else { continue }
 
             let stats = unitType.combatStats
-            let baseDamage = stats.totalDamage
+            let researchBonus = getResearchDamageBonus(for: unitType, playerState: playerState)
+            let baseDamage = stats.totalDamage + researchBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            var unitDPS = (baseDamage + bonusDamage) / unitType.attackSpeed
+            var unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
 
             if isCharge {
                 if unitType.category == .cavalry {
@@ -88,16 +137,17 @@ struct DamageCalculator {
         return applyTerrainModifier(to: totalDPS, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus)
     }
 
-    static func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0) -> Double {
+    static func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
             guard count > 0 else { continue }
 
             let stats = unitType.combatStats
-            let baseDamage = stats.totalDamage
+            let researchBonus = getResearchDamageBonus(for: unitType, playerState: playerState)
+            let baseDamage = stats.totalDamage + researchBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            let unitDPS = (baseDamage + bonusDamage) / unitType.attackSpeed
+            let unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
             totalDPS += unitDPS * Double(count)
         }
 

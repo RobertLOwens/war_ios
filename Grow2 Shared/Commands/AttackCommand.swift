@@ -12,15 +12,17 @@ struct AttackCommand: GameCommand {
     
     let attackerEntityID: UUID
     let targetCoordinate: HexCoordinate
-    
+    let targetEntityID: UUID?  // When set, looks up entity by ID for current position (avoids stale coordinate)
+
     static var commandType: CommandType { .attack }
-    
-    init(playerID: UUID, attackerEntityID: UUID, targetCoordinate: HexCoordinate) {
+
+    init(playerID: UUID, attackerEntityID: UUID, targetCoordinate: HexCoordinate, targetEntityID: UUID? = nil) {
         self.id = UUID()
         self.timestamp = Date().timeIntervalSince1970
         self.playerID = playerID
         self.attackerEntityID = attackerEntityID
         self.targetCoordinate = targetCoordinate
+        self.targetEntityID = targetEntityID
     }
     
     func validate(in context: CommandContext) -> CommandResult {
@@ -44,6 +46,16 @@ struct AttackCommand: GameCommand {
         }
 
         let player = context.getPlayer(by: playerID)
+
+        // If targeting a specific entity by ID, look up its current position
+        if let entityID = targetEntityID,
+           let targetEntity = context.hexMap.entities.first(where: { $0.entity.id == entityID }) {
+            let diplomacy = player?.getDiplomacyStatus(with: targetEntity.entity.owner) ?? .neutral
+            guard diplomacy == .enemy else {
+                return .failure(reason: "Target is not an enemy")
+            }
+            return .success
+        }
 
         // Check if target is a building FIRST
         // This ensures clicking any tile of a multi-tile building initiates building combat
@@ -99,6 +111,47 @@ struct AttackCommand: GameCommand {
 
         // Store reference for use in completion handler
         let hexMap = context.hexMap
+
+        // If targeting a specific entity by ID, use its current position
+        if let entityID = targetEntityID,
+           let target = context.hexMap.entities.first(where: { $0.entity.id == entityID }) {
+            let currentCoordinate = target.coordinate
+
+            if let defenderArmy = target.entity as? Army {
+                if let path = hexMap.findPath(from: attacker.coordinate, to: currentCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
+                    print("⚔️ \(attackerArmy.name) attacking army at (\(currentCoordinate.q), \(currentCoordinate.r)) [tracked by ID] - path: \(path.count) steps")
+                    attacker.moveTo(path: path) {
+                        print("⚔️ \(attackerArmy.name) arrived - initiating combat!")
+                        let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
+                        _ = GameEngine.shared.combatEngine.startCombat(
+                            attackerArmyID: attackerArmy.id,
+                            defenderArmyID: defenderArmy.id,
+                            currentTime: combatTime
+                        )
+                    }
+                    return .success
+                } else {
+                    return .failure(reason: "No path to target")
+                }
+            } else if let defenderVillagers = target.entity as? VillagerGroup {
+                if let path = hexMap.findPath(from: attacker.coordinate, to: currentCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
+                    print("⚔️ \(attackerArmy.name) attacking villagers at (\(currentCoordinate.q), \(currentCoordinate.r)) [tracked by ID] - path: \(path.count) steps")
+                    attacker.moveTo(path: path) {
+                        print("⚔️ \(attackerArmy.name) arrived - attacking villagers!")
+                        let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
+                        _ = GameEngine.shared.combatEngine.startVillagerCombat(
+                            attackerArmyID: attackerArmy.id,
+                            defenderVillagerGroupID: defenderVillagers.data.id,
+                            currentTime: combatTime
+                        )
+                    }
+                    return .success
+                } else {
+                    return .failure(reason: "No path to target")
+                }
+            }
+            return .failure(reason: "No valid target found")
+        }
 
         // Check for building target FIRST
         // This ensures clicking any tile of a multi-tile building initiates building combat

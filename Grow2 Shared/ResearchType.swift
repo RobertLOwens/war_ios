@@ -62,6 +62,19 @@ enum ResearchBonusType: String, Codable {
     case militaryFoodConsumption // Military food consumption (negative = reduction)
     case buildingHP              // Building max HP
 
+    var isFlatBonus: Bool {
+        switch self {
+        case .populationCapacity,
+             .infantryMeleeAttack, .cavalryMeleeAttack, .piercingDamage, .siegeBludgeonDamage,
+             .infantryMeleeArmor, .cavalryMeleeArmor, .archerMeleeArmor,
+             .infantryPierceArmor, .cavalryPierceArmor, .archerPierceArmor,
+             .buildingBludgeonArmor:
+            return true
+        default:
+            return false
+        }
+    }
+
     var displayName: String {
         switch self {
         case .woodGatheringRate: return "Wood Gathering"
@@ -109,10 +122,10 @@ struct ResearchBonus: Codable {
     let value: Double  // Percentage bonus (0.05 = 5%), or flat value for populationCapacity
 
     var displayString: String {
-        // Handle flat bonuses (like population capacity)
-        if type == .populationCapacity {
+        // Handle flat bonuses (damage, armor, population capacity)
+        if type.isFlatBonus {
             let flatValue = Int(value)
-            return "+\(flatValue) \(type.displayName)"
+            return flatValue >= 0 ? "+\(flatValue) \(type.displayName)" : "\(flatValue) \(type.displayName)"
         }
 
         // Handle percentage bonuses
@@ -720,60 +733,60 @@ enum ResearchType: String, CaseIterable, Codable {
         case .retreatSpeedII: return [ResearchBonus(type: .militaryRetreatSpeed, value: 0.07)]
         case .retreatSpeedIII: return [ResearchBonus(type: .militaryRetreatSpeed, value: 0.10)]
 
-        // Infantry Melee Attack: +5%, +7%, +10% (total +22%)
-        case .infantryMeleeAttackI: return [ResearchBonus(type: .infantryMeleeAttack, value: 0.05)]
-        case .infantryMeleeAttackII: return [ResearchBonus(type: .infantryMeleeAttack, value: 0.07)]
-        case .infantryMeleeAttackIII: return [ResearchBonus(type: .infantryMeleeAttack, value: 0.10)]
+        // Infantry Melee Attack: +1, +1, +2 (total +4)
+        case .infantryMeleeAttackI: return [ResearchBonus(type: .infantryMeleeAttack, value: 1.0)]
+        case .infantryMeleeAttackII: return [ResearchBonus(type: .infantryMeleeAttack, value: 1.0)]
+        case .infantryMeleeAttackIII: return [ResearchBonus(type: .infantryMeleeAttack, value: 2.0)]
 
-        // Cavalry Melee Attack: +5%, +7%, +10% (total +22%)
-        case .cavalryMeleeAttackI: return [ResearchBonus(type: .cavalryMeleeAttack, value: 0.05)]
-        case .cavalryMeleeAttackII: return [ResearchBonus(type: .cavalryMeleeAttack, value: 0.07)]
-        case .cavalryMeleeAttackIII: return [ResearchBonus(type: .cavalryMeleeAttack, value: 0.10)]
+        // Cavalry Melee Attack: +1, +1, +2 (total +4)
+        case .cavalryMeleeAttackI: return [ResearchBonus(type: .cavalryMeleeAttack, value: 1.0)]
+        case .cavalryMeleeAttackII: return [ResearchBonus(type: .cavalryMeleeAttack, value: 1.0)]
+        case .cavalryMeleeAttackIII: return [ResearchBonus(type: .cavalryMeleeAttack, value: 2.0)]
 
-        // Infantry Melee Armor: +5%, +7%, +10% (total +22%)
-        case .infantryMeleeArmorI: return [ResearchBonus(type: .infantryMeleeArmor, value: 0.05)]
-        case .infantryMeleeArmorII: return [ResearchBonus(type: .infantryMeleeArmor, value: 0.07)]
-        case .infantryMeleeArmorIII: return [ResearchBonus(type: .infantryMeleeArmor, value: 0.10)]
+        // Infantry Melee Armor: +1, +1, +2 (total +4)
+        case .infantryMeleeArmorI: return [ResearchBonus(type: .infantryMeleeArmor, value: 1.0)]
+        case .infantryMeleeArmorII: return [ResearchBonus(type: .infantryMeleeArmor, value: 1.0)]
+        case .infantryMeleeArmorIII: return [ResearchBonus(type: .infantryMeleeArmor, value: 2.0)]
 
-        // Cavalry Melee Armor: +5%, +7%, +10% (total +22%)
-        case .cavalryMeleeArmorI: return [ResearchBonus(type: .cavalryMeleeArmor, value: 0.05)]
-        case .cavalryMeleeArmorII: return [ResearchBonus(type: .cavalryMeleeArmor, value: 0.07)]
-        case .cavalryMeleeArmorIII: return [ResearchBonus(type: .cavalryMeleeArmor, value: 0.10)]
+        // Cavalry Melee Armor: +1, +1, +2 (total +4)
+        case .cavalryMeleeArmorI: return [ResearchBonus(type: .cavalryMeleeArmor, value: 1.0)]
+        case .cavalryMeleeArmorII: return [ResearchBonus(type: .cavalryMeleeArmor, value: 1.0)]
+        case .cavalryMeleeArmorIII: return [ResearchBonus(type: .cavalryMeleeArmor, value: 2.0)]
 
-        // Archer Melee Armor: +5%, +7%, +10% (total +22%)
-        case .archerMeleeArmorI: return [ResearchBonus(type: .archerMeleeArmor, value: 0.05)]
-        case .archerMeleeArmorII: return [ResearchBonus(type: .archerMeleeArmor, value: 0.07)]
-        case .archerMeleeArmorIII: return [ResearchBonus(type: .archerMeleeArmor, value: 0.10)]
+        // Archer Melee Armor: +1, +1, +2 (total +4)
+        case .archerMeleeArmorI: return [ResearchBonus(type: .archerMeleeArmor, value: 1.0)]
+        case .archerMeleeArmorII: return [ResearchBonus(type: .archerMeleeArmor, value: 1.0)]
+        case .archerMeleeArmorIII: return [ResearchBonus(type: .archerMeleeArmor, value: 2.0)]
 
-        // Piercing Damage: +5%, +7%, +10% (total +22%)
-        case .piercingDamageI: return [ResearchBonus(type: .piercingDamage, value: 0.05)]
-        case .piercingDamageII: return [ResearchBonus(type: .piercingDamage, value: 0.07)]
-        case .piercingDamageIII: return [ResearchBonus(type: .piercingDamage, value: 0.10)]
+        // Piercing Damage: +1, +1, +2 (total +4)
+        case .piercingDamageI: return [ResearchBonus(type: .piercingDamage, value: 1.0)]
+        case .piercingDamageII: return [ResearchBonus(type: .piercingDamage, value: 1.0)]
+        case .piercingDamageIII: return [ResearchBonus(type: .piercingDamage, value: 2.0)]
 
-        // Infantry Pierce Armor: +5%, +7%, +10% (total +22%)
-        case .infantryPierceArmorI: return [ResearchBonus(type: .infantryPierceArmor, value: 0.05)]
-        case .infantryPierceArmorII: return [ResearchBonus(type: .infantryPierceArmor, value: 0.07)]
-        case .infantryPierceArmorIII: return [ResearchBonus(type: .infantryPierceArmor, value: 0.10)]
+        // Infantry Pierce Armor: +1, +1, +2 (total +4)
+        case .infantryPierceArmorI: return [ResearchBonus(type: .infantryPierceArmor, value: 1.0)]
+        case .infantryPierceArmorII: return [ResearchBonus(type: .infantryPierceArmor, value: 1.0)]
+        case .infantryPierceArmorIII: return [ResearchBonus(type: .infantryPierceArmor, value: 2.0)]
 
-        // Cavalry Pierce Armor: +5%, +7%, +10% (total +22%)
-        case .cavalryPierceArmorI: return [ResearchBonus(type: .cavalryPierceArmor, value: 0.05)]
-        case .cavalryPierceArmorII: return [ResearchBonus(type: .cavalryPierceArmor, value: 0.07)]
-        case .cavalryPierceArmorIII: return [ResearchBonus(type: .cavalryPierceArmor, value: 0.10)]
+        // Cavalry Pierce Armor: +1, +1, +2 (total +4)
+        case .cavalryPierceArmorI: return [ResearchBonus(type: .cavalryPierceArmor, value: 1.0)]
+        case .cavalryPierceArmorII: return [ResearchBonus(type: .cavalryPierceArmor, value: 1.0)]
+        case .cavalryPierceArmorIII: return [ResearchBonus(type: .cavalryPierceArmor, value: 2.0)]
 
-        // Archer Pierce Armor: +5%, +7%, +10% (total +22%)
-        case .archerPierceArmorI: return [ResearchBonus(type: .archerPierceArmor, value: 0.05)]
-        case .archerPierceArmorII: return [ResearchBonus(type: .archerPierceArmor, value: 0.07)]
-        case .archerPierceArmorIII: return [ResearchBonus(type: .archerPierceArmor, value: 0.10)]
+        // Archer Pierce Armor: +1, +1, +2 (total +4)
+        case .archerPierceArmorI: return [ResearchBonus(type: .archerPierceArmor, value: 1.0)]
+        case .archerPierceArmorII: return [ResearchBonus(type: .archerPierceArmor, value: 1.0)]
+        case .archerPierceArmorIII: return [ResearchBonus(type: .archerPierceArmor, value: 2.0)]
 
-        // Siege Bludgeon Damage: +5%, +7%, +10% (total +22%)
-        case .siegeBludgeonDamageI: return [ResearchBonus(type: .siegeBludgeonDamage, value: 0.05)]
-        case .siegeBludgeonDamageII: return [ResearchBonus(type: .siegeBludgeonDamage, value: 0.07)]
-        case .siegeBludgeonDamageIII: return [ResearchBonus(type: .siegeBludgeonDamage, value: 0.10)]
+        // Siege Bludgeon Damage: +1, +1, +2 (total +4)
+        case .siegeBludgeonDamageI: return [ResearchBonus(type: .siegeBludgeonDamage, value: 1.0)]
+        case .siegeBludgeonDamageII: return [ResearchBonus(type: .siegeBludgeonDamage, value: 1.0)]
+        case .siegeBludgeonDamageIII: return [ResearchBonus(type: .siegeBludgeonDamage, value: 2.0)]
 
-        // Building Bludgeon Armor: +5%, +7%, +10% (total +22%)
-        case .buildingBludgeonArmorI: return [ResearchBonus(type: .buildingBludgeonArmor, value: 0.05)]
-        case .buildingBludgeonArmorII: return [ResearchBonus(type: .buildingBludgeonArmor, value: 0.07)]
-        case .buildingBludgeonArmorIII: return [ResearchBonus(type: .buildingBludgeonArmor, value: 0.10)]
+        // Building Bludgeon Armor: +1, +1, +2 (total +4)
+        case .buildingBludgeonArmorI: return [ResearchBonus(type: .buildingBludgeonArmor, value: 1.0)]
+        case .buildingBludgeonArmorII: return [ResearchBonus(type: .buildingBludgeonArmor, value: 1.0)]
+        case .buildingBludgeonArmorIII: return [ResearchBonus(type: .buildingBludgeonArmor, value: 2.0)]
 
         // Military Training Speed: +10%, +15%, +20% (total +45%)
         case .militaryTrainingSpeedI: return [ResearchBonus(type: .militaryTrainingSpeed, value: 0.10)]

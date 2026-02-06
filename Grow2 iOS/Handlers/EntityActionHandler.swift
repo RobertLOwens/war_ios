@@ -256,7 +256,7 @@ class EntityActionHandler {
             let title = "🛡️ \(army.name) (\(unitCount) units) - Distance: \(distance)"
             
             actions.append(AlertAction(title: title) { [weak self] in
-                self?.executeAttackCommand(attacker: army, targetCoordinate: coordinate)
+                self?.executeAttackCommand(attacker: army, targetCoordinate: coordinate, targetEntityID: target.entity.id)
             })
         }
         
@@ -268,13 +268,14 @@ class EntityActionHandler {
     }
     
     /// Executes an AttackCommand
-    private func executeAttackCommand(attacker: Army, targetCoordinate: HexCoordinate) {
+    private func executeAttackCommand(attacker: Army, targetCoordinate: HexCoordinate, targetEntityID: UUID? = nil) {
         guard let player = player else { return }
-        
+
         let command = AttackCommand(
             playerID: player.id,
             attackerEntityID: attacker.id,
-            targetCoordinate: targetCoordinate
+            targetCoordinate: targetCoordinate,
+            targetEntityID: targetEntityID
         )
         
         let result = CommandExecutor.shared.execute(command)

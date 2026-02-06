@@ -407,6 +407,13 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // Get starting positions
         let startPositions = generator.getStartingPositions()
 
+        // Set diplomacy between players before creating entities so textures render correct colors
+        for i in 0..<players.count {
+            for j in (i + 1)..<players.count {
+                players[i].setDiplomacyStatus(with: players[j], status: .enemy)
+            }
+        }
+
         // Setup each player at their starting position
         for (index, startPos) in startPositions.enumerated() {
             guard index < players.count else { continue }
@@ -465,13 +472,6 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         self.player = players[0]
         self.enemyPlayer = players.count > 1 ? players[1] : nil
         self.allGamePlayers = players
-
-        // Set diplomacy between players
-        for i in 0..<players.count {
-            for j in (i + 1)..<players.count {
-                players[i].setDiplomacyStatus(with: players[j], status: .enemy)
-            }
-        }
 
         // Calculate map bounds and center camera on player's town center
         calculateMapBounds()
@@ -577,6 +577,13 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // Get starting positions
         let startPositions = generator.getStartingPositions()
 
+        // Set diplomacy between players before creating entities so textures render correct colors
+        for i in 0..<players.count {
+            for j in (i + 1)..<players.count {
+                players[i].setDiplomacyStatus(with: players[j], status: .enemy)
+            }
+        }
+
         // Setup each player with an army (no buildings, no villagers)
         for (index, startPos) in startPositions.enumerated() {
             guard index < players.count else { continue }
@@ -626,9 +633,6 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
             // Register commander with player
             currentPlayer.addCommander(commander)
-
-            // Setup health bar for the army
-            armyNode.setupHealthBar(currentPlayer: players[0])
 
             print("Player \(index + 1) (\(currentPlayer.name)) army spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
             print("   Commander: \(commander.name)")
@@ -708,13 +712,6 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         self.player = players[0]
         self.enemyPlayer = players.count > 1 ? players[1] : nil
         self.allGamePlayers = players
-
-        // Set diplomacy between players
-        for i in 0..<players.count {
-            for j in (i + 1)..<players.count {
-                players[i].setDiplomacyStatus(with: players[j], status: .enemy)
-            }
-        }
 
         // Calculate map bounds and center camera
         calculateMapBounds()
@@ -929,11 +926,6 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // =========================================================================
         if currentTime - lastBuildingTimerUpdateTime >= buildingTimerUpdateInterval {
             updateBuildingTimers()
-
-            // Update entity health bars
-            for entity in hexMap.entities {
-                entity.updateHealthBar()
-            }
 
             lastBuildingTimerUpdateTime = currentTime
         }

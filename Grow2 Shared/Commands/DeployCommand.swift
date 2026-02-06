@@ -105,9 +105,6 @@ struct DeployArmyCommand: GameCommand {
         // Add to player's entity list
         player.addEntity(army)
 
-        // Setup health bar for combat visualization
-        armyNode.setupHealthBar(currentPlayer: context.getPlayer(by: playerID))
-
         print("🛡️ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
         
         return .success

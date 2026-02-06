@@ -1381,7 +1381,7 @@ class MenuCoordinator {
         panelVC.modalTransitionStyle = .crossDissolve
 
         panelVC.onConfirm = { [weak self] selectedArmy in
-            self?.executeAttackCommand(attacker: selectedArmy, targetCoordinate: coordinate)
+            self?.executeAttackCommand(attacker: selectedArmy, targetCoordinate: coordinate, targetEntityID: enemies.first?.entity.id)
         }
 
         panelVC.onCancel = { [weak self] in
@@ -1392,13 +1392,14 @@ class MenuCoordinator {
     }
 
     /// Executes an AttackCommand
-    private func executeAttackCommand(attacker: Army, targetCoordinate: HexCoordinate) {
+    private func executeAttackCommand(attacker: Army, targetCoordinate: HexCoordinate, targetEntityID: UUID? = nil) {
         guard let player = player else { return }
 
         let command = AttackCommand(
             playerID: player.id,
             attackerEntityID: attacker.id,
-            targetCoordinate: targetCoordinate
+            targetCoordinate: targetCoordinate,
+            targetEntityID: targetEntityID
         )
 
         let result = CommandExecutor.shared.execute(command)

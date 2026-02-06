@@ -1257,9 +1257,6 @@ class GameViewController: UIViewController {
         // Add to player's entity list
         player.addEntity(army)
 
-        // Setup health bar for combat visualization
-        armyNode.setupHealthBar(currentPlayer: player)
-        
         print("✅ Deployed army led by \(commander.name) with \(army.getTotalMilitaryUnits()) units")
     }
     

@@ -72,6 +72,8 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
             fogNode: mapNode  // Fog overlays are also in mapNode
         )
         layer.setup(gameState: gameState, hexMap: hexMap, sceneNodes: sceneNodes)
+        layer.localPlayer = self.player
+        layer.allPlayers = self.allGamePlayers
         layer.delegate = self
         self.visualLayer = layer
 
@@ -231,6 +233,7 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
                 fogNode: mapNode
             )
             layer.setup(gameState: state, hexMap: hexMap, sceneNodes: sceneNodes)
+            layer.allPlayers = self.allGamePlayers
         }
 
         syncVisualStateWithEngine()

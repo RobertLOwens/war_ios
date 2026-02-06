@@ -164,7 +164,8 @@ class ResearchManager {
         
         // Start research
         activeResearch = ActiveResearch(researchType: researchType)
-        
+        player.state.startResearch(researchType.rawValue, at: Date().timeIntervalSince1970)
+
         print("🔬 Started research: \(researchType.displayName)")
         print("   Cost: \(researchType.costString)")
         print("   Time: \(researchType.timeString)")
@@ -186,7 +187,8 @@ class ResearchManager {
         }
         
         activeResearch = nil
-        
+        player.state.cancelActiveResearch()
+
         print("❌ Cancelled research: \(active.researchType.displayName)")
         return true
     }
@@ -201,7 +203,8 @@ class ResearchManager {
         }
         
         recalculateBonuses()
-        
+        player?.state.completeResearch(researchType.rawValue)
+
         print("✅ Research completed: \(researchType.displayName)")
         for bonus in researchType.bonuses {
             print("   \(bonus.displayString)")
@@ -432,7 +435,14 @@ class ResearchManager {
         }
         
         recalculateBonuses()
-        
+
+        // Sync all completed research to PlayerState
+        if let playerState = player?.state {
+            for research in completedResearch {
+                playerState.completeResearch(research.rawValue)
+            }
+        }
+
         print("📂 Loaded research state:")
         print("   Completed: \(completedResearch.count)")
         print("   Active: \(activeResearch?.researchType.displayName ?? "None")")

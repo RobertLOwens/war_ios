@@ -345,6 +345,12 @@ class PlayerState: Codable {
         recalculateResearchBonuses()
     }
 
+    /// Cancel the active research without completing it
+    func cancelActiveResearch() {
+        activeResearchType = nil
+        activeResearchStartTime = nil
+    }
+
     /// Check if a specific research has been completed
     func hasCompletedResearch(_ typeRawValue: String) -> Bool {
         return completedResearch.contains(typeRawValue)

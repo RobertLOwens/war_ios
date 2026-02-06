@@ -436,6 +436,10 @@ class ActiveCombat: Codable {
     weak var attackerArmy: Army?
     weak var defenderArmy: Army?
 
+    /// Player states for research bonus application (not saved)
+    var attackerPlayerState: PlayerState?
+    var defenderPlayerState: PlayerState?
+
     // MARK: - Phase Tracking for Detailed Combat Records
 
     /// Records for completed phases

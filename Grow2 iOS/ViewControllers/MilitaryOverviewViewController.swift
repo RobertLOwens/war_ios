@@ -267,6 +267,7 @@ class MilitaryOverviewViewController: UIViewController {
         contentView.addSubview(card)
 
         let stats = unitType.combatStats
+        let playerState = player.state
         var cardHeight: CGFloat = 12
 
         // Header row: Unit name and count
@@ -295,35 +296,86 @@ class MilitaryOverviewViewController: UIViewController {
         card.addSubview(hpLabel)
         cardHeight += 22
 
-        // Damage row
+        // Damage row with research bonuses
+        let damageBonus = DamageCalculator.getResearchDamageBonus(for: unitType, playerState: playerState)
         let damageLabel = UILabel()
-        var damageText = "Damage: "
-        var damageComponents: [String] = []
-        if stats.meleeDamage > 0 { damageComponents.append("Melee \(Int(stats.meleeDamage))") }
-        if stats.pierceDamage > 0 { damageComponents.append("Pierce \(Int(stats.pierceDamage))") }
-        if stats.bludgeonDamage > 0 { damageComponents.append("Bludgeon \(Int(stats.bludgeonDamage))") }
-        damageText += damageComponents.isEmpty ? "None" : damageComponents.joined(separator: ", ")
-        damageLabel.text = damageText
-        damageLabel.font = UIFont.systemFont(ofSize: 14)
-        damageLabel.textColor = .systemOrange
+        let damageFont = UIFont.systemFont(ofSize: 14)
+        let damageAttr = NSMutableAttributedString()
+        damageAttr.append(NSAttributedString(string: "Damage: ", attributes: [.foregroundColor: UIColor.systemOrange, .font: damageFont]))
+
+        var damageComponents: [NSAttributedString] = []
+        if stats.meleeDamage > 0 {
+            let comp = NSMutableAttributedString(string: "Melee \(Int(stats.meleeDamage))", attributes: [.foregroundColor: UIColor.systemOrange, .font: damageFont])
+            if damageBonus > 0 {
+                comp.append(NSAttributedString(string: " (+\(Int(damageBonus)))", attributes: [.foregroundColor: UIColor.systemGreen, .font: damageFont]))
+            }
+            damageComponents.append(comp)
+        }
+        if stats.pierceDamage > 0 {
+            let comp = NSMutableAttributedString(string: "Pierce \(Int(stats.pierceDamage))", attributes: [.foregroundColor: UIColor.systemOrange, .font: damageFont])
+            if damageBonus > 0 {
+                comp.append(NSAttributedString(string: " (+\(Int(damageBonus)))", attributes: [.foregroundColor: UIColor.systemGreen, .font: damageFont]))
+            }
+            damageComponents.append(comp)
+        }
+        if stats.bludgeonDamage > 0 {
+            let comp = NSMutableAttributedString(string: "Bludgeon \(Int(stats.bludgeonDamage))", attributes: [.foregroundColor: UIColor.systemOrange, .font: damageFont])
+            if damageBonus > 0 {
+                comp.append(NSAttributedString(string: " (+\(Int(damageBonus)))", attributes: [.foregroundColor: UIColor.systemGreen, .font: damageFont]))
+            }
+            damageComponents.append(comp)
+        }
+
+        if damageComponents.isEmpty {
+            damageAttr.append(NSAttributedString(string: "None", attributes: [.foregroundColor: UIColor.systemOrange, .font: damageFont]))
+        } else {
+            for (i, comp) in damageComponents.enumerated() {
+                if i > 0 {
+                    damageAttr.append(NSAttributedString(string: ", ", attributes: [.foregroundColor: UIColor.systemOrange, .font: damageFont]))
+                }
+                damageAttr.append(comp)
+            }
+        }
+
+        damageLabel.attributedText = damageAttr
         damageLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
         card.addSubview(damageLabel)
         cardHeight += 20
 
-        // Armor row
+        // Armor row with research bonuses
+        let meleeArmorBonus = DamageCalculator.getResearchMeleeArmorBonus(for: unitType.category, playerState: playerState)
+        let pierceArmorBonus = DamageCalculator.getResearchPierceArmorBonus(for: unitType.category, playerState: playerState)
         let armorLabel = UILabel()
-        armorLabel.text = "Armor: Melee \(Int(stats.meleeArmor)) / Pierce \(Int(stats.pierceArmor)) / Bludgeon \(Int(stats.bludgeonArmor))"
-        armorLabel.font = UIFont.systemFont(ofSize: 14)
-        armorLabel.textColor = .systemBlue
+        let armorFont = UIFont.systemFont(ofSize: 14)
+        let armorAttr = NSMutableAttributedString()
+        armorAttr.append(NSAttributedString(string: "Armor: Melee \(Int(stats.meleeArmor))", attributes: [.foregroundColor: UIColor.systemBlue, .font: armorFont]))
+        if meleeArmorBonus > 0 {
+            armorAttr.append(NSAttributedString(string: " (+\(Int(meleeArmorBonus)))", attributes: [.foregroundColor: UIColor.systemGreen, .font: armorFont]))
+        }
+        armorAttr.append(NSAttributedString(string: " / Pierce \(Int(stats.pierceArmor))", attributes: [.foregroundColor: UIColor.systemBlue, .font: armorFont]))
+        if pierceArmorBonus > 0 {
+            armorAttr.append(NSAttributedString(string: " (+\(Int(pierceArmorBonus)))", attributes: [.foregroundColor: UIColor.systemGreen, .font: armorFont]))
+        }
+        armorAttr.append(NSAttributedString(string: " / Bludgeon \(Int(stats.bludgeonArmor))", attributes: [.foregroundColor: UIColor.systemBlue, .font: armorFont]))
+
+        armorLabel.attributedText = armorAttr
         armorLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
         card.addSubview(armorLabel)
         cardHeight += 20
 
-        // Speed row
+        // Speed row with march speed research bonus
+        let marchSpeedBonus = playerState.getResearchBonus(ResearchBonusType.militaryMarchSpeed.rawValue)
         let speedLabel = UILabel()
-        speedLabel.text = "Speed: Move \(String(format: "%.2f", unitType.moveSpeed))s  |  Attack \(String(format: "%.1f", unitType.attackSpeed))s"
-        speedLabel.font = UIFont.systemFont(ofSize: 14)
-        speedLabel.textColor = .systemCyan
+        let speedFont = UIFont.systemFont(ofSize: 14)
+        let speedAttr = NSMutableAttributedString()
+        speedAttr.append(NSAttributedString(string: "Speed: Move \(String(format: "%.2f", unitType.moveSpeed))s", attributes: [.foregroundColor: UIColor.systemCyan, .font: speedFont]))
+        if marchSpeedBonus > 0 {
+            let pct = Int(marchSpeedBonus * 100)
+            speedAttr.append(NSAttributedString(string: " (-\(pct)%)", attributes: [.foregroundColor: UIColor.systemGreen, .font: speedFont]))
+        }
+        speedAttr.append(NSAttributedString(string: "  |  Attack \(String(format: "%.1f", unitType.attackSpeed))s", attributes: [.foregroundColor: UIColor.systemCyan, .font: speedFont]))
+
+        speedLabel.attributedText = speedAttr
         speedLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
         card.addSubview(speedLabel)
         cardHeight += 20
@@ -353,11 +405,19 @@ class MilitaryOverviewViewController: UIViewController {
         card.addSubview(separator)
         cardHeight += 8
 
-        // Training row
+        // Training row with training speed research bonus
+        let trainingSpeedBonus = playerState.getResearchBonus(ResearchBonusType.militaryTrainingSpeed.rawValue)
         let trainingLabel = UILabel()
-        trainingLabel.text = "Training: \(Int(unitType.trainingTime))s  |  \(formatCost(unitType.trainingCost))"
-        trainingLabel.font = UIFont.systemFont(ofSize: 14)
-        trainingLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+        let trainingFont = UIFont.systemFont(ofSize: 14)
+        let trainingAttr = NSMutableAttributedString()
+        trainingAttr.append(NSAttributedString(string: "Training: \(Int(unitType.trainingTime))s", attributes: [.foregroundColor: UIColor(white: 0.6, alpha: 1.0), .font: trainingFont]))
+        if trainingSpeedBonus > 0 {
+            let pct = Int(trainingSpeedBonus * 100)
+            trainingAttr.append(NSAttributedString(string: " (-\(pct)%)", attributes: [.foregroundColor: UIColor.systemGreen, .font: trainingFont]))
+        }
+        trainingAttr.append(NSAttributedString(string: "  |  \(formatCost(unitType.trainingCost))", attributes: [.foregroundColor: UIColor(white: 0.6, alpha: 1.0), .font: trainingFont]))
+
+        trainingLabel.attributedText = trainingAttr
         trainingLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
         card.addSubview(trainingLabel)
         cardHeight += 20

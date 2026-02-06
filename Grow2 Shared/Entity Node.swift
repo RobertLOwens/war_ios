@@ -44,13 +44,6 @@ class EntityNode: SKSpriteNode {
     var movementPath: [HexCoordinate] = []
     private var pathLine: SKShapeNode?
 
-    // Health bar UI elements
-    private var healthBarBackground: SKShapeNode?
-    private var healthBarFill: SKShapeNode?
-    private weak var currentPlayerReference: Player?
-
-    // Combat position tracking for HP bar
-    private var combatPositionIsTop: Bool = false
 
     // Movement timer UI elements
     private var movementTimerLabel: SKLabelNode?
@@ -427,113 +420,6 @@ class EntityNode: SKSpriteNode {
             pathLine?.removeFromParent()
             pathLine = nil
         }
-
-    // MARK: - Health Bar
-
-    func setupHealthBar(currentPlayer: Player?) {
-        currentPlayerReference = currentPlayer
-
-        // Only show health bars for armies
-        guard entityType == .army else { return }
-
-        // Guard against duplicate health bars - skip if already created
-        if healthBarBackground != nil && healthBarFill != nil {
-            return
-        }
-
-        let barWidth: CGFloat = 20
-        let barHeight: CGFloat = 3
-
-        // Default all HP bars to bottom position
-        let yOffset: CGFloat = -14
-        combatPositionIsTop = false
-
-        // Background (dark)
-        let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
-        healthBarBackground = SKShapeNode(rect: bgRect, cornerRadius: 2)
-        healthBarBackground?.fillColor = UIColor(white: 0.2, alpha: 0.8)
-        healthBarBackground?.strokeColor = .clear
-        healthBarBackground?.zPosition = 15
-        addChild(healthBarBackground!)
-
-        // Fill color based on diplomacy status
-        let diplomacyStatus = currentPlayer?.getDiplomacyStatus(with: entity.owner) ?? .neutral
-        healthBarFill = SKShapeNode(rect: bgRect, cornerRadius: 2)
-        healthBarFill?.fillColor = diplomacyStatus.strokeColor
-        healthBarFill?.strokeColor = .clear
-        healthBarFill?.zPosition = 16
-        addChild(healthBarFill!)
-    }
-
-    /// Updates HP bar position for combat visualization
-    /// - Parameter isAttacker: If true, moves bar to top; if false, keeps at bottom
-    func updateHealthBarCombatPosition(isAttacker: Bool) {
-        combatPositionIsTop = isAttacker
-
-        let barWidth: CGFloat = 20
-        let barHeight: CGFloat = 3
-        let yOffset: CGFloat = isAttacker ? 14 : -14
-
-        // Update background position
-        let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
-        healthBarBackground?.path = CGPath(roundedRect: bgRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
-
-        // Update fill position (keeping current width ratio)
-        updateHealthBar()
-    }
-
-    /// Resets HP bar to default bottom position after combat ends
-    func resetHealthBarPosition() {
-        combatPositionIsTop = false
-
-        let barWidth: CGFloat = 20
-        let barHeight: CGFloat = 3
-        let yOffset: CGFloat = -14
-
-        let bgRect = CGRect(x: -barWidth/2, y: yOffset, width: barWidth, height: barHeight)
-        healthBarBackground?.path = CGPath(roundedRect: bgRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
-
-        updateHealthBar()
-    }
-
-    func updateHealthBar() {
-        // Use armyReference instead of casting entity for correct identity comparison
-        guard entityType == .army,
-              let army = armyReference,
-              let fill = healthBarFill else { return }
-
-        let totalUnits = army.getTotalMilitaryUnits()
-        guard totalUnits > 0 else {
-            // Hide health bar if no units
-            healthBarBackground?.isHidden = true
-            healthBarFill?.isHidden = true
-            return
-        }
-
-        healthBarBackground?.isHidden = false
-        healthBarFill?.isHidden = false
-
-        // Get current HP from active combat if in combat
-        let currentHP: Double
-        let maxHP: Double
-
-        if let combat = GameEngine.shared.combatEngine.getCombat(involving: army.id) {
-            // In active combat, use unit count as HP approximation
-            currentHP = Double(totalUnits)
-            maxHP = Double(totalUnits)  // Approximation since we don't track initial count in engine
-        } else {
-            currentHP = Double(totalUnits)
-            maxHP = Double(totalUnits)
-        }
-
-        let percentage = CGFloat(currentHP / max(maxHP, 1))
-        // Use combat position tracking instead of player ownership
-        let yOffset: CGFloat = combatPositionIsTop ? 14 : -14
-
-        let barWidth: CGFloat = 20 * max(0, min(1, percentage))
-        let newRect = CGRect(x: -10, y: yOffset, width: barWidth, height: 3)
-        fill.path = CGPath(roundedRect: newRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
-    }
 
     // MARK: - Movement Timer
 
