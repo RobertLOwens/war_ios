@@ -150,6 +150,19 @@ class GameEngine {
         if adjustedTime - lastMovementUpdate >= movementUpdateInterval {
             let movementChanges = movementEngine.update(currentTime: adjustedTime)
             allChanges.append(contentsOf: movementChanges)
+
+            // Check for armies that completed movement to a tile with active stack combat
+            for change in movementChanges {
+                if case .armyMoved(let armyID, _, let to, let remainingPath) = change {
+                    if remainingPath.isEmpty {
+                        let reinforceChanges = combatEngine.addDefenderToStackCombat(
+                            armyID: armyID, at: to, currentTime: adjustedTime
+                        )
+                        allChanges.append(contentsOf: reinforceChanges)
+                    }
+                }
+            }
+
             lastMovementUpdate = adjustedTime
         }
 

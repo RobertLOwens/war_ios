@@ -62,6 +62,9 @@ class CombatEngine {
     // MARK: - Villager Combats (army vs villager group)
     private(set) var villagerCombats: [UUID: VillagerCombatData] = [:]
 
+    // MARK: - Stack Combats (multi-army engagement)
+    private(set) var stackCombats: [UUID: StackCombat] = [:]
+
     // MARK: - Garrison Defense
     let garrisonDefenseEngine = GarrisonDefenseEngine()
 
@@ -80,6 +83,7 @@ class CombatEngine {
         activeCombats.removeAll()
         buildingCombats.removeAll()
         villagerCombats.removeAll()
+        stackCombats.removeAll()
 
         garrisonDefenseEngine.setup(gameState: gameState, buildingCombatsProvider: { [weak self] in
             self?.buildingCombats ?? [:]
@@ -107,6 +111,10 @@ class CombatEngine {
         // Process army vs villager combats (quick massacre)
         let villagerChanges = processVillagerCombats(currentTime: currentTime, state: state)
         changes.append(contentsOf: villagerChanges)
+
+        // Process stack combats (multi-army engagement)
+        let stackChanges = processStackCombats(currentTime: currentTime, state: state)
+        changes.append(contentsOf: stackChanges)
 
         // Check for garrison defense attacks
         let garrisonChanges = garrisonDefenseEngine.processGarrisonDefense(currentTime: currentTime, state: state)
@@ -1200,6 +1208,481 @@ class CombatEngine {
         )
     }
 
+    // MARK: - Stack Combat Initiation
+
+    /// Start a stack combat at the target coordinate with multiple attackers vs a defensive stack
+    func startStackCombat(attackerArmyIDs: [UUID], at coordinate: HexCoordinate, currentTime: TimeInterval) -> [StateChange] {
+        guard let state = gameState else { return [] }
+
+        let attackerOwnerID = attackerArmyIDs.compactMap({ state.getArmy(id: $0)?.ownerID }).first ?? UUID()
+
+        // Build defensive stack
+        let defensiveStack = DefensiveStack.build(at: coordinate, state: state, attackerOwnerID: attackerOwnerID)
+
+        guard !defensiveStack.isEmpty else {
+            debugLog("⚔️ Stack combat: No defenders at \(coordinate)")
+            return []
+        }
+
+        let stackCombat = StackCombat(
+            coordinate: coordinate,
+            startTime: currentTime,
+            attackerOwnerID: attackerOwnerID,
+            crossTileDefenderIDs: defensiveStack.crossTileDefenderIDs,
+            villagerGroupIDs: defensiveStack.villagerGroupIDs
+        )
+
+        // Queue all defenders by tier order
+        stackCombat.defenderQueue = defensiveStack.armyEntries
+
+        // Create N-to-N pairings
+        var remainingAttackers = attackerArmyIDs
+        var changes: [StateChange] = []
+
+        // Pair attackers with defenders
+        while !remainingAttackers.isEmpty && !stackCombat.defenderQueue.isEmpty {
+            let attackerID = remainingAttackers.removeFirst()
+            guard let defenderEntry = stackCombat.dequeueNextDefender() else { break }
+
+            if let combatChange = createStackPairing(
+                stackCombat: stackCombat,
+                attackerID: attackerID,
+                defenderEntry: defenderEntry,
+                currentTime: currentTime,
+                state: state
+            ) {
+                changes.append(combatChange)
+            }
+        }
+
+        // Queue unmatched attackers
+        stackCombat.attackerQueue = remainingAttackers
+
+        // Unmatched attackers join existing pairings as reinforcements
+        while let nextAttacker = stackCombat.dequeueNextAttacker() {
+            if let firstPairing = stackCombat.activePairings.first(where: { !$0.isComplete }),
+               let combat = activeCombats[firstPairing.activeCombatID] {
+                if let attackerArmy = state.getArmy(id: nextAttacker) {
+                    combat.addReinforcement(armyData: attackerArmy, isAttacker: true)
+                    attackerArmy.isInCombat = true
+                    attackerArmy.combatTargetID = firstPairing.defenderArmyID
+                    debugLog("⚔️ Stack: Attacker \(attackerArmy.name) joining as reinforcement")
+                }
+            }
+        }
+
+        stackCombats[stackCombat.id] = stackCombat
+
+        let defenderArmyIDs = defensiveStack.armyEntries.map { $0.armyID }
+        changes.insert(.stackCombatStarted(
+            coordinate: coordinate,
+            attackerArmyIDs: attackerArmyIDs,
+            defenderArmyIDs: defenderArmyIDs
+        ), at: 0)
+
+        debugLog("⚔️ Stack combat started at \(coordinate): \(attackerArmyIDs.count) attackers vs \(defensiveStack.entries.count) defenders (\(defensiveStack.villagerGroupIDs.count) villager groups)")
+
+        return changes
+    }
+
+    /// Creates a single combat pairing within a stack combat
+    private func createStackPairing(stackCombat: StackCombat, attackerID: UUID, defenderEntry: DefensiveStackEntry, currentTime: TimeInterval, state: GameState) -> StateChange? {
+        guard let attacker = state.getArmy(id: attackerID),
+              let defender = state.getArmy(id: defenderEntry.armyID) else {
+            return nil
+        }
+
+        // Get terrain at combat location
+        let terrain = state.mapData.getTerrain(at: stackCombat.coordinate) ?? .plains
+
+        // Create the ActiveCombat
+        let combat = ActiveCombat(
+            attackerData: attacker,
+            defenderData: defender,
+            location: stackCombat.coordinate,
+            terrainType: terrain,
+            gameStartTime: currentTime
+        )
+
+        // Set player states for research bonuses
+        if let attackerOwnerID = attacker.ownerID {
+            combat.attackerPlayerState = state.getPlayer(id: attackerOwnerID)
+        }
+        if let defenderOwnerID = defender.ownerID {
+            combat.defenderPlayerState = state.getPlayer(id: defenderOwnerID)
+        }
+
+        // Commander tactics bonuses
+        if let attackerCommanderID = attacker.commanderID,
+           let attackerCommander = state.getCommander(id: attackerCommanderID) {
+            combat.attackerTacticsBonus = Double(attackerCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+        }
+        if let defenderCommanderID = defender.commanderID,
+           let defenderCommander = state.getCommander(id: defenderCommanderID) {
+            combat.defenderTacticsBonus = Double(defenderCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+        }
+
+        // Apply entrenchment defense bonus
+        if defenderEntry.entrenchmentBonus > 0 {
+            combat.entrenchmentDefenseBonus = defenderEntry.entrenchmentBonus
+        }
+
+        // Store combat
+        activeCombats[combat.id] = combat
+
+        // Mark armies as in combat
+        attacker.isInCombat = true
+        attacker.combatTargetID = defenderEntry.armyID
+        defender.isInCombat = true
+        defender.combatTargetID = attackerID
+
+        // Track fronts for stretching
+        stackCombat.addFront(for: attackerID)
+        stackCombat.addFront(for: defenderEntry.armyID)
+
+        // Create pairing record
+        let pairing = CombatPairing(
+            attackerArmyID: attackerID,
+            defenderArmyID: defenderEntry.armyID,
+            activeCombatID: combat.id
+        )
+        stackCombat.activePairings.append(pairing)
+
+        debugLog("⚔️ Stack pairing: \(attacker.name) vs \(defender.name) (Tier: \(defenderEntry.tier.displayName), Cross-tile: \(defenderEntry.isCrossTile))")
+
+        return .combatStarted(
+            attackerID: attackerID,
+            defenderID: defenderEntry.armyID,
+            coordinate: stackCombat.coordinate
+        )
+    }
+
+    // MARK: - Stack Combat Processing
+
+    private func processStackCombats(currentTime: TimeInterval, state: GameState) -> [StateChange] {
+        var changes: [StateChange] = []
+        var completedStacks: [UUID] = []
+
+        for (stackID, stackCombat) in stackCombats {
+            guard !stackCombat.isComplete else {
+                completedStacks.append(stackID)
+                continue
+            }
+
+            // Check each pairing for completion
+            for (index, pairing) in stackCombat.activePairings.enumerated() {
+                guard !pairing.isComplete else { continue }
+
+                // Check if the underlying ActiveCombat has ended
+                guard let combat = activeCombats[pairing.activeCombatID] else {
+                    // Combat was already cleaned up (retreat, etc.)
+                    stackCombat.activePairings[index].isComplete = true
+                    continue
+                }
+
+                guard combat.phase == .ended else { continue }
+
+                // Pairing completed
+                stackCombat.activePairings[index].isComplete = true
+
+                let result = determineCombatResult(combat)
+                stackCombat.activePairings[index].winnerArmyID = result.winnerID
+                stackCombat.activePairings[index].loserArmyID = result.loserID
+
+                // Handle the loser
+                if let loserID = result.loserID {
+                    stackCombat.defeatedArmyIDs.insert(loserID)
+                    stackCombat.removeFront(for: loserID)
+
+                    // Cross-tile entrenched losers get forced retreat instead of destruction
+                    if stackCombat.crossTileDefenderIDs.contains(loserID) {
+                        if let loserArmy = state.getArmy(id: loserID), !loserArmy.isEmpty() {
+                            loserArmy.clearEntrenchment()
+                            let fromCoord = loserArmy.coordinate
+                            initiateAutoRetreat(for: loserID, state: state)
+                            let toCoord = loserArmy.currentPath?.last ?? loserArmy.coordinate
+                            changes.append(.armyForcedRetreat(armyID: loserID, from: fromCoord, to: toCoord))
+                            debugLog("⚔️ Stack: Cross-tile defender \(loserArmy.name) forced to retreat (not destroyed)")
+                        }
+                    } else {
+                        // Same-tile losers are destroyed (handled by normal combat cleanup)
+                        initiateAutoRetreat(for: loserID, state: state)
+                    }
+                }
+
+                changes.append(.stackCombatPairingEnded(
+                    coordinate: stackCombat.coordinate,
+                    winnerArmyID: result.winnerID,
+                    loserArmyID: result.loserID
+                ))
+
+                // Save records
+                let combatRecord = createCombatRecord(from: combat, state: state)
+                addCombatRecord(combatRecord)
+                let detailedRecord = createDetailedCombatRecord(from: combat, state: state)
+                addDetailedCombatRecord(detailedRecord)
+
+                // Clean up combat flags
+                cleanupCombatFlags(combat, state: state)
+
+                // Chain: Winner engages next fresh enemy or reinforces an ally
+                if let winnerID = result.winnerID {
+                    stackCombat.removeFront(for: winnerID)
+
+                    let winnerIsAttacker = pairing.attackerArmyID == winnerID
+
+                    if winnerIsAttacker {
+                        // Attacker won — engage next defender
+                        if let nextDefender = stackCombat.dequeueNextDefender() {
+                            if let combatChange = createStackPairing(
+                                stackCombat: stackCombat,
+                                attackerID: winnerID,
+                                defenderEntry: nextDefender,
+                                currentTime: currentTime,
+                                state: state
+                            ) {
+                                changes.append(combatChange)
+                                debugLog("⚔️ Stack chain: \(state.getArmy(id: winnerID)?.name ?? "Winner") engages next defender")
+                            }
+                        } else if let allyPairing = stackCombat.activePairings.first(where: { !$0.isComplete }),
+                                  let allyCombat = activeCombats[allyPairing.activeCombatID],
+                                  let winnerArmy = state.getArmy(id: winnerID) {
+                            // No more defenders in queue — reinforce an ally's fight
+                            allyCombat.addReinforcement(armyData: winnerArmy, isAttacker: true)
+                            winnerArmy.isInCombat = true
+                            debugLog("⚔️ Stack chain: \(winnerArmy.name) reinforcing ally")
+                        }
+                    } else {
+                        // Defender won — engage next attacker
+                        if let nextAttacker = stackCombat.dequeueNextAttacker() {
+                            let defenderEntry = DefensiveStackEntry(
+                                armyID: winnerID,
+                                tier: .regular,
+                                isCrossTile: stackCombat.crossTileDefenderIDs.contains(winnerID),
+                                sourceCoordinate: state.getArmy(id: winnerID)?.coordinate ?? stackCombat.coordinate,
+                                entrenchmentBonus: state.getArmy(id: winnerID)?.isEntrenched == true ? GameConfig.Entrenchment.defenseBonus : 0
+                            )
+                            if let combatChange = createStackPairing(
+                                stackCombat: stackCombat,
+                                attackerID: nextAttacker,
+                                defenderEntry: defenderEntry,
+                                currentTime: currentTime,
+                                state: state
+                            ) {
+                                changes.append(combatChange)
+                                debugLog("⚔️ Stack chain: Defender engages next attacker")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check for tier advancement
+            let activePairingsRemaining = stackCombat.activePairings.filter { !$0.isComplete }
+            if activePairingsRemaining.isEmpty && stackCombat.defenderQueue.isEmpty {
+                if !stackCombat.villagerPhaseActive && !stackCombat.villagerGroupIDs.isEmpty {
+                    // All army defenders defeated — advance to villager phase
+                    stackCombat.villagerPhaseActive = true
+                    stackCombat.currentTier = .villager
+                    changes.append(.stackCombatTierAdvanced(coordinate: stackCombat.coordinate, newTier: DefensiveTier.villager.rawValue))
+
+                    // Start villager combats for remaining attackers
+                    let survivingAttackers = stackCombat.activePairings
+                        .compactMap { $0.winnerArmyID }
+                        .filter { !stackCombat.defeatedArmyIDs.contains($0) && !stackCombat.retreatedArmyIDs.contains($0) }
+
+                    for villagerGroupID in stackCombat.villagerGroupIDs {
+                        if let attackerID = survivingAttackers.first {
+                            if let villagerChange = startVillagerCombat(
+                                attackerArmyID: attackerID,
+                                defenderVillagerGroupID: villagerGroupID,
+                                currentTime: currentTime
+                            ) {
+                                changes.append(villagerChange)
+                            }
+                        }
+                    }
+
+                    debugLog("⚔️ Stack: All army defenders defeated, advancing to villager phase")
+                } else {
+                    // Stack combat is complete
+                    stackCombat.isComplete = true
+                    completedStacks.append(stackID)
+
+                    // Auto-attack building at location if attackers won
+                    let survivingAttackers = stackCombat.activePairings
+                        .compactMap { $0.winnerArmyID }
+                        .filter { !stackCombat.defeatedArmyIDs.contains($0) && !stackCombat.retreatedArmyIDs.contains($0) }
+
+                    if let firstAttacker = survivingAttackers.first {
+                        autoStartBuildingCombat(for: firstAttacker, at: stackCombat.coordinate, state: state, currentTime: currentTime, changes: &changes)
+                    }
+
+                    let overallResult = CombatResultData(
+                        winnerID: survivingAttackers.first,
+                        loserID: nil,
+                        combatDuration: currentTime - stackCombat.startTime
+                    )
+                    changes.append(.stackCombatEnded(coordinate: stackCombat.coordinate, result: overallResult))
+                    debugLog("⚔️ Stack combat completed at \(stackCombat.coordinate)")
+                }
+            }
+        }
+
+        // Remove completed stacks
+        for id in completedStacks {
+            stackCombats.removeValue(forKey: id)
+        }
+
+        return changes
+    }
+
+    // MARK: - Stack Combat Individual Retreat
+
+    /// Handles an army retreating from a stack combat
+    func handleIndividualRetreat(armyID: UUID) {
+        for (_, stackCombat) in stackCombats {
+            guard stackCombat.involvesArmy(armyID) else { continue }
+
+            // Remove from active pairing if in one
+            for (index, pairing) in stackCombat.activePairings.enumerated() {
+                guard !pairing.isComplete else { continue }
+
+                if pairing.attackerArmyID == armyID || pairing.defenderArmyID == armyID {
+                    // End this pairing's underlying combat
+                    if let combat = activeCombats[pairing.activeCombatID] {
+                        combat.phase = .ended
+                    }
+                    activeCombats.removeValue(forKey: pairing.activeCombatID)
+                    stackCombat.activePairings[index].isComplete = true
+
+                    // Determine who the opponent was
+                    let opponentID = pairing.attackerArmyID == armyID ? pairing.defenderArmyID : pairing.attackerArmyID
+                    stackCombat.activePairings[index].winnerArmyID = opponentID
+                    stackCombat.activePairings[index].loserArmyID = armyID
+
+                    stackCombat.removeFront(for: opponentID)
+
+                    // Opponent can now engage next enemy
+                    if pairing.attackerArmyID == armyID {
+                        // Attacker retreated, defender won — engage next attacker
+                        if let nextAttacker = stackCombat.dequeueNextAttacker(),
+                           let state = gameState {
+                            let defenderEntry = DefensiveStackEntry(
+                                armyID: opponentID,
+                                tier: .regular,
+                                isCrossTile: stackCombat.crossTileDefenderIDs.contains(opponentID),
+                                sourceCoordinate: state.getArmy(id: opponentID)?.coordinate ?? stackCombat.coordinate,
+                                entrenchmentBonus: state.getArmy(id: opponentID)?.isEntrenched == true ? GameConfig.Entrenchment.defenseBonus : 0
+                            )
+                            let currentTime = state.currentTime
+                            _ = createStackPairing(stackCombat: stackCombat, attackerID: nextAttacker, defenderEntry: defenderEntry, currentTime: currentTime, state: state)
+                        }
+                    } else {
+                        // Defender retreated, attacker won — engage next defender
+                        if let nextDefender = stackCombat.dequeueNextDefender(),
+                           let state = gameState {
+                            let currentTime = state.currentTime
+                            _ = createStackPairing(stackCombat: stackCombat, attackerID: opponentID, defenderEntry: nextDefender, currentTime: currentTime, state: state)
+                        }
+                    }
+
+                    break
+                }
+            }
+
+            // Remove from queues
+            stackCombat.removeArmy(armyID)
+            break
+        }
+    }
+
+    /// Get the stack combat involving a specific army
+    func getStackCombat(involvingArmyID armyID: UUID) -> StackCombat? {
+        return stackCombats.values.first { $0.involvesArmy(armyID) }
+    }
+
+    /// Get an active (non-complete) stack combat at a coordinate
+    func getStackCombat(at coordinate: HexCoordinate) -> StackCombat? {
+        return stackCombats.values.first { $0.coordinate == coordinate && !$0.isComplete }
+    }
+
+    // MARK: - Defender Reinforcement
+
+    /// Adds a newly arrived army as a defender reinforcement to an active stack combat
+    /// Returns state changes for any new pairings created
+    func addDefenderToStackCombat(armyID: UUID, at coordinate: HexCoordinate, currentTime: TimeInterval) -> [StateChange] {
+        guard let state = gameState,
+              let army = state.getArmy(id: armyID),
+              let armyOwnerID = army.ownerID else {
+            return []
+        }
+
+        guard let stackCombat = getStackCombat(at: coordinate) else {
+            return []
+        }
+
+        // Only join if this army is enemy of the attackers (i.e., friendly to defenders)
+        guard armyOwnerID != stackCombat.attackerOwnerID else {
+            return []
+        }
+
+        // Don't join if already involved
+        guard !stackCombat.involvesArmy(armyID) else {
+            return []
+        }
+
+        // Don't join if already in combat
+        guard !army.isInCombat else {
+            return []
+        }
+
+        var changes: [StateChange] = []
+
+        let defenderEntry = DefensiveStackEntry(
+            armyID: armyID,
+            tier: .regular,
+            isCrossTile: false,
+            sourceCoordinate: coordinate,
+            entrenchmentBonus: 0
+        )
+
+        // Priority 1: Match with a queued attacker
+        if let nextAttacker = stackCombat.dequeueNextAttacker() {
+            if let combatChange = createStackPairing(
+                stackCombat: stackCombat,
+                attackerID: nextAttacker,
+                defenderEntry: defenderEntry,
+                currentTime: currentTime,
+                state: state
+            ) {
+                changes.append(combatChange)
+                debugLog("⚔️ Stack reinforcement: \(army.name) paired with queued attacker")
+            }
+        }
+        // Priority 2: Reinforce an outnumbered active fight
+        else if let outnumberedPairing = stackCombat.activePairings.first(where: { pairing in
+            guard !pairing.isComplete else { return false }
+            guard let combat = activeCombats[pairing.activeCombatID] else { return false }
+            return combat.attackerArmies.count > combat.defenderArmies.count
+        }),
+        let combat = activeCombats[outnumberedPairing.activeCombatID] {
+            combat.addReinforcement(armyData: army, isAttacker: false)
+            army.isInCombat = true
+            army.combatTargetID = outnumberedPairing.attackerArmyID
+            stackCombat.addFront(for: armyID)
+            debugLog("⚔️ Stack reinforcement: \(army.name) reinforcing outnumbered defender")
+        }
+        // Priority 3: Queue for later chain combat pickup
+        else {
+            stackCombat.addDefender(defenderEntry)
+            army.isInCombat = true
+            debugLog("⚔️ Stack reinforcement: \(army.name) queued as reserve defender")
+        }
+
+        return changes
+    }
+
     // MARK: - Query Methods
 
     func isInCombat(armyID: UUID) -> Bool {
@@ -1217,7 +1700,16 @@ class CombatEngine {
         }
 
         // Check villager combats
-        return villagerCombats.values.contains { $0.attackerArmyID == armyID }
+        if villagerCombats.values.contains(where: { $0.attackerArmyID == armyID }) {
+            return true
+        }
+
+        // Check stack combats
+        if stackCombats.values.contains(where: { $0.involvesArmy(armyID) }) {
+            return true
+        }
+
+        return false
     }
 
     func getCombat(involving armyID: UUID) -> ActiveCombatData? {
@@ -1318,6 +1810,7 @@ class CombatEngine {
         activeCombats.removeAll()
         buildingCombats.removeAll()
         villagerCombats.removeAll()
+        stackCombats.removeAll()
         garrisonDefenseEngine.reset()
         debugLog("🗑️ Combat history cleared")
     }
@@ -1396,6 +1889,11 @@ class CombatEngine {
     }
 
     func retreatFromCombat(armyID: UUID) {
+        // Check if army is in a stack combat first
+        if getStackCombat(involvingArmyID: armyID) != nil {
+            handleIndividualRetreat(armyID: armyID)
+        }
+
         // Find and remove the combat involving this army
         if let combatID = activeCombats.first(where: {
             $0.value.attackerArmies.contains(where: { $0.armyID == armyID }) ||
