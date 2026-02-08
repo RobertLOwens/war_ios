@@ -529,11 +529,16 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
     ///   - generator: The arena map generator to use
     ///   - players: Array of players (player at index 0 is the human player)
     ///   - armyConfig: Optional army configuration for unit composition (uses default if nil)
-    func setupArenaWithGenerator(_ generator: MapGenerator, players: [Player], armyConfig: ArenaArmyConfiguration? = nil) {
+    /// Auto-sim mode flag — when true, auto-initiates combat after setup
+    var autoSimMode: Bool = false
+
+    func setupArenaWithGenerator(_ generator: MapGenerator, players: [Player], armyConfig: ArenaArmyConfiguration? = nil, scenarioConfig: ArenaScenarioConfig? = nil) {
         guard players.count >= 2 else {
             debugLog("Arena map requires at least 2 players")
             return
         }
+
+        let scenario = scenarioConfig ?? .default
 
         // Clear existing nodes
         mapNode?.removeFromParent()
@@ -588,14 +593,17 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         }
 
         // Setup each player with an army (no buildings, no villagers)
+        var allCreatedArmies: [[Army]] = [[], []] // Track armies per player for home base assignment
         for (index, startPos) in startPositions.enumerated() {
             guard index < players.count else { continue }
             let currentPlayer = players[index]
 
-            // Create a level 1 infantry commander for the arena
+            // Commander specialty: use scenario config for enemy, infantry aggressive for player
+            let specialty: CommanderSpecialtyData = index == 0 ? .infantryAggressive : scenario.enemyCommanderSpecialty
+
             let commander = Commander(
                 name: Commander.randomName(),
-                specialty: .infantryAggressive,
+                specialty: specialty,
                 portraitColor: Commander.randomColor(),
                 owner: currentPlayer
             )
@@ -626,25 +634,92 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
             // Register army with player (both arrays for compatibility)
             currentPlayer.addArmy(army)
-            currentPlayer.addEntity(army)  // For getArmies() to work via entities
+            currentPlayer.addEntity(army)
 
             // Explicitly ensure army is registered in GameState for combat/retreat systems
             GameEngine.shared.gameState?.addArmy(army.data)
             debugLog("DEBUG: Army \(army.name) added. In GameState: \(GameEngine.shared.gameState?.getArmy(id: army.id) != nil)")
 
-            // Set enemy army as entrenched for testing entrenchment system
-            if index == 1 {
+            // Set entrenchment based on scenario config (enemy only)
+            if index == 1 && scenario.enemyEntrenched {
                 army.data.isEntrenched = true
                 GameEngine.shared.gameState?.getArmy(id: army.id)?.isEntrenched = true
             }
 
             // Register commander with player
             currentPlayer.addCommander(commander)
+            allCreatedArmies[index].append(army)
 
             debugLog("Player \(index + 1) (\(currentPlayer.name)) army spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
-            debugLog("   Commander: \(commander.name)")
+            debugLog("   Commander: \(commander.name) (\(specialty.rawValue))")
             for (unitType, count) in composition where count > 0 {
                 debugLog("   \(unitType.displayName): \(count)")
+            }
+        }
+
+        // Apply per-unit tier upgrades to player
+        if !scenario.playerUnitTiers.isEmpty, let playerState = GameEngine.shared.gameState?.getPlayer(id: players[0].id) {
+            for (unitType, tier) in scenario.playerUnitTiers where tier > 0 {
+                let upgrades = UnitUpgradeType.upgradesForUnit(unitType).sorted { $0.tier < $1.tier }
+                for upgrade in upgrades where upgrade.tier <= tier {
+                    playerState.completeUnitUpgrade(upgrade.rawValue)
+                    debugLog("   Applied \(upgrade.displayName) to player")
+                }
+            }
+        }
+
+        // Apply per-unit tier upgrades to enemy
+        if !scenario.enemyUnitTiers.isEmpty, let enemyPlayerState = GameEngine.shared.gameState?.getPlayer(id: players[1].id) {
+            for (unitType, tier) in scenario.enemyUnitTiers where tier > 0 {
+                let upgrades = UnitUpgradeType.upgradesForUnit(unitType).sorted { $0.tier < $1.tier }
+                for upgrade in upgrades where upgrade.tier <= tier {
+                    enemyPlayerState.completeUnitUpgrade(upgrade.rawValue)
+                    debugLog("   Applied \(upgrade.displayName) to enemy")
+                }
+            }
+        }
+
+        // Stacking: create additional enemy armies if configured
+        stacking: do {
+            let enemyPlayer = players[1]
+            let config = armyConfig ?? .default
+            let enemyComposition = config.enemyArmy
+            let extraCount = abs(scenario.enemyArmyCount) - 1
+            let isStacked = scenario.enemyArmyCount > 1
+            let isAdjacent = scenario.enemyArmyCount < -1
+
+            if isStacked || isAdjacent {
+                let enemyPos = startPositions[1].coordinate
+                let adjacentHexes = enemyPos.neighbors()
+
+                for i in 0..<extraCount {
+                    let coord = isStacked ? enemyPos : (i < adjacentHexes.count ? adjacentHexes[i] : enemyPos)
+                    let cmdr = Commander(
+                        name: Commander.randomName(),
+                        specialty: scenario.enemyCommanderSpecialty,
+                        portraitColor: Commander.randomColor(),
+                        owner: enemyPlayer
+                    )
+                    let army = Army(name: "\(enemyPlayer.name)'s Army \(i + 2)", coordinate: coord, commander: cmdr, owner: enemyPlayer)
+                    for (unitType, count) in enemyComposition where count > 0 {
+                        army.addMilitaryUnits(unitType, count: count)
+                    }
+                    let armyNode = EntityNode(coordinate: coord, entityType: .army, entity: army, currentPlayer: players[0])
+                    armyNode.position = HexMap.hexToPixel(q: coord.q, r: coord.r)
+                    hexMap.addEntity(armyNode)
+                    entitiesNode.addChild(armyNode)
+                    enemyPlayer.addArmy(army)
+                    enemyPlayer.addEntity(army)
+                    GameEngine.shared.gameState?.addArmy(army.data)
+                    enemyPlayer.addCommander(cmdr)
+
+                    if scenario.enemyEntrenched {
+                        army.data.isEntrenched = true
+                        GameEngine.shared.gameState?.getArmy(id: army.id)?.isEntrenched = true
+                    }
+                    allCreatedArmies[1].append(army)
+                    debugLog("\(isStacked ? "Stacked" : "Adjacent") enemy army \(i + 2) at (\(coord.q), \(coord.r))")
+                }
             }
         }
 
@@ -660,7 +735,6 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         hexMap.addBuilding(player1CityCenter)
         buildingsNode.addChild(player1CityCenter)
         players[0].addBuilding(player1CityCenter)
-        // Sync to GameEngine's game state for combat engine to find buildings
         GameEngine.shared.gameState?.addBuilding(player1CityCenter.data)
 
         // Player 2 city center
@@ -673,16 +747,39 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         players[1].addBuilding(player2CityCenter)
         GameEngine.shared.gameState?.addBuilding(player2CityCenter.data)
 
-        debugLog("Enemy army entrenched at starting position")
+        // Place enemy building at the enemy army position if configured
+        if let buildingType = scenario.enemyBuilding {
+            let enemyArmyPos = startPositions[1].coordinate
+            let buildingNode = BuildingNode(coordinate: enemyArmyPos, buildingType: buildingType, owner: players[1])
+            buildingNode.state = .completed
+            let bPixelPos = HexMap.hexToPixel(q: enemyArmyPos.q, r: enemyArmyPos.r)
+            buildingNode.position = bPixelPos
+            hexMap.addBuilding(buildingNode)
+            buildingsNode.addChild(buildingNode)
+            players[1].addBuilding(buildingNode)
+            GameEngine.shared.gameState?.addBuilding(buildingNode.data)
+            debugLog("Placed \(buildingType.displayName) at enemy position (\(enemyArmyPos.q), \(enemyArmyPos.r))")
 
-        // Set home bases for armies
-        if let player1Army = players[0].armies.first {
-            player1Army.setHomeBase(player1CityCenter.data.id)
-        }
-        if let player2Army = players[1].armies.first {
-            player2Army.setHomeBase(player2CityCenter.data.id)
+            // Add garrison archers to the building
+            if scenario.garrisonArchers > 0 {
+                if let buildingData = GameEngine.shared.gameState?.getBuilding(id: buildingNode.data.id) {
+                    buildingData.addToGarrison(unitType: .archer, quantity: scenario.garrisonArchers)
+                    debugLog("Garrisoned \(scenario.garrisonArchers) archers in \(buildingType.displayName)")
+                }
+            }
         }
 
+        // Set home bases for ALL armies (not just first)
+        for army in allCreatedArmies[0] {
+            army.setHomeBase(player1CityCenter.data.id)
+        }
+        for army in allCreatedArmies[1] {
+            army.setHomeBase(player2CityCenter.data.id)
+        }
+
+        if scenario.enemyEntrenched {
+            debugLog("Enemy army(s) entrenched at starting position")
+        }
         debugLog("City centers placed at corners for retreat testing")
         debugLog("   Player 1 city center: (\(player1CityPos.q), \(player1CityPos.r))")
         debugLog("   Player 2 city center: (\(player2CityPos.q), \(player2CityPos.r))")

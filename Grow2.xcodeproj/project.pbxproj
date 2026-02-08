@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3FBDVC0001000000ARNRSLT /* ArenaResultsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */; };
+		3FENGN0001000000ARNSIM0 /* ArenaSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000ARNSIM0 /* ArenaSimulator.swift */; };
 		3F286A052F195A5B004636ED /* BuildingData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A042F195A5B004636ED /* BuildingData.swift */; };
 		3F286A072F19608D004636ED /* GameCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A062F19608D004636ED /* GameCommand.swift */; };
 		3F286A092F1960C0004636ED /* CommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A082F1960C0004636ED /* CommandExecutor.swift */; };
@@ -146,6 +148,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaResultsViewController.swift; sourceTree = "<group>"; };
+		3FENGN0002000000ARNSIM0 /* ArenaSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaSimulator.swift; sourceTree = "<group>"; };
 		3F286A042F195A5B004636ED /* BuildingData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingData.swift; sourceTree = "<group>"; };
 		3F286A062F19608D004636ED /* GameCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCommand.swift; sourceTree = "<group>"; };
 		3F286A082F1960C0004636ED /* CommandExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandExecutor.swift; sourceTree = "<group>"; };
@@ -394,6 +398,7 @@
 		3FENGN0003000000000ENGGP /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				3FENGN0002000000ARNSIM0 /* ArenaSimulator.swift */,
 				3FENGN0002000000000AICNT /* AIController.swift */,
 				3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */,
 				3FENGN0002000000000AIECP /* AIEconomyPlanner.swift */,
@@ -427,6 +432,7 @@
 			isa = PBXGroup;
 			children = (
 				3FF8CF502F083158002FA5D7 /* AboutViewController.swift */,
+				3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */,
 				3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */,
 				3FATKENTPNL2000000100ATKE /* AttackEntityPanelViewController.swift */,
 				3FBLDENTPNL2000000100BLDE /* BuildEntityPanelViewController.swift */,
@@ -803,6 +809,8 @@
 				3FNOTIF0001000000000NTFMG /* NotificationManager.swift in Sources */,
 				3FNOTIF0001000000000NTFBV /* NotificationBannerView.swift in Sources */,
 				3FNOTIF0001000000000NSTNG /* NotificationSettings.swift in Sources */,
+				3FBDVC0001000000ARNRSLT /* ArenaResultsViewController.swift in Sources */,
+				3FENGN0001000000ARNSIM0 /* ArenaSimulator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

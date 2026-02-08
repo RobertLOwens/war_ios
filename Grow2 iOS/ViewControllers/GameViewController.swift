@@ -11,6 +11,9 @@ class GameViewController: UIViewController {
     var resourceDensity: ResourceDensity = .normal
     var visibilityMode: VisibilityMode = .normal
     var arenaArmyConfig: ArenaArmyConfiguration?
+    var arenaScenarioConfig: ArenaScenarioConfig?
+    var autoSimMode: Bool = false
+    var simRunCount: Int = 1
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
@@ -362,9 +365,10 @@ class GameViewController: UIViewController {
             // Create AI opponent
             let aiPlayer = Player(name: "Enemy", color: .red, isAI: true)
 
-            // Setup arena with ArenaMapGenerator
-            let generator = ArenaMapGenerator()
-            gameScene.setupArenaWithGenerator(generator, players: [player, aiPlayer], armyConfig: arenaArmyConfig)
+            // Setup arena with ArenaMapGenerator (configurable terrain)
+            let generator = ArenaMapGenerator(enemyTerrain: arenaScenarioConfig?.enemyTerrain ?? .plains)
+            gameScene.autoSimMode = autoSimMode
+            gameScene.setupArenaWithGenerator(generator, players: [player, aiPlayer], armyConfig: arenaArmyConfig, scenarioConfig: arenaScenarioConfig)
 
             // Always fully visible for testing
             gameScene.initializeFogOfWar(fullyVisible: true)
@@ -392,8 +396,75 @@ class GameViewController: UIViewController {
         // Initialize the engine architecture for state management
         // This must be called after the map is set up and players are configured
         gameScene.initializeEngineArchitecture()
+
+        // Auto-sim: set fast speed and auto-initiate combat
+        if autoSimMode && mapType == .arena {
+            GameEngine.shared.setGameSpeed(10.0)
+
+            // Listen for combat end to show results
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleAutoSimCombatEnded(_:)),
+                name: .phasedCombatEnded,
+                object: nil
+            )
+
+            // Auto-issue attack command after a brief delay for setup to complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.initiateAutoSimAttack()
+            }
+        }
     }
-    
+
+    // MARK: - Auto-Sim
+
+    private func initiateAutoSimAttack() {
+        guard let gameState = GameEngine.shared.gameState else { return }
+        let playerArmies = gameState.getArmiesForPlayer(id: player.id)
+        guard let attackerArmy = playerArmies.first else { return }
+
+        // Find enemy army position
+        let enemyArmies = gameScene.allGamePlayers
+            .filter { $0.id != player.id }
+            .flatMap { gameState.getArmiesForPlayer(id: $0.id) }
+        guard let targetArmy = enemyArmies.first else { return }
+
+        let command = AttackCommand(
+            playerID: player.id,
+            attackerEntityID: attackerArmy.id,
+            targetCoordinate: targetArmy.coordinate,
+            targetEntityID: targetArmy.id
+        )
+        _ = CommandExecutor.shared.execute(command)
+        debugLog("Auto-sim: Attack command issued")
+    }
+
+    @objc func handleAutoSimCombatEnded(_ notification: Notification) {
+        guard autoSimMode else { return }
+
+        // Small delay to let combat history be recorded
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self else { return }
+            // Check if any combats still active
+            let engine = GameEngine.shared
+            if engine.combatEngine.activeCombats.isEmpty && engine.combatEngine.stackCombats.isEmpty {
+                self.showAutoSimResults()
+            }
+        }
+    }
+
+    private func showAutoSimResults() {
+        // Remove observer
+        NotificationCenter.default.removeObserver(self, name: .phasedCombatEnded, object: nil)
+
+        let records = GameEngine.shared.combatEngine.getDetailedCombatHistory()
+        let resultsVC = ArenaResultsViewController()
+        resultsVC.detailedRecords = records
+        resultsVC.scenarioConfig = arenaScenarioConfig
+        resultsVC.modalPresentationStyle = .fullScreen
+        present(resultsVC, animated: true)
+    }
+
     // MARK: - Combat System
     
     /// Shows a menu to select which army to use for attacking a target

@@ -127,20 +127,24 @@ class FogOfWarManager {
     
     private func updateVisionFromPlayer(_ player: Player) {
         guard let hexMap = hexMap else { return }
-        
+
+        // Snapshot collections to avoid mutation during iteration
+        let buildingsSnapshot = hexMap.buildings
+        let entitiesSnapshot = hexMap.entities
+
         // Vision from buildings (1 tile radius)
         var buildingVisionCount = 0
-        for building in hexMap.buildings where building.isOperational && building.owner?.id == player.id {
+        for building in buildingsSnapshot where building.isOperational && building.owner?.id == player.id {
             let visibleTiles = getVisibleTilesInRadius(center: building.coordinate, radius: 1)
             buildingVisionCount += visibleTiles.count
             for coord in visibleTiles {
                 setVisible(coord)
             }
         }
-        
+
         // Vision from entities (2 tile radius)
         var entityVisionCount = 0
-        for entity in hexMap.entities {
+        for entity in entitiesSnapshot {
             // Check both weak owner ref and data-layer ownerID for reliability
             let isOwnedByPlayer: Bool
             if entity.entity.owner?.id == player.id {
