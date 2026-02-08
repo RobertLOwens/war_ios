@@ -859,19 +859,39 @@ class MenuCoordinator {
     /// Executes a MoveCommand
     func executeMoveCommand(entity: EntityNode, to destination: HexCoordinate) {
         guard let player = player else { return }
-        
+
+        // Check if army is entrenched/entrenching and warn before moving
+        if let army = entity.armyReference,
+           army.data.isEntrenched || army.data.isEntrenching {
+            let bonusPercent = Int(GameConfig.Entrenchment.defenseBonus * 100)
+            viewController?.showConfirmation(
+                title: "Cancel Entrenchment?",
+                message: "Moving will cancel your army's entrenchment, losing the +\(bonusPercent)% defense bonus.",
+                confirmTitle: "Move",
+                onConfirm: { [weak self] in
+                    self?.performMoveCommand(entity: entity, to: destination, player: player)
+                }
+            )
+            return
+        }
+
+        performMoveCommand(entity: entity, to: destination, player: player)
+    }
+
+    /// Performs the actual move command execution
+    private func performMoveCommand(entity: EntityNode, to destination: HexCoordinate, player: Player) {
         let command = MoveCommand(
             playerID: player.id,
             entityID: entity.entity.id,
             destination: destination
         )
-        
+
         let result = CommandExecutor.shared.execute(command)
-        
+
         if !result.succeeded, let reason = result.failureReason {
             viewController?.showAlert(title: "Cannot Move", message: reason)
         }
-        
+
         delegate?.deselectAll()
     }
     

@@ -49,6 +49,10 @@ class EntityNode: SKSpriteNode {
     private var stackBadge: SKShapeNode?
     private var stackLabel: SKLabelNode?
 
+    // Entrenchment badge UI elements
+    private var entrenchmentBadge: SKShapeNode?
+    private var entrenchmentLabel: SKLabelNode?
+
     // Movement timer UI elements
     private var movementTimerLabel: SKLabelNode?
     private var estimatedRemainingTime: TimeInterval = 0
@@ -536,16 +540,116 @@ class EntityNode: SKSpriteNode {
         updateMovementTimerDisplay(remaining: estimatedRemainingTime)
     }
 
+    // MARK: - Entrenchment Progress Bar
+
+    private var entrenchmentBarBackground: SKShapeNode?
+    private var entrenchmentBarFill: SKShapeNode?
+
+    /// Sets up the entrenchment progress bar below the entity
+    func setupEntrenchmentBar() {
+        guard entrenchmentBarBackground == nil else { return }
+
+        let barWidth: CGFloat = 30
+        let barHeight: CGFloat = 3
+        let yPos: CGFloat = -18
+
+        let background = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 1)
+        background.fillColor = UIColor(white: 0.2, alpha: 0.8)
+        background.strokeColor = UIColor(white: 0.4, alpha: 0.6)
+        background.lineWidth = 0.5
+        background.position = CGPoint(x: 0, y: yPos)
+        background.zPosition = 15
+        addChild(background)
+        entrenchmentBarBackground = background
+
+        let fill = SKShapeNode(rectOf: CGSize(width: 0.1, height: barHeight - 1), cornerRadius: 0.5)
+        fill.fillColor = UIColor(red: 0.55, green: 0.35, blue: 0.15, alpha: 1.0)
+        fill.strokeColor = .clear
+        fill.position = CGPoint(x: -barWidth / 2, y: yPos)
+        fill.zPosition = 16
+        addChild(fill)
+        entrenchmentBarFill = fill
+    }
+
+    /// Updates the entrenchment bar fill based on progress (0.0 to 1.0)
+    func updateEntrenchmentBar(progress: Double) {
+        let barWidth: CGFloat = 30
+        let barHeight: CGFloat = 3
+        let yPos: CGFloat = -18
+        let clampedProgress = CGFloat(min(max(progress, 0), 1))
+        let fillWidth = max(0.1, barWidth * clampedProgress)
+
+        entrenchmentBarFill?.removeFromParent()
+        let fill = SKShapeNode(rectOf: CGSize(width: fillWidth, height: barHeight - 1), cornerRadius: 0.5)
+        fill.fillColor = UIColor(red: 0.55, green: 0.35, blue: 0.15, alpha: 1.0)
+        fill.strokeColor = .clear
+        fill.position = CGPoint(x: (-barWidth + fillWidth) / 2, y: yPos)
+        fill.zPosition = 16
+        addChild(fill)
+        entrenchmentBarFill = fill
+    }
+
+    /// Removes the entrenchment progress bar
+    func removeEntrenchmentBar() {
+        entrenchmentBarBackground?.removeFromParent()
+        entrenchmentBarBackground = nil
+        entrenchmentBarFill?.removeFromParent()
+        entrenchmentBarFill = nil
+    }
+
+    // MARK: - Entrenchment Badge
+
+    /// Shows a brown "E" badge on the entity to indicate it is entrenched
+    func showEntrenchmentBadge() {
+        guard entrenchmentBadge == nil else { return }
+
+        let badgeRadius: CGFloat = 7
+        let badge = SKShapeNode(circleOfRadius: badgeRadius)
+        badge.fillColor = UIColor(red: 0.55, green: 0.35, blue: 0.15, alpha: 1.0)
+        badge.strokeColor = .white
+        badge.lineWidth = 1.0
+        badge.position = CGPoint(x: -10, y: -10)
+        badge.zPosition = 16
+        addChild(badge)
+        entrenchmentBadge = badge
+
+        let label = SKLabelNode(fontNamed: "Menlo-Bold")
+        label.fontSize = 8
+        label.fontColor = .white
+        label.text = "E"
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        label.position = CGPoint(x: -10, y: -10)
+        label.zPosition = 17
+        addChild(label)
+        entrenchmentLabel = label
+
+        // Subtle pulse animation
+        let fadeOut = SKAction.fadeAlpha(to: 0.6, duration: 0.5)
+        let fadeIn = SKAction.fadeAlpha(to: 1.0, duration: 0.5)
+        let pulse = SKAction.sequence([fadeOut, fadeIn])
+        badge.run(SKAction.repeatForever(pulse))
+        label.run(SKAction.repeatForever(pulse))
+    }
+
+    /// Removes the entrenchment badge
+    func removeEntrenchmentBadge() {
+        entrenchmentBadge?.removeFromParent()
+        entrenchmentBadge = nil
+        entrenchmentLabel?.removeFromParent()
+        entrenchmentLabel = nil
+    }
+
     // MARK: - Stack Badge
 
     private func setupStackBadge() {
         guard stackBadge == nil else { return }
 
-        let badgeRadius: CGFloat = 6
+        let badgeRadius: CGFloat = 8
         let badge = SKShapeNode(circleOfRadius: badgeRadius)
         badge.fillColor = UIColor(red: 0.85, green: 0.15, blue: 0.15, alpha: 1.0)
         badge.strokeColor = .white
-        badge.lineWidth = 0.75
+        badge.lineWidth = 1.0
         badge.position = CGPoint(x: 10, y: 10)
         badge.zPosition = 16
         badge.isHidden = true
@@ -553,7 +657,7 @@ class EntityNode: SKSpriteNode {
         stackBadge = badge
 
         let label = SKLabelNode(fontNamed: "Menlo-Bold")
-        label.fontSize = 7
+        label.fontSize = 9
         label.fontColor = .white
         label.verticalAlignmentMode = .center
         label.horizontalAlignmentMode = .center

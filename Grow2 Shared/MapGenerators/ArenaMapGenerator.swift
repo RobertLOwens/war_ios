@@ -44,9 +44,9 @@ class ArenaMapGenerator: MapGenerator {
 
     func getStartingPositions() -> [PlayerStartPosition] {
         // Player 1 spawns on left side
-        // Player 2 spawns on their wooden fort
+        // Player 2 spawns entrenched on plains
         let player1Pos = HexCoordinate(q: 1, r: 2)
-        let player2Pos = HexCoordinate(q: 3, r: 3)  // Same as player 2's wooden fort
+        let player2Pos = HexCoordinate(q: 3, r: 3)  // Player 2 starts entrenched on plains
 
         return [
             PlayerStartPosition(coordinate: player1Pos, playerIndex: 0),

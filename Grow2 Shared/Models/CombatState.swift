@@ -428,6 +428,7 @@ class ActiveCombat: Codable {
     let terrainType: TerrainType
     var terrainDefenseBonus: Double
     let terrainAttackPenalty: Double
+    var entrenchmentDefenseBonus: Double = 0
 
     /// Phase transition threshold (seconds)
     static let meleeEngagementThreshold: TimeInterval = 3.0
@@ -520,7 +521,7 @@ class ActiveCombat: Codable {
     enum CodingKeys: String, CodingKey {
         case id, attackerState, defenderState, phase, elapsedTime, location, startTime
         case gameStartTime
-        case terrainType, terrainDefenseBonus, terrainAttackPenalty
+        case terrainType, terrainDefenseBonus, terrainAttackPenalty, entrenchmentDefenseBonus
         case phaseRecords, phaseStartTime, phaseAttackerDamage, phaseDefenderDamage
         case phaseAttackerCasualties, phaseDefenderCasualties
         case attackerArmies, defenderArmies
@@ -539,6 +540,7 @@ class ActiveCombat: Codable {
         terrainType = try container.decodeIfPresent(TerrainType.self, forKey: .terrainType) ?? .plains
         terrainDefenseBonus = try container.decodeIfPresent(Double.self, forKey: .terrainDefenseBonus) ?? 0.0
         terrainAttackPenalty = try container.decodeIfPresent(Double.self, forKey: .terrainAttackPenalty) ?? 0.0
+        entrenchmentDefenseBonus = try container.decodeIfPresent(Double.self, forKey: .entrenchmentDefenseBonus) ?? 0.0
         phaseRecords = try container.decodeIfPresent([CombatPhaseRecord].self, forKey: .phaseRecords) ?? []
         phaseStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .phaseStartTime) ?? 0
         phaseAttackerDamage = try container.decodeIfPresent(Double.self, forKey: .phaseAttackerDamage) ?? 0
@@ -564,6 +566,7 @@ class ActiveCombat: Codable {
         try container.encode(terrainType, forKey: .terrainType)
         try container.encode(terrainDefenseBonus, forKey: .terrainDefenseBonus)
         try container.encode(terrainAttackPenalty, forKey: .terrainAttackPenalty)
+        try container.encode(entrenchmentDefenseBonus, forKey: .entrenchmentDefenseBonus)
         try container.encode(phaseRecords, forKey: .phaseRecords)
         try container.encode(phaseStartTime, forKey: .phaseStartTime)
         try container.encode(phaseAttackerDamage, forKey: .phaseAttackerDamage)

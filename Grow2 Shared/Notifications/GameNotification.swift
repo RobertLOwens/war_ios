@@ -20,6 +20,7 @@ enum GameNotificationType {
     case researchCompleted(researchName: String)
     case resourcePointDepleted(resourceType: String, coordinate: HexCoordinate)
     case trainingCompleted(unitType: String, quantity: Int, coordinate: HexCoordinate)
+    case entrenchmentCompleted(armyName: String, coordinate: HexCoordinate)
 
     /// Icon to display for this notification type
     var icon: String {
@@ -44,6 +45,8 @@ enum GameNotificationType {
             return "⚠️"
         case .trainingCompleted:
             return "🎖️"
+        case .entrenchmentCompleted:
+            return "🪖"
         }
     }
 
@@ -70,6 +73,8 @@ enum GameNotificationType {
             return "\(resourceType) deposit depleted"
         case .trainingCompleted(let unitType, let quantity, _):
             return "Training complete: \(quantity)x \(unitType)"
+        case .entrenchmentCompleted(let armyName, _):
+            return "\(armyName) has finished entrenching"
         }
     }
 
@@ -95,6 +100,8 @@ enum GameNotificationType {
         case .resourcePointDepleted(_, let coord):
             return coord
         case .trainingCompleted(_, _, let coord):
+            return coord
+        case .entrenchmentCompleted(_, let coord):
             return coord
         }
     }
@@ -122,6 +129,8 @@ enum GameNotificationType {
             return "depleted_\(resourceType)_\(coord.q)_\(coord.r)"
         case .trainingCompleted(let unitType, _, _):
             return "training_\(unitType)"
+        case .entrenchmentCompleted(let armyName, _):
+            return "entrenchment_\(armyName)"
         }
     }
 
@@ -142,6 +151,8 @@ enum GameNotificationType {
             return 50
         case .upgradeCompleted:
             return 50
+        case .entrenchmentCompleted:
+            return 45
         case .trainingCompleted:
             return 40
         case .resourcePointDepleted:
@@ -166,6 +177,8 @@ enum GameNotificationType {
             return "Research Complete"
         case .gatheringCompleted, .resourcesMaxed, .resourcePointDepleted:
             return "Resource Alert"
+        case .entrenchmentCompleted:
+            return "Army Update"
         }
     }
 }

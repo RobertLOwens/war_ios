@@ -1422,6 +1422,9 @@ class GameViewController: UIViewController {
         // ✅ FIX: Set loading flag to pause update() loop
         gameScene.isLoading = true
 
+        // Disable engine updates to prevent stale state access during rebuild
+        gameScene.isEngineEnabled = false
+
         guard let loadedData = GameSaveManager.shared.loadGame() else {
             gameScene.isLoading = false
             showSimpleAlert(title: "❌ Load Failed", message: "Could not load the saved game.")
@@ -1511,6 +1514,16 @@ class GameViewController: UIViewController {
             showSimpleAlert(title: "Load Error", message: "Scene not fully initialized. Please try again.")
             return
         }
+
+        // Cancel running actions on old buildings to prevent stale closure execution
+        if let oldHexMap = gameScene.hexMap {
+            for building in oldHexMap.buildings {
+                building.removeAllActions()
+            }
+        }
+
+        // Clear old visual layer's node references before removing children
+        gameScene.visualLayer?.cleanup()
 
         // ✅ Ensure hexMap is assigned to scene first
         gameScene.hexMap = hexMap
@@ -2382,6 +2395,10 @@ extension GameViewController: GameSceneDelegate {
     
     func gameScene(_ scene: GameScene, didRequestMenuForTile coordinate: HexCoordinate) {
         menuCoordinator.showTileActionMenu(for: coordinate)
+    }
+
+    func gameScene(_ scene: GameScene, didRequestEntityPicker entities: [EntityNode], at coordinate: HexCoordinate) {
+        menuCoordinator.showEntityPickerMenu(entities: entities, at: coordinate)
     }
 
     func gameScene(_ scene: GameScene, didRequestUnexploredTileMenu coordinate: HexCoordinate) {

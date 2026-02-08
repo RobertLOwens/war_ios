@@ -154,9 +154,7 @@ class CombatEngine {
             changes.append(contentsOf: phaseChanges)
 
             // Notify UI of combat update
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .phasedCombatUpdated, object: combat)
-            }
+            NotificationCenter.default.post(name: .phasedCombatUpdated, object: combat)
 
             // Check for combat end
             if combat.shouldEnd {
@@ -193,9 +191,7 @@ class CombatEngine {
                 }
 
                 // Notify UI of combat end
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(name: .phasedCombatEnded, object: combat)
-                }
+                NotificationCenter.default.post(name: .phasedCombatEnded, object: combat)
             }
         }
 
@@ -263,9 +259,9 @@ class CombatEngine {
             combat.defenderTacticsBonus = Double(defenderCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
         }
 
-        // Apply entrenchment defense bonus to defender
+        // Apply entrenchment defense bonus to defender (tracked separately)
         if defender.isEntrenched {
-            combat.terrainDefenseBonus += GameConfig.Entrenchment.defenseBonus
+            combat.entrenchmentDefenseBonus = GameConfig.Entrenchment.defenseBonus
             debugLog("   🪖 Defender is entrenched: +\(Int(GameConfig.Entrenchment.defenseBonus * 100))% defense bonus")
         }
 
@@ -397,7 +393,7 @@ class CombatEngine {
     private func processRangedDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from ranged/siege units only, including bonus damage vs enemy composition
         let attackerRangedDPS = DamageCalculator.calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
-        let defenderRangedDPS = DamageCalculator.calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
+        let defenderRangedDPS = DamageCalculator.calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
 
         let attackerDamage = attackerRangedDPS * deltaTime
         let defenderDamage = defenderRangedDPS * deltaTime
@@ -443,7 +439,7 @@ class CombatEngine {
         // Calculate DPS from infantry/cavalry units, including bonus damage vs enemy composition
         let isCharging = combat.elapsedTime < ActiveCombat.meleeEngagementThreshold + 1.0  // 1 second charge window after melee starts
         let attackerMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
-        let defenderMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
+        let defenderMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
 
         let attackerDamage = attackerMeleeDPS * deltaTime
         let defenderDamage = defenderMeleeDPS * deltaTime
@@ -488,7 +484,7 @@ class CombatEngine {
     private func processAllDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // In cleanup phase, all units attack, including bonus damage vs enemy composition
         let attackerTotalDPS = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
-        let defenderTotalDPS = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
+        let defenderTotalDPS = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
 
         let attackerDamage = attackerTotalDPS * deltaTime
         let defenderDamage = defenderTotalDPS * deltaTime
@@ -625,13 +621,11 @@ class CombatEngine {
                             "buildingID": buildingID,
                             "result": result
                         ]
-                        DispatchQueue.main.async {
-                            NotificationCenter.default.post(
-                                name: .buildingCombatEnded,
-                                object: nil,
-                                userInfo: combatInfo
-                            )
-                        }
+                        NotificationCenter.default.post(
+                            name: .buildingCombatEnded,
+                            object: nil,
+                            userInfo: combatInfo
+                        )
                     }
                 }
             }
@@ -1187,6 +1181,7 @@ class CombatEngine {
             terrainType: combat.terrainType,
             terrainDefenseBonus: combat.terrainDefenseBonus,
             terrainAttackPenalty: combat.terrainAttackPenalty,
+            entrenchmentDefenseBonus: combat.entrenchmentDefenseBonus,
             attackerName: attackerArmyState?.armyName ?? "Unknown Attacker",
             attackerOwner: attackerOwner?.name ?? "Unknown",
             attackerCommander: attackerArmyState?.commanderName,
@@ -1338,6 +1333,12 @@ class CombatEngine {
             return // Army doesn't exist or is destroyed - nothing to retreat
         }
         debugLog("DEBUG: initiateAutoRetreat - Processing army \(army.name) at \(army.coordinate), homeBaseID: \(String(describing: army.homeBaseID))")
+
+        // Clear entrenchment when retreating from combat loss
+        if army.isEntrenching || army.isEntrenched {
+            army.clearEntrenchment()
+            debugLog("🪖 Army \(army.name) entrenchment cancelled due to combat loss")
+        }
 
         // Check if army is currently at their home base (lost a fight defending it)
         // If so, they stay to defend the building - only retreat when building is destroyed

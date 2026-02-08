@@ -33,10 +33,8 @@ extension GameScene {
             if ownedEntities.count == 1 {
                 dragStartCoordinate = coordinate
                 dragSourceEntity = ownedEntities[0]
-            } else if ownedEntities.count > 1 {
-                gameDelegate?.gameScene(self, showAlertWithTitle: "Multiple Units",
-                    message: "There are multiple units on this tile. Tap to select one first.")
             }
+            // For stacked tiles (>1 entity), don't initiate drag - tap handles selection via entity picker
         }
     }
 
@@ -176,16 +174,43 @@ extension GameScene {
                 message: "Moving to unexplored territory. Your unit will reveal the fog of war as it travels.")
         }
 
-        if let army = entity.armyReference, let commander = army.commander {
-            let currentStamina = Int(commander.stamina)
-            let cost = Int(Commander.staminaCostPerCommand)
+        if let army = entity.armyReference {
+            let isEntrenched = army.data.isEntrenched || army.data.isEntrenching
+            let hasCommander = army.commander != nil
 
-            gameDelegate?.gameScene(self, showConfirmation: "Move Army?",
-                message: "This will cost \(cost) stamina.\nCurrent stamina: \(currentStamina)/100",
-                confirmTitle: "Move",
-                onConfirm: { [weak self] in
-                    self?.performMove(entity: entity, to: destination, player: player)
-                })
+            if isEntrenched && hasCommander {
+                let currentStamina = Int(army.commander!.stamina)
+                let cost = Int(Commander.staminaCostPerCommand)
+                let bonusPercent = Int(GameConfig.Entrenchment.defenseBonus * 100)
+
+                gameDelegate?.gameScene(self, showConfirmation: "Cancel Entrenchment?",
+                    message: "Moving will cancel entrenchment (+\(bonusPercent)% defense bonus).\nThis will cost \(cost) stamina.\nCurrent stamina: \(currentStamina)/100",
+                    confirmTitle: "Move",
+                    onConfirm: { [weak self] in
+                        self?.performMove(entity: entity, to: destination, player: player)
+                    })
+            } else if isEntrenched {
+                let bonusPercent = Int(GameConfig.Entrenchment.defenseBonus * 100)
+
+                gameDelegate?.gameScene(self, showConfirmation: "Cancel Entrenchment?",
+                    message: "Moving will cancel your army's entrenchment, losing the +\(bonusPercent)% defense bonus.",
+                    confirmTitle: "Move",
+                    onConfirm: { [weak self] in
+                        self?.performMove(entity: entity, to: destination, player: player)
+                    })
+            } else if hasCommander {
+                let currentStamina = Int(army.commander!.stamina)
+                let cost = Int(Commander.staminaCostPerCommand)
+
+                gameDelegate?.gameScene(self, showConfirmation: "Move Army?",
+                    message: "This will cost \(cost) stamina.\nCurrent stamina: \(currentStamina)/100",
+                    confirmTitle: "Move",
+                    onConfirm: { [weak self] in
+                        self?.performMove(entity: entity, to: destination, player: player)
+                    })
+            } else {
+                performMove(entity: entity, to: destination, player: player)
+            }
         } else {
             performMove(entity: entity, to: destination, player: player)
         }

@@ -632,6 +632,12 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             GameEngine.shared.gameState?.addArmy(army.data)
             debugLog("DEBUG: Army \(army.name) added. In GameState: \(GameEngine.shared.gameState?.getArmy(id: army.id) != nil)")
 
+            // Set enemy army as entrenched for testing entrenchment system
+            if index == 1 {
+                army.data.isEntrenched = true
+                GameEngine.shared.gameState?.getArmy(id: army.id)?.isEntrenched = true
+            }
+
             // Register commander with player
             currentPlayer.addCommander(commander)
 
@@ -667,35 +673,7 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         players[1].addBuilding(player2CityCenter)
         GameEngine.shared.gameState?.addBuilding(player2CityCenter.data)
 
-        // Player 2 wooden fort (for testing building protection)
-        let player2FortPos = HexCoordinate(q: 2, r: 3)
-        let player2Fort = BuildingNode(coordinate: player2FortPos, buildingType: .woodenFort, owner: players[1])
-        player2Fort.state = .completed
-        let p2FortPixelPos = HexMap.hexToPixel(q: player2FortPos.q, r: player2FortPos.r)
-        player2Fort.position = p2FortPixelPos
-        hexMap.addBuilding(player2Fort)
-        buildingsNode.addChild(player2Fort)
-        players[1].addBuilding(player2Fort)
-        player2Fort.createTileOverlays(in: self)
-        GameEngine.shared.gameState?.addBuilding(player2Fort.data)
-
-        // NOTE: Removed hardcoded archer garrison - garrison should come from game setup config
-        // player2Fort.addToGarrison(unitType: .archer, quantity: 5)
-
-        // Player 2 farm adjacent to fort (protected by the fort)
-        let player2FarmPos = HexCoordinate(q: 2, r: 2)
-        let player2Farm = BuildingNode(coordinate: player2FarmPos, buildingType: .farm, owner: players[1])
-        player2Farm.state = .completed
-        let p2FarmPixelPos = HexMap.hexToPixel(q: player2FarmPos.q, r: player2FarmPos.r)
-        player2Farm.position = p2FarmPixelPos
-        hexMap.addBuilding(player2Farm)
-        buildingsNode.addChild(player2Farm)
-        players[1].addBuilding(player2Farm)
-        GameEngine.shared.gameState?.addBuilding(player2Farm.data)
-
-        debugLog("Enemy defensive buildings placed:")
-        debugLog("   Wooden Fort: (\(player2FortPos.q), \(player2FortPos.r))")
-        debugLog("   Farm (protected by fort): (\(player2FarmPos.q), \(player2FarmPos.r))")
+        debugLog("Enemy army entrenched at starting position")
 
         // Set home bases for armies
         if let player1Army = players[0].armies.first {
@@ -917,16 +895,16 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // =========================================================================
         // FAST UPDATES (4x per second): Vision & Fog - needs to feel responsive
         // =========================================================================
-        if currentTime - lastVisionUpdateTime >= visionUpdateInterval {
+        if isEngineEnabled, currentTime - lastVisionUpdateTime >= visionUpdateInterval {
             updateVisionAndFog()
             updateEntrenchmentOverlays()
             lastVisionUpdateTime = currentTime
         }
-        
+
         // =========================================================================
         // MEDIUM UPDATES (2x per second): UI elements & display
         // =========================================================================
-        if currentTime - lastBuildingTimerUpdateTime >= buildingTimerUpdateInterval {
+        if isEngineEnabled, currentTime - lastBuildingTimerUpdateTime >= buildingTimerUpdateInterval {
             updateBuildingTimers()
 
             lastBuildingTimerUpdateTime = currentTime
@@ -1046,19 +1024,17 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             // Skip if overlays already exist for this army
             if entrenchmentOverlays[army.id] != nil { continue }
 
-            // Create neighbor hex outlines
+            // Create neighbor hex outlines for all valid tiles (hidden if not visible yet)
             let neighbors = army.coordinate.neighbors()
             var overlayNodes: [SKShapeNode] = []
 
             for neighbor in neighbors {
-                // Only show overlays for tiles that exist on the map
+                // Only create overlays for tiles that exist on the map
                 guard hexMap.getTile(at: neighbor) != nil else { continue }
 
-                // Check visibility - only show if tile is visible to local player
-                guard player.isVisible(neighbor) else { continue }
-
                 let position = HexMap.hexToPixel(q: neighbor.q, r: neighbor.r)
-                let shape = createEntrenchmentHexOutline(at: position)
+                let shape = createEntrenchmentHexOutline(at: position, coordinate: neighbor)
+                shape.isHidden = !player.isVisible(neighbor)
                 mapNode.addChild(shape)
                 overlayNodes.append(shape)
             }
@@ -1073,23 +1049,17 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         }
 
         // Update visibility of existing overlays based on fog of war
-        for (armyID, nodes) in entrenchmentOverlays {
-            // Find the army to get its coordinate
-            guard let entity = hexMap.entities.first(where: { $0.entity.id == armyID }),
-                  let army = entity.entity as? Army else {
-                continue
-            }
-            let neighbors = army.coordinate.neighbors()
-            for (index, node) in nodes.enumerated() {
-                if index < neighbors.count {
-                    node.isHidden = !player.isVisible(neighbors[index])
-                }
+        for (_, nodes) in entrenchmentOverlays {
+            for node in nodes {
+                guard let name = node.name,
+                      let coordinate = parseEntrenchmentCoordinate(from: name) else { continue }
+                node.isHidden = !player.isVisible(coordinate)
             }
         }
     }
 
     /// Creates a hex outline shape for entrenchment neighbor tiles
-    private func createEntrenchmentHexOutline(at position: CGPoint) -> SKShapeNode {
+    private func createEntrenchmentHexOutline(at position: CGPoint, coordinate: HexCoordinate) -> SKShapeNode {
         let radius: CGFloat = HexTileNode.hexRadius - 2
         let isoRatio = HexTileNode.isoRatio
         let path = UIBezierPath()
@@ -1113,7 +1083,8 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         shape.lineWidth = 3
         shape.fillColor = UIColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 0.1)
         shape.glowWidth = 1
-        shape.zPosition = 50
+        shape.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: 10)
+        shape.name = "entrench_\(coordinate.q)_\(coordinate.r)"
 
         // Pulsing animation
         let fadeOut = SKAction.fadeAlpha(to: 0.4, duration: 0.8)
@@ -1124,6 +1095,14 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         return shape
     }
 
+    /// Parses a HexCoordinate from an entrenchment overlay node name (format: "entrench_q_r")
+    private func parseEntrenchmentCoordinate(from name: String) -> HexCoordinate? {
+        let parts = name.split(separator: "_")
+        guard parts.count == 3, parts[0] == "entrench",
+              let q = Int(parts[1]), let r = Int(parts[2]) else { return nil }
+        return HexCoordinate(q: q, r: r)
+    }
+
     /// Removes all entrenchment overlays for a specific army
     func removeEntrenchmentOverlays(for armyID: UUID) {
         guard let nodes = entrenchmentOverlays[armyID] else { return }
@@ -1131,6 +1110,11 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             node.removeFromParent()
         }
         entrenchmentOverlays.removeValue(forKey: armyID)
+
+        // Also remove the entrenchment badge from the entity node
+        if let entityNode = hexMap?.entities.first(where: { $0.entity.id == armyID }) {
+            entityNode.removeEntrenchmentBadge()
+        }
     }
 
     // Garrison defense is now handled by CombatEngine.processGarrisonDefense()
@@ -1476,12 +1460,27 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // Otherwise, select the tile and show menu
         selectedTile?.isSelected = false
         selectedEntity = nil
-        
+
         tile.isSelected = true
         selectedTile = tile
-        
+
         debugLog("Selected tile at q:\(tile.coordinate.q), r:\(tile.coordinate.r)")
-        
+
+        // Check for multiple visible entities - show entity picker instead of tile menu
+        if let currentPlayer = player {
+            let entitiesAtTile = hexMap?.getEntities(at: tile.coordinate) ?? []
+            let visibleEntities = entitiesAtTile.filter { entity in
+                if let fogOfWar = currentPlayer.fogOfWar {
+                    return fogOfWar.shouldShowEntity(entity.entity, at: tile.coordinate)
+                }
+                return true
+            }
+            if visibleEntities.count > 1 {
+                gameDelegate?.gameScene(self, didRequestEntityPicker: visibleEntities, at: tile.coordinate)
+                return
+            }
+        }
+
         gameDelegate?.gameScene(self, didRequestMenuForTile: tile.coordinate)
     }
     
@@ -1504,9 +1503,10 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             // Villagers are included even if busy (panel will show warning)
             // The MenuCoordinator/MoveEntityPanel handles task cancellation
 
-            // If it's an army, must not be in active combat
+            // If it's an army, must not be in active combat or commander-only
             if let army = entity.armyReference {
                 guard !GameEngine.shared.combatEngine.isInCombat(armyID: army.id) else { return false }
+                guard army.hasMilitaryUnits() else { return false }
             }
 
             return true

@@ -87,6 +87,11 @@ enum StateChange: Codable {
     case researchProgress(playerID: UUID, researchType: String, progress: Double)
     case researchCompleted(playerID: UUID, researchType: String)
 
+    // MARK: - Unit Upgrade Changes
+    case unitUpgradeStarted(playerID: UUID, unitType: String, tier: Int, buildingID: UUID, startTime: TimeInterval)
+    case unitUpgradeProgress(playerID: UUID, unitType: String, progress: Double)
+    case unitUpgradeCompleted(playerID: UUID, unitType: String, tier: Int)
+
     // MARK: - Game State Changes
     case gameTick(currentTime: TimeInterval)
     case gameOver(reason: String, winnerID: UUID?)

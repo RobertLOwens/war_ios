@@ -86,9 +86,13 @@ class AIPlayerState {
     // Research timing
     var lastResearchCheckTime: TimeInterval = 0
 
+    // Unit upgrade timing
+    var lastUnitUpgradeCheckTime: TimeInterval = 0
+
     // Defensive building timing
     var lastDefenseBuildTime: TimeInterval = 0
     var lastGarrisonCheckTime: TimeInterval = 0
+    var lastEntrenchCheckTime: TimeInterval = 0
 
     // Strategic memory
     var knownEnemyBases: [HexCoordinate] = []
@@ -414,6 +418,102 @@ class AIController {
 
     // MARK: - Command Generation (Delegates to Planners)
 
+    // MARK: - Unit Upgrade Commands
+
+    private func generateUnitUpgradeCommands(aiState: AIPlayerState, gameState: GameState, currentTime: TimeInterval) -> [EngineCommand] {
+        let playerID = aiState.playerID
+
+        guard currentTime - aiState.lastUnitUpgradeCheckTime >= GameConfig.AI.Intervals.unitUpgradeCheck else { return [] }
+        aiState.lastUnitUpgradeCheckTime = currentTime
+
+        guard let player = gameState.getPlayer(id: playerID) else { return [] }
+
+        // Don't start if one is already active
+        if player.isUnitUpgradeActive() { return [] }
+
+        // Get all available upgrades
+        let available = getAvailableUnitUpgrades(for: playerID, gameState: gameState)
+        guard !available.isEmpty else { return [] }
+
+        // Score and pick the best
+        var scored: [(UnitUpgradeType, Double)] = []
+        for upgrade in available {
+            let score = scoreUnitUpgrade(upgrade, playerID: playerID, gameState: gameState)
+            scored.append((upgrade, score))
+        }
+        scored.sort { $0.1 > $1.1 }
+
+        guard let (best, _) = scored.first else { return [] }
+
+        // Check affordability
+        guard player.canAfford(best.cost) else { return [] }
+
+        // Find a building of the right type with sufficient level
+        let buildings = gameState.getBuildingsForPlayer(id: playerID)
+        guard let building = buildings.first(where: {
+            $0.buildingType == best.requiredBuildingType &&
+            $0.state == .completed &&
+            $0.level >= best.requiredBuildingLevel
+        }) else { return [] }
+
+        debugLog("🤖 AI starting unit upgrade: \(best.displayName)")
+        return [AIUpgradeUnitCommand(playerID: playerID, upgradeType: best, buildingID: building.id)]
+    }
+
+    private func getAvailableUnitUpgrades(for playerID: UUID, gameState: GameState) -> [UnitUpgradeType] {
+        guard let player = gameState.getPlayer(id: playerID) else { return [] }
+
+        let buildings = gameState.getBuildingsForPlayer(id: playerID)
+
+        var available: [UnitUpgradeType] = []
+        for upgrade in UnitUpgradeType.allCases {
+            // Skip completed
+            if player.hasCompletedUnitUpgrade(upgrade.rawValue) { continue }
+
+            // Check prerequisite
+            if let prereq = upgrade.prerequisite {
+                if !player.hasCompletedUnitUpgrade(prereq.rawValue) { continue }
+            }
+
+            // Check if player has a building of the right type at the right level
+            let hasBuilding = buildings.contains {
+                $0.buildingType == upgrade.requiredBuildingType &&
+                $0.state == .completed &&
+                $0.level >= upgrade.requiredBuildingLevel
+            }
+            if !hasBuilding { continue }
+
+            available.append(upgrade)
+        }
+
+        return available
+    }
+
+    private func scoreUnitUpgrade(_ upgrade: UnitUpgradeType, playerID: UUID, gameState: GameState) -> Double {
+        var score = 0.0
+
+        // Prefer lower tiers first (cheaper, faster)
+        score += Double(4 - upgrade.tier) * 20.0
+
+        // Prefer upgrades for units the AI currently has
+        let armies = gameState.getArmiesForPlayer(id: playerID)
+        var hasUnit = false
+        for army in armies {
+            if army.getUnitCount(ofType: upgrade.unitType) > 0 {
+                hasUnit = true
+                score += 30.0
+                break
+            }
+        }
+
+        // Give some score even without units, based on category usefulness
+        if !hasUnit {
+            score += 5.0
+        }
+
+        return score
+    }
+
     private func generateCommands(for aiState: AIPlayerState, gameState: GameState, currentTime: TimeInterval) -> [EngineCommand] {
         var commands: [EngineCommand] = []
 
@@ -423,6 +523,7 @@ class AIController {
             commands.append(contentsOf: economyPlanner.generateExpansionCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: researchPlanner.generateResearchCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: defensePlanner.generateDefensiveBuildingCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
+            commands.append(contentsOf: generateUnitUpgradeCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
 
         case .alert:
             commands.append(contentsOf: economyPlanner.generateEconomyCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
@@ -430,6 +531,8 @@ class AIController {
             commands.append(contentsOf: researchPlanner.generateResearchCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: defensePlanner.generateDefensiveBuildingCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: defensePlanner.generateGarrisonCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
+            commands.append(contentsOf: defensePlanner.generateEntrenchmentCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
+            commands.append(contentsOf: generateUnitUpgradeCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
 
         case .defense:
             commands.append(contentsOf: militaryPlanner.generateDefenseCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
@@ -437,12 +540,15 @@ class AIController {
             commands.append(contentsOf: researchPlanner.generateResearchCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: defensePlanner.generateDefensiveBuildingCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: defensePlanner.generateGarrisonCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
+            commands.append(contentsOf: defensePlanner.generateEntrenchmentCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
+            commands.append(contentsOf: generateUnitUpgradeCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
 
         case .attack:
             commands.append(contentsOf: militaryPlanner.generateAttackCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: economyPlanner.generateEconomyCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: researchPlanner.generateResearchCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
             commands.append(contentsOf: defensePlanner.generateGarrisonCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
+            commands.append(contentsOf: generateUnitUpgradeCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
 
         case .retreat:
             commands.append(contentsOf: militaryPlanner.generateRetreatCommands(aiState: aiState, gameState: gameState, currentTime: currentTime))
@@ -1019,6 +1125,163 @@ class AIStartResearchCommand: BaseEngineCommand {
         ))
 
         debugLog("🤖 AI started research: \(researchType.displayName)")
+
+        return .success(changes: changeBuilder.build().changes)
+    }
+}
+
+/// AI command for entrenching an army at its current position
+class AIEntrenchCommand: BaseEngineCommand {
+    let armyID: UUID
+
+    init(playerID: UUID, armyID: UUID) {
+        self.armyID = armyID
+        super.init(playerID: playerID)
+    }
+
+    override func validate(in state: GameState) -> EngineCommandResult {
+        guard let army = state.getArmy(id: armyID) else {
+            return .failure(reason: "Army not found")
+        }
+
+        guard army.ownerID == playerID else {
+            return .failure(reason: "Not your army")
+        }
+
+        guard !army.isEntrenched else {
+            return .failure(reason: "Already entrenched")
+        }
+
+        guard !army.isEntrenching else {
+            return .failure(reason: "Already entrenching")
+        }
+
+        guard army.currentPath == nil else {
+            return .failure(reason: "Cannot entrench while moving")
+        }
+
+        guard !army.isInCombat else {
+            return .failure(reason: "Cannot entrench while in combat")
+        }
+
+        guard !army.isRetreating else {
+            return .failure(reason: "Cannot entrench while retreating")
+        }
+
+        guard let player = state.getPlayer(id: playerID) else {
+            return .failure(reason: "Player not found")
+        }
+
+        guard player.hasResource(.wood, amount: GameConfig.Entrenchment.woodCost) else {
+            return .failure(reason: "Not enough wood")
+        }
+
+        if let commanderID = army.commanderID,
+           let commander = state.getCommander(id: commanderID) {
+            guard commander.stamina >= Commander.staminaCostPerCommand else {
+                return .failure(reason: "Commander too exhausted")
+            }
+        }
+
+        return .success(changes: [])
+    }
+
+    override func execute(in state: GameState, changeBuilder: StateChangeBuilder) -> EngineCommandResult {
+        guard let army = state.getArmy(id: armyID),
+              let player = state.getPlayer(id: playerID) else {
+            return .failure(reason: "Not found")
+        }
+
+        _ = player.removeResource(.wood, amount: GameConfig.Entrenchment.woodCost)
+
+        if let commanderID = army.commanderID,
+           let commander = state.getCommander(id: commanderID) {
+            commander.consumeStamina()
+        }
+
+        army.isEntrenching = true
+        army.entrenchmentStartTime = state.currentTime
+
+        changeBuilder.add(.armyEntrenchmentStarted(armyID: armyID, coordinate: army.coordinate))
+
+        debugLog("🤖 AI army \(army.name) started entrenching at (\(army.coordinate.q), \(army.coordinate.r))")
+
+        return .success(changes: changeBuilder.build().changes)
+    }
+}
+
+/// AI command for starting a unit upgrade
+class AIUpgradeUnitCommand: BaseEngineCommand {
+    let upgradeType: UnitUpgradeType
+    let buildingID: UUID
+
+    init(playerID: UUID, upgradeType: UnitUpgradeType, buildingID: UUID) {
+        self.upgradeType = upgradeType
+        self.buildingID = buildingID
+        super.init(playerID: playerID)
+    }
+
+    override func validate(in state: GameState) -> EngineCommandResult {
+        guard let player = state.getPlayer(id: playerID) else {
+            return .failure(reason: "Player not found")
+        }
+
+        if player.isUnitUpgradeActive() {
+            return .failure(reason: "Unit upgrade already in progress")
+        }
+
+        if player.hasCompletedUnitUpgrade(upgradeType.rawValue) {
+            return .failure(reason: "Unit upgrade already completed")
+        }
+
+        if let prereq = upgradeType.prerequisite {
+            if !player.hasCompletedUnitUpgrade(prereq.rawValue) {
+                return .failure(reason: "Prerequisites not met")
+            }
+        }
+
+        // Check building
+        guard let building = state.getBuilding(id: buildingID) else {
+            return .failure(reason: "Building not found")
+        }
+
+        if building.buildingType != upgradeType.requiredBuildingType {
+            return .failure(reason: "Wrong building type")
+        }
+
+        if building.level < upgradeType.requiredBuildingLevel {
+            return .failure(reason: "Building level too low")
+        }
+
+        for (resource, amount) in upgradeType.cost {
+            if !player.hasResource(resource, amount: amount) {
+                return .failure(reason: "Insufficient resources")
+            }
+        }
+
+        return .success(changes: [])
+    }
+
+    override func execute(in state: GameState, changeBuilder: StateChangeBuilder) -> EngineCommandResult {
+        guard let player = state.getPlayer(id: playerID) else {
+            return .failure(reason: "Player not found")
+        }
+
+        for (resource, amount) in upgradeType.cost {
+            _ = player.removeResource(resource, amount: amount)
+        }
+
+        player.startUnitUpgrade(upgradeType.rawValue, buildingID: buildingID, at: state.currentTime)
+
+        changeBuilder.add(.unitUpgradeStarted(
+            playerID: playerID,
+            unitType: upgradeType.unitType.rawValue,
+            tier: upgradeType.tier,
+            buildingID: buildingID,
+            startTime: state.currentTime
+        ))
+
+        debugLog("🤖 AI started unit upgrade: \(upgradeType.displayName)")
 
         return .success(changes: changeBuilder.build().changes)
     }

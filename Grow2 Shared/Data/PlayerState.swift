@@ -125,6 +125,13 @@ class PlayerState: Codable {
     private(set) var activeResearchStartTime: TimeInterval? = nil
     private var cachedResearchBonuses: [String: Double] = [:]  // ResearchBonusType rawValue -> value
 
+    // MARK: - Unit Upgrade Tracking
+    private(set) var completedUnitUpgrades: Set<String> = []  // UnitUpgradeType rawValue strings
+    private(set) var activeUnitUpgrade: String? = nil
+    private(set) var activeUnitUpgradeStartTime: TimeInterval? = nil
+    private(set) var activeUnitUpgradeBuildingID: UUID? = nil
+    private var cachedUnitUpgradeBonuses: [String: UnitUpgradeBonusData] = [:]  // MilitaryUnitTypeData rawValue -> cumulative bonus
+
     // MARK: - Constants
     static let foodConsumptionPerPop: Double = 0.1
 
@@ -383,6 +390,65 @@ class PlayerState: Codable {
         }
     }
 
+    // MARK: - Unit Upgrade Methods
+
+    /// Start a unit upgrade
+    func startUnitUpgrade(_ typeRawValue: String, buildingID: UUID, at time: TimeInterval) {
+        guard activeUnitUpgrade == nil else { return }
+        activeUnitUpgrade = typeRawValue
+        activeUnitUpgradeStartTime = time
+        activeUnitUpgradeBuildingID = buildingID
+    }
+
+    /// Complete the active unit upgrade
+    func completeUnitUpgrade(_ typeRawValue: String) {
+        completedUnitUpgrades.insert(typeRawValue)
+        if activeUnitUpgrade == typeRawValue {
+            activeUnitUpgrade = nil
+            activeUnitUpgradeStartTime = nil
+            activeUnitUpgradeBuildingID = nil
+        }
+        recalculateUnitUpgradeBonuses()
+    }
+
+    /// Cancel the active unit upgrade without completing it
+    func cancelActiveUnitUpgrade() {
+        activeUnitUpgrade = nil
+        activeUnitUpgradeStartTime = nil
+        activeUnitUpgradeBuildingID = nil
+    }
+
+    /// Check if a specific unit upgrade has been completed
+    func hasCompletedUnitUpgrade(_ typeRawValue: String) -> Bool {
+        return completedUnitUpgrades.contains(typeRawValue)
+    }
+
+    /// Check if any unit upgrade is currently active
+    func isUnitUpgradeActive() -> Bool {
+        return activeUnitUpgrade != nil
+    }
+
+    /// Get the cumulative upgrade bonus for a unit type
+    func getUnitUpgradeBonus(for unitType: MilitaryUnitTypeData) -> UnitUpgradeBonusData {
+        return cachedUnitUpgradeBonuses[unitType.rawValue] ?? UnitUpgradeBonusData(attackBonus: 0, armorBonus: 0, hpBonus: 0)
+    }
+
+    /// Get the current completed tier for a unit type
+    func getUnitUpgradeTier(for unitType: MilitaryUnitTypeData) -> Int {
+        return UnitUpgradeType.currentTier(for: unitType, completedUpgrades: completedUnitUpgrades)
+    }
+
+    /// Recalculate cached unit upgrade bonuses from completed upgrades
+    func recalculateUnitUpgradeBonuses() {
+        cachedUnitUpgradeBonuses.removeAll()
+        for unitType in MilitaryUnitTypeData.allCases {
+            let bonus = UnitUpgradeType.cumulativeBonuses(for: unitType, completedUpgrades: completedUnitUpgrades)
+            if bonus.attackBonus > 0 || bonus.armorBonus > 0 || bonus.hpBonus > 0 {
+                cachedUnitUpgradeBonuses[unitType.rawValue] = bonus
+            }
+        }
+    }
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
@@ -393,6 +459,44 @@ class PlayerState: Codable {
         case visibleCoordinates, exploredCoordinates
         case lastUpdateTime, foodConsumptionAccumulator
         case completedResearch, activeResearchType, activeResearchStartTime, cachedResearchBonuses
+        case completedUnitUpgrades, activeUnitUpgrade, activeUnitUpgradeStartTime, activeUnitUpgradeBuildingID
+    }
+
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        colorHex = try container.decode(String.self, forKey: .colorHex)
+        isAI = try container.decode(Bool.self, forKey: .isAI)
+
+        resources = try container.decode([ResourceTypeData: Int].self, forKey: .resources)
+        collectionRates = try container.decode([ResourceTypeData: Double].self, forKey: .collectionRates)
+        resourceAccumulators = try container.decode([ResourceTypeData: Double].self, forKey: .resourceAccumulators)
+
+        ownedBuildingIDs = try container.decode(Set<UUID>.self, forKey: .ownedBuildingIDs)
+        ownedArmyIDs = try container.decode(Set<UUID>.self, forKey: .ownedArmyIDs)
+        ownedVillagerGroupIDs = try container.decode(Set<UUID>.self, forKey: .ownedVillagerGroupIDs)
+        ownedCommanderIDs = try container.decodeIfPresent(Set<UUID>.self, forKey: .ownedCommanderIDs) ?? []
+
+        diplomacyRelations = try container.decode([UUID: DiplomacyStatusData].self, forKey: .diplomacyRelations)
+
+        visibleCoordinates = try container.decode(Set<HexCoordinate>.self, forKey: .visibleCoordinates)
+        exploredCoordinates = try container.decode(Set<HexCoordinate>.self, forKey: .exploredCoordinates)
+
+        lastUpdateTime = try container.decodeIfPresent(TimeInterval.self, forKey: .lastUpdateTime)
+        foodConsumptionAccumulator = try container.decodeIfPresent(Double.self, forKey: .foodConsumptionAccumulator) ?? 0.0
+
+        completedResearch = try container.decodeIfPresent(Set<String>.self, forKey: .completedResearch) ?? []
+        activeResearchType = try container.decodeIfPresent(String.self, forKey: .activeResearchType)
+        activeResearchStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .activeResearchStartTime)
+        cachedResearchBonuses = try container.decodeIfPresent([String: Double].self, forKey: .cachedResearchBonuses) ?? [:]
+
+        // Unit upgrade fields with backward-compatible defaults
+        completedUnitUpgrades = try container.decodeIfPresent(Set<String>.self, forKey: .completedUnitUpgrades) ?? []
+        activeUnitUpgrade = try container.decodeIfPresent(String.self, forKey: .activeUnitUpgrade)
+        activeUnitUpgradeStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .activeUnitUpgradeStartTime)
+        activeUnitUpgradeBuildingID = try container.decodeIfPresent(UUID.self, forKey: .activeUnitUpgradeBuildingID)
     }
 }
 

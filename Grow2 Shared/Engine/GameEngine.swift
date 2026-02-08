@@ -131,6 +131,7 @@ class GameEngine {
 
     /// Main update function - call this every frame
     func update(currentTime: TimeInterval) {
+        dispatchPrecondition(condition: .onQueue(.main))
         guard let state = gameState, !state.isPaused else { return }
 
         let adjustedTime = currentTime * state.gameSpeed
@@ -209,6 +210,10 @@ class GameEngine {
         let researchChanges = updateResearchCompletion(currentTime: adjustedTime)
         allChanges.append(contentsOf: researchChanges)
 
+        // Unit upgrade completion updates (check all players)
+        let unitUpgradeChanges = updateUnitUpgradeCompletion(currentTime: adjustedTime)
+        allChanges.append(contentsOf: unitUpgradeChanges)
+
         // Notify delegate if there are changes
         if !allChanges.isEmpty {
             let batch = StateChangeBatch(timestamp: adjustedTime, changes: allChanges)
@@ -284,6 +289,42 @@ class GameEngine {
                     debugLog("🤖 AI completed research: \(researchType.displayName)")
                 } else {
                     debugLog("🔬 Player completed research: \(researchType.displayName)")
+                }
+            }
+        }
+
+        return changes
+    }
+
+    // MARK: - Unit Upgrade Completion
+
+    /// Check and complete any finished unit upgrades for all players
+    private func updateUnitUpgradeCompletion(currentTime: TimeInterval) -> [StateChange] {
+        guard let state = gameState else { return [] }
+
+        var changes: [StateChange] = []
+
+        for player in state.players.values {
+            guard let activeUpgradeRaw = player.activeUnitUpgrade,
+                  let startTime = player.activeUnitUpgradeStartTime,
+                  let upgradeType = UnitUpgradeType(rawValue: activeUpgradeRaw) else {
+                continue
+            }
+
+            let elapsed = currentTime - startTime
+            if elapsed >= upgradeType.upgradeTime {
+                player.completeUnitUpgrade(activeUpgradeRaw)
+
+                changes.append(.unitUpgradeCompleted(
+                    playerID: player.id,
+                    unitType: upgradeType.unitType.rawValue,
+                    tier: upgradeType.tier
+                ))
+
+                if player.isAI {
+                    debugLog("🤖 AI completed unit upgrade: \(upgradeType.displayName)")
+                } else {
+                    debugLog("⬆️ Player completed unit upgrade: \(upgradeType.displayName)")
                 }
             }
         }

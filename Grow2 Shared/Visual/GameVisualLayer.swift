@@ -49,6 +49,15 @@ class GameVisualLayer {
         self.nodeFactory = NodeFactory()
     }
 
+    // MARK: - Cleanup
+
+    /// Clear all node references to prevent stale access during scene rebuild
+    func cleanup() {
+        buildingNodes.removeAll()
+        entityNodes.removeAll()
+        resourceNodes.removeAll()
+    }
+
     // MARK: - Setup
 
     func setup(gameState: GameState, hexMap: HexMap, sceneNodes: GameSceneNodes) {
@@ -98,32 +107,17 @@ class GameVisualLayer {
 
     /// Apply a batch of state changes to the visual layer
     func applyChanges(_ batch: StateChangeBatch) {
-        // Ensure all SpriteKit updates happen on main thread
-        let work = { [weak self] in
-            guard let self = self else { return }
-            for change in batch.changes {
-                self.applyChangeInternal(change)
-            }
-            self.delegate?.visualLayerDidCompleteStateUpdate(self)
+        dispatchPrecondition(condition: .onQueue(.main))
+        for change in batch.changes {
+            self.applyChangeInternal(change)
         }
-
-        if Thread.isMainThread {
-            work()
-        } else {
-            DispatchQueue.main.async(execute: work)
-        }
+        self.delegate?.visualLayerDidCompleteStateUpdate(self)
     }
 
     /// Apply a single state change
     func applyChange(_ change: StateChange) {
-        // Ensure all SpriteKit updates happen on main thread
-        if Thread.isMainThread {
-            applyChangeInternal(change)
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.applyChangeInternal(change)
-            }
-        }
+        dispatchPrecondition(condition: .onQueue(.main))
+        applyChangeInternal(change)
     }
 
     /// Internal implementation of state change application (must be called on main thread)
@@ -218,6 +212,20 @@ class GameVisualLayer {
 
         case .garrisonDefenseAttack(let buildingID, let targetArmyID, let damage):
             handleGarrisonDefenseAttack(buildingID: buildingID, targetArmyID: targetArmyID, damage: damage)
+
+        // MARK: Entrenchment
+        case .armyEntrenchmentStarted(let armyID, _):
+            entityNodes[armyID]?.setupEntrenchmentBar()
+
+        case .armyEntrenchmentProgress(let armyID, let progress):
+            entityNodes[armyID]?.updateEntrenchmentBar(progress: progress)
+
+        case .armyEntrenched(let armyID, _):
+            entityNodes[armyID]?.removeEntrenchmentBar()
+
+        case .armyEntrenchmentCancelled(let armyID, _):
+            entityNodes[armyID]?.removeEntrenchmentBar()
+            entityNodes[armyID]?.removeEntrenchmentBadge()
 
         default:
             // Handle other changes as needed
@@ -315,7 +323,8 @@ class GameVisualLayer {
 
         // Animate removal
         let fadeOut = SKAction.fadeOut(withDuration: animationDuration)
-        buildingNode.run(fadeOut) { [weak self] in
+        buildingNode.run(fadeOut) { [weak self, weak buildingNode] in
+            guard let buildingNode = buildingNode else { return }
             buildingNode.removeFromParent()
             hexMap.removeBuilding(buildingNode)
             self?.buildingNodes.removeValue(forKey: buildingID)
@@ -359,7 +368,8 @@ class GameVisualLayer {
             SKAction.fadeOut(withDuration: 0.2)
         ])
 
-        buildingNode.run(explode) { [weak self] in
+        buildingNode.run(explode) { [weak self, weak buildingNode] in
+            guard let buildingNode = buildingNode else { return }
             buildingNode.removeFromParent()
             hexMap.removeBuilding(buildingNode)
             self?.buildingNodes.removeValue(forKey: buildingID)
@@ -685,12 +695,17 @@ class GameVisualLayer {
     // MARK: - Stack Badge Updates
 
     /// Updates stack badges for all entities at the given coordinate
+    /// Only the front entity (last in array) shows the badge; others hide it
     private func updateStackBadges(at coordinate: HexCoordinate) {
         guard let hexMap = hexMap else { return }
         let entitiesAtCoord = hexMap.getEntities(at: coordinate)
         let count = entitiesAtCoord.count
-        for entity in entitiesAtCoord {
-            entity.updateStackBadge(count: count)
+        for (index, entity) in entitiesAtCoord.enumerated() {
+            if index == entitiesAtCoord.count - 1 {
+                entity.updateStackBadge(count: count)
+            } else {
+                entity.updateStackBadge(count: 0)
+            }
         }
     }
 

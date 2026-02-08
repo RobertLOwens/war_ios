@@ -128,6 +128,8 @@ struct NotificationSettings {
             return researchUpdatesEnabled
         case .gatheringCompleted, .resourcesMaxed, .resourcePointDepleted:
             return resourceAlertsEnabled
+        case .entrenchmentCompleted:
+            return buildingUpdatesEnabled
         }
     }
 
@@ -148,6 +150,8 @@ struct NotificationSettings {
             return pushResearchUpdatesEnabled
         case .gatheringCompleted, .resourcesMaxed, .resourcePointDepleted:
             return pushResourceAlertsEnabled
+        case .entrenchmentCompleted:
+            return pushBuildingUpdatesEnabled
         }
     }
 

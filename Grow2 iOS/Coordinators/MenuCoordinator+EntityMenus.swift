@@ -85,6 +85,7 @@ extension MenuCoordinator {
 
             if let army = entity.armyReference {
                 guard !GameEngine.shared.combatEngine.isInCombat(armyID: army.id) else { return false }
+                guard army.hasMilitaryUnits() else { return false }
             }
 
             return true
@@ -252,6 +253,85 @@ extension MenuCoordinator {
         vc.showActionSheet(
             title: "👷 \(villagers.name)",
             message: message,
+            actions: actions,
+            onCancel: { [weak self] in
+                self?.delegate?.deselectAll()
+            }
+        )
+    }
+
+    // MARK: - Entity Picker (Stacked Tiles)
+
+    func showEntityPickerMenu(entities: [EntityNode], at coordinate: HexCoordinate) {
+        guard let player = player,
+              let vc = viewController else { return }
+
+        var actions: [AlertAction] = []
+
+        for entity in entities {
+            var buttonTitle = ""
+            let isOwned = entity.entity.owner?.id == player.id
+
+            if entity.entityType == .villagerGroup {
+                if let villagers = entity.entity as? VillagerGroup {
+                    buttonTitle = "👷 \(villagers.name) (\(villagers.villagerCount))"
+                    switch villagers.currentTask {
+                    case .gatheringResource: buttonTitle += " ⛏️"
+                    case .hunting: buttonTitle += " 🏹"
+                    case .building: buttonTitle += " 🔨"
+                    case .upgrading: buttonTitle += " ⬆️"
+                    case .demolishing: buttonTitle += " 🏚️"
+                    case .idle: buttonTitle += " 💤"
+                    default: break
+                    }
+                } else {
+                    buttonTitle = "👷 Villager Group"
+                }
+                if !isOwned {
+                    buttonTitle += " ⚠️"
+                }
+            } else if entity.entityType == .army {
+                if let army = entity.entity as? Army {
+                    let totalUnits = army.getTotalMilitaryUnits()
+                    let commanderName = army.commander?.name ?? ""
+                    buttonTitle = "🛡️ \(army.name) (\(totalUnits) units)"
+                    if !commanderName.isEmpty {
+                        buttonTitle += " - \(commanderName)"
+                    }
+                } else {
+                    buttonTitle = "🛡️ Army"
+                }
+                if !isOwned {
+                    buttonTitle += " ⚠️"
+                }
+            }
+
+            let style: UIAlertAction.Style = isOwned ? .default : .destructive
+            actions.append(AlertAction(title: buttonTitle, style: style) { [weak self] in
+                if !isOwned {
+                    self?.showAttackerSelectionForTile(enemies: [entity], at: coordinate)
+                } else if entity.entityType == .villagerGroup {
+                    if let villagers = entity.entity as? VillagerGroup {
+                        switch villagers.currentTask {
+                        case .gatheringResource, .hunting:
+                            self?.showVillagerOptionsMenu(villagerGroup: villagers, entityNode: entity)
+                        default:
+                            self?.showVillagerMenu(at: coordinate, villagerGroup: entity)
+                        }
+                    }
+                } else {
+                    self?.showEntityActionMenu(for: entity, at: coordinate)
+                }
+            })
+        }
+
+        // Fallback to full tile menu
+        actions.append(AlertAction(title: "📋 View Tile Info") { [weak self] in
+            self?.showTileActionMenu(for: coordinate)
+        })
+
+        vc.showActionSheet(
+            title: "Select Unit (\(entities.count) on tile)",
             actions: actions,
             onCancel: { [weak self] in
                 self?.delegate?.deselectAll()

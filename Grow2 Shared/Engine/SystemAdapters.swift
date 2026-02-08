@@ -299,8 +299,10 @@ class GameStateSynchronizer {
 
         // Add buildings
         for building in hexMap.buildings {
-            gameState.addBuilding(building.data)
-            debugLog("🔧   Added building: \(building.buildingType.displayName) owner=\(building.data.ownerID?.uuidString.prefix(8) ?? "nil") state=\(building.data.state)")
+            // Extract data into local var to hold strong reference before accessing properties
+            let buildingData = building.data
+            gameState.addBuilding(buildingData)
+            debugLog("🔧   Added building: \(buildingData.buildingType.displayName) owner=\(buildingData.ownerID?.uuidString.prefix(8) ?? "nil") state=\(buildingData.state)")
         }
 
         // Add resource points (needed for ResourceEngine gathering/depletion)

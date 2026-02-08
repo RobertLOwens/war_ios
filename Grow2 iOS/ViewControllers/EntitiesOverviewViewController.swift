@@ -330,10 +330,18 @@ class EntityOverviewCell: UITableViewCell {
             locationLabel.text = "📍 (\(army.coordinate.q), \(army.coordinate.r)) • 👤 \(commanderName)"
         }
 
-        // Check if army is in combat
+        // Check army status
         if GameEngine.shared.combatEngine.isInCombat(armyID: army.id) {
             taskLabel.text = "⚔️ In Combat"
             taskLabel.textColor = .systemRed
+            timerLabel.text = ""
+        } else if army.isEntrenching {
+            taskLabel.text = "🪖 Entrenching..."
+            taskLabel.textColor = UIColor(red: 0.6, green: 0.5, blue: 0.3, alpha: 1.0)
+            timerLabel.text = ""
+        } else if army.isEntrenched {
+            taskLabel.text = "🪖 Entrenched"
+            taskLabel.textColor = UIColor(red: 0.6, green: 0.5, blue: 0.3, alpha: 1.0)
             timerLabel.text = ""
         } else {
             taskLabel.text = "⚔️ Ready for combat"

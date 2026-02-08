@@ -22,10 +22,10 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
         }
     }
 
-    /// Whether the engine-based architecture is enabled (defaults to true)
+    /// Whether the engine-based architecture is enabled (defaults to false until initializeEngineArchitecture completes)
     var isEngineEnabled: Bool {
         get {
-            return (objc_getAssociatedObject(self, &AssociatedKeys.isEngineEnabled) as? Bool) ?? true
+            return (objc_getAssociatedObject(self, &AssociatedKeys.isEngineEnabled) as? Bool) ?? false
         }
         set {
             objc_setAssociatedObject(self, &AssociatedKeys.isEngineEnabled, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
@@ -131,10 +131,7 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
         NotificationManager.shared.processStateChanges(changes.changes)
 
         // Notify delegate of state changes
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.gameDelegate?.gameSceneDidUpdateState(self)
-        }
+        self.gameDelegate?.gameSceneDidUpdateState(self)
     }
 
     func gameEngine(_ engine: GameEngine, didCompleteCommand commandID: UUID, result: EngineCommandResult) {
@@ -204,7 +201,7 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
             }
         }
 
-        // Update stack badges on all entity coordinates
+        // Update stack badges on all entity coordinates (front entity only)
         var entityCoordinates: Set<HexCoordinate> = []
         for entity in hexMap.entities {
             entityCoordinates.insert(entity.coordinate)
@@ -212,8 +209,12 @@ extension GameScene: GameEngineDelegate, GameVisualLayerDelegate {
         for coord in entityCoordinates {
             let entitiesAtCoord = hexMap.getEntities(at: coord)
             let count = entitiesAtCoord.count
-            for entity in entitiesAtCoord {
-                entity.updateStackBadge(count: count)
+            for (index, entity) in entitiesAtCoord.enumerated() {
+                if index == entitiesAtCoord.count - 1 {
+                    entity.updateStackBadge(count: count)
+                } else {
+                    entity.updateStackBadge(count: 0)
+                }
             }
         }
 

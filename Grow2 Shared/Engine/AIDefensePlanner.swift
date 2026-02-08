@@ -148,6 +148,50 @@ struct AIDefensePlanner {
         return commands
     }
 
+    // MARK: - Entrenchment Commands
+
+    func generateEntrenchmentCommands(aiState: AIPlayerState, gameState: GameState, currentTime: TimeInterval) -> [EngineCommand] {
+        let playerID = aiState.playerID
+
+        guard currentTime - aiState.lastEntrenchCheckTime >= GameConfig.AI.Intervals.entrenchCheck else { return [] }
+        aiState.lastEntrenchCheckTime = currentTime
+
+        guard let player = gameState.getPlayer(id: playerID) else { return [] }
+        guard let cityCenter = gameState.getCityCenter(forPlayer: playerID) else { return [] }
+
+        // Only entrench if there's a threat nearby
+        let threatLevel = gameState.getThreatLevel(at: cityCenter.coordinate, forPlayer: playerID)
+        guard threatLevel > 0 else { return [] }
+
+        // Need wood buffer beyond entrenchment cost
+        let woodBuffer = 200
+        guard player.getResource(.wood) >= GameConfig.Entrenchment.woodCost + woodBuffer else { return [] }
+
+        // Count currently entrenched/entrenching armies (limit to 2)
+        let armies = gameState.getArmiesForPlayer(id: playerID)
+        let entrenchedCount = armies.filter { $0.isEntrenched || $0.isEntrenching }.count
+        guard entrenchedCount < 2 else { return [] }
+
+        // Find idle armies near city center that could entrench
+        var commands: [EngineCommand] = []
+        for army in armies {
+            guard !army.isInCombat,
+                  army.currentPath == nil,
+                  !army.isRetreating,
+                  !army.isEntrenched,
+                  !army.isEntrenching else { continue }
+
+            let distance = army.coordinate.distance(to: cityCenter.coordinate)
+            guard distance <= 8 else { continue }
+
+            commands.append(AIEntrenchCommand(playerID: playerID, armyID: army.id))
+            debugLog("🤖 AI entrenching army \(army.name) near city center")
+            break // One entrenchment command per cycle
+        }
+
+        return commands
+    }
+
     private func hasGarrisonableUnits(_ army: ArmyData) -> Bool {
         let garrisonableTypes: Set<MilitaryUnitTypeData> = [.archer, .crossbow, .mangonel, .trebuchet]
         for (unitType, count) in army.militaryComposition {

@@ -125,6 +125,36 @@ enum GameConfig {
         static let maxEntitiesPerTile: Int = 5
     }
 
+    // MARK: - Unit Upgrades
+
+    enum UnitUpgrade {
+        static let tier1BuildingLevel: Int = 2
+        static let tier2BuildingLevel: Int = 3
+        static let tier3BuildingLevel: Int = 5
+
+        static let tier1Time: TimeInterval = 20.0
+        static let tier2Time: TimeInterval = 40.0
+        static let tier3Time: TimeInterval = 80.0
+
+        static let tier1AttackBonus: Double = 0.5
+        static let tier2AttackBonus: Double = 1.0
+        static let tier3AttackBonus: Double = 1.5
+
+        static let tier1ArmorBonus: Double = 0.5
+        static let tier2ArmorBonus: Double = 1.0
+        static let tier3ArmorBonus: Double = 1.5
+
+        static let tier1HPBonus: Double = 5.0
+        static let tier2HPBonus: Double = 10.0
+        static let tier3HPBonus: Double = 15.0
+
+        static let tier1CostMultiplier: Double = 2.0
+        static let tier2CostMultiplier: Double = 4.0
+        static let tier3CostMultiplier: Double = 8.0
+
+        static let checkInterval: TimeInterval = 1.0
+    }
+
     // MARK: - AI Decision Intervals
 
     enum AI {
@@ -137,6 +167,8 @@ enum GameConfig {
             static let garrisonCheck: TimeInterval = 5.0
             static let researchCheck: TimeInterval = 5.0
             static let enemyAnalysis: TimeInterval = 10.0
+            static let unitUpgradeCheck: TimeInterval = 10.0
+            static let entrenchCheck: TimeInterval = 8.0
         }
 
         enum Limits {

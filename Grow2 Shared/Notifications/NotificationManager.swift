@@ -271,6 +271,10 @@ class NotificationManager {
         case .villagerTrainingCompleted(let buildingID, let quantity):
             handleTrainingCompletion(buildingID: buildingID, unitType: "Villager", quantity: quantity, playerID: localPlayerID)
 
+        // Entrenchment completed
+        case .armyEntrenched(let armyID, let coordinate):
+            handleEntrenchmentCompleted(armyID: armyID, coordinate: coordinate, playerID: localPlayerID)
+
         default:
             break
         }
@@ -397,6 +401,20 @@ class NotificationManager {
 
         let notification = GameNotification(
             type: .trainingCompleted(unitType: unitType, quantity: quantity, coordinate: building.coordinate),
+            playerID: playerID
+        )
+        postNotification(notification)
+    }
+
+    private func handleEntrenchmentCompleted(armyID: UUID, coordinate: HexCoordinate, playerID: UUID) {
+        guard let gameState = GameEngine.shared.gameState,
+              let army = gameState.getArmy(id: armyID),
+              army.ownerID == playerID else {
+            return
+        }
+
+        let notification = GameNotification(
+            type: .entrenchmentCompleted(armyName: army.name, coordinate: coordinate),
             playerID: playerID
         )
         postNotification(notification)
@@ -655,6 +673,9 @@ class NotificationManager {
 
         case .researchCompleted:
             return defaults.object(forKey: "settings.push.researchComplete") as? Bool ?? true
+
+        case .entrenchmentCompleted:
+            return defaults.object(forKey: "settings.push.buildingComplete") as? Bool ?? true
         }
     }
 
@@ -693,6 +714,9 @@ class NotificationManager {
 
         case .researchCompleted:
             return defaults.object(forKey: "settings.notify.researchComplete") as? Bool ?? true
+
+        case .entrenchmentCompleted:
+            return defaults.object(forKey: "settings.notify.buildingComplete") as? Bool ?? true
         }
     }
 

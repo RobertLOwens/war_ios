@@ -222,8 +222,17 @@ class LiveCombatViewController: UIViewController {
         if combat.terrainAttackPenalty > 0 {
             modifiers.append("Attacker -\(Int(combat.terrainAttackPenalty * 100))%")
         }
+        if combat.entrenchmentDefenseBonus > 0 {
+            modifiers.append("Entrenched +\(Int(combat.entrenchmentDefenseBonus * 100))%")
+        }
         if !modifiers.isEmpty {
-            terrainText += " (\(modifiers.joined(separator: ", ")))"
+            let modifierStr = modifiers.joined(separator: ", ")
+            if combat.terrainDefenseBonus > 0 && combat.entrenchmentDefenseBonus > 0 {
+                let total = Int((combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus) * 100)
+                terrainText += " (\(modifierStr) = +\(total)% total)"
+            } else {
+                terrainText += " (\(modifierStr))"
+            }
             terrainLabel.textColor = .systemYellow
         } else {
             terrainLabel.textColor = UIColor(white: 0.6, alpha: 1.0)

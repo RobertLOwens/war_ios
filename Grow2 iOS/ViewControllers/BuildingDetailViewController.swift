@@ -92,6 +92,7 @@ class BuildingDetailViewController: UIViewController {
             if self.building.state == .upgrading {
                 self.updateUpgradeProgressDisplay()
             }
+            self.updateUnitUpgradeProgressDisplay()
             self.updateQueueDisplay()
         }
     }
@@ -245,6 +246,11 @@ class BuildingDetailViewController: UIViewController {
             debugLog("   → Skipping training section (no trainable units or not completed)")
         }
         
+        // Unit upgrade section (for military buildings that are completed)
+        if building.buildingType.category == .military && building.state == .completed {
+            yOffset = setupUnitUpgradeSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
+        }
+
         // Garrison info
         let garrisonText = getGarrisonText()
         if !garrisonText.isEmpty {

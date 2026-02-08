@@ -91,6 +91,20 @@ struct DamageCalculator {
         }
     }
 
+    // MARK: - Unit Upgrade Bonus Lookup
+
+    /// Returns the flat damage bonus for a unit type from unit upgrades
+    static func getUnitUpgradeDamageBonus(for unitType: MilitaryUnitType, playerState: PlayerState?) -> Double {
+        guard let ps = playerState else { return 0 }
+        return ps.getUnitUpgradeBonus(for: unitType).attackBonus
+    }
+
+    /// Returns the flat armor bonus for a unit type from unit upgrades (applies to all armor types)
+    static func getUnitUpgradeArmorBonus(for unitType: MilitaryUnitType, playerState: PlayerState?) -> Double {
+        guard let ps = playerState else { return 0 }
+        return ps.getUnitUpgradeBonus(for: unitType).armorBonus
+    }
+
     // MARK: - DPS Calculations
 
     static func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0) -> Double {
@@ -102,7 +116,8 @@ struct DamageCalculator {
 
             let stats = unitType.combatStats
             let researchBonus = getResearchDamageBonus(for: unitType, playerState: playerState)
-            let baseDamage = stats.totalDamage + researchBonus
+            let upgradeBonus = getUnitUpgradeDamageBonus(for: unitType, playerState: playerState)
+            let baseDamage = stats.totalDamage + researchBonus + upgradeBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
             let unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
             totalDPS += unitDPS * Double(count)
@@ -120,7 +135,8 @@ struct DamageCalculator {
 
             let stats = unitType.combatStats
             let researchBonus = getResearchDamageBonus(for: unitType, playerState: playerState)
-            let baseDamage = stats.totalDamage + researchBonus
+            let upgradeBonus = getUnitUpgradeDamageBonus(for: unitType, playerState: playerState)
+            let baseDamage = stats.totalDamage + researchBonus + upgradeBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
             var unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
 
@@ -146,7 +162,8 @@ struct DamageCalculator {
 
             let stats = unitType.combatStats
             let researchBonus = getResearchDamageBonus(for: unitType, playerState: playerState)
-            let baseDamage = stats.totalDamage + researchBonus
+            let upgradeBonus = getUnitUpgradeDamageBonus(for: unitType, playerState: playerState)
+            let baseDamage = stats.totalDamage + researchBonus + upgradeBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
             let unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
             totalDPS += unitDPS * Double(count)
@@ -158,6 +175,8 @@ struct DamageCalculator {
     // MARK: - Damage Application
 
     static func applyDamageToSide(_ sideState: inout SideCombatState, damage: Double, combat: ActiveCombat, isDefender: Bool, state: GameState) {
+        // Get the player state of the side receiving damage for upgrade bonuses
+        let receiverPlayerState = isDefender ? combat.defenderPlayerState : combat.attackerPlayerState
         var remainingDamage = damage
 
         let priorityOrder: [UnitCategory] = [.siege, .ranged, .infantry, .cavalry]
@@ -168,7 +187,12 @@ struct DamageCalculator {
             for (unitType, count) in sideState.unitCounts where unitType.category == category && count > 0 {
                 guard remainingDamage > 0 else { break }
 
-                let damageToApply = min(remainingDamage, Double(count) * unitType.hp)
+                // Apply unit upgrade bonuses: HP bonus increases effective health, armor bonus reduces damage taken
+                let upgradeBonus = receiverPlayerState?.getUnitUpgradeBonus(for: unitType)
+                let effectiveHP = unitType.hp + (upgradeBonus?.hpBonus ?? 0)
+                let armorReduction = (upgradeBonus?.armorBonus ?? 0) * Double(count)
+                let effectiveDamage = max(0, min(remainingDamage, Double(count) * effectiveHP) - armorReduction)
+                let damageToApply = effectiveDamage
                 let kills = sideState.applyDamage(damageToApply, to: unitType)
 
                 if kills > 0 {
@@ -193,14 +217,15 @@ struct DamageCalculator {
     }
 
     /// Apply damage to an army directly (used by garrison defense)
-    static func applyDamageToArmy(_ army: ArmyData, damage: Double) -> [MilitaryUnitTypeData: Int] {
+    static func applyDamageToArmy(_ army: ArmyData, damage: Double, playerState: PlayerState? = nil) -> [MilitaryUnitTypeData: Int] {
         var casualties: [MilitaryUnitTypeData: Int] = [:]
         var remainingDamage = damage
 
         for (unitType, count) in army.militaryComposition {
             guard remainingDamage > 0 && count > 0 else { continue }
 
-            let unitHealth = unitType.hp
+            let upgradeBonus = playerState?.getUnitUpgradeBonus(for: unitType)
+            let unitHealth = unitType.hp + (upgradeBonus?.hpBonus ?? 0)
             let unitsKilled = min(count, Int(remainingDamage / unitHealth))
 
             if unitsKilled > 0 {

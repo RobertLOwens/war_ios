@@ -35,6 +35,11 @@ struct EntrenchCommand: GameCommand {
             return .failure(reason: "Entity is not an army")
         }
 
+        // Check army has units
+        if !army.hasMilitaryUnits() {
+            return .failure(reason: "Army has no units to entrench")
+        }
+
         // Check not already entrenched or entrenching
         if army.isEntrenched {
             return .failure(reason: "Army is already entrenched")

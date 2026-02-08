@@ -209,6 +209,7 @@ struct DetailedCombatRecord: Codable {
     let terrainType: String
     let terrainDefenseBonus: Double
     let terrainAttackPenalty: Double
+    let entrenchmentDefenseBonus: Double
 
     // Attacker information
     let attackerName: String
@@ -293,6 +294,7 @@ struct DetailedCombatRecord: Codable {
         terrainType: TerrainType = .plains,
         terrainDefenseBonus: Double = 0.0,
         terrainAttackPenalty: Double = 0.0,
+        entrenchmentDefenseBonus: Double = 0.0,
         attackerName: String,
         attackerOwner: String,
         attackerCommander: String?,
@@ -317,6 +319,7 @@ struct DetailedCombatRecord: Codable {
         self.terrainType = terrainType.rawValue
         self.terrainDefenseBonus = terrainDefenseBonus
         self.terrainAttackPenalty = terrainAttackPenalty
+        self.entrenchmentDefenseBonus = entrenchmentDefenseBonus
         self.attackerName = attackerName
         self.attackerOwner = attackerOwner
         self.attackerCommander = attackerCommander
@@ -428,11 +431,20 @@ struct DetailedCombatRecord: Codable {
         if terrainAttackPenalty > 0 {
             parts.append("Attacker -\(Int(terrainAttackPenalty * 100))% attack")
         }
-        return parts.isEmpty ? "No terrain effects" : parts.joined(separator: ", ")
+        if entrenchmentDefenseBonus > 0 {
+            parts.append("Entrenched +\(Int(entrenchmentDefenseBonus * 100))% defense")
+        }
+        if parts.isEmpty { return "No terrain effects" }
+        var result = parts.joined(separator: ", ")
+        if terrainDefenseBonus > 0 && entrenchmentDefenseBonus > 0 {
+            let total = Int((terrainDefenseBonus + entrenchmentDefenseBonus) * 100)
+            result += " (Combined: +\(total)%)"
+        }
+        return result
     }
 
     var hasTerrainModifiers: Bool {
-        return terrainDefenseBonus != 0 || terrainAttackPenalty != 0
+        return terrainDefenseBonus != 0 || terrainAttackPenalty != 0 || entrenchmentDefenseBonus != 0
     }
 
     func getFormattedDuration() -> String {
