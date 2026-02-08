@@ -188,6 +188,11 @@ class MapData: Codable {
         return armyCoordinates.first { $0.value == coordinate }?.key
     }
 
+    /// Returns all army IDs at the given coordinate
+    func getArmyIDs(at coordinate: HexCoordinate) -> [UUID] {
+        return armyCoordinates.filter { $0.value == coordinate }.map { $0.key }
+    }
+
     func getArmyCoordinate(id: UUID) -> HexCoordinate? {
         return armyCoordinates[id]
     }
@@ -210,6 +215,11 @@ class MapData: Codable {
 
     func getVillagerGroupID(at coordinate: HexCoordinate) -> UUID? {
         return villagerGroupCoordinates.first { $0.value == coordinate }?.key
+    }
+
+    /// Returns all villager group IDs at the given coordinate
+    func getVillagerGroupIDs(at coordinate: HexCoordinate) -> [UUID] {
+        return villagerGroupCoordinates.filter { $0.value == coordinate }.map { $0.key }
     }
 
     func getVillagerGroupCoordinate(id: UUID) -> HexCoordinate? {

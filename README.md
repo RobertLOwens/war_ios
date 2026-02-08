@@ -53,6 +53,9 @@ Buildings unlock progressively based on City Center level, creating meaningful t
 - **Commander system** — Leaders with 5 stats, 10 specialties, 6 ranks, and leveling progression
 - **Unit composition** — Infantry, archers, cavalry, and siege weapons with rock-paper-scissors counters
 - **Garrison mechanics** — Station units in buildings for defense
+- **Unit upgrades** — 3 tiers of upgrades per unit type (+ATK, +ARM, +HP) from production buildings
+- **Army entrenchment** — Dig in for +10% defense bonus; entrenched armies defend all 6 adjacent tiles
+- **Stack combat** — Multiple armies on a tile fight as a layered defensive stack (entrenched first, then regular, then villagers)
 
 ### 📦 Resource Management
 Four core resources drive your economy:
@@ -242,6 +245,56 @@ Combat terrain effects based on defender's position:
 - Mountains slow attackers and reduce their damage
 - Roads negate terrain movement penalties (cost reduced to 1)
 
+### 🛡️ Entrenchment
+
+Armies can entrench on any tile to create a defensive position:
+
+| Property | Value |
+|----------|-------|
+| Build Time | 10 seconds |
+| Cost | 100 Wood |
+| Defense Bonus | +10% (stacks with terrain) |
+| Coverage | Entrenched army defends all 6 adjacent tiles |
+
+- Movement or retreat cancels entrenchment
+- Cannot directly attack an entrenched tile — must attack from an adjacent tile
+- Entrenched armies fighting on multiple fronts suffer a stretching penalty (-15% DPS per additional front)
+
+### ⚔️ Stack Combat
+
+When multiple armies occupy the same tile, they form a **defensive stack** that engages attackers in tiered priority order:
+
+**Defensive Tiers:**
+1. **Tier 1 — Entrenched:** Entrenched armies on the tile + entrenched armies on adjacent tiles covering this position (sorted most-recent-first)
+2. **Tier 2 — Regular:** Non-entrenched armies on the tile (sorted most-recent-first)
+3. **Tier 3 — Villagers:** Only exposed after all military armies are eliminated
+
+**Engagement Rules:**
+- Attackers pair N-to-N against defenders (A1 vs D1, A2 vs D2, etc.)
+- Each pairing runs full 3-phase combat (ranged → charge → melee)
+- Unmatched attackers join existing fights as reinforcements
+- When a pairing ends, the winner chains to engage the next enemy or reinforces an ally
+- Tiers advance only when all defenders in the current tier are defeated
+
+**Defeat Outcomes:**
+- Same-tile defenders defeated → destroyed
+- Cross-tile entrenched defenders defeated → forced retreat to home base (not destroyed)
+- Up to 5 entities can stack on a single tile
+
+### ⬆️ Unit Upgrades
+
+Each of the 9 military unit types can be upgraded through 3 tiers at their production building:
+
+| Tier | Building Level | Research Time | Cost Multiplier | Bonuses |
+|------|---------------|---------------|-----------------|---------|
+| Tier I | Level 2 | 20s | 2x training cost | +ATK, +ARM, +HP |
+| Tier II | Level 3 | 40s | 4x training cost | +ATK, +ARM, +HP |
+| Tier III | Level 5 | 80s | 8x training cost | +ATK, +ARM, +HP |
+
+- Bonuses are cumulative across tiers
+- Only one upgrade can be active per player at a time
+- Upgrades apply to all existing and future units of that type
+
 ### 🎖️ Commander System
 
 Commanders are leaders assigned to armies. They level up through combat experience, gain ranks, and provide meaningful gameplay bonuses through 5 core stats.
@@ -308,13 +361,29 @@ Designed for real-life schedules:
 
 ## Architecture
 
-### Command Pattern
-Game actions flow through a centralized `CommandExecutor` for consistent validation, logging, and execution:
-- `MoveCommand` — Entity movement
-- `BuildCommand` — Structure construction  
-- `GatherCommand` — Resource collection
-- `TrainCommand` variants — Unit and villager training
-- `RecruitCommand` — Commander recruitment
+### Command → Engine → StateChange → Visual
+
+All game mutations flow through the `EngineCommand` protocol (validate → execute → emit `StateChange` events). The visual layer pattern-matches on state changes to update SpriteKit nodes.
+
+Key commands: `MoveCommand`, `BuildCommand`, `GatherCommand`, `AttackCommand`, `EntrenchCommand`, `RetreatCommand`, `UpgradeUnitCommand`, and AI-prefixed variants.
+
+### GameEngine Subsystems
+
+`GameEngine.shared` coordinates:
+- `CombatEngine` — 3-phase combat, multi-army stack combat, garrison defense
+- `MovementEngine` — Hex pathfinding and movement
+- `ResourceEngine` — Gathering and production
+- `ConstructionEngine` — Building and upgrades
+- `TrainingEngine` — Unit training queues
+- `VisionEngine` — Fog of war
+
+### AI System
+
+`AIController` orchestrates AI via a state machine and 4 planners:
+- `AIEconomyPlanner` — Building, villagers, resource camps, scouting
+- `AIMilitaryPlanner` — Army deployment, target scoring, coordinated attacks
+- `AIDefensePlanner` — Towers, forts, garrison, entrenchment
+- `AIResearchPlanner` — Technology research selection
 
 ### Entity System
 Rather than managing individual units, Grow2 uses aggregate entities:
@@ -327,15 +396,13 @@ This reduces screen clutter while maintaining strategic depth.
 ```
 Grow2/
 ├── Shared/
-│   ├── GameScene.swift      — Main SpriteKit scene and game loop
-│   ├── HexMap.swift         — Hex grid and coordinate system
-│   ├── Player.swift         — Player state, resources, diplomacy
-│   ├── Building.swift       — BuildingType enum and BuildingNode
-│   ├── Map Entity.swift     — Army and VillagerGroup classes
-│   ├── FogOfWar.swift       — Vision and memory systems
-│   ├── Commander.swift      — Leader ranks and abilities
+│   ├── Data/                — Pure data models (GameState, PlayerState, ArmyData, etc.)
+│   ├── Models/              — Combat models (ActiveCombat, DefensiveStack, StackCombat)
+│   ├── Engine/              — Game logic (CombatEngine, MovementEngine, AI planners)
 │   ├── Commands/            — Command pattern implementations
-│   └── GameSaveManager.swift— Persistence and offline calculation
+│   ├── Scene/               — SpriteKit rendering (GameScene, HexMap)
+│   ├── Visual/              — Visual layer state change handling
+│   └── Notifications/       — In-game notification system
 ├── iOS/
 │   ├── ViewControllers/     — UIKit screens and menus
 │   └── Coordinators/        — Menu and action coordination
@@ -356,6 +423,11 @@ Grow2/
 - Save/load with offline progress calculation
 - Entity-based army and villager management
 - Command pattern architecture
+- AI opponents with state machine (Peace/Alert/Defense/Attack/Retreat) and 4 specialized planners
+- Army entrenchment with cross-tile defensive coverage
+- Multi-army stack combat with tiered defensive engagement
+- Unit upgrade system (3 tiers per unit type)
+- Notification system with priority-based toast banners
 
 **🚧 In Development**
 - Balance tuning and playtesting

@@ -9,10 +9,12 @@ import UIKit
 class LiveCombatViewController: UIViewController {
 
     var combat: ActiveCombat?
+    var stackCombat: StackCombat?  // Set when viewing a pairing within a stack combat
     var updateTimer: Timer?
 
     // UI Elements
     var headerLabel: UILabel!
+    var stackStatusLabel: UILabel!
     var timerLabel: UILabel!
     var phaseLabel: UILabel!
     var attackerView: CombatSideView!
@@ -48,6 +50,15 @@ class LiveCombatViewController: UIViewController {
         headerLabel.textAlignment = .center
         headerLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(headerLabel)
+
+        // Stack status label (shown only during stack combat)
+        stackStatusLabel = UILabel()
+        stackStatusLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        stackStatusLabel.textColor = .systemPurple
+        stackStatusLabel.textAlignment = .center
+        stackStatusLabel.isHidden = true
+        stackStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stackStatusLabel)
 
         // Close button
         closeButton = UIButton(type: .system)
@@ -122,8 +133,12 @@ class LiveCombatViewController: UIViewController {
             closeButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
             closeButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
+            // Stack status
+            stackStatusLabel.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 4),
+            stackStatusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
             // Timer
-            timerLabel.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 10),
+            timerLabel.topAnchor.constraint(equalTo: stackStatusLabel.bottomAnchor, constant: 4),
             timerLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
             // Phase
@@ -209,6 +224,17 @@ class LiveCombatViewController: UIViewController {
 
         // Phase
         phaseLabel.text = combat.phase.displayName
+
+        // Stack combat status
+        if let stack = stackCombat {
+            stackStatusLabel.isHidden = false
+            let activePairings = stack.activePairings.filter { !$0.isComplete }.count
+            let totalPairings = stack.activePairings.count
+            let tier = stack.currentTier.displayName
+            stackStatusLabel.text = "Stack Battle - Tier: \(tier) | Pairings: \(activePairings)/\(totalPairings)"
+        } else {
+            stackStatusLabel.isHidden = true
+        }
 
         // Location
         locationLabel.text = "Location: (\(combat.location.q), \(combat.location.r))"

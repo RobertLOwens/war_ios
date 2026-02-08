@@ -714,6 +714,21 @@ class ActiveCombat: Codable {
         debugLog("⚔️ Reinforcements arrived: \(army.name) joined \(isAttacker ? "attacker" : "defender") side at time \(String(format: "%.1f", elapsedTime))s")
     }
 
+    /// Adds a reinforcement army to the combat using ArmyData (for CombatEngine/stack combat use)
+    func addReinforcement(armyData: ArmyData, isAttacker: Bool) {
+        let armyState = ArmyCombatState(armyData: armyData, joinTime: elapsedTime, isReinforcement: true)
+
+        if isAttacker {
+            attackerArmies.append(armyState)
+            mergeIntoSideState(&attackerState, from: armyData)
+        } else {
+            defenderArmies.append(armyState)
+            mergeIntoSideState(&defenderState, from: armyData)
+        }
+
+        debugLog("⚔️ Reinforcements arrived: \(armyData.name) joined \(isAttacker ? "attacker" : "defender") side at time \(String(format: "%.1f", elapsedTime))s")
+    }
+
     /// Merges an army's units into an aggregated side state
     private func mergeIntoSideState(_ state: inout SideCombatState, from army: Army) {
         for (unitType, count) in army.militaryComposition {
@@ -731,6 +746,25 @@ class ActiveCombat: Codable {
             }
 
             // Update initial composition to track total units that participated
+            state.initialComposition[unitType, default: 0] += count
+        }
+    }
+
+    /// Merges an ArmyData's units into an aggregated side state (for CombatEngine/stack combat use)
+    private func mergeIntoSideState(_ state: inout SideCombatState, from armyData: ArmyData) {
+        for (unitType, count) in armyData.militaryComposition {
+            state.unitCounts[unitType, default: 0] += count
+
+            if state.damageAccumulators[unitType] == nil {
+                state.damageAccumulators[unitType] = 0.0
+            }
+            if state.damageDealtByType[unitType] == nil {
+                state.damageDealtByType[unitType] = 0.0
+            }
+            if state.damageReceivedByType[unitType] == nil {
+                state.damageReceivedByType[unitType] = 0.0
+            }
+
             state.initialComposition[unitType, default: 0] += count
         }
     }

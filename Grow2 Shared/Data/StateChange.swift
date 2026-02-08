@@ -66,6 +66,13 @@ enum StateChange: Codable {
     case garrisonDefenseAttack(buildingID: UUID, targetArmyID: UUID, damage: Double)
     case villagerCasualties(villagerGroupID: UUID, casualties: Int, remaining: Int)
 
+    // MARK: - Stack Combat Changes
+    case stackCombatStarted(coordinate: HexCoordinate, attackerArmyIDs: [UUID], defenderArmyIDs: [UUID])
+    case stackCombatPairingEnded(coordinate: HexCoordinate, winnerArmyID: UUID?, loserArmyID: UUID?)
+    case stackCombatTierAdvanced(coordinate: HexCoordinate, newTier: Int)
+    case stackCombatEnded(coordinate: HexCoordinate, result: CombatResultData)
+    case armyForcedRetreat(armyID: UUID, from: HexCoordinate, to: HexCoordinate)
+
     // MARK: - Resource Changes
     case resourcesChanged(playerID: UUID, resourceType: String, oldAmount: Int, newAmount: Int)
     case resourcesGathered(playerID: UUID, resourceType: String, amount: Int, sourceCoordinate: HexCoordinate)

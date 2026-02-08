@@ -385,6 +385,9 @@ class ArmyData: Codable {
     var isEntrenched: Bool = false
     var entrenchmentStartTime: TimeInterval?
 
+    // Arrival time (transient - not saved, used for LIFO ordering in stack combat)
+    var arrivalTime: TimeInterval = 0
+
     func clearEntrenchment() {
         isEntrenching = false
         isEntrenched = false

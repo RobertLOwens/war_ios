@@ -57,6 +57,17 @@ struct AttackCommand: GameCommand {
             return .success
         }
 
+        // Check if the target tile has any entrenched armies — must attack from adjacent tile instead
+        if let gameState = GameEngine.shared.gameState {
+            let armiesAtTarget = gameState.getArmies(at: targetCoordinate)
+            let hasEntrenchedDefender = armiesAtTarget.contains { army in
+                army.isEntrenched && army.ownerID != playerID
+            }
+            if hasEntrenchedDefender {
+                return .failure(reason: "Target is entrenched - attack from an adjacent tile")
+            }
+        }
+
         // Check if target is a building FIRST
         // This ensures clicking any tile of a multi-tile building initiates building combat
         // Any defending army on the building will participate in defense
@@ -163,43 +174,54 @@ struct AttackCommand: GameCommand {
             // This ensures the path doesn't need to go through other tiles of the same building
             let destinationCoordinate = targetBuilding.coordinate
 
-            // Check if there's a defending army on any tile of the building
-            var defendingArmy: Army? = nil
-            let occupiedTiles = targetBuilding.getOccupiedCoordinates()
-            for tile in occupiedTiles {
-                if let entity = context.hexMap.getEntity(at: tile),
-                   entity.entityType == .army,
-                   let army = entity.entity as? Army {
-                    defendingArmy = army
-                    break
-                }
-            }
-
             // Path to building and initiate combat on arrival
             // Use allowImpassableDestination to path onto enemy defensive buildings
             // Pass targetBuilding to allow pathing through all tiles of multi-tile buildings
             if let path = hexMap.findPath(from: attacker.coordinate, to: destinationCoordinate, for: attacker.entity.owner, allowImpassableDestination: true, targetBuilding: targetBuilding) {
                 debugLog("⚔️ \(attackerArmy.name) attacking \(buildingName) at (\(destinationCoordinate.q), \(destinationCoordinate.r)) - path: \(path.count) steps")
 
-                // Capture defender ID for closure
-                let defenderArmyID = defendingArmy?.id
+                // Capture attacker origin for gathering co-located armies
+                let attackerOrigin = attacker.coordinate
+                let attackerID = attackerArmy.id
+                let attackerOwnerID = playerID
 
                 attacker.moveTo(path: path) {
                     debugLog("⚔️ \(attackerArmy.name) arrived - attacking \(buildingName)!")
                     let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
+                    guard let gameState = GameEngine.shared.gameState else { return }
 
-                    if let defenderID = defenderArmyID {
-                        // Building has a defending army - start army combat with building context
-                        debugLog("🛡️ Defender army present - they will defend the building!")
-                        _ = GameEngine.shared.combatEngine.startCombat(
-                            attackerArmyID: attackerArmy.id,
-                            defenderArmyID: defenderID,
+                    // Build defensive stack at the target
+                    let defensiveStack = DefensiveStack.build(at: destinationCoordinate, state: gameState, attackerOwnerID: attackerOwnerID)
+
+                    if !defensiveStack.armyEntries.isEmpty {
+                        // Defenders present — use stack combat
+                        // Gather all friendly armies at attacker's current position
+                        let friendlyArmies = gameState.getArmies(at: destinationCoordinate)
+                            .filter { $0.ownerID == attackerOwnerID && !$0.isInCombat }
+                        var attackerIDs = [attackerID]
+                        for ally in friendlyArmies where ally.id != attackerID {
+                            attackerIDs.append(ally.id)
+                        }
+
+                        debugLog("🛡️ \(defensiveStack.armyEntries.count) defender(s) present — initiating stack combat!")
+                        _ = GameEngine.shared.combatEngine.startStackCombat(
+                            attackerArmyIDs: attackerIDs,
+                            at: destinationCoordinate,
                             currentTime: combatTime
                         )
+                    } else if !defensiveStack.villagerGroupIDs.isEmpty {
+                        // Only villagers — start villager combat
+                        if let firstVillagerID = defensiveStack.villagerGroupIDs.first {
+                            _ = GameEngine.shared.combatEngine.startVillagerCombat(
+                                attackerArmyID: attackerID,
+                                defenderVillagerGroupID: firstVillagerID,
+                                currentTime: combatTime
+                            )
+                        }
                     } else {
-                        // No defending army - pure building combat
+                        // No defenders — pure building combat
                         _ = GameEngine.shared.combatEngine.startBuildingCombat(
-                            attackerArmyID: attackerArmy.id,
+                            attackerArmyID: attackerID,
                             buildingID: buildingID,
                             currentTime: combatTime
                         )
@@ -216,19 +238,43 @@ struct AttackCommand: GameCommand {
         if let target = context.hexMap.getEntity(at: targetCoordinate) {
             // Branch: Army target vs Villager target
             if let defenderArmy = target.entity as? Army {
-                // Army-vs-army combat
+                // Army-vs-army combat (may become stack combat on arrival)
                 // Use allowImpassableDestination to handle targets on enemy buildings
                 if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
                     debugLog("⚔️ \(attackerArmy.name) attacking army at (\(targetCoordinate.q), \(targetCoordinate.r)) - path: \(path.count) steps")
+
+                    let attackerID = attackerArmy.id
+                    let attackerOwnerID = playerID
+                    let targetCoord = targetCoordinate
+
                     attacker.moveTo(path: path) {
-                        // Initiate combat when army arrives
                         debugLog("⚔️ \(attackerArmy.name) arrived - initiating combat!")
                         let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
-                        _ = GameEngine.shared.combatEngine.startCombat(
-                            attackerArmyID: attackerArmy.id,
-                            defenderArmyID: defenderArmy.id,
-                            currentTime: combatTime
-                        )
+                        guard let gameState = GameEngine.shared.gameState else { return }
+
+                        // Build defensive stack to check for multi-army defense
+                        let defensiveStack = DefensiveStack.build(at: targetCoord, state: gameState, attackerOwnerID: attackerOwnerID)
+
+                        if defensiveStack.armyEntries.count > 1 || defensiveStack.hasEntrenchedDefenders {
+                            // Multiple defenders or entrenched defenders — use stack combat
+                            var attackerIDs = [attackerID]
+                            let friendlyArmies = gameState.getArmies(at: targetCoord)
+                                .filter { $0.ownerID == attackerOwnerID && !$0.isInCombat && $0.id != attackerID }
+                            attackerIDs.append(contentsOf: friendlyArmies.map { $0.id })
+
+                            _ = GameEngine.shared.combatEngine.startStackCombat(
+                                attackerArmyIDs: attackerIDs,
+                                at: targetCoord,
+                                currentTime: combatTime
+                            )
+                        } else {
+                            // Simple 1v1 combat
+                            _ = GameEngine.shared.combatEngine.startCombat(
+                                attackerArmyID: attackerID,
+                                defenderArmyID: defenderArmy.id,
+                                currentTime: combatTime
+                            )
+                        }
                     }
                     return .success
                 } else {

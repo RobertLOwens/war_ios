@@ -167,25 +167,36 @@ struct AIDefensePlanner {
         let woodBuffer = 200
         guard player.getResource(.wood) >= GameConfig.Entrenchment.woodCost + woodBuffer else { return [] }
 
-        // Count currently entrenched/entrenching armies (limit to 2)
+        // Count currently entrenched/entrenching armies
+        // Allow more entrenched armies based on threat level (2 base, up to 4 under high threat)
         let armies = gameState.getArmiesForPlayer(id: playerID)
         let entrenchedCount = armies.filter { $0.isEntrenched || $0.isEntrenching }.count
-        guard entrenchedCount < 2 else { return [] }
+        let maxEntrenched = threatLevel > 30 ? 4 : 2
+        guard entrenchedCount < maxEntrenched else { return [] }
 
         // Find idle armies near city center that could entrench
+        // Prefer positions that cover the most adjacent tiles with enemy proximity
         var commands: [EngineCommand] = []
-        for army in armies {
-            guard !army.isInCombat,
-                  army.currentPath == nil,
-                  !army.isRetreating,
-                  !army.isEntrenched,
-                  !army.isEntrenching else { continue }
+        let candidates = armies.filter {
+            !$0.isInCombat && $0.currentPath == nil && !$0.isRetreating && !$0.isEntrenched && !$0.isEntrenching
+        }
 
+        // Sort by proximity to city center (prefer closer armies for defense)
+        let sortedCandidates = candidates.sorted { a, b in
+            a.coordinate.distance(to: cityCenter.coordinate) < b.coordinate.distance(to: cityCenter.coordinate)
+        }
+
+        for army in sortedCandidates {
             let distance = army.coordinate.distance(to: cityCenter.coordinate)
             guard distance <= 8 else { continue }
 
+            // Check that this army's tile isn't already entrenched (spread out for coverage)
+            let armiesHere = gameState.getArmies(at: army.coordinate)
+            let alreadyEntrenched = armiesHere.contains { $0.isEntrenched && $0.id != army.id }
+            if alreadyEntrenched { continue }
+
             commands.append(AIEntrenchCommand(playerID: playerID, armyID: army.id))
-            debugLog("🤖 AI entrenching army \(army.name) near city center")
+            debugLog("🤖 AI entrenching army \(army.name) near city center (threat: \(Int(threatLevel)))")
             break // One entrenchment command per cycle
         }
 

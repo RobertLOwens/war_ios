@@ -125,6 +125,15 @@ enum GameConfig {
         static let maxEntitiesPerTile: Int = 5
     }
 
+    // MARK: - Stack Combat
+
+    enum StackCombat {
+        /// DPS reduction per additional front when entrenched army fights in multiple combats
+        static let stretchingPenaltyPerFront: Double = 0.15
+        /// Delay between chain combat engagements within a stack
+        static let chainCombatDelay: TimeInterval = 0.5
+    }
+
     // MARK: - Unit Upgrades
 
     enum UnitUpgrade {

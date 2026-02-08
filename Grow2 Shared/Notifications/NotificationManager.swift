@@ -275,6 +275,20 @@ class NotificationManager {
         case .armyEntrenched(let armyID, let coordinate):
             handleEntrenchmentCompleted(armyID: armyID, coordinate: coordinate, playerID: localPlayerID)
 
+        // Stack combat started - check if player's units are involved
+        case .stackCombatStarted(let coordinate, _, let defenderArmyIDs):
+            for defenderID in defenderArmyIDs {
+                handleCombatStarted(defenderID: defenderID, coordinate: coordinate, playerID: localPlayerID)
+            }
+
+        // Forced retreat notification
+        case .armyForcedRetreat(let armyID, let from, _):
+            if let gameState = GameEngine.shared.gameState,
+               let army = gameState.getArmy(id: armyID),
+               army.ownerID == localPlayerID {
+                handleCombatStarted(defenderID: armyID, coordinate: from, playerID: localPlayerID)
+            }
+
         default:
             break
         }

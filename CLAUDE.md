@@ -41,7 +41,7 @@ All game mutations go through commands in `Commands/`. Use `BaseEngineCommand` f
 ### GameEngine Subsystems
 
 `GameEngine.shared` owns and coordinates these (they are **not** singletons):
-- `CombatEngine` — 3-phase combat (with `DamageCalculator` and `GarrisonDefenseEngine`)
+- `CombatEngine` — 3-phase combat, stack combat, garrison defense (with `DamageCalculator` and `GarrisonDefenseEngine`)
 - `MovementEngine` — hex pathfinding and movement
 - `ResourceEngine` — gathering and production
 - `ConstructionEngine` — building and upgrades
@@ -58,6 +58,23 @@ Other singletons: `AIController.shared`, `NotificationManager.shared`.
 - `AIDefensePlanner` — towers, forts, garrison logic
 - `AIResearchPlanner` — technology research selection
 
+### Combat System
+
+`CombatEngine` supports two combat modes:
+
+- **1v1 Combat** — Single `ActiveCombat` between two armies (3-phase: ranged → charge → melee)
+- **Stack Combat** — Multi-army engagements via `StackCombat` coordinator. Attacking a tile engages all defenders in tiered order:
+  - **Tier 1 (Entrenched):** Entrenched armies on-tile + cross-tile entrenched covering adjacent tiles
+  - **Tier 2 (Regular):** Non-entrenched armies on the tile
+  - **Tier 3 (Villagers):** Only exposed after all armies eliminated
+
+Key models in `Models/`:
+- `DefensiveStack` — Builds the 3-tier defender ordering for a coordinate
+- `StackCombat` — Coordinates N-to-N pairings, each wrapping an `ActiveCombat`
+- `ActiveCombat` / `CombatState` — Per-pairing 3-phase combat state
+
+**ArmyData vs Army pattern:** `ActiveCombat.addReinforcement` has two overloads — `(army: Army)` for the visual layer (SpriteKit `Army` class) and `(armyData: ArmyData)` for the engine layer (pure data model). Use the `armyData:` variant in engine code.
+
 ### Configuration
 
 `GameConfig.swift` centralizes all tunable constants (engine intervals, movement speeds, combat multipliers, AI thresholds). Edit values there instead of hunting through engine files.
@@ -69,7 +86,7 @@ Other singletons: `AIController.shared`, `NotificationManager.shared`.
 Several large classes are split into focused extension files:
 - `GameScene` + `GameScene+InputHandling` (touch/drag/tap)
 - `MenuCoordinator` + `+TileMenus` + `+EntityMenus`
-- `BuildingDetailViewController` + `+Training` + `+Market` + `+Garrison` + `+Upgrades`
+- `BuildingDetailViewController` + `+Training` + `+Market` + `+Garrison` + `+Upgrades` + `+UnitUpgrades`
 
 ## Adding New Files to the Xcode Project
 

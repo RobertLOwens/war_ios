@@ -227,6 +227,26 @@ class GameVisualLayer {
             entityNodes[armyID]?.removeEntrenchmentBar()
             entityNodes[armyID]?.removeEntrenchmentBadge()
 
+        // MARK: Stack Combat
+        case .stackCombatStarted(let coordinate, _, _):
+            handleCombatStarted(attackerID: UUID(), defenderID: UUID(), coordinate: coordinate)
+
+        case .stackCombatPairingEnded:
+            break  // Individual pairings handled by normal combatEnded
+
+        case .stackCombatTierAdvanced:
+            break  // Visual tier advancement handled via individual combat changes
+
+        case .stackCombatEnded:
+            break  // Overall cleanup handled by individual combat endings
+
+        case .armyForcedRetreat(let armyID, _, let to):
+            if let entityNode = entityNodes[armyID] {
+                entityNode.removeEntrenchmentBar()
+                entityNode.removeEntrenchmentBadge()
+            }
+            handleArmyMoved(armyID: armyID, to: to)
+
         default:
             // Handle other changes as needed
             break

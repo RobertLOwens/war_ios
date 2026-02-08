@@ -207,6 +207,23 @@ class GameState: Codable {
         return armies[armyID]
     }
 
+    /// Returns all armies at the given coordinate
+    func getArmies(at coordinate: HexCoordinate) -> [ArmyData] {
+        return mapData.getArmyIDs(at: coordinate).compactMap { armies[$0] }
+    }
+
+    /// Returns all entrenched armies that cover a given coordinate (from adjacent tiles)
+    func getEntrenchedArmiesCovering(coordinate: HexCoordinate) -> [ArmyData] {
+        var result: [ArmyData] = []
+        for neighbor in coordinate.neighbors() {
+            let armiesAtNeighbor = getArmies(at: neighbor)
+            for army in armiesAtNeighbor where army.isEntrenched {
+                result.append(army)
+            }
+        }
+        return result
+    }
+
     func getArmiesForPlayer(id: UUID) -> [ArmyData] {
         return armies.values.filter { $0.ownerID == id }
     }
@@ -252,6 +269,11 @@ class GameState: Codable {
     func getVillagerGroup(at coordinate: HexCoordinate) -> VillagerGroupData? {
         guard let groupID = mapData.getVillagerGroupID(at: coordinate) else { return nil }
         return villagerGroups[groupID]
+    }
+
+    /// Returns all villager groups at the given coordinate
+    func getVillagerGroups(at coordinate: HexCoordinate) -> [VillagerGroupData] {
+        return mapData.getVillagerGroupIDs(at: coordinate).compactMap { villagerGroups[$0] }
     }
 
     func getVillagerGroupsForPlayer(id: UUID) -> [VillagerGroupData] {

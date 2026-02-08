@@ -234,12 +234,28 @@ struct AIMilitaryPlanner {
             guard status == .enemy else { continue }
 
             let distance = max(1, coordinate.distance(to: army.coordinate))
-            let strength = army.getTotalUnits()
 
-            var score = 50.0 - Double(strength) + (20.0 / Double(distance))
+            // Score by full defensive stack strength at this coordinate, not just one army
+            let allDefenders = gameState.getArmies(at: army.coordinate).filter { $0.ownerID != playerID }
+            let crossTileEntrenched = gameState.getEntrenchedArmiesCovering(coordinate: army.coordinate)
+                .filter { $0.ownerID != playerID }
+            let totalStrength = allDefenders.reduce(0) { $0 + $1.getTotalUnits() }
+                + crossTileEntrenched.reduce(0) { $0 + $1.getTotalUnits() }
 
-            if strength < 10 {
+            var score = 50.0 - Double(totalStrength) + (20.0 / Double(distance))
+
+            if totalStrength < 10 {
                 score += 15.0
+            }
+
+            // Penalty for entrenched targets (AI should avoid attacking entrenched positions head-on)
+            if army.isEntrenched {
+                score -= 20.0
+            }
+
+            // Penalty for stacked defenders
+            if allDefenders.count > 1 {
+                score -= Double(allDefenders.count - 1) * 10.0
             }
 
             scores.append(TargetScore(

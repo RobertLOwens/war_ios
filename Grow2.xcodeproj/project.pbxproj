@@ -141,6 +141,8 @@
 		3FVLRDPLPNL1000000100VDPL /* VillagerDeploymentPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */; };
 		3FVLRJNMGR10000000100VJMG /* VillagerJoinManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */; };
 		3FVLRTSKWR1000000100VTWH /* VillagerTaskWarningHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */; };
+		3FMODL0001000000000DFSTK /* DefensiveStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMODL0002000000000DFSTK /* DefensiveStack.swift */; };
+		3FMODL0001000000000STKCM /* StackCombat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMODL0002000000000STKCM /* StackCombat.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -279,6 +281,8 @@
 		3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerDeploymentPanelViewController.swift; sourceTree = "<group>"; };
 		3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerJoinManager.swift; sourceTree = "<group>"; };
 		3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerTaskWarningHelper.swift; sourceTree = "<group>"; };
+		3FMODL0002000000000DFSTK /* DefensiveStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefensiveStack.swift; sourceTree = "<group>"; };
+		3FMODL0002000000000STKCM /* StackCombat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackCombat.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -532,6 +536,7 @@
 				3FEBD2002EF360E200341AEE /* CombatRecord.swift */,
 				3F9892722F21DBC0008A24E7 /* CombatState.swift */,
 				3FEBD1FC2EEF5C6400341AEE /* Commander.swift */,
+				3FMODL0002000000000DFSTK /* DefensiveStack.swift */,
 				3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */,
 				3FEBD2062EF3B10200341AEE /* Diplomacy.swift */,
 				3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */,
@@ -544,6 +549,7 @@
 				3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */,
 				3F6AE44F2F18228000C885D6 /* ResearchType.swift */,
 				3FF8CF482F030F04002FA5D7 /* Resource.swift */,
+				3FMODL0002000000000STKCM /* StackCombat.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -685,6 +691,8 @@
 				3F286A142F19615D004636ED /* UpgradeCommand.swift in Sources */,
 				3FEBD2012EF360E200341AEE /* CombatRecord.swift in Sources */,
 				3FDETCMBT12F28B00100DTCMB /* DetailedCombatRecord.swift in Sources */,
+				3FMODL0001000000000DFSTK /* DefensiveStack.swift in Sources */,
+				3FMODL0001000000000STKCM /* StackCombat.swift in Sources */,
 				3FCMBTDTL12F28C00100CMBTD /* CombatDetailViewController.swift in Sources */,
 				3FF8CF512F083158002FA5D7 /* AboutViewController.swift in Sources */,
 				3F286A052F195A5B004636ED /* BuildingData.swift in Sources */,
