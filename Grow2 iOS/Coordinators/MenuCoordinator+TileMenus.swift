@@ -151,6 +151,11 @@ extension MenuCoordinator {
         if !visibleEntities.isEmpty {
             if !message.isEmpty { message += "\n" }
             message += "\n📍 \(visibleEntities.count) unit(s) on this tile"
+
+            let entrenchedArmies = visibleEntities.compactMap { $0.entity as? Army }.filter { $0.data.isEntrenched }
+            if !entrenchedArmies.isEmpty {
+                message += "\n🪖 \(entrenchedArmies.count) entrenched"
+            }
         }
 
         // -------------------------
@@ -179,11 +184,48 @@ extension MenuCoordinator {
         }
 
         if !enemyEntities.isEmpty {
-            let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
-            if !playerArmies.isEmpty {
-                actions.append(AlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] in
-                    self?.showAttackerSelectionForTile(enemies: enemyEntities, at: coordinate)
-                })
+            // Check if all enemy armies on this tile are entrenched
+            let enemyArmies = enemyEntities.compactMap { $0.entity as? Army }
+            let allEntrenched = !enemyArmies.isEmpty && enemyArmies.allSatisfy { $0.data.isEntrenched }
+
+            if !allEntrenched {
+                let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+                if !playerArmies.isEmpty {
+                    actions.append(AlertAction(title: "⚔️ Attack", style: .destructive) { [weak self] in
+                        self?.showAttackerSelectionForTile(enemies: enemyEntities, at: coordinate)
+                    })
+                }
+            } else {
+                if !message.isEmpty { message += "\n" }
+                message += "\n⚠️ All armies entrenched — attack an adjacent tile to engage"
+            }
+        }
+
+        // -------------------------
+        // Attack Entrenchment Zone (cross-tile entrenched enemies covering this tile)
+        // -------------------------
+        if let gameState = GameEngine.shared.gameState {
+            let crossTileEntrenched = gameState.getEntrenchedArmiesCovering(coordinate: coordinate)
+                .filter { $0.ownerID != player.id }
+
+            // Only show if no regular attack option was already shown
+            let hasRegularAttack = !enemyEntities.isEmpty && !(
+                !enemyEntities.compactMap({ $0.entity as? Army }).isEmpty &&
+                enemyEntities.compactMap({ $0.entity as? Army }).allSatisfy({ $0.data.isEntrenched })
+            )
+
+            if !crossTileEntrenched.isEmpty && !hasRegularAttack {
+                let totalUnits = crossTileEntrenched.reduce(0) { $0 + $1.getTotalUnits() }
+                let armyCount = crossTileEntrenched.count
+                if !message.isEmpty { message += "\n" }
+                message += "\n🛡️ \(armyCount) entrenched army(ies) covering this tile (\(totalUnits) units)"
+
+                let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+                if !playerArmies.isEmpty {
+                    actions.append(AlertAction(title: "⚔️ Attack Entrenchment", style: .destructive) { [weak self] in
+                        self?.showAttackerSelectionForTile(enemies: [], at: coordinate)
+                    })
+                }
             }
         }
 
@@ -219,13 +261,18 @@ extension MenuCoordinator {
                 if let army = entity.entity as? Army {
                     let totalUnits = army.getTotalMilitaryUnits()
                     buttonTitle = "🛡️ \(army.name) (\(totalUnits) units)"
+                    if army.data.isEntrenched {
+                        buttonTitle += " [Entrenched]"
+                    }
                 } else {
                     buttonTitle = "🛡️ Army"
                 }
             }
 
+            let isOwned = entity.entity.owner?.id == player.id
+
             if let villagers = entity.entity as? VillagerGroup {
-                if villagers.owner?.id != player.id {
+                if !isOwned {
                     actions.append(AlertAction(title: buttonTitle, style: .destructive) { [weak self] in
                         self?.showAttackerSelectionForTile(enemies: [entity], at: coordinate)
                     })
@@ -239,6 +286,13 @@ extension MenuCoordinator {
                         }
                     })
                 }
+            } else if entity.entityType == .army && !isOwned {
+                // Enemy army — info/detail only (single Attack button above handles the stack)
+                actions.append(AlertAction(title: buttonTitle) { [weak self] in
+                    if let army = entity.armyReference {
+                        self?.presentArmyDetail(for: army, entityNode: entity)
+                    }
+                })
             } else {
                 actions.append(AlertAction(title: buttonTitle) { [weak self] in
                     self?.showEntityActionMenu(for: entity, at: coordinate)

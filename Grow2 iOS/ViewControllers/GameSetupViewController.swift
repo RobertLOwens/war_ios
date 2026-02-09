@@ -31,10 +31,15 @@ struct ArenaScenarioConfig {
     var enemyBuilding: BuildingType? = nil
     var enemyEntrenched: Bool = false
     var enemyArmyCount: Int = 1       // 1=single, 2-5=stacked same tile, -2 to -5=adjacent tiles
+    var playerArmyCount: Int = 1      // 1=single, 2-5=stacked same tile, -2 to -5=adjacent tiles
+    var playerCommanderSpecialty: CommanderSpecialtyData = .infantryAggressive
     var enemyCommanderSpecialty: CommanderSpecialtyData = .infantryAggressive
     var playerUnitTiers: [MilitaryUnitTypeData: Int] = [:]  // per-unit: 0=base, 1, 2
     var enemyUnitTiers: [MilitaryUnitTypeData: Int] = [:]   // per-unit: 0=base, 1, 2
+    var playerCommanderLevel: Int = 1  // 1, 5, 10, 15, 20, 25
+    var enemyCommanderLevel: Int = 1   // 1, 5, 10, 15, 20, 25
     var garrisonArchers: Int = 0      // 0-20
+    var enemyAIEnabled: Bool = true
 
     static var `default`: ArenaScenarioConfig { ArenaScenarioConfig() }
 }
@@ -106,11 +111,14 @@ enum ArenaPreset: String, CaseIterable {
             c.garrisonArchers = 5
         case .stacked:
             c.enemyArmyCount = 2
+            c.playerArmyCount = 2
         case .stackedEntrenched:
             c.enemyArmyCount = 2
+            c.playerArmyCount = 2
             c.enemyEntrenched = true
         case .overlapEntrench:
             c.enemyArmyCount = -2
+            c.playerArmyCount = -2
             c.enemyEntrenched = true
         }
         return c
@@ -224,8 +232,14 @@ class GameSetupViewController: UIViewController {
     var buildingControl: UISegmentedControl!
     var entrenchmentControl: UISegmentedControl!
     var stackingControl: UISegmentedControl!
-    var commanderControl: UISegmentedControl!
+    var playerStackingControl: UISegmentedControl!
+    var playerCommanderButton: UIButton!
+    var enemyCommanderButton: UIButton!
+    var playerCommanderLevelControl: UISegmentedControl!
+    var enemyCommanderLevelControl: UISegmentedControl!
     var armyCountControl: UISegmentedControl!
+    var playerArmyCountControl: UISegmentedControl!
+    var enemyAIControl: UISegmentedControl!
     var garrisonSlider: UISlider!
     var garrisonLabel: UILabel!
     var runCountSlider: UISlider!
@@ -387,8 +401,9 @@ class GameSetupViewController: UIViewController {
 
         // Pre-calculate heights
         let presetRowHeight: CGFloat = 50
-        let scenarioSettingsHeight = segmentRowHeight * 6 + 80 // 6 controls + garrison slider
-        let armySectionHeight = headerHeight + (CGFloat(unitTypes.count) * rowHeight) + totalLabelHeight + sectionPadding
+        let commanderButtonRowHeight: CGFloat = 38
+        let scenarioSettingsHeight = segmentRowHeight * 5 + 80 // 5 controls + garrison slider (commander moved to army sections)
+        let armySectionHeight = headerHeight + commanderButtonRowHeight + (CGFloat(unitTypes.count) * rowHeight) + totalLabelHeight + sectionPadding
         let totalHeight = presetRowHeight + scenarioSettingsHeight + (armySectionHeight * 2) + sectionPadding * 3
 
         let sectionView = UIView(frame: CGRect(x: 20, y: yPosition, width: view.bounds.width - 40, height: totalHeight))
@@ -453,14 +468,35 @@ class GameSetupViewController: UIViewController {
                                    items: ["Off", "On"], tag: 102)
         entrenchmentControl = sectionView.viewWithTag(102) as? UISegmentedControl
 
-        // Stacking
-        currentY = addSegmentedRow(to: sectionView, y: currentY, label: "Stacking:",
+        // Player Stacking
+        currentY = addSegmentedRow(to: sectionView, y: currentY, label: "P. Stack:",
+                                   items: ["Single", "Stacked", "Adjacent"], tag: 106)
+        playerStackingControl = sectionView.viewWithTag(106) as? UISegmentedControl
+
+        // Player army count (visible only when stacking is Stacked or Adjacent)
+        let playerArmyCountLabel = UILabel(frame: CGRect(x: 20, y: currentY, width: 90, height: 30))
+        playerArmyCountLabel.text = "P. Armies:"
+        playerArmyCountLabel.font = UIFont.systemFont(ofSize: 14)
+        playerArmyCountLabel.textColor = .white
+        sectionView.addSubview(playerArmyCountLabel)
+
+        playerArmyCountControl = UISegmentedControl(items: ["2", "3", "4", "5"])
+        playerArmyCountControl.frame = CGRect(x: 110, y: currentY, width: contentWidth - 90, height: 30)
+        playerArmyCountControl.selectedSegmentIndex = 0
+        playerArmyCountControl.isHidden = true
+        playerArmyCountControl.addTarget(self, action: #selector(scenarioControlChanged(_:)), for: .valueChanged)
+        sectionView.addSubview(playerArmyCountControl)
+        playerArmyCountLabel.tag = 201 // tag for show/hide with player army count control
+        currentY += 42
+
+        // Enemy Stacking
+        currentY = addSegmentedRow(to: sectionView, y: currentY, label: "E. Stack:",
                                    items: ["Single", "Stacked", "Adjacent"], tag: 103)
         stackingControl = sectionView.viewWithTag(103) as? UISegmentedControl
 
-        // Army count (visible only when stacking is Stacked or Adjacent)
+        // Enemy army count (visible only when stacking is Stacked or Adjacent)
         let armyCountLabel = UILabel(frame: CGRect(x: 20, y: currentY, width: 90, height: 30))
-        armyCountLabel.text = "Armies:"
+        armyCountLabel.text = "E. Armies:"
         armyCountLabel.font = UIFont.systemFont(ofSize: 14)
         armyCountLabel.textColor = .white
         sectionView.addSubview(armyCountLabel)
@@ -473,11 +509,6 @@ class GameSetupViewController: UIViewController {
         sectionView.addSubview(armyCountControl)
         armyCountLabel.tag = 200 // tag for show/hide with army count control
         currentY += 42
-
-        // Commander
-        currentY = addSegmentedRow(to: sectionView, y: currentY, label: "Commander:",
-                                   items: ["Inf Agg", "Cav Agg", "Rng Agg", "Defensive"], tag: 104)
-        commanderControl = sectionView.viewWithTag(104) as? UISegmentedControl
 
         // Garrison slider
         let garrisonLabelView = UILabel(frame: CGRect(x: 20, y: currentY, width: 80, height: 30))
@@ -502,6 +533,12 @@ class GameSetupViewController: UIViewController {
         sectionView.addSubview(garrisonLabel)
         currentY += 45
 
+        // Enemy AI
+        currentY = addSegmentedRow(to: sectionView, y: currentY, label: "Enemy AI:",
+                                   items: ["Off", "On"], tag: 106)
+        enemyAIControl = sectionView.viewWithTag(106) as? UISegmentedControl
+        enemyAIControl?.selectedSegmentIndex = 1  // default On
+
         // ── YOUR ARMY ──
         let playerHeader = UILabel(frame: CGRect(x: 20, y: currentY, width: contentWidth, height: headerHeight))
         playerHeader.text = "YOUR ARMY"
@@ -509,6 +546,9 @@ class GameSetupViewController: UIViewController {
         playerHeader.textColor = UIColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0)
         sectionView.addSubview(playerHeader)
         currentY += headerHeight
+
+        // Player commander button
+        currentY = addCommanderButtonRow(to: sectionView, y: currentY, label: "Commander:", isPlayer: true)
 
         for unitType in unitTypes {
             let row = createUnitSliderRow(in: sectionView, yPosition: currentY, unitType: unitType,
@@ -533,6 +573,9 @@ class GameSetupViewController: UIViewController {
         enemyHeader.textColor = UIColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1.0)
         sectionView.addSubview(enemyHeader)
         currentY += headerHeight
+
+        // Enemy commander button
+        currentY = addCommanderButtonRow(to: sectionView, y: currentY, label: "Commander:", isPlayer: false)
 
         for unitType in unitTypes {
             let row = createUnitSliderRow(in: sectionView, yPosition: currentY, unitType: unitType,
@@ -686,6 +729,127 @@ class GameSetupViewController: UIViewController {
         return sectionView
     }
 
+    // MARK: - Commander Button
+
+    func addCommanderButtonRow(to container: UIView, y: CGFloat, label: String, isPlayer: Bool) -> CGFloat {
+        let contentWidth = container.bounds.width - 40
+        let lbl = UILabel(frame: CGRect(x: 20, y: y, width: 90, height: 30))
+        lbl.text = label
+        lbl.font = UIFont.systemFont(ofSize: 14)
+        lbl.textColor = .white
+        container.addSubview(lbl)
+
+        let btn = UIButton(type: .system)
+        btn.frame = CGRect(x: 110, y: y, width: contentWidth - 90, height: 30)
+        let specialty: CommanderSpecialtyData = isPlayer ? scenarioConfig.playerCommanderSpecialty : scenarioConfig.enemyCommanderSpecialty
+        btn.setTitle(shortName(for: specialty), for: .normal)
+        btn.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        btn.setTitleColor(.white, for: .normal)
+        btn.backgroundColor = UIColor(white: 0.25, alpha: 1.0)
+        btn.layer.cornerRadius = 6
+        btn.contentHorizontalAlignment = .center
+        if isPlayer {
+            playerCommanderButton = btn
+            btn.addTarget(self, action: #selector(playerCommanderTapped), for: .touchUpInside)
+        } else {
+            enemyCommanderButton = btn
+            btn.addTarget(self, action: #selector(enemyCommanderTapped), for: .touchUpInside)
+        }
+        container.addSubview(btn)
+
+        // Commander level row
+        let lvlY = y + 34
+        let lvlLabel = UILabel(frame: CGRect(x: 20, y: lvlY, width: 70, height: 30))
+        lvlLabel.text = "Cmdr Lvl:"
+        lvlLabel.font = UIFont.systemFont(ofSize: 13)
+        lvlLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
+        container.addSubview(lvlLabel)
+
+        let levelItems = ["1 Rec", "5 Sgt", "10 Cpt", "15 Maj", "20 Col", "25 Gen"]
+        let lvlControl = UISegmentedControl(items: levelItems)
+        lvlControl.frame = CGRect(x: 90, y: lvlY, width: contentWidth - 70, height: 28)
+        lvlControl.selectedSegmentIndex = 0
+        let lvlFont = UIFont.systemFont(ofSize: 10)
+        lvlControl.setTitleTextAttributes([.font: lvlFont, .foregroundColor: UIColor.lightGray], for: .normal)
+        lvlControl.setTitleTextAttributes([.font: lvlFont, .foregroundColor: UIColor.white], for: .selected)
+        lvlControl.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+        lvlControl.selectedSegmentTintColor = UIColor(white: 0.35, alpha: 1.0)
+        lvlControl.addTarget(self, action: #selector(commanderLevelChanged(_:)), for: .valueChanged)
+        container.addSubview(lvlControl)
+
+        if isPlayer {
+            playerCommanderLevelControl = lvlControl
+        } else {
+            enemyCommanderLevelControl = lvlControl
+        }
+
+        return y + 68
+    }
+
+    private static let commanderLevelValues = [1, 5, 10, 15, 20, 25]
+
+    @objc func commanderLevelChanged(_ sender: UISegmentedControl) {
+        let levels = GameSetupViewController.commanderLevelValues
+        let level = levels[sender.selectedSegmentIndex]
+        if sender === playerCommanderLevelControl {
+            scenarioConfig.playerCommanderLevel = level
+        } else if sender === enemyCommanderLevelControl {
+            scenarioConfig.enemyCommanderLevel = level
+        }
+        selectedPreset = .custom
+        highlightPresetButton(.custom)
+    }
+
+    func shortName(for specialty: CommanderSpecialtyData) -> String {
+        switch specialty {
+        case .infantryAggressive: return "Inf Aggressive"
+        case .infantryDefensive: return "Inf Defensive"
+        case .cavalryAggressive: return "Cav Aggressive"
+        case .cavalryDefensive: return "Cav Defensive"
+        case .rangedAggressive: return "Rng Aggressive"
+        case .rangedDefensive: return "Rng Defensive"
+        case .siegeAggressive: return "Siege Aggressive"
+        case .siegeDefensive: return "Siege Defensive"
+        case .defensive: return "Defensive"
+        case .logistics: return "Logistics"
+        }
+    }
+
+    @objc func playerCommanderTapped() {
+        showCommanderPicker(isPlayer: true)
+    }
+
+    @objc func enemyCommanderTapped() {
+        showCommanderPicker(isPlayer: false)
+    }
+
+    func showCommanderPicker(isPlayer: Bool) {
+        let alert = UIAlertController(title: isPlayer ? "Player Commander" : "Enemy Commander", message: nil, preferredStyle: .actionSheet)
+        for specialty in CommanderSpecialtyData.allCases {
+            alert.addAction(UIAlertAction(title: "\(specialty.icon) \(shortName(for: specialty))", style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                if isPlayer {
+                    self.scenarioConfig.playerCommanderSpecialty = specialty
+                    self.playerCommanderButton?.setTitle(self.shortName(for: specialty), for: .normal)
+                } else {
+                    self.scenarioConfig.enemyCommanderSpecialty = specialty
+                    self.enemyCommanderButton?.setTitle(self.shortName(for: specialty), for: .normal)
+                }
+                self.selectedPreset = .custom
+                self.highlightPresetButton(.custom)
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+
+        if let popover = alert.popoverPresentationController {
+            let button = isPlayer ? playerCommanderButton! : enemyCommanderButton!
+            popover.sourceView = button
+            popover.sourceRect = button.bounds
+        }
+
+        present(alert, animated: true)
+    }
+
     // MARK: - Actions
 
     @objc func armySliderChanged(_ sender: UISlider) {
@@ -775,7 +939,33 @@ class GameSetupViewController: UIViewController {
         // Entrenchment
         entrenchmentControl?.selectedSegmentIndex = scenarioConfig.enemyEntrenched ? 1 : 0
 
-        // Stacking + army count
+        // Enemy AI
+        enemyAIControl?.selectedSegmentIndex = scenarioConfig.enemyAIEnabled ? 1 : 0
+
+        // Player stacking + army count
+        let playerArmyCountLabelView = arenaConfigSection?.viewWithTag(201)
+        switch scenarioConfig.playerArmyCount {
+        case 1:
+            playerStackingControl?.selectedSegmentIndex = 0
+            playerArmyCountControl?.isHidden = true
+            playerArmyCountLabelView?.isHidden = true
+        case 2...5:
+            playerStackingControl?.selectedSegmentIndex = 1
+            playerArmyCountControl?.selectedSegmentIndex = abs(scenarioConfig.playerArmyCount) - 2
+            playerArmyCountControl?.isHidden = false
+            playerArmyCountLabelView?.isHidden = false
+        case -5...(-2):
+            playerStackingControl?.selectedSegmentIndex = 2
+            playerArmyCountControl?.selectedSegmentIndex = abs(scenarioConfig.playerArmyCount) - 2
+            playerArmyCountControl?.isHidden = false
+            playerArmyCountLabelView?.isHidden = false
+        default:
+            playerStackingControl?.selectedSegmentIndex = 0
+            playerArmyCountControl?.isHidden = true
+            playerArmyCountLabelView?.isHidden = true
+        }
+
+        // Enemy stacking + army count
         let armyCountLabelView = arenaConfigSection?.viewWithTag(200)
         switch scenarioConfig.enemyArmyCount {
         case 1:
@@ -798,14 +988,14 @@ class GameSetupViewController: UIViewController {
             armyCountLabelView?.isHidden = true
         }
 
-        // Commander
-        switch scenarioConfig.enemyCommanderSpecialty {
-        case .infantryAggressive: commanderControl?.selectedSegmentIndex = 0
-        case .cavalryAggressive: commanderControl?.selectedSegmentIndex = 1
-        case .rangedAggressive: commanderControl?.selectedSegmentIndex = 2
-        case .defensive: commanderControl?.selectedSegmentIndex = 3
-        default: commanderControl?.selectedSegmentIndex = 0
-        }
+        // Commander buttons
+        playerCommanderButton?.setTitle(shortName(for: scenarioConfig.playerCommanderSpecialty), for: .normal)
+        enemyCommanderButton?.setTitle(shortName(for: scenarioConfig.enemyCommanderSpecialty), for: .normal)
+
+        // Commander levels
+        let levels = GameSetupViewController.commanderLevelValues
+        playerCommanderLevelControl?.selectedSegmentIndex = levels.firstIndex(of: scenarioConfig.playerCommanderLevel) ?? 0
+        enemyCommanderLevelControl?.selectedSegmentIndex = levels.firstIndex(of: scenarioConfig.enemyCommanderLevel) ?? 0
 
         // Per-unit tiers
         for (unitType, control) in playerTierControls {
@@ -849,7 +1039,31 @@ class GameSetupViewController: UIViewController {
         // Entrenchment
         scenarioConfig.enemyEntrenched = entrenchmentControl?.selectedSegmentIndex == 1
 
-        // Stacking + army count
+        // Enemy AI
+        scenarioConfig.enemyAIEnabled = enemyAIControl?.selectedSegmentIndex == 1
+
+        // Player stacking + army count
+        let playerArmyCountLabelView = arenaConfigSection?.viewWithTag(201)
+        switch playerStackingControl?.selectedSegmentIndex {
+        case 0:
+            scenarioConfig.playerArmyCount = 1
+            playerArmyCountControl?.isHidden = true
+            playerArmyCountLabelView?.isHidden = true
+        case 1:
+            scenarioConfig.playerArmyCount = (playerArmyCountControl?.selectedSegmentIndex ?? 0) + 2
+            playerArmyCountControl?.isHidden = false
+            playerArmyCountLabelView?.isHidden = false
+        case 2:
+            scenarioConfig.playerArmyCount = -((playerArmyCountControl?.selectedSegmentIndex ?? 0) + 2)
+            playerArmyCountControl?.isHidden = false
+            playerArmyCountLabelView?.isHidden = false
+        default:
+            scenarioConfig.playerArmyCount = 1
+            playerArmyCountControl?.isHidden = true
+            playerArmyCountLabelView?.isHidden = true
+        }
+
+        // Enemy stacking + army count
         let armyCountLabelView = arenaConfigSection?.viewWithTag(200)
         switch stackingControl?.selectedSegmentIndex {
         case 0:
@@ -870,14 +1084,8 @@ class GameSetupViewController: UIViewController {
             armyCountLabelView?.isHidden = true
         }
 
-        // Commander
-        switch commanderControl?.selectedSegmentIndex {
-        case 0: scenarioConfig.enemyCommanderSpecialty = .infantryAggressive
-        case 1: scenarioConfig.enemyCommanderSpecialty = .cavalryAggressive
-        case 2: scenarioConfig.enemyCommanderSpecialty = .rangedAggressive
-        case 3: scenarioConfig.enemyCommanderSpecialty = .defensive
-        default: scenarioConfig.enemyCommanderSpecialty = .infantryAggressive
-        }
+        // Commander: buttons update config directly via action sheet callbacks
+        // Commander levels: segment controls update config directly via commanderLevelChanged
 
         // Per-unit tiers
         scenarioConfig.playerUnitTiers = [:]

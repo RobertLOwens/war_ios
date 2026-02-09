@@ -251,6 +251,15 @@ class LiveCombatViewController: UIViewController {
         if combat.entrenchmentDefenseBonus > 0 {
             modifiers.append("Entrenched +\(Int(combat.entrenchmentDefenseBonus * 100))%")
         }
+        if let atkCmdr = combat.attackerCommanderData, atkCmdr.specialty.isAggressive,
+           let cat = atkCmdr.specialty.unitCategory {
+            let bonus = Int(atkCmdr.getAttackBonus(for: cat) * 100)
+            modifiers.append("Atk Cmdr +\(bonus)% \(cat.rawValue.capitalized)")
+        }
+        if let defCmdr = combat.defenderCommanderData, defCmdr.specialty.armorBonus > 0 {
+            let bonus = Int(defCmdr.getDefenseBonus() * 100)
+            modifiers.append("Def Cmdr +\(bonus)% Armor")
+        }
         if !modifiers.isEmpty {
             let modifierStr = modifiers.joined(separator: ", ")
             if combat.terrainDefenseBonus > 0 && combat.entrenchmentDefenseBonus > 0 {
@@ -270,15 +279,15 @@ class LiveCombatViewController: UIViewController {
 
         // Update side views
         attackerView.configure(
-            name: combat.attackerArmy?.name ?? "Attacker",
-            commander: combat.attackerArmy?.commander?.name,
+            name: combat.attackerArmy?.name ?? combat.attackerArmies.first?.armyName ?? "Attacker",
+            commanderData: combat.attackerCommanderData ?? combat.attackerArmy?.commander?.data,
             state: combat.attackerState,
             maxHP: maxHP
         )
 
         defenderView.configure(
-            name: combat.defenderArmy?.name ?? "Defender",
-            commander: combat.defenderArmy?.commander?.name,
+            name: combat.defenderArmy?.name ?? combat.defenderArmies.first?.armyName ?? "Defender",
+            commanderData: combat.defenderCommanderData ?? combat.defenderArmy?.commander?.data,
             state: combat.defenderState,
             maxHP: maxHP
         )
@@ -298,10 +307,10 @@ class LiveCombatViewController: UIViewController {
         let winnerText: String
         switch combat.winner {
         case .attackerVictory:
-            winnerText = "\(combat.attackerArmy?.name ?? "Attacker") Wins!"
+            winnerText = "\(combat.attackerArmy?.name ?? combat.attackerArmies.first?.armyName ?? "Attacker") Wins!"
             attackerView.showWinner()
         case .defenderVictory:
-            winnerText = "\(combat.defenderArmy?.name ?? "Defender") Wins!"
+            winnerText = "\(combat.defenderArmy?.name ?? combat.defenderArmies.first?.armyName ?? "Defender") Wins!"
             defenderView.showWinner()
         case .draw:
             winnerText = "Draw!"
@@ -324,6 +333,7 @@ class CombatSideView: UIView {
 
     let nameLabel = UILabel()
     let commanderLabel = UILabel()
+    let commanderBonusLabel = UILabel()
     let totalUnitsLabel = UILabel()
     let hpBarBackground = UIView()
     let hpBarFill = UIView()
@@ -357,6 +367,12 @@ class CombatSideView: UIView {
         commanderLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
         commanderLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(commanderLabel)
+
+        // Commander bonus label
+        commanderBonusLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+        commanderBonusLabel.textColor = UIColor.systemYellow
+        commanderBonusLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(commanderBonusLabel)
 
         // Total units label (now shows HP)
         totalUnitsLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 22, weight: .bold)
@@ -413,17 +429,50 @@ class CombatSideView: UIView {
             // Commander below name
             commanderLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
             commanderLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
+            commanderLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
 
-            // Unit table below commander
-            unitTableStack.topAnchor.constraint(equalTo: commanderLabel.bottomAnchor, constant: 6),
+            // Commander bonus below commander
+            commanderBonusLabel.topAnchor.constraint(equalTo: commanderLabel.bottomAnchor, constant: 1),
+            commanderBonusLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
+            commanderBonusLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
+
+            // Unit table below commander bonus
+            unitTableStack.topAnchor.constraint(equalTo: commanderBonusLabel.bottomAnchor, constant: 4),
             unitTableStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 15),
             unitTableStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -15),
         ])
     }
 
-    func configure(name: String, commander: String?, state: SideCombatState, maxHP: Double) {
+    func configure(name: String, commanderData: CommanderData?, state: SideCombatState, maxHP: Double) {
         nameLabel.text = isAttacker ? "Attacker: \(name)" : "Defender: \(name)"
-        commanderLabel.text = commander.map { "Commander: \($0)" } ?? "No Commander"
+
+        if let cmdr = commanderData {
+            let icon = cmdr.specialty.icon
+            commanderLabel.text = "\(icon) \(cmdr.name) (\(cmdr.specialty.displayName))"
+            commanderLabel.textColor = UIColor(white: 0.75, alpha: 1.0)
+
+            // Build bonus description
+            var bonusParts: [String] = []
+            if cmdr.specialty.isAggressive, let cat = cmdr.specialty.unitCategory {
+                let atkPct = Int(cmdr.getAttackBonus(for: cat) * 100)
+                bonusParts.append("+\(atkPct)% \(cat.rawValue.capitalized) ATK")
+            }
+            if cmdr.specialty.armorBonus > 0 {
+                let defPct = Int(cmdr.getDefenseBonus() * 100)
+                bonusParts.append("+\(defPct)% DEF")
+            }
+            let levelBonus = Int(Double(cmdr.level) * 0.01 * 100)
+            if levelBonus > 0 && !cmdr.specialty.isAggressive && cmdr.specialty.armorBonus == 0 {
+                bonusParts.append("+\(levelBonus)% ATK/DEF (level)")
+            }
+            commanderBonusLabel.text = bonusParts.isEmpty ? "" : bonusParts.joined(separator: "  ")
+            commanderBonusLabel.isHidden = bonusParts.isEmpty
+        } else {
+            commanderLabel.text = "No Commander"
+            commanderLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+            commanderBonusLabel.text = ""
+            commanderBonusLabel.isHidden = true
+        }
 
         // Show total HP remaining
         let currentHP = Int(state.currentTotalHP)

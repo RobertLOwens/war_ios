@@ -598,8 +598,8 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             guard index < players.count else { continue }
             let currentPlayer = players[index]
 
-            // Commander specialty: use scenario config for enemy, infantry aggressive for player
-            let specialty: CommanderSpecialtyData = index == 0 ? .infantryAggressive : scenario.enemyCommanderSpecialty
+            // Commander specialty: use scenario config for both sides
+            let specialty: CommanderSpecialtyData = index == 0 ? scenario.playerCommanderSpecialty : scenario.enemyCommanderSpecialty
 
             let commander = Commander(
                 name: Commander.randomName(),
@@ -607,6 +607,11 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 portraitColor: Commander.randomColor(),
                 owner: currentPlayer
             )
+
+            // Apply commander level from scenario config
+            let cmdrLevel = index == 0 ? scenario.playerCommanderLevel : scenario.enemyCommanderLevel
+            commander.data.level = cmdrLevel
+            commander.data.rank = CommanderRankData.rank(forLevel: cmdrLevel)
 
             // Create army at starting position
             let armyName = index == 0 ? "Player's Army" : "\(currentPlayer.name)'s Army"
@@ -640,14 +645,9 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             GameEngine.shared.gameState?.addArmy(army.data)
             debugLog("DEBUG: Army \(army.name) added. In GameState: \(GameEngine.shared.gameState?.getArmy(id: army.id) != nil)")
 
-            // Set entrenchment based on scenario config (enemy only)
-            if index == 1 && scenario.enemyEntrenched {
-                army.data.isEntrenched = true
-                GameEngine.shared.gameState?.getArmy(id: army.id)?.isEntrenched = true
-            }
-
-            // Register commander with player
+            // Register commander with player and GameState
             currentPlayer.addCommander(commander)
+            GameEngine.shared.gameState?.addCommander(commander.data)
             allCreatedArmies[index].append(army)
 
             debugLog("Player \(index + 1) (\(currentPlayer.name)) army spawned at (\(startPos.coordinate.q), \(startPos.coordinate.r))")
@@ -658,7 +658,10 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         }
 
         // Apply per-unit tier upgrades to player
-        if !scenario.playerUnitTiers.isEmpty, let playerState = GameEngine.shared.gameState?.getPlayer(id: players[0].id) {
+        // Use players[].state directly since GameEngine.shared.gameState isn't set up yet;
+        // initializeEngineArchitecture() later uses the same player.state object references.
+        if !scenario.playerUnitTiers.isEmpty {
+            let playerState = players[0].state
             for (unitType, tier) in scenario.playerUnitTiers where tier > 0 {
                 let upgrades = UnitUpgradeType.upgradesForUnit(unitType).sorted { $0.tier < $1.tier }
                 for upgrade in upgrades where upgrade.tier <= tier {
@@ -669,7 +672,8 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         }
 
         // Apply per-unit tier upgrades to enemy
-        if !scenario.enemyUnitTiers.isEmpty, let enemyPlayerState = GameEngine.shared.gameState?.getPlayer(id: players[1].id) {
+        if !scenario.enemyUnitTiers.isEmpty {
+            let enemyPlayerState = players[1].state
             for (unitType, tier) in scenario.enemyUnitTiers where tier > 0 {
                 let upgrades = UnitUpgradeType.upgradesForUnit(unitType).sorted { $0.tier < $1.tier }
                 for upgrade in upgrades where upgrade.tier <= tier {
@@ -700,6 +704,8 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                         portraitColor: Commander.randomColor(),
                         owner: enemyPlayer
                     )
+                    cmdr.data.level = scenario.enemyCommanderLevel
+                    cmdr.data.rank = CommanderRankData.rank(forLevel: scenario.enemyCommanderLevel)
                     let army = Army(name: "\(enemyPlayer.name)'s Army \(i + 2)", coordinate: coord, commander: cmdr, owner: enemyPlayer)
                     for (unitType, count) in enemyComposition where count > 0 {
                         army.addMilitaryUnits(unitType, count: count)
@@ -712,14 +718,66 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                     enemyPlayer.addEntity(army)
                     GameEngine.shared.gameState?.addArmy(army.data)
                     enemyPlayer.addCommander(cmdr)
+                    GameEngine.shared.gameState?.addCommander(cmdr.data)
 
-                    if scenario.enemyEntrenched {
-                        army.data.isEntrenched = true
-                        GameEngine.shared.gameState?.getArmy(id: army.id)?.isEntrenched = true
-                    }
+                    // Entrenchment applied below after all armies are in state
                     allCreatedArmies[1].append(army)
                     debugLog("\(isStacked ? "Stacked" : "Adjacent") enemy army \(i + 2) at (\(coord.q), \(coord.r))")
                 }
+            }
+        }
+
+        // Stacking: create additional player armies if configured
+        playerStacking: do {
+            let playerPlayer = players[0]
+            let config = armyConfig ?? .default
+            let playerComposition = config.playerArmy
+            let extraCount = abs(scenario.playerArmyCount) - 1
+            let isStacked = scenario.playerArmyCount > 1
+            let isAdjacent = scenario.playerArmyCount < -1
+
+            if isStacked || isAdjacent {
+                let playerPos = startPositions[0].coordinate
+                let adjacentHexes = playerPos.neighbors()
+
+                for i in 0..<extraCount {
+                    let coord = isStacked ? playerPos : (i < adjacentHexes.count ? adjacentHexes[i] : playerPos)
+                    let cmdr = Commander(
+                        name: Commander.randomName(),
+                        specialty: scenario.playerCommanderSpecialty,
+                        portraitColor: Commander.randomColor(),
+                        owner: playerPlayer
+                    )
+                    cmdr.data.level = scenario.playerCommanderLevel
+                    cmdr.data.rank = CommanderRankData.rank(forLevel: scenario.playerCommanderLevel)
+                    let army = Army(name: "Player's Army \(i + 2)", coordinate: coord, commander: cmdr, owner: playerPlayer)
+                    for (unitType, count) in playerComposition where count > 0 {
+                        army.addMilitaryUnits(unitType, count: count)
+                    }
+                    let armyNode = EntityNode(coordinate: coord, entityType: .army, entity: army, currentPlayer: players[0])
+                    armyNode.position = HexMap.hexToPixel(q: coord.q, r: coord.r)
+                    hexMap.addEntity(armyNode)
+                    entitiesNode.addChild(armyNode)
+                    playerPlayer.addArmy(army)
+                    playerPlayer.addEntity(army)
+                    GameEngine.shared.gameState?.addArmy(army.data)
+                    playerPlayer.addCommander(cmdr)
+                    GameEngine.shared.gameState?.addCommander(cmdr.data)
+
+                    allCreatedArmies[0].append(army)
+                    debugLog("\(isStacked ? "Stacked" : "Adjacent") player army \(i + 2) at (\(coord.q), \(coord.r))")
+                }
+            }
+        }
+
+        // Apply entrenchment with coverage computation (after all armies are in state)
+        if scenario.enemyEntrenched, let gameState = GameEngine.shared.gameState {
+            for army in allCreatedArmies[1] {
+                let coverage = gameState.computeEntrenchmentCoverage(for: army.data)
+                army.data.isEntrenched = true
+                army.data.entrenchedCoveredTiles = coverage
+                gameState.getArmy(id: army.id)?.isEntrenched = true
+                gameState.getArmy(id: army.id)?.entrenchedCoveredTiles = coverage
             }
         }
 
@@ -783,6 +841,25 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         debugLog("City centers placed at corners for retreat testing")
         debugLog("   Player 1 city center: (\(player1CityPos.q), \(player1CityPos.r))")
         debugLog("   Player 2 city center: (\(player2CityPos.q), \(player2CityPos.r))")
+
+        // Update stack badges for all tiles with multiple entities
+        var armyCoordinates = Set<HexCoordinate>()
+        for playerArmies in allCreatedArmies {
+            for army in playerArmies {
+                armyCoordinates.insert(army.coordinate)
+            }
+        }
+        for coord in armyCoordinates {
+            let entitiesAtCoord = hexMap.getEntities(at: coord)
+            let count = entitiesAtCoord.count
+            for (index, entity) in entitiesAtCoord.enumerated() {
+                if index == entitiesAtCoord.count - 1 {
+                    entity.updateStackBadge(count: count)
+                } else {
+                    entity.updateStackBadge(count: 0)
+                }
+            }
+        }
 
         // Set player references
         self.player = players[0]
@@ -1121,17 +1198,18 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             // Skip if overlays already exist for this army
             if entrenchmentOverlays[army.id] != nil { continue }
 
-            // Create neighbor hex outlines for all valid tiles (hidden if not visible yet)
-            let neighbors = army.coordinate.neighbors()
+            // Create neighbor hex outlines only for tiles in the army's covered set
+            let coveredTiles = army.data.entrenchedCoveredTiles
+            let diplomacyStatus = player.getDiplomacyStatus(with: army.owner)
             var overlayNodes: [SKShapeNode] = []
 
-            for neighbor in neighbors {
+            for tile in coveredTiles {
                 // Only create overlays for tiles that exist on the map
-                guard hexMap.getTile(at: neighbor) != nil else { continue }
+                guard hexMap.getTile(at: tile) != nil else { continue }
 
-                let position = HexMap.hexToPixel(q: neighbor.q, r: neighbor.r)
-                let shape = createEntrenchmentHexOutline(at: position, coordinate: neighbor)
-                shape.isHidden = !player.isVisible(neighbor)
+                let position = HexMap.hexToPixel(q: tile.q, r: tile.r)
+                let shape = createEntrenchmentHexOutline(at: position, coordinate: tile, diplomacyStatus: diplomacyStatus)
+                shape.isHidden = !player.isVisible(tile)
                 mapNode.addChild(shape)
                 overlayNodes.append(shape)
             }
@@ -1155,8 +1233,8 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         }
     }
 
-    /// Creates a hex outline shape for entrenchment neighbor tiles
-    private func createEntrenchmentHexOutline(at position: CGPoint, coordinate: HexCoordinate) -> SKShapeNode {
+    /// Creates a hex outline shape for entrenchment neighbor tiles, colored by diplomatic status
+    private func createEntrenchmentHexOutline(at position: CGPoint, coordinate: HexCoordinate, diplomacyStatus: DiplomacyStatus = .neutral) -> SKShapeNode {
         let radius: CGFloat = HexTileNode.hexRadius - 2
         let isoRatio = HexTileNode.isoRatio
         let path = UIBezierPath()
@@ -1174,11 +1252,12 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         }
         path.close()
 
+        let color = diplomacyStatus.strokeColor
         let shape = SKShapeNode(path: path.cgPath)
         shape.position = position
-        shape.strokeColor = UIColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 0.8)
+        shape.strokeColor = color.withAlphaComponent(0.8)
         shape.lineWidth = 3
-        shape.fillColor = UIColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 0.1)
+        shape.fillColor = color.withAlphaComponent(0.1)
         shape.glowWidth = 1
         shape.zPosition = HexTileNode.isometricZPosition(q: coordinate.q, r: coordinate.r, baseLayer: 10)
         shape.name = "entrench_\(coordinate.q)_\(coordinate.r)"
@@ -1383,6 +1462,20 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         // Update the army's home base
         army.setHomeBase(building.data.id)
         debugLog("🏠 Army \(army.name) home base updated to \(building.buildingType.displayName) at (\(coordinate.q), \(coordinate.r))")
+    }
+
+    /// Updates stack badges for all entities at the given coordinate
+    func updateStackBadges(at coordinate: HexCoordinate) {
+        guard let hexMap = hexMap else { return }
+        let entitiesAtCoord = hexMap.getEntities(at: coordinate)
+        let count = entitiesAtCoord.count
+        for (index, entity) in entitiesAtCoord.enumerated() {
+            if index == entitiesAtCoord.count - 1 {
+                entity.updateStackBadge(count: count)
+            } else {
+                entity.updateStackBadge(count: 0)
+            }
+        }
     }
 
     /// Handles building destruction by reassigning home base references for affected armies

@@ -282,6 +282,22 @@ class MapData: Codable {
                 break
             }
         }
+
+        // Entrenched enemy armies block movement through their tile
+        if let requestorID = playerID {
+            let armiesAtCoord = gameState.getArmies(at: coord)
+            for army in armiesAtCoord {
+                if army.isEntrenched,
+                   let armyOwnerID = army.ownerID,
+                   armyOwnerID != requestorID {
+                    let status = gameState.getDiplomacyStatus(playerID: requestorID, otherPlayerID: armyOwnerID)
+                    if !status.canMove {
+                        return false
+                    }
+                }
+            }
+        }
+
         return true
     }
 

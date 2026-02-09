@@ -215,6 +215,7 @@ struct DetailedCombatRecord: Codable {
     let attackerName: String
     let attackerOwner: String
     let attackerCommander: String?
+    let attackerCommanderSpecialty: String?  // CommanderSpecialtyData.rawValue
     let attackerInitialComposition: [String: Int]  // MilitaryUnitType.rawValue -> count
     let attackerFinalComposition: [String: Int]
 
@@ -222,6 +223,7 @@ struct DetailedCombatRecord: Codable {
     let defenderName: String
     let defenderOwner: String
     let defenderCommander: String?
+    let defenderCommanderSpecialty: String?  // CommanderSpecialtyData.rawValue
     let defenderInitialComposition: [String: Int]
     let defenderFinalComposition: [String: Int]
 
@@ -298,11 +300,13 @@ struct DetailedCombatRecord: Codable {
         attackerName: String,
         attackerOwner: String,
         attackerCommander: String?,
+        attackerCommanderSpecialty: String? = nil,
         attackerInitialComposition: [MilitaryUnitType: Int],
         attackerFinalComposition: [MilitaryUnitType: Int],
         defenderName: String,
         defenderOwner: String,
         defenderCommander: String?,
+        defenderCommanderSpecialty: String? = nil,
         defenderInitialComposition: [MilitaryUnitType: Int],
         defenderFinalComposition: [MilitaryUnitType: Int],
         phaseRecords: [CombatPhaseRecord],
@@ -323,9 +327,11 @@ struct DetailedCombatRecord: Codable {
         self.attackerName = attackerName
         self.attackerOwner = attackerOwner
         self.attackerCommander = attackerCommander
+        self.attackerCommanderSpecialty = attackerCommanderSpecialty
         self.defenderName = defenderName
         self.defenderOwner = defenderOwner
         self.defenderCommander = defenderCommander
+        self.defenderCommanderSpecialty = defenderCommanderSpecialty
         self.phaseRecords = phaseRecords
         self.attackerUnitBreakdowns = attackerUnitBreakdowns
         self.defenderUnitBreakdowns = defenderUnitBreakdowns

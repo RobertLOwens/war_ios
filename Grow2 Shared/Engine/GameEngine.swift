@@ -256,10 +256,14 @@ class GameEngine {
             let progress = min(1.0, elapsed / GameConfig.Entrenchment.buildTime)
 
             if progress >= 1.0 {
-                // Entrenchment complete
+                // Entrenchment complete — compute coverage before marking entrenched
+                // so getEntrenchedArmiesCovering won't include this army itself
+                let coverage = state.computeEntrenchmentCoverage(for: army)
+
                 army.isEntrenching = false
                 army.isEntrenched = true
                 army.entrenchmentStartTime = nil
+                army.entrenchedCoveredTiles = coverage
 
                 changes.append(.armyEntrenched(armyID: army.id, coordinate: army.coordinate))
                 debugLog("🪖 Army \(army.name) is now entrenched at (\(army.coordinate.q), \(army.coordinate.r))")

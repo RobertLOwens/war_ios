@@ -80,6 +80,15 @@ class ArenaSimulator {
         attackerPS.setDiplomacyStatus(with: defenderPlayerID, status: .enemy)
         defenderPS.setDiplomacyStatus(with: attackerPlayerID, status: .enemy)
 
+        // Create city centers as home bases for retreat support
+        let attackerCity = BuildingData(buildingType: .cityCenter, coordinate: HexCoordinate(q: 0, r: 0), ownerID: attackerPlayerID)
+        attackerCity.state = .completed
+        simState.addBuilding(attackerCity)
+
+        let defenderCity = BuildingData(buildingType: .cityCenter, coordinate: HexCoordinate(q: 6, r: 6), ownerID: defenderPlayerID)
+        defenderCity.state = .completed
+        simState.addBuilding(defenderCity)
+
         // Apply per-unit tier upgrades to attacker
         for (unitType, tier) in scenarioConfig.playerUnitTiers where tier > 0 {
             let upgrades = UnitUpgradeType.upgradesForUnit(unitType).sorted { $0.tier < $1.tier }
@@ -98,23 +107,28 @@ class ArenaSimulator {
 
         // Create attacker army
         let attackerArmy = ArmyData(name: "Attacker Army", coordinate: playerPos, ownerID: attackerPlayerID)
-        let attackerCommander = CommanderData(name: "Attacker Cmdr", specialty: .infantryAggressive, ownerID: attackerPlayerID)
+        let attackerCommander = CommanderData(name: "Attacker Cmdr", specialty: scenarioConfig.playerCommanderSpecialty, ownerID: attackerPlayerID)
+        attackerCommander.level = scenarioConfig.playerCommanderLevel
+        attackerCommander.rank = CommanderRankData.rank(forLevel: scenarioConfig.playerCommanderLevel)
         attackerArmy.commanderID = attackerCommander.id
+        simState.addCommander(attackerCommander)
         for (unitType, count) in armyConfig.playerArmy where count > 0 {
             attackerArmy.addMilitaryUnits(unitType, count: count)
         }
+        attackerArmy.homeBaseID = attackerCity.id
         simState.addArmy(attackerArmy)
 
         // Create defender army
         let defenderArmy = ArmyData(name: "Defender Army", coordinate: enemyPos, ownerID: defenderPlayerID)
         let defenderCommander = CommanderData(name: "Defender Cmdr", specialty: scenarioConfig.enemyCommanderSpecialty, ownerID: defenderPlayerID)
+        defenderCommander.level = scenarioConfig.enemyCommanderLevel
+        defenderCommander.rank = CommanderRankData.rank(forLevel: scenarioConfig.enemyCommanderLevel)
         defenderArmy.commanderID = defenderCommander.id
+        simState.addCommander(defenderCommander)
         for (unitType, count) in armyConfig.enemyArmy where count > 0 {
             defenderArmy.addMilitaryUnits(unitType, count: count)
         }
-        if scenarioConfig.enemyEntrenched {
-            defenderArmy.isEntrenched = true
-        }
+        defenderArmy.homeBaseID = defenderCity.id
         simState.addArmy(defenderArmy)
 
         // Store initial compositions
@@ -133,16 +147,54 @@ class ArenaSimulator {
                 let coord = isStacked ? enemyPos : (i < adjacentHexes.count ? adjacentHexes[i] : enemyPos)
                 let army = ArmyData(name: "Defender Army \(i + 2)", coordinate: coord, ownerID: defenderPlayerID)
                 let cmd = CommanderData(name: "Defender Cmdr \(i + 2)", specialty: scenarioConfig.enemyCommanderSpecialty, ownerID: defenderPlayerID)
+                cmd.level = scenarioConfig.enemyCommanderLevel
+                cmd.rank = CommanderRankData.rank(forLevel: scenarioConfig.enemyCommanderLevel)
                 army.commanderID = cmd.id
+                simState.addCommander(cmd)
                 for (unitType, count) in armyConfig.enemyArmy where count > 0 {
                     army.addMilitaryUnits(unitType, count: count)
                 }
-                if scenarioConfig.enemyEntrenched { army.isEntrenched = true }
+                army.homeBaseID = defenderCity.id
                 simState.addArmy(army)
                 extraDefenderArmies.append(army)
                 for (unitType, count) in armyConfig.enemyArmy where count > 0 {
                     totalDefenderInitial[unitType.rawValue, default: 0] += count
                 }
+            }
+        }
+
+        // Create extra attacker armies if stacking
+        var extraAttackerArmies: [ArmyData] = []
+        let playerExtraCount = abs(scenarioConfig.playerArmyCount) - 1
+        let playerIsStacked = scenarioConfig.playerArmyCount > 1
+        let playerIsAdjacent = scenarioConfig.playerArmyCount < -1
+
+        if playerIsStacked || playerIsAdjacent {
+            let adjacentHexes = playerPos.neighbors()
+            for i in 0..<playerExtraCount {
+                let coord = playerIsStacked ? playerPos : (i < adjacentHexes.count ? adjacentHexes[i] : playerPos)
+                let army = ArmyData(name: "Attacker Army \(i + 2)", coordinate: coord, ownerID: attackerPlayerID)
+                let cmd = CommanderData(name: "Attacker Cmdr \(i + 2)", specialty: scenarioConfig.playerCommanderSpecialty, ownerID: attackerPlayerID)
+                cmd.level = scenarioConfig.playerCommanderLevel
+                cmd.rank = CommanderRankData.rank(forLevel: scenarioConfig.playerCommanderLevel)
+                army.commanderID = cmd.id
+                simState.addCommander(cmd)
+                for (unitType, count) in armyConfig.playerArmy where count > 0 {
+                    army.addMilitaryUnits(unitType, count: count)
+                }
+                army.homeBaseID = attackerCity.id
+                simState.addArmy(army)
+                extraAttackerArmies.append(army)
+            }
+        }
+
+        // Apply entrenchment with coverage computation (after all armies are in state)
+        if scenarioConfig.enemyEntrenched {
+            let allDefenders = [defenderArmy] + extraDefenderArmies
+            for army in allDefenders {
+                let coverage = simState.computeEntrenchmentCoverage(for: army)
+                army.isEntrenched = true
+                army.entrenchedCoveredTiles = coverage
             }
         }
 
@@ -156,19 +208,22 @@ class ArenaSimulator {
             simState.addBuilding(buildingData)
         }
 
-        // Create a fresh CombatEngine and wire it to our sim state
+        // Create a fresh CombatEngine and MovementEngine, wire to sim state
         let simCombatEngine = CombatEngine()
         simCombatEngine.setup(gameState: simState)
+        let simMovementEngine = MovementEngine()
+        simMovementEngine.setup(gameState: simState)
 
         // Start combat
         let startTime: TimeInterval = 100.0
         simState.currentTime = startTime
 
         // Determine if we need stack combat
-        let needsStackCombat = !extraDefenderArmies.isEmpty || scenarioConfig.enemyEntrenched
+        let allAttackerIDs = [attackerArmy.id] + extraAttackerArmies.map { $0.id }
+        let needsStackCombat = !extraDefenderArmies.isEmpty || !extraAttackerArmies.isEmpty || scenarioConfig.enemyEntrenched
         if needsStackCombat {
             _ = simCombatEngine.startStackCombat(
-                attackerArmyIDs: [attackerArmy.id],
+                attackerArmyIDs: allAttackerIDs,
                 at: enemyPos,
                 currentTime: startTime
             )
@@ -189,6 +244,7 @@ class ArenaSimulator {
             simTime += tickInterval
             simState.currentTime = simTime
             _ = simCombatEngine.update(currentTime: simTime)
+            _ = simMovementEngine.update(currentTime: simTime)
 
             // Check if all combats are done
             if simCombatEngine.activeCombats.isEmpty && simCombatEngine.stackCombats.isEmpty {

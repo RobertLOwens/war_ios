@@ -197,13 +197,13 @@ struct SideCombatState: Codable {
     // MARK: - Damage Application
 
     /// Apply damage to a specific unit type, returns number of units killed
-    mutating func applyDamage(_ damage: Double, to unitType: MilitaryUnitType) -> Int {
+    mutating func applyDamage(_ damage: Double, to unitType: MilitaryUnitType, effectiveHP: Double? = nil) -> Int {
         guard let currentCount = unitCounts[unitType], currentCount > 0 else { return 0 }
 
         // Track damage received for battle reports
         damageReceivedByType[unitType, default: 0.0] += damage
 
-        let unitHP = unitType.hp  // Use unit-specific HP
+        let unitHP = effectiveHP ?? unitType.hp
         let currentAccumulator = damageAccumulators[unitType] ?? 0.0
         let newAccumulator = currentAccumulator + damage
 
@@ -243,6 +243,7 @@ struct ArmyCombatState: Codable {
     let armyName: String
     let ownerName: String
     let commanderName: String?
+    let commanderSpecialty: String?  // CommanderSpecialtyData.rawValue
     let joinTime: TimeInterval
     var chargePhaseEndTime: TimeInterval?
     var rangedPhaseEndTime: TimeInterval?
@@ -259,6 +260,7 @@ struct ArmyCombatState: Codable {
         self.armyName = army.name
         self.ownerName = army.owner?.name ?? "Unknown"
         self.commanderName = army.commander?.name
+        self.commanderSpecialty = army.commander?.specialty.rawValue
         self.army = army
         self.joinTime = joinTime
         self.initialComposition = army.militaryComposition
@@ -281,11 +283,12 @@ struct ArmyCombatState: Codable {
     }
 
     /// Initialize from ArmyData (for CombatEngine use)
-    init(armyData: ArmyData, joinTime: TimeInterval, isReinforcement: Bool) {
+    init(armyData: ArmyData, joinTime: TimeInterval, isReinforcement: Bool, commanderData: CommanderData? = nil) {
         self.armyID = armyData.id
         self.armyName = armyData.name
         self.ownerName = "Unknown"  // ArmyData doesn't hold owner reference
-        self.commanderName = nil    // ArmyData doesn't hold commander reference
+        self.commanderName = commanderData?.name
+        self.commanderSpecialty = commanderData?.specialty.rawValue
         self.army = nil
         self.joinTime = joinTime
         self.initialComposition = armyData.militaryComposition
@@ -310,7 +313,7 @@ struct ArmyCombatState: Codable {
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
-        case armyID, armyName, ownerName, commanderName, joinTime
+        case armyID, armyName, ownerName, commanderName, commanderSpecialty, joinTime
         case chargePhaseEndTime, rangedPhaseEndTime
         case initialComposition, currentUnits
         case damageDealtByType, casualtiesByType
@@ -322,6 +325,7 @@ struct ArmyCombatState: Codable {
         armyName = try container.decode(String.self, forKey: .armyName)
         ownerName = try container.decode(String.self, forKey: .ownerName)
         commanderName = try container.decodeIfPresent(String.self, forKey: .commanderName)
+        commanderSpecialty = try container.decodeIfPresent(String.self, forKey: .commanderSpecialty)
         joinTime = try container.decode(TimeInterval.self, forKey: .joinTime)
         chargePhaseEndTime = try container.decodeIfPresent(TimeInterval.self, forKey: .chargePhaseEndTime)
         rangedPhaseEndTime = try container.decodeIfPresent(TimeInterval.self, forKey: .rangedPhaseEndTime)
@@ -338,6 +342,7 @@ struct ArmyCombatState: Codable {
         try container.encode(armyName, forKey: .armyName)
         try container.encode(ownerName, forKey: .ownerName)
         try container.encodeIfPresent(commanderName, forKey: .commanderName)
+        try container.encodeIfPresent(commanderSpecialty, forKey: .commanderSpecialty)
         try container.encode(joinTime, forKey: .joinTime)
         try container.encodeIfPresent(chargePhaseEndTime, forKey: .chargePhaseEndTime)
         try container.encodeIfPresent(rangedPhaseEndTime, forKey: .rangedPhaseEndTime)
@@ -445,6 +450,10 @@ class ActiveCombat: Codable {
     var attackerTacticsBonus: Double = 0
     var defenderTacticsBonus: Double = 0
 
+    /// Commander data for attack/defense bonus application (not saved)
+    var attackerCommanderData: CommanderData?
+    var defenderCommanderData: CommanderData?
+
     // MARK: - Phase Tracking for Detailed Combat Records
 
     /// Records for completed phases
@@ -472,6 +481,9 @@ class ActiveCombat: Codable {
 
     /// Per-army tracking for defender side
     var defenderArmies: [ArmyCombatState] = []
+
+    /// Whether this combat is a pairing within a StackCombat (skip in processArmyCombats)
+    var isStackPairing: Bool = false
 
     init(attacker: Army, defender: Army, location: HexCoordinate, terrainType: TerrainType = .plains, gameStartTime: TimeInterval = 0) {
         self.id = UUID()

@@ -218,10 +218,26 @@ class GameState: Codable {
         for neighbor in coordinate.neighbors() {
             let armiesAtNeighbor = getArmies(at: neighbor)
             for army in armiesAtNeighbor where army.isEntrenched {
-                result.append(army)
+                if army.entrenchedCoveredTiles.contains(coordinate) {
+                    result.append(army)
+                }
             }
         }
         return result
+    }
+
+    /// Computes which neighbor tiles an army's entrenchment should cover,
+    /// excluding tiles already covered by enemy entrenchment.
+    func computeEntrenchmentCoverage(for army: ArmyData) -> Set<HexCoordinate> {
+        var covered = Set<HexCoordinate>()
+        for neighbor in army.coordinate.neighbors() {
+            let enemyCoverage = getEntrenchedArmiesCovering(coordinate: neighbor)
+                .filter { $0.ownerID != army.ownerID }
+            if enemyCoverage.isEmpty {
+                covered.insert(neighbor)
+            }
+        }
+        return covered
     }
 
     func getArmiesForPlayer(id: UUID) -> [ArmyData] {

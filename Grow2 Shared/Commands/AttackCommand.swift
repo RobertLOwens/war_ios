@@ -38,6 +38,11 @@ struct AttackCommand: GameCommand {
             return .failure(reason: "Only armies can attack")
         }
 
+        // Check if army is already in combat
+        if GameEngine.shared.combatEngine.isInCombat(armyID: attackerEntityID) {
+            return .failure(reason: "Army is currently in combat")
+        }
+
         // Check commander stamina
         if let army = attacker.entity as? Army, let commander = army.commander {
             if !commander.hasEnoughStamina() {
@@ -53,6 +58,12 @@ struct AttackCommand: GameCommand {
             let diplomacy = player?.getDiplomacyStatus(with: targetEntity.entity.owner) ?? .neutral
             guard diplomacy == .enemy else {
                 return .failure(reason: "Target is not an enemy")
+            }
+            // Check if target army is entrenched — must attack adjacent tile instead
+            if let gameState = GameEngine.shared.gameState,
+               let armyData = gameState.getArmy(id: entityID),
+               armyData.isEntrenched {
+                return .failure(reason: "Target is entrenched - attack an adjacent tile instead")
             }
             return .success
         }
@@ -106,6 +117,15 @@ struct AttackCommand: GameCommand {
             return .success
         }
 
+        // Check if target is an entrenchment zone tile (cross-tile entrenched enemies covering this coordinate)
+        if let gameState = GameEngine.shared.gameState {
+            let crossTileEntrenched = gameState.getEntrenchedArmiesCovering(coordinate: targetCoordinate)
+                .filter { $0.ownerID != playerID }
+            if !crossTileEntrenched.isEmpty {
+                return .success
+            }
+        }
+
         return .failure(reason: "No target at this location")
     }
     
@@ -120,6 +140,12 @@ struct AttackCommand: GameCommand {
             commander.consumeStamina()
         }
 
+        // Clear entrenchment when attacking
+        if attackerArmy.isEntrenching || attackerArmy.isEntrenched {
+            attackerArmy.clearEntrenchment()
+            debugLog("🪖 Army \(attackerArmy.name) entrenchment cancelled due to attack command")
+        }
+
         // Store reference for use in completion handler
         let hexMap = context.hexMap
 
@@ -131,14 +157,39 @@ struct AttackCommand: GameCommand {
             if let defenderArmy = target.entity as? Army {
                 if let path = hexMap.findPath(from: attacker.coordinate, to: currentCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
                     debugLog("⚔️ \(attackerArmy.name) attacking army at (\(currentCoordinate.q), \(currentCoordinate.r)) [tracked by ID] - path: \(path.count) steps")
+
+                    let attackerID = attackerArmy.id
+                    let attackerOwnerID = playerID
+                    let targetCoord = currentCoordinate
+
                     attacker.moveTo(path: path) {
                         debugLog("⚔️ \(attackerArmy.name) arrived - initiating combat!")
                         let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
-                        _ = GameEngine.shared.combatEngine.startCombat(
-                            attackerArmyID: attackerArmy.id,
-                            defenderArmyID: defenderArmy.id,
-                            currentTime: combatTime
-                        )
+                        guard let gameState = GameEngine.shared.gameState else { return }
+
+                        // Build defensive stack to check for multi-army defense
+                        let defensiveStack = DefensiveStack.build(at: targetCoord, state: gameState, attackerOwnerID: attackerOwnerID)
+
+                        if defensiveStack.armyEntries.count > 1 || defensiveStack.hasEntrenchedDefenders {
+                            // Multiple defenders or entrenched defenders — use stack combat
+                            var attackerIDs = [attackerID]
+                            let friendlyArmies = gameState.getArmies(at: targetCoord)
+                                .filter { $0.ownerID == attackerOwnerID && !$0.isInCombat && $0.id != attackerID }
+                            attackerIDs.append(contentsOf: friendlyArmies.map { $0.id })
+
+                            _ = GameEngine.shared.combatEngine.startStackCombat(
+                                attackerArmyIDs: attackerIDs,
+                                at: targetCoord,
+                                currentTime: combatTime
+                            )
+                        } else {
+                            // Simple 1v1 combat
+                            _ = GameEngine.shared.combatEngine.startCombat(
+                                attackerArmyID: attackerID,
+                                defenderArmyID: defenderArmy.id,
+                                currentTime: combatTime
+                            )
+                        }
                     }
                     return .success
                 } else {
@@ -300,6 +351,52 @@ struct AttackCommand: GameCommand {
                 } else {
                     debugLog("❌ No path found from (\(attacker.coordinate.q), \(attacker.coordinate.r)) to villagers at (\(targetCoordinate.q), \(targetCoordinate.r))")
                     return .failure(reason: "No path to target")
+                }
+            }
+        }
+
+        // Check for entrenchment zone tile (cross-tile entrenched enemies covering this coordinate)
+        if let gameState = GameEngine.shared.gameState {
+            let crossTileEntrenched = gameState.getEntrenchedArmiesCovering(coordinate: targetCoordinate)
+                .filter { $0.ownerID != playerID }
+
+            if !crossTileEntrenched.isEmpty {
+                // Path attacker to the zone tile
+                if let path = hexMap.findPath(from: attacker.coordinate, to: targetCoordinate, for: attacker.entity.owner, allowImpassableDestination: true) {
+                    debugLog("⚔️ \(attackerArmy.name) attacking entrenchment zone at (\(targetCoordinate.q), \(targetCoordinate.r)) - \(crossTileEntrenched.count) entrenched defender(s)")
+
+                    let attackerID = attackerArmy.id
+                    let attackerOwnerID = playerID
+                    let targetCoord = targetCoordinate
+
+                    attacker.moveTo(path: path) {
+                        debugLog("⚔️ \(attackerArmy.name) arrived at entrenchment zone - initiating stack combat!")
+                        let combatTime = GameEngine.shared.gameState?.currentTime ?? 0
+                        guard let gameState = GameEngine.shared.gameState else { return }
+
+                        // Build defensive stack (gathers cross-tile entrenched into Tier 1)
+                        let defensiveStack = DefensiveStack.build(at: targetCoord, state: gameState, attackerOwnerID: attackerOwnerID)
+
+                        if !defensiveStack.armyEntries.isEmpty {
+                            // Gather friendly armies at arrival position
+                            var attackerIDs = [attackerID]
+                            let friendlyArmies = gameState.getArmies(at: targetCoord)
+                                .filter { $0.ownerID == attackerOwnerID && !$0.isInCombat && $0.id != attackerID }
+                            attackerIDs.append(contentsOf: friendlyArmies.map { $0.id })
+
+                            _ = GameEngine.shared.combatEngine.startStackCombat(
+                                attackerArmyIDs: attackerIDs,
+                                at: targetCoord,
+                                currentTime: combatTime
+                            )
+                        } else {
+                            // Entrenched armies may have moved — attacker occupies the tile
+                            debugLog("⚔️ Entrenched defenders moved — \(attackerArmy.name) occupies zone tile")
+                        }
+                    }
+                    return .success
+                } else {
+                    return .failure(reason: "No path to entrenchment zone")
                 }
             }
         }

@@ -131,7 +131,10 @@ class CombatEngine {
 
         for (combatID, combat) in activeCombats {
             guard combat.phase != .ended else {
-                completedCombats.append(combatID)
+                // Stack pairings are cleaned up by processStackCombats()
+                if !combat.isStackPairing {
+                    completedCombats.append(combatID)
+                }
                 continue
             }
 
@@ -167,6 +170,13 @@ class CombatEngine {
             // Check for combat end
             if combat.shouldEnd {
                 combat.phase = .ended
+
+                // Stack pairings: just mark ended — processStackCombats() handles cleanup & chain
+                if combat.isStackPairing {
+                    NotificationCenter.default.post(name: .phasedCombatEnded, object: combat)
+                    continue
+                }
+
                 completedCombats.append(combatID)
 
                 let result = determineCombatResult(combat)
@@ -186,9 +196,32 @@ class CombatEngine {
                 // Clean up combat flags on armies
                 cleanupCombatFlags(combat, state: state)
 
+                // Handle draw: both armies empty — retreat or destroy both
+                if result.winnerID == nil && result.loserID == nil {
+                    for armyState in combat.attackerArmies + combat.defenderArmies {
+                        let armyID = armyState.armyID
+                        if let retreatPath = initiateAutoRetreat(for: armyID, state: state) {
+                            changes.append(.armyAutoRetreating(armyID: armyID, path: retreatPath))
+                        }
+                        if let army = state.getArmy(id: armyID),
+                           army.isEmpty(), !army.isRetreating {
+                            changes.append(.armyDestroyed(armyID: armyID, coordinate: army.coordinate))
+                            state.removeArmy(id: armyID)
+                        }
+                    }
+                }
+
                 // Auto-retreat for the losing army
                 if let loserID = result.loserID {
-                    initiateAutoRetreat(for: loserID, state: state)
+                    if let retreatPath = initiateAutoRetreat(for: loserID, state: state) {
+                        changes.append(.armyAutoRetreating(armyID: loserID, path: retreatPath))
+                    }
+                    // If army is empty and couldn't retreat, destroy it
+                    if let loserArmy = state.getArmy(id: loserID),
+                       loserArmy.isEmpty(), !loserArmy.isRetreating {
+                        changes.append(.armyDestroyed(armyID: loserID, coordinate: loserArmy.coordinate))
+                        state.removeArmy(id: loserID)
+                    }
                 }
 
                 // Auto-attack enemy building at combat location if attacker won
@@ -203,7 +236,7 @@ class CombatEngine {
             }
         }
 
-        // Remove completed combats
+        // Remove completed combats (non-stack only; stack pairings removed by processStackCombats)
         for id in completedCombats {
             activeCombats.removeValue(forKey: id)
         }
@@ -257,14 +290,16 @@ class CombatEngine {
             combat.defenderPlayerState = state.getPlayer(id: defenderOwnerID)
         }
 
-        // Look up commander tactics bonuses for terrain scaling
+        // Look up commander tactics bonuses for terrain scaling and store commander data
         if let attackerCommanderID = attacker.commanderID,
            let attackerCommander = state.getCommander(id: attackerCommanderID) {
             combat.attackerTacticsBonus = Double(attackerCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+            combat.attackerCommanderData = attackerCommander
         }
         if let defenderCommanderID = defender.commanderID,
            let defenderCommander = state.getCommander(id: defenderCommanderID) {
             combat.defenderTacticsBonus = Double(defenderCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+            combat.defenderCommanderData = defenderCommander
         }
 
         // Apply entrenchment defense bonus to defender (tracked separately)
@@ -400,15 +435,15 @@ class CombatEngine {
 
     private func processRangedDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from ranged/siege units only, including bonus damage vs enemy composition
-        let attackerRangedDPS = DamageCalculator.calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
-        let defenderRangedDPS = DamageCalculator.calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
+        let attackerRangedDPS = DamageCalculator.calculateRangedDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus, commanderData: combat.attackerCommanderData)
+        let defenderRangedDPS = DamageCalculator.calculateRangedDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus, commanderData: combat.defenderCommanderData)
 
         let attackerDamage = attackerRangedDPS * deltaTime
         let defenderDamage = defenderRangedDPS * deltaTime
 
         // Apply damage to defender from attacker's ranged units
         if attackerDamage > 0 {
-            applyDamageToSide(&combat.defenderState, damage: attackerDamage, combat: combat, isDefender: true, state: state)
+            applyDamageToSide(&combat.defenderState, damage: attackerDamage, combat: combat, isDefender: true, state: state, damageType: "ranged")
             combat.trackPhaseDamage(byAttacker: true, amount: attackerDamage)
             // Track damage dealt by attacker's ranged/siege units
             trackDamageDealtByCategory(&combat.attackerState, damage: attackerDamage, categories: [.ranged, .siege])
@@ -426,7 +461,7 @@ class CombatEngine {
 
         // Apply damage to attacker from defender's ranged units
         if defenderDamage > 0 {
-            applyDamageToSide(&combat.attackerState, damage: defenderDamage, combat: combat, isDefender: false, state: state)
+            applyDamageToSide(&combat.attackerState, damage: defenderDamage, combat: combat, isDefender: false, state: state, damageType: "ranged")
             combat.trackPhaseDamage(byAttacker: false, amount: defenderDamage)
             // Track damage dealt by defender's ranged/siege units
             trackDamageDealtByCategory(&combat.defenderState, damage: defenderDamage, categories: [.ranged, .siege])
@@ -446,15 +481,15 @@ class CombatEngine {
     private func processMeleeDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // Calculate DPS from infantry/cavalry units, including bonus damage vs enemy composition
         let isCharging = combat.elapsedTime < ActiveCombat.meleeEngagementThreshold + 1.0  // 1 second charge window after melee starts
-        let attackerMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
-        let defenderMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
+        let attackerMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.attackerState, enemyState: combat.defenderState, isCharge: isCharging, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus, commanderData: combat.attackerCommanderData)
+        let defenderMeleeDPS = DamageCalculator.calculateMeleeDPS(combat.defenderState, enemyState: combat.attackerState, isCharge: false, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus, commanderData: combat.defenderCommanderData)
 
         let attackerDamage = attackerMeleeDPS * deltaTime
         let defenderDamage = defenderMeleeDPS * deltaTime
 
         // Apply damage to defender from attacker's melee units
         if attackerDamage > 0 {
-            applyDamageToSide(&combat.defenderState, damage: attackerDamage, combat: combat, isDefender: true, state: state)
+            applyDamageToSide(&combat.defenderState, damage: attackerDamage, combat: combat, isDefender: true, state: state, damageType: "melee")
             combat.trackPhaseDamage(byAttacker: true, amount: attackerDamage)
             // Track damage dealt by attacker's melee units
             trackDamageDealtByCategory(&combat.attackerState, damage: attackerDamage, categories: [.infantry, .cavalry])
@@ -472,7 +507,7 @@ class CombatEngine {
 
         // Apply damage to attacker from defender's melee units
         if defenderDamage > 0 {
-            applyDamageToSide(&combat.attackerState, damage: defenderDamage, combat: combat, isDefender: false, state: state)
+            applyDamageToSide(&combat.attackerState, damage: defenderDamage, combat: combat, isDefender: false, state: state, damageType: "melee")
             combat.trackPhaseDamage(byAttacker: false, amount: defenderDamage)
             // Track damage dealt by defender's melee units
             trackDamageDealtByCategory(&combat.defenderState, damage: defenderDamage, categories: [.infantry, .cavalry])
@@ -491,8 +526,8 @@ class CombatEngine {
 
     private func processAllDamage(_ combat: ActiveCombat, deltaTime: TimeInterval, changes: inout [StateChange], state: GameState) {
         // In cleanup phase, all units attack, including bonus damage vs enemy composition
-        let attackerTotalDPS = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus)
-        let defenderTotalDPS = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus)
+        let attackerTotalDPS = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, terrainPenalty: combat.terrainAttackPenalty, playerState: combat.attackerPlayerState, tacticsBonus: combat.attackerTacticsBonus, commanderData: combat.attackerCommanderData)
+        let defenderTotalDPS = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, terrainBonus: combat.terrainDefenseBonus + combat.entrenchmentDefenseBonus, playerState: combat.defenderPlayerState, tacticsBonus: combat.defenderTacticsBonus, commanderData: combat.defenderCommanderData)
 
         let attackerDamage = attackerTotalDPS * deltaTime
         let defenderDamage = defenderTotalDPS * deltaTime
@@ -559,8 +594,8 @@ class CombatEngine {
 
     // MARK: - Damage Application
 
-    private func applyDamageToSide(_ sideState: inout SideCombatState, damage: Double, combat: ActiveCombat, isDefender: Bool, state: GameState) {
-        DamageCalculator.applyDamageToSide(&sideState, damage: damage, combat: combat, isDefender: isDefender, state: state)
+    private func applyDamageToSide(_ sideState: inout SideCombatState, damage: Double, combat: ActiveCombat, isDefender: Bool, state: GameState, damageType: String = "all") {
+        DamageCalculator.applyDamageToSide(&sideState, damage: damage, combat: combat, isDefender: isDefender, state: state, damageType: damageType)
     }
 
     // MARK: - Auto-Start Building Combat
@@ -938,8 +973,8 @@ class CombatEngine {
         } else {
             // Combat ended without total destruction - compare remaining strength
             // Use enemy state for bonus damage calculation to get accurate DPS comparison
-            let attackerStrength = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, playerState: combat.attackerPlayerState)
-            let defenderStrength = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, playerState: combat.defenderPlayerState)
+            let attackerStrength = DamageCalculator.calculateTotalDPS(combat.attackerState, enemyState: combat.defenderState, playerState: combat.attackerPlayerState, commanderData: combat.attackerCommanderData)
+            let defenderStrength = DamageCalculator.calculateTotalDPS(combat.defenderState, enemyState: combat.attackerState, playerState: combat.defenderPlayerState, commanderData: combat.defenderCommanderData)
 
             if attackerStrength > defenderStrength {
                 winnerID = attackerID
@@ -1193,11 +1228,13 @@ class CombatEngine {
             attackerName: attackerArmyState?.armyName ?? "Unknown Attacker",
             attackerOwner: attackerOwner?.name ?? "Unknown",
             attackerCommander: attackerArmyState?.commanderName,
+            attackerCommanderSpecialty: combat.attackerCommanderData?.specialty.rawValue ?? attackerArmyState?.commanderSpecialty,
             attackerInitialComposition: combat.attackerState.initialComposition,
             attackerFinalComposition: combat.attackerState.unitCounts,
             defenderName: defenderArmyState?.armyName ?? "Unknown Defender",
             defenderOwner: defenderOwner?.name ?? "Unknown",
             defenderCommander: defenderArmyState?.commanderName,
+            defenderCommanderSpecialty: combat.defenderCommanderData?.specialty.rawValue ?? defenderArmyState?.commanderSpecialty,
             defenderInitialComposition: combat.defenderState.initialComposition,
             defenderFinalComposition: combat.defenderState.unitCounts,
             phaseRecords: combat.phaseRecords,
@@ -1312,20 +1349,25 @@ class CombatEngine {
             combat.defenderPlayerState = state.getPlayer(id: defenderOwnerID)
         }
 
-        // Commander tactics bonuses
+        // Commander tactics bonuses and store commander data
         if let attackerCommanderID = attacker.commanderID,
            let attackerCommander = state.getCommander(id: attackerCommanderID) {
             combat.attackerTacticsBonus = Double(attackerCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+            combat.attackerCommanderData = attackerCommander
         }
         if let defenderCommanderID = defender.commanderID,
            let defenderCommander = state.getCommander(id: defenderCommanderID) {
             combat.defenderTacticsBonus = Double(defenderCommander.tactics) * GameConfig.Commander.tacticsTerrainScaling
+            combat.defenderCommanderData = defenderCommander
         }
 
         // Apply entrenchment defense bonus
         if defenderEntry.entrenchmentBonus > 0 {
             combat.entrenchmentDefenseBonus = defenderEntry.entrenchmentBonus
         }
+
+        // Mark as stack pairing so processArmyCombats() skips it
+        combat.isStackPairing = true
 
         // Store combat
         activeCombats[combat.id] = combat
@@ -1389,6 +1431,24 @@ class CombatEngine {
                 stackCombat.activePairings[index].winnerArmyID = result.winnerID
                 stackCombat.activePairings[index].loserArmyID = result.loserID
 
+                // Handle draw: both armies empty — retreat or destroy both
+                if result.winnerID == nil && result.loserID == nil {
+                    let bothArmyIDs = [pairing.attackerArmyID, pairing.defenderArmyID]
+                    for armyID in bothArmyIDs {
+                        stackCombat.defeatedArmyIDs.insert(armyID)
+                        stackCombat.removeFront(for: armyID)
+                        if let retreatPath = initiateAutoRetreat(for: armyID, state: state) {
+                            changes.append(.armyAutoRetreating(armyID: armyID, path: retreatPath))
+                        }
+                        if let army = state.getArmy(id: armyID),
+                           army.isEmpty(), !army.isRetreating {
+                            changes.append(.armyDestroyed(armyID: armyID, coordinate: army.coordinate))
+                            state.removeArmy(id: armyID)
+                        }
+                    }
+                    debugLog("⚔️ Stack pairing draw: both armies eliminated")
+                }
+
                 // Handle the loser
                 if let loserID = result.loserID {
                     stackCombat.defeatedArmyIDs.insert(loserID)
@@ -1399,14 +1459,24 @@ class CombatEngine {
                         if let loserArmy = state.getArmy(id: loserID), !loserArmy.isEmpty() {
                             loserArmy.clearEntrenchment()
                             let fromCoord = loserArmy.coordinate
-                            initiateAutoRetreat(for: loserID, state: state)
+                            if let retreatPath = initiateAutoRetreat(for: loserID, state: state) {
+                                changes.append(.armyAutoRetreating(armyID: loserID, path: retreatPath))
+                            }
                             let toCoord = loserArmy.currentPath?.last ?? loserArmy.coordinate
                             changes.append(.armyForcedRetreat(armyID: loserID, from: fromCoord, to: toCoord))
                             debugLog("⚔️ Stack: Cross-tile defender \(loserArmy.name) forced to retreat (not destroyed)")
                         }
                     } else {
-                        // Same-tile losers are destroyed (handled by normal combat cleanup)
-                        initiateAutoRetreat(for: loserID, state: state)
+                        // Same-tile losers retreat or are destroyed
+                        if let retreatPath = initiateAutoRetreat(for: loserID, state: state) {
+                            changes.append(.armyAutoRetreating(armyID: loserID, path: retreatPath))
+                        }
+                        // If army is empty and couldn't retreat, destroy it
+                        if let loserArmy = state.getArmy(id: loserID),
+                           loserArmy.isEmpty(), !loserArmy.isRetreating {
+                            changes.append(.armyDestroyed(armyID: loserID, coordinate: loserArmy.coordinate))
+                            state.removeArmy(id: loserID)
+                        }
                     }
                 }
 
@@ -1422,18 +1492,24 @@ class CombatEngine {
                 let detailedRecord = createDetailedCombatRecord(from: combat, state: state)
                 addDetailedCombatRecord(detailedRecord)
 
-                // Clean up combat flags
+                // Clean up combat flags and remove from activeCombats
                 cleanupCombatFlags(combat, state: state)
+                activeCombats.removeValue(forKey: pairing.activeCombatID)
+
+                debugLog("⚔️ Stack pairing ended: winner=\(result.winnerID?.uuidString.prefix(8) ?? "nil") loser=\(result.loserID?.uuidString.prefix(8) ?? "nil") defenderQueue=\(stackCombat.defenderQueue.count) attackerQueue=\(stackCombat.attackerQueue.count)")
 
                 // Chain: Winner engages next fresh enemy or reinforces an ally
                 if let winnerID = result.winnerID {
                     stackCombat.removeFront(for: winnerID)
 
                     let winnerIsAttacker = pairing.attackerArmyID == winnerID
+                    let winnerArmy = state.getArmy(id: winnerID)
+                    debugLog("⚔️ Stack chain: winnerIsAttacker=\(winnerIsAttacker) winnerUnits=\(winnerArmy?.getTotalUnits() ?? -1) winnerExists=\(winnerArmy != nil)")
 
                     if winnerIsAttacker {
                         // Attacker won — engage next defender
                         if let nextDefender = stackCombat.dequeueNextDefender() {
+                            debugLog("⚔️ Stack chain: dequeued next defender \(nextDefender.armyID.uuidString.prefix(8)) exists=\(state.getArmy(id: nextDefender.armyID) != nil)")
                             if let combatChange = createStackPairing(
                                 stackCombat: stackCombat,
                                 attackerID: winnerID,
@@ -1442,7 +1518,9 @@ class CombatEngine {
                                 state: state
                             ) {
                                 changes.append(combatChange)
-                                debugLog("⚔️ Stack chain: \(state.getArmy(id: winnerID)?.name ?? "Winner") engages next defender")
+                                debugLog("⚔️ Stack chain: \(state.getArmy(id: winnerID)?.name ?? "Winner") engages next defender - NEW pairing created")
+                            } else {
+                                debugLog("⚔️ Stack chain: createStackPairing returned nil!")
                             }
                         } else if let allyPairing = stackCombat.activePairings.first(where: { !$0.isComplete }),
                                   let allyCombat = activeCombats[allyPairing.activeCombatID],
@@ -1451,6 +1529,8 @@ class CombatEngine {
                             allyCombat.addReinforcement(armyData: winnerArmy, isAttacker: true)
                             winnerArmy.isInCombat = true
                             debugLog("⚔️ Stack chain: \(winnerArmy.name) reinforcing ally")
+                        } else {
+                            debugLog("⚔️ Stack chain: No next defender and no ally to reinforce")
                         }
                     } else {
                         // Defender won — engage next attacker
@@ -1479,6 +1559,7 @@ class CombatEngine {
 
             // Check for tier advancement
             let activePairingsRemaining = stackCombat.activePairings.filter { !$0.isComplete }
+            debugLog("⚔️ Stack status: totalPairings=\(stackCombat.activePairings.count) active=\(activePairingsRemaining.count) defenderQueue=\(stackCombat.defenderQueue.count) attackerQueue=\(stackCombat.attackerQueue.count)")
             if activePairingsRemaining.isEmpty && stackCombat.defenderQueue.isEmpty {
                 if !stackCombat.villagerPhaseActive && !stackCombat.villagerGroupIDs.isEmpty {
                     // All army defenders defeated — advance to villager phase
@@ -1818,12 +1899,13 @@ class CombatEngine {
     // MARK: - Retreat
 
     /// Initiates auto-retreat for a losing army after combat ends
-    private func initiateAutoRetreat(for armyID: UUID, state: GameState) {
+    /// Returns the retreat path if retreat was initiated, nil otherwise
+    @discardableResult
+    private func initiateAutoRetreat(for armyID: UUID, state: GameState) -> [HexCoordinate]? {
         guard let army = state.getArmy(id: armyID),
-              !army.isEmpty(),
               let ownerID = army.ownerID else {
-            debugLog("DEBUG: initiateAutoRetreat - Army \(armyID) not found in GameState or is empty/has no owner")
-            return // Army doesn't exist or is destroyed - nothing to retreat
+            debugLog("DEBUG: initiateAutoRetreat - Army \(armyID) not found in GameState or has no owner")
+            return nil // Army doesn't exist - nothing to retreat
         }
         debugLog("DEBUG: initiateAutoRetreat - Processing army \(army.name) at \(army.coordinate), homeBaseID: \(String(describing: army.homeBaseID))")
 
@@ -1839,7 +1921,7 @@ class CombatEngine {
            let homeBase = state.getBuilding(id: homeBaseID),
            homeBase.occupiedCoordinates.contains(army.coordinate) {
             debugLog("🛡️ \(army.name) staying to defend \(homeBase.buildingType.displayName)")
-            return
+            return nil
         }
 
         // Try to find a retreat destination
@@ -1875,7 +1957,7 @@ class CombatEngine {
                   gameState: state
               ), !path.isEmpty else {
             debugLog("🏃 \(army.name) cannot find retreat path - staying in place")
-            return
+            return nil
         }
 
         // Set retreat state and path
@@ -1886,6 +1968,8 @@ class CombatEngine {
 
         let buildingName = retreatBuilding?.buildingType.displayName ?? "unknown"
         debugLog("🏃 \(army.name) retreating to \(buildingName)")
+
+        return path
     }
 
     func retreatFromCombat(armyID: UUID) {

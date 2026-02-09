@@ -384,6 +384,7 @@ class ArmyData: Codable {
     var isEntrenching: Bool = false
     var isEntrenched: Bool = false
     var entrenchmentStartTime: TimeInterval?
+    var entrenchedCoveredTiles: Set<HexCoordinate> = []
 
     // Arrival time (transient - not saved, used for LIFO ordering in stack combat)
     var arrivalTime: TimeInterval = 0
@@ -392,6 +393,7 @@ class ArmyData: Codable {
         isEntrenching = false
         isEntrenched = false
         entrenchmentStartTime = nil
+        entrenchedCoveredTiles = []
     }
 
     // Stats cache
@@ -1051,6 +1053,18 @@ enum CommanderRankData: String, Codable, CaseIterable {
         case .major: return 3
         case .colonel: return 4
         case .general: return 5
+        }
+    }
+
+    /// Returns the appropriate rank for a given commander level
+    static func rank(forLevel level: Int) -> CommanderRankData {
+        switch level {
+        case 1...4: return .recruit
+        case 5...9: return .sergeant
+        case 10...14: return .captain
+        case 15...19: return .major
+        case 20...24: return .colonel
+        default: return level >= 25 ? .general : .recruit
         }
     }
 }

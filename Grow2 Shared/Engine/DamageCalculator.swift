@@ -107,7 +107,7 @@ struct DamageCalculator {
 
     // MARK: - DPS Calculations
 
-    static func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0, stretchingMultiplier: Double = 1.0) -> Double {
+    static func calculateRangedDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0, stretchingMultiplier: Double = 1.0, commanderData: CommanderData? = nil) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -119,14 +119,17 @@ struct DamageCalculator {
             let upgradeBonus = getUnitUpgradeDamageBonus(for: unitType, playerState: playerState)
             let baseDamage = stats.totalDamage + researchBonus + upgradeBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            let unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
+            var unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
+            if let commander = commanderData {
+                unitDPS *= (1.0 + commander.getAttackBonus(for: unitType.category))
+            }
             totalDPS += unitDPS * Double(count)
         }
 
         return applyTerrainModifier(to: totalDPS * stretchingMultiplier, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, tacticsBonus: tacticsBonus)
     }
 
-    static func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0, stretchingMultiplier: Double = 1.0) -> Double {
+    static func calculateMeleeDPS(_ sideState: SideCombatState, enemyState: SideCombatState, isCharge: Bool, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0, stretchingMultiplier: Double = 1.0, commanderData: CommanderData? = nil) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -148,13 +151,17 @@ struct DamageCalculator {
                 }
             }
 
+            if let commander = commanderData {
+                unitDPS *= (1.0 + commander.getAttackBonus(for: unitType.category))
+            }
+
             totalDPS += unitDPS * Double(count)
         }
 
         return applyTerrainModifier(to: totalDPS * stretchingMultiplier, terrainPenalty: terrainPenalty, terrainBonus: terrainBonus, tacticsBonus: tacticsBonus)
     }
 
-    static func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0, stretchingMultiplier: Double = 1.0) -> Double {
+    static func calculateTotalDPS(_ sideState: SideCombatState, enemyState: SideCombatState, terrainPenalty: Double = 0, terrainBonus: Double = 0, playerState: PlayerState? = nil, tacticsBonus: Double = 0, stretchingMultiplier: Double = 1.0, commanderData: CommanderData? = nil) -> Double {
         var totalDPS: Double = 0
 
         for (unitType, count) in sideState.unitCounts {
@@ -165,7 +172,10 @@ struct DamageCalculator {
             let upgradeBonus = getUnitUpgradeDamageBonus(for: unitType, playerState: playerState)
             let baseDamage = stats.totalDamage + researchBonus + upgradeBonus
             let bonusDamage = calculateWeightedBonus(attackerStats: stats, enemyState: enemyState)
-            let unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
+            var unitDPS = max(1.0 / unitType.attackSpeed, (baseDamage + bonusDamage) / unitType.attackSpeed)
+            if let commander = commanderData {
+                unitDPS *= (1.0 + commander.getAttackBonus(for: unitType.category))
+            }
             totalDPS += unitDPS * Double(count)
         }
 
@@ -174,12 +184,27 @@ struct DamageCalculator {
 
     // MARK: - Damage Application
 
-    static func applyDamageToSide(_ sideState: inout SideCombatState, damage: Double, combat: ActiveCombat, isDefender: Bool, state: GameState) {
+    static func applyDamageToSide(_ sideState: inout SideCombatState, damage: Double, combat: ActiveCombat, isDefender: Bool, state: GameState, damageType: String = "all") {
         // Get the player state of the side receiving damage for upgrade bonuses
         let receiverPlayerState = isDefender ? combat.defenderPlayerState : combat.attackerPlayerState
-        var remainingDamage = damage
 
-        let priorityOrder: [UnitCategory] = [.siege, .ranged, .infantry, .cavalry]
+        // Apply commander defense bonus to reduce incoming damage
+        let defenderCommander = isDefender ? combat.defenderCommanderData : combat.attackerCommanderData
+        let defenseBonus = defenderCommander?.getDefenseBonus() ?? 0
+        var remainingDamage = damage * (1.0 - defenseBonus)
+
+        let priorityOrder: [UnitCategory]
+        switch damageType {
+        case "ranged":
+            // Ranged/siege fire hits front-line melee first, then ranged in back
+            priorityOrder = [.infantry, .cavalry, .siege, .ranged]
+        case "melee":
+            // Melee units fight other melee first, ranged are behind the line
+            priorityOrder = [.infantry, .cavalry, .siege, .ranged]
+        default:
+            // Cleanup phase: all units exposed equally — siege/ranged now vulnerable
+            priorityOrder = [.siege, .ranged, .infantry, .cavalry]
+        }
 
         for category in priorityOrder {
             guard remainingDamage > 0 else { break }
@@ -193,7 +218,7 @@ struct DamageCalculator {
                 let armorReduction = (upgradeBonus?.armorBonus ?? 0) * Double(count)
                 let effectiveDamage = max(0, min(remainingDamage, Double(count) * effectiveHP) - armorReduction)
                 let damageToApply = effectiveDamage
-                let kills = sideState.applyDamage(damageToApply, to: unitType)
+                let kills = sideState.applyDamage(damageToApply, to: unitType, effectiveHP: effectiveHP)
 
                 if kills > 0 {
                     combat.trackPhaseCasualty(isAttacker: !isDefender, unitType: unitType, count: kills)

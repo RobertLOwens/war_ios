@@ -671,7 +671,10 @@ class MenuCoordinator {
               let hexMap = hexMap,
               let gameScene = gameScene else { return }
 
-        let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+        let playerArmies = player.armies.filter {
+            $0.getTotalUnits() > 0 &&
+            !GameEngine.shared.combatEngine.isInCombat(armyID: $0.id)
+        }
 
         guard !playerArmies.isEmpty else {
             vc.showAlert(
@@ -735,7 +738,10 @@ class MenuCoordinator {
               let hexMap = hexMap,
               let gameScene = gameScene else { return }
 
-        let playerArmies = player.armies.filter { $0.getTotalUnits() > 0 }
+        let playerArmies = player.armies.filter {
+            $0.getTotalUnits() > 0 &&
+            !GameEngine.shared.combatEngine.isInCombat(armyID: $0.id)
+        }
 
         guard !playerArmies.isEmpty else {
             vc.showAlert(

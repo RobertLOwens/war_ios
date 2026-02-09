@@ -268,6 +268,9 @@ extension MenuCoordinator {
 
         var actions: [AlertAction] = []
 
+        // Separate enemy armies from other entities
+        var enemyArmyEntities: [EntityNode] = []
+
         for entity in entities {
             var buttonTitle = ""
             let isOwned = entity.entity.owner?.id == player.id
@@ -290,6 +293,24 @@ extension MenuCoordinator {
                 if !isOwned {
                     buttonTitle += " ⚠️"
                 }
+
+                if isOwned {
+                    actions.append(AlertAction(title: buttonTitle) { [weak self] in
+                        if let villagers = entity.entity as? VillagerGroup {
+                            switch villagers.currentTask {
+                            case .gatheringResource, .hunting:
+                                self?.showVillagerOptionsMenu(villagerGroup: villagers, entityNode: entity)
+                            default:
+                                self?.showVillagerMenu(at: coordinate, villagerGroup: entity)
+                            }
+                        }
+                    })
+                } else {
+                    actions.append(AlertAction(title: buttonTitle, style: .destructive) { [weak self] in
+                        self?.showAttackerSelectionForTile(enemies: [entity], at: coordinate)
+                    })
+                }
+
             } else if entity.entityType == .army {
                 if let army = entity.entity as? Army {
                     let totalUnits = army.getTotalMilitaryUnits()
@@ -298,31 +319,50 @@ extension MenuCoordinator {
                     if !commanderName.isEmpty {
                         buttonTitle += " - \(commanderName)"
                     }
+                    if army.data.isEntrenched {
+                        buttonTitle += " [Entrenched]"
+                    }
                 } else {
                     buttonTitle = "🛡️ Army"
                 }
-                if !isOwned {
+
+                if isOwned {
+                    // Owned army — show detail
+                    actions.append(AlertAction(title: buttonTitle) { [weak self] in
+                        self?.showEntityActionMenu(for: entity, at: coordinate)
+                    })
+                } else {
+                    // Enemy army — collect for single attack button, but still show as info
+                    enemyArmyEntities.append(entity)
                     buttonTitle += " ⚠️"
+                    actions.append(AlertAction(title: buttonTitle) { [weak self] in
+                        // Tapping shows army detail (read-only info)
+                        if let army = entity.armyReference {
+                            self?.presentArmyDetail(for: army, entityNode: entity)
+                        }
+                    })
                 }
             }
+        }
 
-            let style: UIAlertAction.Style = isOwned ? .default : .destructive
-            actions.append(AlertAction(title: buttonTitle, style: style) { [weak self] in
-                if !isOwned {
-                    self?.showAttackerSelectionForTile(enemies: [entity], at: coordinate)
-                } else if entity.entityType == .villagerGroup {
-                    if let villagers = entity.entity as? VillagerGroup {
-                        switch villagers.currentTask {
-                        case .gatheringResource, .hunting:
-                            self?.showVillagerOptionsMenu(villagerGroup: villagers, entityNode: entity)
-                        default:
-                            self?.showVillagerMenu(at: coordinate, villagerGroup: entity)
-                        }
-                    }
-                } else {
-                    self?.showEntityActionMenu(for: entity, at: coordinate)
-                }
-            })
+        // Add single "Attack" button for all enemy armies on the tile
+        if !enemyArmyEntities.isEmpty {
+            let enemyArmies = enemyArmyEntities.compactMap { $0.entity as? Army }
+            let allEntrenched = !enemyArmies.isEmpty && enemyArmies.allSatisfy { $0.data.isEntrenched }
+
+            if allEntrenched {
+                actions.append(AlertAction(title: "⚠️ All Entrenched — Attack Adjacent Tile") { [weak self] in
+                    self?.viewController?.showAlert(
+                        title: "Target Entrenched",
+                        message: "All armies here are entrenched. Attack an adjacent tile instead."
+                    )
+                })
+            } else {
+                let totalEnemyUnits = enemyArmies.reduce(0) { $0 + $1.getTotalMilitaryUnits() }
+                actions.append(AlertAction(title: "⚔️ Attack (\(enemyArmyEntities.count) armies, \(totalEnemyUnits) units)", style: .destructive) { [weak self] in
+                    self?.showAttackerSelectionForTile(enemies: enemyArmyEntities, at: coordinate)
+                })
+            }
         }
 
         // Fallback to full tile menu

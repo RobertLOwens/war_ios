@@ -240,6 +240,9 @@ class GameVisualLayer {
         case .stackCombatEnded:
             break  // Overall cleanup handled by individual combat endings
 
+        case .armyAutoRetreating(let armyID, let path):
+            handleArmyAutoRetreating(armyID: armyID, path: path)
+
         case .armyForcedRetreat(let armyID, _, let to):
             if let entityNode = entityNodes[armyID] {
                 entityNode.removeEntrenchmentBar()
@@ -442,6 +445,12 @@ class GameVisualLayer {
     private func handleArmyMoved(armyID: UUID, to: HexCoordinate) {
         guard let entityNode = entityNodes[armyID] else { return }
 
+        // Skip tile-by-tile re-animation if entity is already doing smooth retreat
+        if entityNode.isMoving {
+            entityNode.coordinate = to
+            return
+        }
+
         let oldCoord = entityNode.coordinate
         let targetPosition = HexMap.hexToPixel(q: to.q, r: to.r)
         let moveAction = SKAction.move(to: targetPosition, duration: animationDuration)
@@ -454,6 +463,31 @@ class GameVisualLayer {
 
         // Update badges at old coordinate (one fewer entity there now)
         updateStackBadges(at: oldCoord)
+    }
+
+    private func handleArmyAutoRetreating(armyID: UUID, path: [HexCoordinate]) {
+        guard let entityNode = entityNodes[armyID] else { return }
+
+        let oldCoord = entityNode.coordinate
+
+        // Clear the data-layer path so MovementEngine doesn't also process it
+        // (The visual layer will handle the smooth animation instead)
+        if let armyData = gameState?.getArmy(id: armyID) {
+            armyData.currentPath = nil
+            armyData.pathIndex = 0
+            armyData.movementProgress = 0.0
+        }
+
+        // Update badges at departure coordinate immediately
+        updateStackBadges(at: oldCoord)
+
+        // Use the smooth visual-layer retreat animation
+        entityNode.moveTo(path: path) { [weak self] in
+            debugLog("🏠 Auto-retreat animation completed for army \(armyID)")
+            if let dest = path.last {
+                self?.updateStackBadges(at: dest)
+            }
+        }
     }
 
     private func handleArmyCompositionChanged(armyID: UUID) {

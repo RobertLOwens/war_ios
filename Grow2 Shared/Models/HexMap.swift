@@ -350,9 +350,25 @@ class HexMap {
                 break
             }
         }
+
+        // Entrenched enemy armies block movement through their tile
+        if let requestor = requestingOwner {
+            for entityNode in getEntities(at: coord) {
+                if let army = entityNode.entity as? Army,
+                   army.isEntrenched,
+                   let armyOwner = army.owner,
+                   armyOwner !== requestor {
+                    let status = requestor.getDiplomacyStatus(with: armyOwner)
+                    if !status.canMove {
+                        return false
+                    }
+                }
+            }
+        }
+
         return true
     }
-    
+
     func getBuilding(at coordinate: HexCoordinate) -> BuildingNode? {
         // First check anchor coordinates (fast path)
         if let building = buildings.first(where: { $0.coordinate == coordinate }) {

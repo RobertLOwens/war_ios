@@ -362,8 +362,8 @@ class GameViewController: UIViewController {
             gameScene.skipInitialSetup = true
             skView.presentScene(gameScene)
 
-            // Create AI opponent
-            let aiPlayer = Player(name: "Enemy", color: .red, isAI: true)
+            // AI always off in arena for now
+            let aiPlayer = Player(name: "Enemy", color: .red, isAI: false)
 
             // Setup arena with ArenaMapGenerator (configurable terrain)
             let generator = ArenaMapGenerator(enemyTerrain: arenaScenarioConfig?.enemyTerrain ?? .plains)
@@ -429,13 +429,24 @@ class GameViewController: UIViewController {
             .flatMap { gameState.getArmiesForPlayer(id: $0.id) }
         guard let targetArmy = enemyArmies.first else { return }
 
+        // Use coordinate-only attack (no targetEntityID) to avoid entrenchment check on entity branch
         let command = AttackCommand(
             playerID: player.id,
             attackerEntityID: attackerArmy.id,
-            targetCoordinate: targetArmy.coordinate,
-            targetEntityID: targetArmy.id
+            targetCoordinate: targetArmy.coordinate
         )
-        _ = CommandExecutor.shared.execute(command)
+        let result = CommandExecutor.shared.execute(command)
+
+        // If attack failed (e.g. entrenched), directly start stack combat
+        if case .failure = result {
+            debugLog("Auto-sim: Attack command failed, starting stack combat directly")
+            let combatTime = gameState.currentTime
+            _ = GameEngine.shared.combatEngine.startStackCombat(
+                attackerArmyIDs: [attackerArmy.id],
+                at: targetArmy.coordinate,
+                currentTime: combatTime
+            )
+        }
         debugLog("Auto-sim: Attack command issued")
     }
 

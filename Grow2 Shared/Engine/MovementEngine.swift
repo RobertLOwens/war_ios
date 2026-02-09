@@ -119,7 +119,14 @@ class MovementEngine {
             if army.pathIndex >= path.count {
                 army.currentPath = nil
                 army.pathIndex = 0
+                let wasRetreating = army.isRetreating
                 army.isRetreating = false
+
+                // Clean up empty armies that finished retreating (commander returns home)
+                if wasRetreating && army.isEmpty() {
+                    changes.append(.armyDestroyed(armyID: army.id, coordinate: army.coordinate))
+                    state.removeArmy(id: army.id)
+                }
             }
         }
 

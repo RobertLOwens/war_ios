@@ -325,6 +325,14 @@ class GameStateSynchronizer {
             }
         }
 
+        // Add commanders
+        for player in players {
+            for commander in player.commanders {
+                gameState.addCommander(commander.data)
+                debugLog("🔧   Added commander: \(commander.data.name) for player \(player.name)")
+            }
+        }
+
         return gameState
     }
 

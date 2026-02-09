@@ -229,6 +229,7 @@ class EntityNode: SKSpriteNode {
             actions.append(moveAction)
 
             // ✅ Update coordinate and path visualization after reaching each waypoint
+            let previousCoord = index == 0 ? self.coordinate : path[index - 1]
             let updateAction = SKAction.run { [weak self] in
                 guard let self = self else { return }
                 self.coordinate = coord
@@ -241,6 +242,12 @@ class EntityNode: SKSpriteNode {
                     army.coordinate = coord
                 } else if let villagers = self.entity as? VillagerGroup {
                     villagers.coordinate = coord
+                }
+
+                // Update stack badges at departure and arrival
+                if let gameScene = self.scene as? GameScene {
+                    gameScene.updateStackBadges(at: previousCoord)
+                    gameScene.updateStackBadges(at: coord)
                 }
 
                 // ✅ Update path visualization - remove completed segment

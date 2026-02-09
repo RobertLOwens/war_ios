@@ -315,7 +315,45 @@ class ArenaResultsViewController: UIViewController {
                                 font: .systemFont(ofSize: 13), color: .lightGray, alignment: .left)
         }
 
-        currentY = addLabel(to: container, text: "Commander: \(config.enemyCommanderSpecialty.rawValue)",
+        // Player commander with bonus details
+        let playerSpec = config.playerCommanderSpecialty
+        let playerLvl = config.playerCommanderLevel
+        let playerRank = CommanderRankData.rank(forLevel: playerLvl)
+        var playerCmdrText = "Player Cmdr: \(playerSpec.icon) \(playerSpec.rawValue) Lv\(playerLvl) \(playerRank.displayName)"
+        var playerBonusParts: [String] = []
+        if playerSpec.isAggressive, let cat = playerSpec.unitCategory {
+            let atkPct = Int(Double(playerSpec.attackBonus(for: cat)) * 0.1 * 100 + Double(playerLvl))
+            playerBonusParts.append("+\(atkPct)% \(cat.rawValue.capitalized) ATK")
+        }
+        if playerSpec.armorBonus > 0 {
+            let defPct = Int(Double(playerSpec.armorBonus) * 0.1 * 100 + Double(playerLvl))
+            playerBonusParts.append("+\(defPct)% DEF")
+        }
+        if !playerBonusParts.isEmpty {
+            playerCmdrText += " — " + playerBonusParts.joined(separator: ", ")
+        }
+        currentY = addLabel(to: container, text: playerCmdrText,
+                            y: currentY, padding: padding + 10, width: width - 10,
+                            font: .systemFont(ofSize: 13), color: .lightGray, alignment: .left)
+
+        // Enemy commander with bonus details
+        let enemySpec = config.enemyCommanderSpecialty
+        let enemyLvl = config.enemyCommanderLevel
+        let enemyRank = CommanderRankData.rank(forLevel: enemyLvl)
+        var enemyCmdrText = "Enemy Cmdr: \(enemySpec.icon) \(enemySpec.rawValue) Lv\(enemyLvl) \(enemyRank.displayName)"
+        var enemyBonusParts: [String] = []
+        if enemySpec.isAggressive, let cat = enemySpec.unitCategory {
+            let atkPct = Int(Double(enemySpec.attackBonus(for: cat)) * 0.1 * 100 + Double(enemyLvl))
+            enemyBonusParts.append("+\(atkPct)% \(cat.rawValue.capitalized) ATK")
+        }
+        if enemySpec.armorBonus > 0 {
+            let defPct = Int(Double(enemySpec.armorBonus) * 0.1 * 100 + Double(enemyLvl))
+            enemyBonusParts.append("+\(defPct)% DEF")
+        }
+        if !enemyBonusParts.isEmpty {
+            enemyCmdrText += " — " + enemyBonusParts.joined(separator: ", ")
+        }
+        currentY = addLabel(to: container, text: enemyCmdrText,
                             y: currentY, padding: padding + 10, width: width - 10,
                             font: .systemFont(ofSize: 13), color: .lightGray, alignment: .left)
 

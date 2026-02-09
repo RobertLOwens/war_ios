@@ -76,7 +76,8 @@ class AttackEntityPanelViewController: SidePanelViewController {
             width: PanelLayoutConstants.contentWidth,
             height: 18
         ))
-        targetLabel.text = targetBuilding != nil ? "Target Building:" : "Enemies at Target:"
+        let isZoneAttack = enemies.isEmpty && targetBuilding == nil
+        targetLabel.text = targetBuilding != nil ? "Target Building:" : (isZoneAttack ? "Entrenchment Zone:" : "Enemies at Target:")
         targetLabel.font = UIFont.systemFont(ofSize: 13, weight: .medium)
         targetLabel.textColor = theme.errorTextColor
         targetInfoView.addSubview(targetLabel)
@@ -119,6 +120,18 @@ class AttackEntityPanelViewController: SidePanelViewController {
             return "\(building.buildingType.icon) \(building.buildingType.displayName) - HP: \(healthPercent)%"
         }
 
+        // Zone attack — show cross-tile entrenched info
+        if enemies.isEmpty {
+            if let gameState = GameEngine.shared.gameState,
+               let player = player {
+                let entrenched = gameState.getEntrenchedArmiesCovering(coordinate: targetCoordinate)
+                    .filter { $0.ownerID != player.id }
+                let totalUnits = entrenched.reduce(0) { $0 + $1.getTotalUnits() }
+                return "\(entrenched.count) entrenched army(ies), \(totalUnits) units"
+            }
+            return "Entrenched defenders"
+        }
+
         // Otherwise show enemy entities
         var parts: [String] = []
         for enemy in enemies {
@@ -147,11 +160,12 @@ class AttackEntityPanelViewController: SidePanelViewController {
         handleSelection(at: indexPath)
         selectedArmy = army
 
-        // When attacking a building, allow pathing to impassable destination
-        let attackingBuilding = targetBuilding != nil
+        // When attacking a building or entrenchment zone, allow pathing to impassable destination
+        let isZoneAttack = enemies.isEmpty && targetBuilding == nil
+        let allowImpassable = targetBuilding != nil || isZoneAttack
 
         // Show route preview
-        showRoutePreview(from: army.coordinate, to: targetCoordinate, for: army.owner, allowImpassableDestination: attackingBuilding)
+        showRoutePreview(from: army.coordinate, to: targetCoordinate, for: army.owner, allowImpassableDestination: allowImpassable)
 
         // Update travel time
         updateTravelTimeForArmy(army)
@@ -177,20 +191,30 @@ class AttackEntityPanelViewController: SidePanelViewController {
             return
         }
 
-        // When attacking a building, allow pathing to impassable destination
-        let attackingBuilding = targetBuilding != nil
-        updateTravelTime(for: entityNode, to: targetCoordinate, allowImpassableDestination: attackingBuilding)
+        // When attacking a building or entrenchment zone, allow pathing to impassable destination
+        let isZoneAttack = enemies.isEmpty && targetBuilding == nil
+        let allowImpassable = targetBuilding != nil || isZoneAttack
+        updateTravelTime(for: entityNode, to: targetCoordinate, allowImpassableDestination: allowImpassable)
     }
 
     private func updateCombatInfo(for army: Army) {
         let armyUnits = army.getTotalMilitaryUnits()
         var enemyUnits = 0
 
-        for enemy in enemies {
-            if let enemyArmy = enemy.entity as? Army {
-                enemyUnits += enemyArmy.getTotalMilitaryUnits()
-            } else if let villagers = enemy.entity as? VillagerGroup {
-                enemyUnits += villagers.villagerCount
+        if enemies.isEmpty && targetBuilding == nil {
+            // Zone attack — count units from cross-tile entrenched armies
+            if let gameState = GameEngine.shared.gameState {
+                let entrenched = gameState.getEntrenchedArmiesCovering(coordinate: targetCoordinate)
+                    .filter { $0.ownerID != army.owner?.id }
+                enemyUnits = entrenched.reduce(0) { $0 + $1.getTotalUnits() }
+            }
+        } else {
+            for enemy in enemies {
+                if let enemyArmy = enemy.entity as? Army {
+                    enemyUnits += enemyArmy.getTotalMilitaryUnits()
+                } else if let villagers = enemy.entity as? VillagerGroup {
+                    enemyUnits += villagers.villagerCount
+                }
             }
         }
 
