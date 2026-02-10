@@ -97,6 +97,126 @@ extension BuildingDetailViewController {
         }
     }
 
+    // MARK: - Upgrade Benefits
+
+    func getUpgradeBenefitsText() -> [String] {
+        let currentLevel = building.level
+        let nextLevel = currentLevel + 1
+        let type = building.buildingType
+        var benefits: [String] = []
+
+        switch type {
+        case .cityCenter:
+            let currentPop = type.populationCapacity(forLevel: currentLevel)
+            let nextPop = type.populationCapacity(forLevel: nextLevel)
+            benefits.append("Population: \(currentPop) \u{2192} \(nextPop) (+\(nextPop - currentPop))")
+
+            let currentStorage = type.storageCapacityPerResource(forLevel: currentLevel)
+            let nextStorage = type.storageCapacityPerResource(forLevel: nextLevel)
+            benefits.append("Storage: \(currentStorage) \u{2192} \(nextStorage) (+\(nextStorage - currentStorage) per resource)")
+
+            let currentVG = 2 + currentLevel
+            let nextVG = 2 + nextLevel
+            benefits.append("Max Villager Groups: \(currentVG) \u{2192} \(nextVG)")
+
+            let currentArmies = 1 + (currentLevel / 2)
+            let nextArmies = 1 + (nextLevel / 2)
+            if nextArmies > currentArmies {
+                benefits.append("Max Armies: \(currentArmies) \u{2192} \(nextArmies)")
+            }
+
+            let currentWH = BuildingType.maxWarehousesAllowed(forCityCenterLevel: currentLevel)
+            let nextWH = BuildingType.maxWarehousesAllowed(forCityCenterLevel: nextLevel)
+            if nextWH > currentWH {
+                benefits.append("Warehouse Slots: \(currentWH) \u{2192} \(nextWH)")
+            }
+
+            // Building unlocks at next level
+            let unlocked = BuildingType.allCases.filter {
+                $0.requiredCityCenterLevel == nextLevel && $0 != .cityCenter
+            }
+            if !unlocked.isEmpty {
+                let names = unlocked.map { $0.displayName }.joined(separator: ", ")
+                benefits.append("Unlocks: \(names)")
+            }
+
+        case .neighborhood:
+            let currentPop = type.populationCapacity(forLevel: currentLevel)
+            let nextPop = type.populationCapacity(forLevel: nextLevel)
+            benefits.append("Population: \(currentPop) \u{2192} \(nextPop) (+\(nextPop - currentPop))")
+
+        case .warehouse:
+            let currentStorage = type.storageCapacityPerResource(forLevel: currentLevel)
+            let nextStorage = type.storageCapacityPerResource(forLevel: nextLevel)
+            benefits.append("Storage: \(currentStorage) \u{2192} \(nextStorage) (+\(nextStorage - currentStorage) per resource)")
+
+        case .barracks, .archeryRange, .stable, .siegeWorkshop:
+            let currentBonus = Int(Double(currentLevel - 1) * GameConfig.Training.buildingLevelSpeedBonusPerLevel * 100)
+            let nextBonus = Int(Double(nextLevel - 1) * GameConfig.Training.buildingLevelSpeedBonusPerLevel * 100)
+            benefits.append("Training Speed: +\(currentBonus)% \u{2192} +\(nextBonus)%")
+
+            // Unit upgrade tier unlocks at level 2, 3, 5
+            switch nextLevel {
+            case 2: benefits.append("Unlocks Unit Upgrade Tier I")
+            case 3: benefits.append("Unlocks Unit Upgrade Tier II")
+            case 5: benefits.append("Unlocks Unit Upgrade Tier III")
+            default: break
+            }
+
+        case .tower:
+            let currentBonus = Int(Double(currentLevel - 1) * GameConfig.Defense.hpBonusPerLevel * 100)
+            let nextBonus = Int(Double(nextLevel - 1) * GameConfig.Defense.hpBonusPerLevel * 100)
+            benefits.append("HP Bonus: +\(currentBonus)% \u{2192} +\(nextBonus)%")
+
+        case .woodenFort:
+            let currentBonus = Int(Double(currentLevel - 1) * GameConfig.Defense.hpBonusPerLevel * 100)
+            let nextBonus = Int(Double(nextLevel - 1) * GameConfig.Defense.hpBonusPerLevel * 100)
+            benefits.append("HP Bonus: +\(currentBonus)% \u{2192} +\(nextBonus)%")
+
+            let currentCap = GameConfig.Defense.fortBaseArmyCapacity + (currentLevel - 1) * GameConfig.Defense.fortArmyCapacityPerLevel
+            let nextCap = GameConfig.Defense.fortBaseArmyCapacity + (nextLevel - 1) * GameConfig.Defense.fortArmyCapacityPerLevel
+            benefits.append("Army Home Base Capacity: \(currentCap) \u{2192} \(nextCap)")
+
+        case .castle:
+            let currentBonus = Int(Double(currentLevel - 1) * GameConfig.Defense.hpBonusPerLevel * 100)
+            let nextBonus = Int(Double(nextLevel - 1) * GameConfig.Defense.hpBonusPerLevel * 100)
+            benefits.append("HP Bonus: +\(currentBonus)% \u{2192} +\(nextBonus)%")
+
+            let currentCap = GameConfig.Defense.castleBaseArmyCapacity + (currentLevel - 1) * GameConfig.Defense.castleArmyCapacityPerLevel
+            let nextCap = GameConfig.Defense.castleBaseArmyCapacity + (nextLevel - 1) * GameConfig.Defense.castleArmyCapacityPerLevel
+            benefits.append("Army Home Base Capacity: \(currentCap) \u{2192} \(nextCap)")
+
+        case .library:
+            let currentBonus = Int(Double(currentLevel) * GameConfig.Library.researchSpeedBonusPerLevel * 100)
+            let nextBonus = Int(Double(nextLevel) * GameConfig.Library.researchSpeedBonusPerLevel * 100)
+            benefits.append("Research Speed: +\(currentBonus)% \u{2192} +\(nextBonus)%")
+
+        case .farm, .miningCamp, .lumberCamp:
+            let currentBonus = Int(Double(currentLevel - 1) * GameConfig.Resources.campLevelBonusPerLevel * 100)
+            let nextBonus = Int(Double(nextLevel - 1) * GameConfig.Resources.campLevelBonusPerLevel * 100)
+            benefits.append("Gather Rate Bonus: +\(currentBonus)% \u{2192} +\(nextBonus)%")
+
+        default:
+            benefits.append("Increased effectiveness")
+        }
+
+        return benefits
+    }
+
+    func addBenefitsLabels(benefits: [String], at yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        var currentY = yOffset
+        let benefitColor = UIColor(red: 0.4, green: 0.85, blue: 0.4, alpha: 1.0)
+
+        for benefit in benefits {
+            let label = createLabel(text: "\u{2022} \(benefit)", fontSize: 13, color: benefitColor)
+            label.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 18)
+            contentView.addSubview(label)
+            currentY += 18
+        }
+
+        return currentY
+    }
+
     // MARK: - Upgrade Progress Section
 
     func setupUpgradingProgressSection(yOffset: CGFloat, leftMargin: CGFloat, contentWidth: CGFloat) -> CGFloat {
@@ -110,7 +230,11 @@ extension BuildingDetailViewController {
         )
         upgradeHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
         contentView.addSubview(upgradeHeader)
-        currentY += 35
+        currentY += 30
+
+        let benefits = getUpgradeBenefitsText()
+        currentY = addBenefitsLabels(benefits: benefits, at: currentY, leftMargin: leftMargin, contentWidth: contentWidth)
+        currentY += 5
 
         let currentTime = Date().timeIntervalSince1970
         let progress = building.upgradeProgress
@@ -205,6 +329,10 @@ extension BuildingDetailViewController {
         upgradeHeader.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 25)
         contentView.addSubview(upgradeHeader)
         currentY += 30
+
+        let benefits = getUpgradeBenefitsText()
+        currentY = addBenefitsLabels(benefits: benefits, at: currentY, leftMargin: leftMargin, contentWidth: contentWidth)
+        currentY += 5
 
         if let upgradeCost = building.getUpgradeCost() {
             // Check terrain cost multiplier for mountain tiles
