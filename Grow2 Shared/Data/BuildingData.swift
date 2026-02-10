@@ -668,6 +668,13 @@ class BuildingData: Codable {
         return archerCount + crossbowCount + mangonelCount + trebuchetCount
     }
 
+    // MARK: - Population Capacity
+
+    /// Returns the population capacity for this building at its current level
+    func getPopulationCapacity() -> Int {
+        return buildingType.populationCapacity(forLevel: level)
+    }
+
     // MARK: - Army Home Base Capacity
 
     /// Returns the max number of armies that can use this building as home base.

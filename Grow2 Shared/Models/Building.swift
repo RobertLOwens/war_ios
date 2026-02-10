@@ -56,6 +56,20 @@ enum BuildingType: String, CaseIterable, Codable {
         default: return 0
         }
     }
+
+    /// Population capacity bonus per level (added to base per level above 1)
+    var populationCapacityPerLevel: Int {
+        switch self {
+        case .cityCenter: return 5
+        case .neighborhood: return 3
+        default: return 0
+        }
+    }
+
+    /// Returns the population capacity for this building at a given level
+    func populationCapacity(forLevel level: Int) -> Int {
+        return populationCapacity + (populationCapacityPerLevel * (level - 1))
+    }
     
     var category: BuildingCategory {
         switch self {

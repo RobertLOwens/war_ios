@@ -363,7 +363,7 @@ class Player {
     func getPopulationCapacity() -> Int {
         let buildingCapacity = buildings
             .filter { $0.isOperational }
-            .reduce(0) { $0 + $1.buildingType.populationCapacity }
+            .reduce(0) { $0 + $1.buildingType.populationCapacity(forLevel: $1.level) }
 
         // Add research bonus for population capacity
         let researchBonus = ResearchManager.shared.getPopulationCapacityBonus()

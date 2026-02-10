@@ -481,8 +481,8 @@ class GameState: Codable {
                     current += entry.quantity
                 }
 
-                // Add capacity from building type
-                capacity += building.buildingType.populationCapacity
+                // Add capacity from building type (scales with level)
+                capacity += building.buildingType.populationCapacity(forLevel: building.level)
             }
         }
 
