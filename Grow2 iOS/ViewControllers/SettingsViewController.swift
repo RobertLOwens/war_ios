@@ -129,7 +129,12 @@ class SettingsViewController: UIViewController {
 
         // Account Section
         yOffset = addSectionHeader("Account", at: yOffset)
-        yOffset = addAccountInfo(at: yOffset)
+        yOffset = addButton(
+            title: "Manage Account",
+            titleColor: .white,
+            action: #selector(manageAccountTapped),
+            at: yOffset
+        )
         yOffset = addToggle(
             title: "Auto Cloud Sync",
             subtitle: "Automatically upload saves to the cloud",
@@ -140,12 +145,6 @@ class SettingsViewController: UIViewController {
             title: "Sign Out",
             titleColor: UIColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0),
             action: #selector(signOutTapped),
-            at: yOffset
-        )
-        yOffset = addButton(
-            title: "Delete Account",
-            titleColor: .red,
-            action: #selector(deleteAccountTapped),
             at: yOffset
         )
 
@@ -344,36 +343,6 @@ class SettingsViewController: UIViewController {
         return yOffset + rowHeight + 8
     }
 
-    private func addAccountInfo(at yOffset: CGFloat) -> CGFloat {
-        let rowHeight: CGFloat = 60
-
-        let containerView = UIView()
-        containerView.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
-        containerView.layer.cornerRadius = 10
-        containerView.frame = CGRect(x: 16, y: yOffset, width: view.bounds.width - 32, height: rowHeight)
-        contentView.addSubview(containerView)
-
-        let emailLabel = UILabel()
-        if let user = AuthService.shared.currentUser {
-            emailLabel.text = user.displayName ?? user.email ?? "Signed In"
-        } else {
-            emailLabel.text = "Not signed in"
-        }
-        emailLabel.font = UIFont.systemFont(ofSize: 17, weight: .medium)
-        emailLabel.textColor = .white
-        emailLabel.frame = CGRect(x: 16, y: 10, width: containerView.bounds.width - 32, height: 22)
-        containerView.addSubview(emailLabel)
-
-        let detailLabel = UILabel()
-        detailLabel.text = AuthService.shared.currentUser?.email ?? ""
-        detailLabel.font = UIFont.systemFont(ofSize: 13)
-        detailLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
-        detailLabel.frame = CGRect(x: 16, y: 34, width: containerView.bounds.width - 32, height: 18)
-        containerView.addSubview(detailLabel)
-
-        return yOffset + rowHeight + 8
-    }
-
     private func addButton(title: String, titleColor: UIColor, action: Selector, at yOffset: CGFloat) -> CGFloat {
         let rowHeight: CGFloat = 50
 
@@ -415,31 +384,10 @@ class SettingsViewController: UIViewController {
         )
     }
 
-    @objc private func deleteAccountTapped() {
-        // Double confirmation for destructive action
-        showDestructiveConfirmation(
-            title: "Delete Account?",
-            message: "This will permanently delete your account and all cloud saves. This cannot be undone.",
-            confirmTitle: "Delete Account"
-        ) { [weak self] in
-            // Second confirmation
-            self?.showDestructiveConfirmation(
-                title: "Are you absolutely sure?",
-                message: "All data will be lost permanently.",
-                confirmTitle: "Yes, Delete Everything"
-            ) {
-                AuthService.shared.deleteAccount { result in
-                    DispatchQueue.main.async {
-                        switch result {
-                        case .success:
-                            debugLog("Account deleted")
-                        case .failure(let error):
-                            self?.showError(message: error.localizedDescription)
-                        }
-                    }
-                }
-            }
-        }
+    @objc private func manageAccountTapped() {
+        let accountVC = AccountManagementViewController()
+        accountVC.modalPresentationStyle = .fullScreen
+        present(accountVC, animated: true)
     }
 
     @objc private func backTapped() {

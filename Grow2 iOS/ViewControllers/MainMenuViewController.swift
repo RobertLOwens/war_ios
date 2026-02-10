@@ -128,6 +128,14 @@ class MainMenuViewController: UIViewController {
         settingsButton.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
         stackView.addArrangedSubview(settingsButton)
 
+        // My Online Games Button
+        let onlineGamesButton = createMenuButton(
+            title: "🌐 My Online Games",
+            action: #selector(onlineGamesTapped)
+        )
+        onlineGamesButton.backgroundColor = UIColor(red: 0.2, green: 0.4, blue: 0.35, alpha: 1.0)
+        stackView.addArrangedSubview(onlineGamesButton)
+
         // Cloud Saves Button
         let cloudSavesButton = createMenuButton(
             title: "☁️ Cloud Saves",
@@ -261,6 +269,16 @@ class MainMenuViewController: UIViewController {
         let settingsVC = SettingsViewController()
         settingsVC.modalPresentationStyle = .fullScreen
         present(settingsVC, animated: true)
+    }
+
+    @objc func onlineGamesTapped() {
+        guard AuthService.shared.currentUser != nil else {
+            showAlert(title: "Not Signed In", message: "You must be signed in to view online games.")
+            return
+        }
+        let onlineVC = OnlineGamesViewController()
+        onlineVC.modalPresentationStyle = .fullScreen
+        present(onlineVC, animated: true)
     }
 
     @objc func cloudSavesTapped() {

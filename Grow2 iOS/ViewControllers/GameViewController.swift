@@ -14,6 +14,8 @@ class GameViewController: UIViewController {
     var arenaScenarioConfig: ArenaScenarioConfig?
     var autoSimMode: Bool = false
     var simRunCount: Int = 1
+    var mapSeed: UInt64?
+    var onlineGameID: String?
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
@@ -348,8 +350,15 @@ class GameViewController: UIViewController {
             // Create AI opponent
             let aiPlayer = Player(name: "Enemy", color: .red, isAI: true)
 
-            // Setup map with Arabia generator
-            let generator = ArabiaMapGenerator()
+            // Setup map with Arabia generator (use seed for reproducible maps)
+            let seed = mapSeed ?? GameSessionService.shared.currentSession?.mapConfig.seed
+            let arabiaConfig: ArabiaMapGenerator.Config
+            if let sessionConfig = GameSessionService.shared.currentSession?.mapConfig {
+                arabiaConfig = sessionConfig.toArabiaConfig()
+            } else {
+                arabiaConfig = ArabiaMapGenerator.Config()
+            }
+            let generator = ArabiaMapGenerator(seed: seed, config: arabiaConfig)
             gameScene.setupMapWithGenerator(generator, players: [player, aiPlayer])
 
             // Initialize fog of war after map is ready
@@ -396,6 +405,12 @@ class GameViewController: UIViewController {
         // Initialize the engine architecture for state management
         // This must be called after the map is set up and players are configured
         gameScene.initializeEngineArchitecture()
+
+        // Start online session heartbeat and update status if in a session
+        if GameSessionService.shared.currentSession != nil {
+            GameSessionService.shared.updateGameStatus(.playing)
+            GameSessionService.shared.startHeartbeat()
+        }
 
         // Auto-sim: set fast speed and auto-initiate combat
         if autoSimMode && mapType == .arena {
@@ -1453,9 +1468,16 @@ class GameViewController: UIViewController {
         )
 
         if success {
-            debugLog("✅ Auto-save complete")
+            debugLog("Auto-save complete")
+
+            // Create online snapshot if in an active session
+            if let gameState = GameEngine.shared.getGameState(),
+               GameSessionService.shared.currentSession != nil,
+               GameSessionService.shared.shouldCreateSnapshot() {
+                GameSessionService.shared.createSnapshot(gameState: gameState)
+            }
         } else {
-            debugLog("❌ Auto-save failed")
+            debugLog("Auto-save failed")
         }
     }
 
@@ -1844,6 +1866,9 @@ class GameViewController: UIViewController {
         BackgroundTimeManager.shared.saveExitTime()
         NotificationCenter.default.removeObserver(self, name: .appWillSaveGame, object: nil)
 
+        // Stop online session heartbeat
+        GameSessionService.shared.stopHeartbeat()
+        GameSessionService.shared.stopCommandListener()
     }
     
     func processBackgroundTime() {

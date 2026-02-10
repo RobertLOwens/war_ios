@@ -141,6 +141,34 @@ class AuthService: NSObject {
         currentUser = nil
     }
 
+    // MARK: - Password Management
+
+    var isEmailPasswordUser: Bool {
+        guard let providerData = Auth.auth().currentUser?.providerData else { return false }
+        return providerData.contains { $0.providerID == "password" }
+    }
+
+    func changePassword(currentPassword: String, newPassword: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let user = Auth.auth().currentUser, let email = user.email else {
+            completion(.failure(AuthError.notSignedIn))
+            return
+        }
+        let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
+        user.reauthenticate(with: credential) { _, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            user.updatePassword(to: newPassword) { error in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                completion(.success(()))
+            }
+        }
+    }
+
     // MARK: - Delete Account
 
     func deleteAccount(completion: @escaping (Result<Void, Error>) -> Void) {

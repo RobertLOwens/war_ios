@@ -1171,6 +1171,31 @@ class GameSetupViewController: UIViewController {
             gameVC.arenaArmyConfig = arenaArmyConfig
             gameVC.arenaScenarioConfig = scenarioConfig
         }
+
+        // Generate seed and create online session for Arabia maps
+        if selectedMapType == .arabia, AuthService.shared.currentUser != nil {
+            let seed = UInt64.random(in: 1...UInt64.max)
+            gameVC.mapSeed = seed
+            let mapConfig = MapGenerationConfig.fromArabia(seed: seed)
+            let hostPlayerID = UUID()
+            let aiPlayerID = UUID()
+
+            GameSessionService.shared.createGame(
+                mapConfig: mapConfig,
+                aiPlayers: [(displayName: "Enemy", playerID: aiPlayerID, colorHex: "FF0000")],
+                hostPlayerID: hostPlayerID,
+                hostColorHex: "0000FF"
+            ) { result in
+                switch result {
+                case .success(let session):
+                    debugLog("Online session created: \(session.gameID)")
+                    gameVC.onlineGameID = session.gameID
+                case .failure(let error):
+                    debugLog("Failed to create online session: \(error.localizedDescription)")
+                }
+            }
+        }
+
         gameVC.modalPresentationStyle = .fullScreen
         present(gameVC, animated: true)
     }

@@ -390,6 +390,16 @@ class GameEngine {
 
         delegate?.gameEngine(self, didCompleteCommand: command.id, result: .success(changes: batch.changes))
 
+        // Stream command to online session if active
+        if GameSessionService.shared.currentSession != nil {
+            if let aiCmd = command as? BaseEngineCommand,
+               AICommandEnvelope.from(aiCmd) != nil {
+                GameSessionService.shared.submitAICommand(aiCmd)
+            } else if let gameCmd = command as? any GameCommand {
+                GameSessionService.shared.submitCommand(gameCmd, isAI: false)
+            }
+        }
+
         return .success(changes: batch.changes)
     }
 

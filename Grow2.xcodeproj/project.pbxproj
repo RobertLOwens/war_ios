@@ -42,6 +42,7 @@
 		3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */; };
 		3FARMYDTL12F28A00100ARMYD /* ArmyDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */; };
 		3FATKENTPNL1000000100ATKE /* AttackEntityPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FATKENTPNL2000000100ATKE /* AttackEntityPanelViewController.swift */; };
+		3FBDVC0001000000000ACMVC /* AccountManagementViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000ACMVC /* AccountManagementViewController.swift */; };
 		3FBDVC0001000000000AUTHV /* AuthViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000AUTHV /* AuthViewController.swift */; };
 		3FBDVC0001000000000CLDVC /* CloudSaveViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000CLDVC /* CloudSaveViewController.swift */; };
 		3FBDVC0001000000000GARRI /* BuildingDetailViewController+Garrison.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */; };
@@ -154,6 +155,12 @@
 		3FVLRDPLPNL1000000100VDPL /* VillagerDeploymentPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */; };
 		3FVLRJNMGR10000000100VJMG /* VillagerJoinManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */; };
 		3FVLRTSKWR1000000100VTWH /* VillagerTaskWarningHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */; };
+		3FDATA0001000000GMSSSN /* GameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000GMSSSN /* GameSession.swift */; };
+		3FDATA0001000000ONLCMD /* OnlineCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000ONLCMD /* OnlineCommand.swift */; };
+		3FDATA0001000000GMSNAP /* GameSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000GMSNAP /* GameSnapshot.swift */; };
+		3FDATA0001000000AICMDD /* AICommandData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000AICMDD /* AICommandData.swift */; };
+		3FMNGR0001000000GMSSRV /* GameSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNGR0002000000GMSSRV /* GameSessionService.swift */; };
+		3FBDVC0001000000ONLGMS /* OnlineGamesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000ONLGMS /* OnlineGamesViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -192,6 +199,7 @@
 		3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecruitCommanderCommand.swift; path = "Grow2 iOS/ViewControllers/RecruitCommanderCommand.swift"; sourceTree = SOURCE_ROOT; };
 		3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArmyDetailViewController.swift; sourceTree = "<group>"; };
 		3FATKENTPNL2000000100ATKE /* AttackEntityPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttackEntityPanelViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000000ACMVC /* AccountManagementViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountManagementViewController.swift; sourceTree = "<group>"; };
 		3FBDVC0002000000000AUTHV /* AuthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewController.swift; sourceTree = "<group>"; };
 		3FBDVC0002000000000CLDVC /* CloudSaveViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSaveViewController.swift; sourceTree = "<group>"; };
 		3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Garrison.swift"; sourceTree = "<group>"; };
@@ -303,6 +311,12 @@
 		3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerDeploymentPanelViewController.swift; sourceTree = "<group>"; };
 		3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerJoinManager.swift; sourceTree = "<group>"; };
 		3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerTaskWarningHelper.swift; sourceTree = "<group>"; };
+		3FDATA0002000000GMSSSN /* GameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSession.swift; sourceTree = "<group>"; };
+		3FDATA0002000000ONLCMD /* OnlineCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineCommand.swift; sourceTree = "<group>"; };
+		3FDATA0002000000GMSNAP /* GameSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSnapshot.swift; sourceTree = "<group>"; };
+		3FDATA0002000000AICMDD /* AICommandData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommandData.swift; sourceTree = "<group>"; };
+		3FMNGR0002000000GMSSRV /* GameSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionService.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000ONLGMS /* OnlineGamesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGamesViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -402,16 +416,20 @@
 		3FDATA0003000000000DTAGP /* Data */ = {
 			isa = PBXGroup;
 			children = (
+				3FDATA0002000000AICMDD /* AICommandData.swift */,
 				3FDATA0002000000000ARMYD /* ArmyData.swift */,
 				3F286A042F195A5B004636ED /* BuildingData.swift */,
+				3FDATA0002000000GMSSSN /* GameSession.swift */,
+				3FDATA0002000000GMSNAP /* GameSnapshot.swift */,
 				3FDATA0002000000000GMEST /* GameState.swift */,
 				3FDATA0002000000000GSQRY /* GameStateQueries.swift */,
 				3FDATA0002000000000MAPDT /* MapData.swift */,
+				3FDATA0002000000ONLCMD /* OnlineCommand.swift */,
 				3FDATA0002000000000PLRST /* PlayerState.swift */,
 				3FDATA0002000000000RSPNT /* ResourcePointData.swift */,
 				3FDATA0002000000000STATE /* StateChange.swift */,
-				3FDATA0002000000000VLGRD /* VillagerGroupData.swift */,
 				3FDATA0002000000000UUGRD /* UnitUpgradeType.swift */,
+				3FDATA0002000000000VLGRD /* VillagerGroupData.swift */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -452,6 +470,7 @@
 		3FF8CF652F0DB0B8002FA5D7 /* ViewControllers */ = {
 			isa = PBXGroup;
 			children = (
+				3FBDVC0002000000000ACMVC /* AccountManagementViewController.swift */,
 				3FF8CF502F083158002FA5D7 /* AboutViewController.swift */,
 				3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */,
 				3FBDVC0002000000000AUTHV /* AuthViewController.swift */,
@@ -480,6 +499,7 @@
 				3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */,
 				3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */,
 				3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */,
+				3FBDVC0002000000ONLGMS /* OnlineGamesViewController.swift */,
 				3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */,
 				3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */,
 				3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */,
@@ -553,6 +573,7 @@
 				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
 				3FMNGR0002000000000CLDSV /* CloudSaveService.swift */,
 				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
+				3FMNGR0002000000GMSSRV /* GameSessionService.swift */,
 				3F6225AA2F2BE74300A6F7D4 /* ReinforcementManager.swift */,
 				3F6AE4502F18228000C885D6 /* ResearchManager.swift */,
 				3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */,
@@ -850,8 +871,15 @@
 				3FENGN0001000000ARNSIM0 /* ArenaSimulator.swift in Sources */,
 				3FMNGR0001000000000AUTHS /* AuthService.swift in Sources */,
 				3FMNGR0001000000000CLDSV /* CloudSaveService.swift in Sources */,
+				3FBDVC0001000000000ACMVC /* AccountManagementViewController.swift in Sources */,
 				3FBDVC0001000000000AUTHV /* AuthViewController.swift in Sources */,
 				3FBDVC0001000000000CLDVC /* CloudSaveViewController.swift in Sources */,
+				3FDATA0001000000GMSSSN /* GameSession.swift in Sources */,
+				3FDATA0001000000ONLCMD /* OnlineCommand.swift in Sources */,
+				3FDATA0001000000GMSNAP /* GameSnapshot.swift in Sources */,
+				3FDATA0001000000AICMDD /* AICommandData.swift in Sources */,
+				3FMNGR0001000000GMSSRV /* GameSessionService.swift in Sources */,
+				3FBDVC0001000000ONLGMS /* OnlineGamesViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

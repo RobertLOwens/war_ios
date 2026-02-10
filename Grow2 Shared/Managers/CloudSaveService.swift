@@ -168,6 +168,49 @@ class CloudSaveService {
         }
     }
 
+    // MARK: - Delete All Saves
+
+    func deleteAllSaves(completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let collection = savesCollection() else {
+            completion(.failure(CloudSaveError.notSignedIn))
+            return
+        }
+
+        collection.getDocuments { snapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let documents = snapshot?.documents, !documents.isEmpty else {
+                completion(.success(()))
+                return
+            }
+
+            let group = DispatchGroup()
+            var deleteError: Error?
+
+            for doc in documents {
+                group.enter()
+                doc.reference.delete { error in
+                    if let error = error, deleteError == nil {
+                        deleteError = error
+                    }
+                    group.leave()
+                }
+            }
+
+            group.notify(queue: .main) {
+                if let error = deleteError {
+                    completion(.failure(error))
+                } else {
+                    debugLog("All cloud saves deleted")
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+
     // MARK: - Get Latest Save Metadata
 
     func getLatestSaveMetadata(completion: @escaping (Result<CloudSaveMetadata?, Error>) -> Void) {
