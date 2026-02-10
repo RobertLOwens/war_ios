@@ -74,50 +74,31 @@ class ResourceEngine {
 
         var changes: [StateChange] = []
 
-        // Calculate storage capacities
-        func getCapacity(_ type: ResourceTypeData) -> Int {
-            return state.getStorageCapacity(forPlayer: player.id, resourceType: type)
-        }
+        // Note: Resource addition from gathering is handled in processGathering()
+        // which directly adds resources and tracks resource point depletion.
+        // We do NOT call player.updateResources() here to avoid double-counting.
 
-        // Update resources based on collection rates
-        let resourceChanges = player.updateResources(currentTime: currentTime, getStorageCapacity: getCapacity)
+        // Process food consumption for all players
+        let consumptionInfo = state.getFoodConsumptionRate(forPlayer: player.id)
+        if consumptionInfo.rate > 0 {
+            let deltaTime: TimeInterval = 0.5  // Match resource update interval
 
-        // Generate state changes for any resources that changed
-        for (resourceType, amount) in resourceChanges {
-            if amount > 0 {
+            // Apply rationing reduction from player's best commander
+            let commanders = state.getCommandersForPlayer(id: player.id)
+            let bestRationing = commanders.map { $0.rationing }.max() ?? 0
+            let rationingReduction = min(GameConfig.Commander.rationingReductionCap, Double(bestRationing) * GameConfig.Commander.rationingReductionScaling)
+            let adjustedRate = consumptionInfo.rate * (1.0 - rationingReduction)
+
+            let oldFood = player.getResource(.food)
+            let consumed = player.consumeFood(consumptionRate: adjustedRate, deltaTime: deltaTime)
+
+            if consumed > 0 {
                 changes.append(.resourcesChanged(
                     playerID: player.id,
-                    resourceType: resourceType.rawValue,
-                    oldAmount: player.getResource(resourceType) - amount,
-                    newAmount: player.getResource(resourceType)
+                    resourceType: ResourceTypeData.food.rawValue,
+                    oldAmount: oldFood,
+                    newAmount: player.getResource(.food)
                 ))
-            }
-        }
-
-        // Process food consumption for AI players only
-        // Human players have food consumption handled in the visual layer (Player.updateResources())
-        if player.isAI {
-            let consumptionInfo = state.getFoodConsumptionRate(forPlayer: player.id)
-            if consumptionInfo.rate > 0 {
-                let deltaTime: TimeInterval = 0.5  // Match resource update interval
-
-                // Apply rationing reduction from player's best commander
-                let commanders = state.getCommandersForPlayer(id: player.id)
-                let bestRationing = commanders.map { $0.rationing }.max() ?? 0
-                let rationingReduction = min(GameConfig.Commander.rationingReductionCap, Double(bestRationing) * GameConfig.Commander.rationingReductionScaling)
-                let adjustedRate = consumptionInfo.rate * (1.0 - rationingReduction)
-
-                let oldFood = player.getResource(.food)
-                let consumed = player.consumeFood(consumptionRate: adjustedRate, deltaTime: deltaTime)
-
-                if consumed > 0 {
-                    changes.append(.resourcesChanged(
-                        playerID: player.id,
-                        resourceType: ResourceTypeData.food.rawValue,
-                        oldAmount: oldFood,
-                        newAmount: player.getResource(.food)
-                    ))
-                }
             }
         }
 
@@ -261,7 +242,7 @@ class ResourceEngine {
 
     private func calculateGatherRate(villagerCount: Int, resourceType: ResourcePointTypeData, resourceCoordinate: HexCoordinate, state: GameState) -> Double {
         // Base rate
-        var rate = resourceType.baseGatherRate + (Double(villagerCount) * baseGatherRatePerVillager)
+        var rate = Double(villagerCount) * baseGatherRatePerVillager
 
         // Apply adjacency bonuses
         let adjacencyMultiplier = calculateAdjacencyBonus(resourceType: resourceType, coordinate: resourceCoordinate, state: state)
@@ -409,18 +390,58 @@ class ResourceEngine {
             return true  // No camp required
         }
 
-        // Check the tile itself and all neighbors
-        let tilesToCheck = [coordinate] + coordinate.neighbors()
+        // Find all matching camps in the game state
+        let matchingCamps = state.buildings.values.filter {
+            $0.buildingType.rawValue == requiredCampType && $0.isOperational
+        }
 
-        for coord in tilesToCheck {
-            if let building = state.getBuilding(at: coord),
-               building.buildingType.rawValue == requiredCampType,
-               building.isOperational {
+        // Check if any camp can reach this coordinate via roads
+        for camp in matchingCamps {
+            let reachable = getExtendedCampReach(from: camp.coordinate, state: state)
+            if reachable.contains(coordinate) {
                 return true
             }
         }
 
         return false
+    }
+
+    /// BFS to find all coordinates reachable from a camp via connected buildings/roads.
+    /// Mirrors HexMap.getExtendedCampReach() but uses GameState data layer.
+    private func getExtendedCampReach(from campCoordinate: HexCoordinate, state: GameState) -> Set<HexCoordinate> {
+        var reachable: Set<HexCoordinate> = []
+        var visited: Set<HexCoordinate> = []
+        var queue: [HexCoordinate] = [campCoordinate]
+
+        // Camp tile + direct neighbors always reachable
+        reachable.insert(campCoordinate)
+        for neighbor in campCoordinate.neighbors() {
+            reachable.insert(neighbor)
+        }
+
+        // BFS through connected buildings (all operational buildings act as roads)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard !visited.contains(current) else { continue }
+            visited.insert(current)
+
+            for neighbor in current.neighbors() {
+                guard state.mapData.isValidCoordinate(neighbor) else { continue }
+
+                if let building = state.getBuilding(at: neighbor), building.isOperational, !visited.contains(neighbor) {
+                    // Add the building tile itself
+                    reachable.insert(neighbor)
+                    // Add all neighbors of the building tile (resource can be gathered)
+                    for roadNeighbor in neighbor.neighbors() {
+                        reachable.insert(roadNeighbor)
+                    }
+                    // Continue BFS through this building
+                    queue.append(neighbor)
+                }
+            }
+        }
+
+        return reachable
     }
 
     // MARK: - Collection Rate Management

@@ -99,9 +99,12 @@ extension MenuCoordinator {
                 title = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName)"
 
                 let gatherers = resourcePoint.getTotalVillagersGathering()
-                message = "Remaining: \(resourcePoint.remainingAmount)"
+                let yieldName = resourcePoint.resourceType.resourceYield.displayName
+                message = "Remaining: \(resourcePoint.remainingAmount) \(yieldName)"
                 if gatherers > 0 {
                     message += "\n👷 \(gatherers) villager(s) gathering"
+                } else {
+                    message += "\nNot being gathered"
                 }
 
                 if resourcePoint.resourceType.requiresCamp {

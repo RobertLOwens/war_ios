@@ -290,6 +290,11 @@ class BuildingDetailViewController: UIViewController {
             }
         }
 
+        // Home base section (forts, castles, city centers)
+        if Army.canBeHomeBase(building.buildingType) && building.state == .completed {
+            yOffset = setupHomeBaseSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
+        }
+
         // ✅ FIX 6: Upgrade section with proper debug logging
         debugLog("🔧 DEBUG - Upgrade section check:")
         debugLog("   state: \(building.state)")

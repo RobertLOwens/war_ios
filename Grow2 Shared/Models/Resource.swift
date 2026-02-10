@@ -123,7 +123,7 @@ class ResourcePointNode: SKSpriteNode {
     var currentGatherRate: Double {
         let villagerCount = getTotalVillagersGathering()
         let perVillagerRate = 0.2  // Each villager adds 0.2 per second
-        let baseRate = resourceType.baseGatherRate + (Double(villagerCount) * perVillagerRate)
+        let baseRate = Double(villagerCount) * perVillagerRate
 
         // Apply research bonuses based on resource type
         let researchManager = ResearchManager.shared

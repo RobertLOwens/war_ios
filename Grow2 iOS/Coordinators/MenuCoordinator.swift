@@ -1160,28 +1160,26 @@ class MenuCoordinator {
         if isDead {
             // Animal killed - create carcass
             if let resourcesNode = gameScene.childNode(withName: "resourcesNode") {
+                // Remove the original animal BEFORE creating carcass to avoid coordinate conflict
+                hexMap.removeResourcePoint(target)
+                target.removeFromParent()
+
+                // Remove original animal from engine state too
+                if gameScene.isEngineEnabled {
+                    gameScene.engineGameState?.removeResourcePoint(id: target.id)
+                }
+
                 if let carcass = hexMap.createCarcass(from: target, scene: resourcesNode) {
-                    // Remove the original animal
-                    hexMap.removeResourcePoint(target)
-                    target.removeFromParent()
-
-                    // Automatically start gathering from the carcass
-                    villagerGroup.currentTask = .gatheringResource(carcass)
-                    carcass.startGathering(by: villagerGroup)
-                    entityNode.isMoving = true
-
-                    // Update collection rate for the player
-                    let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
-                    player.increaseCollectionRate(.food, amount: rateContribution)
-
-                    // If engine is enabled, also register with ResourceEngine
+                    // If engine is enabled, ensure carcass and villager data exist in engine state
+                    // BEFORE calling startGathering (which internally registers with ResourceEngine)
                     if gameScene.isEngineEnabled {
-                        // Create resource point data in engine state
                         if let engineState = gameScene.engineGameState {
-                            // Add carcass to engine state using its existing data (preserves ID)
-                            engineState.addResourcePoint(carcass.data)
+                            // Add carcass to engine state
+                            if engineState.getResourcePoint(id: carcass.id) == nil {
+                                engineState.addResourcePoint(carcass.data)
+                            }
 
-                            // Ensure villager group exists in engine state (may have been created after init)
+                            // Ensure villager group exists in engine state
                             if engineState.getVillagerGroup(id: villagerGroup.id) == nil {
                                 let groupData = VillagerGroupData(
                                     id: villagerGroup.id,
@@ -1193,19 +1191,21 @@ class MenuCoordinator {
                                 engineState.addVillagerGroup(groupData)
                                 debugLog("➕ Added VillagerGroupData to engine for \(villagerGroup.name)")
                             }
-
-                            // Start gathering in engine using carcass's ID (matches visual layer)
-                            GameEngine.shared.resourceEngine.startGathering(
-                                villagerGroupID: villagerGroup.id,
-                                resourcePointID: carcass.id
-                            )
-
-                            // Sync villager task state to engine's data layer
-                            if let groupData = engineState.getVillagerGroup(id: villagerGroup.id) {
-                                groupData.currentTask = .gatheringResource(resourcePointID: carcass.id)
-                                debugLog("🔄 Synced VillagerGroupData task to gathering carcass \(carcass.id)")
-                            }
                         }
+                    }
+
+                    // Automatically start gathering from the carcass
+                    // (startGathering internally registers with ResourceEngine)
+                    villagerGroup.assignTask(.gatheringResource(carcass), target: carcass.coordinate)
+                    carcass.startGathering(by: villagerGroup)
+                    entityNode.isMoving = true
+
+                    // Update collection rate for the player
+                    let rateContribution = 0.2 * Double(villagerGroup.villagerCount)
+                    player.increaseCollectionRate(.food, amount: rateContribution)
+
+                    if gameScene.isEngineEnabled {
+                        GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
                     }
 
                     var message = "\(villagerGroup.name) killed the \(target.resourceType.displayName)!\n\n🥩 Now gathering from \(carcass.resourceType.displayName) (\(carcass.remainingAmount) food)."

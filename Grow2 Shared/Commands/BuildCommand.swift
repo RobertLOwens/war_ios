@@ -132,6 +132,21 @@ struct BuildCommand: GameCommand {
            let villagers = builderEntity.entity as? VillagerGroup {
             building.builderEntity = builderEntity
             villagerCount = villagers.villagerCount
+
+            // Cancel active gathering if villagers were gathering
+            if case .gatheringResource(let resource) = villagers.currentTask {
+                resource.stopGathering(by: villagers)
+
+                let rateContribution = 0.2 * Double(villagers.villagerCount)
+                player.decreaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
+
+                if let gameScene = context.gameScene, gameScene.isEngineEnabled {
+                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
+                }
+
+                context.onResourcesChanged?()
+            }
+
             villagers.assignTask(.building(building), target: coordinate)
 
             // Check if villager is already at the build site (must be ON the tile, not adjacent)

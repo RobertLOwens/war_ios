@@ -393,7 +393,7 @@ class ResourceOverviewViewController: UIViewController {
     struct VillagerGroupGatherDetails {
         let group: VillagerGroup
         let resourcePoint: ResourcePointNode
-        let baseRate: Double              // resourceType.baseGatherRate + (villagerCount * 0.2)
+        let baseRate: Double              // villagerCount * 0.2
         let adjacencyMultiplier: Double   // 1.0 + sum of adjacency bonuses
         let researchMultiplier: Double    // from ResearchManager
         let campLevelMultiplier: Double   // building level bonus (e.g., farm Lv.2 = +10%)
@@ -502,8 +502,8 @@ class ResourceOverviewViewController: UIViewController {
         let baseGatherRatePerVillager = 0.2
         let adjacencyBonusPercent = 0.25
 
-        // Base rate = resourceType.baseGatherRate + (villagerCount * 0.2)
-        let baseRate = resourcePoint.resourceType.baseGatherRate + (Double(group.villagerCount) * baseGatherRatePerVillager)
+        // Base rate = villagerCount * 0.2
+        let baseRate = Double(group.villagerCount) * baseGatherRatePerVillager
 
         // Calculate adjacency bonus for the resource point
         let (adjacencyMultiplier, adjacencySources) = calculateResourcePointAdjacency(

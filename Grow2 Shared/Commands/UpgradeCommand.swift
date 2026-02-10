@@ -73,9 +73,12 @@ struct UpgradeCommand: GameCommand, Codable {
                 return .failure(reason: "Villager group not found")
             }
             
-            // Check villagers aren't busy with another task
-            if villagers.currentTask != .idle {
+            // Check villagers aren't busy with an incompatible task
+            switch villagers.currentTask {
+            case .building, .upgrading, .demolishing:
                 return .failure(reason: "Villagers are busy with another task")
+            default:
+                break
             }
         }
         
@@ -105,6 +108,20 @@ struct UpgradeCommand: GameCommand, Codable {
             
             building.upgraderEntity = upgraderEntity
             
+            // Cancel active gathering if villagers were gathering
+            if case .gatheringResource(let resource) = villagers.currentTask {
+                resource.stopGathering(by: villagers)
+
+                let rateContribution = 0.2 * Double(villagers.villagerCount)
+                player.decreaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
+
+                if let gameScene = context.gameScene, gameScene.isEngineEnabled {
+                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
+                }
+
+                context.onResourcesChanged?()
+            }
+
             // ✅ FIX: Check if villagers need to move to the building first
             if villagers.coordinate != building.coordinate {
                 // Assign upgrading task (will complete when they arrive)

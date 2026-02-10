@@ -61,12 +61,35 @@ extension BuildingDetailViewController {
         if costReduction > 0 {
             costText += " (-\(Int(costReduction * 100))% 📦)"
         }
-        let costLabel = UILabel(frame: CGRect(x: 15, y: 35, width: contentWidth - 30, height: 20))
+        let costLabel = UILabel(frame: CGRect(x: 15, y: 35, width: contentWidth - 140, height: 20))
         costLabel.text = "Cost: \(costText)"
         costLabel.font = UIFont.systemFont(ofSize: 12)
         costLabel.textColor = costReduction > 0 ? UIColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1.0) : UIColor(white: 0.7, alpha: 1.0)
         costLabel.tag = 1000 + index
         container.addSubview(costLabel)
+
+        // Training time per unit
+        let effectiveTime: TimeInterval
+        switch unitType {
+        case .villager:
+            effectiveTime = GameConfig.Training.villagerTrainingTime
+        case .military:
+            let buildingMultiplier = building.data.getTrainingSpeedMultiplier()
+            let researchMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+            effectiveTime = unitType.trainingTime / (buildingMultiplier * researchMultiplier)
+        }
+        let timeText: String
+        if effectiveTime == effectiveTime.rounded() {
+            timeText = "\u{23F1}\u{FE0F} \(Int(effectiveTime))s each"
+        } else {
+            timeText = "\u{23F1}\u{FE0F} \(String(format: "%.1f", effectiveTime))s each"
+        }
+        let timeLabel = UILabel(frame: CGRect(x: contentWidth - 110, y: 35, width: 95, height: 20))
+        timeLabel.text = timeText
+        timeLabel.font = UIFont.systemFont(ofSize: 12)
+        timeLabel.textColor = UIColor(white: 0.7, alpha: 1.0)
+        timeLabel.textAlignment = .right
+        container.addSubview(timeLabel)
 
         // Calculate max trainable based on resources and population
         let maxTrainable = calculateMaxTrainable(unitType: unitType)

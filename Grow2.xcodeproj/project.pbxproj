@@ -106,6 +106,7 @@
 		3FBDVC0001000000000GARRI /* BuildingDetailViewController+Garrison.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */; };
 		3FBDVC0001000000000UPGRD /* BuildingDetailViewController+Upgrades.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */; };
 		3FBDVC0001000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift */; };
+		3FBDVC0001000000000HMBSE /* BuildingDetailViewController+HomeBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000HMBSE /* BuildingDetailViewController+HomeBase.swift */; };
 		3FGSCN0001000000000INPTH /* GameScene+InputHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */; };
 		3FF8CF5B2F0D92CE002FA5D7 /* VillagerMergeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */; };
 		3FF8CF5D2F0DA5CC002FA5D7 /* AlertHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */; };
@@ -248,6 +249,7 @@
 		3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Garrison.swift"; sourceTree = "<group>"; };
 		3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Upgrades.swift"; sourceTree = "<group>"; };
 		3FBDVC0002000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+UnitUpgrades.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000HMBSE /* BuildingDetailViewController+HomeBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+HomeBase.swift"; sourceTree = "<group>"; };
 		3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameScene+InputHandling.swift"; sourceTree = "<group>"; };
 		3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerMergeViewController.swift; sourceTree = "<group>"; };
 		3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHelper.swift; sourceTree = "<group>"; };
@@ -442,6 +444,7 @@
 				3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */,
 				3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */,
 				3FBDVC0002000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift */,
+				3FBDVC0002000000000HMBSE /* BuildingDetailViewController+HomeBase.swift */,
 				3F39A62D2F14728500E9F506 /* BuildingsOverviewViewController.swift */,
 				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
 				3FCMBTDTL22F28C00100CMBTD /* CombatDetailViewController.swift */,
@@ -721,6 +724,7 @@
 				3FBDVC0001000000000GARRI /* BuildingDetailViewController+Garrison.swift in Sources */,
 				3FBDVC0001000000000UPGRD /* BuildingDetailViewController+Upgrades.swift in Sources */,
 				3FBDVC0001000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift in Sources */,
+				3FBDVC0001000000000HMBSE /* BuildingDetailViewController+HomeBase.swift in Sources */,
 				3FGSCN0001000000000INPTH /* GameScene+InputHandling.swift in Sources */,
 				3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */,
 				3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */,

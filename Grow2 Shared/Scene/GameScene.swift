@@ -1086,7 +1086,10 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
         // Resource display update (reuse existing lastUpdateTime)
         if lastUpdateTime == nil || currentTime - lastUpdateTime! >= 0.5 {
-            player?.updateResources(currentTime: realWorldTime)
+            // When engine is enabled, ResourceEngine handles resource addition and food consumption
+            if !isEngineEnabled {
+                player?.updateResources(currentTime: realWorldTime)
+            }
             gameDelegate?.gameSceneDidUpdateResources(self)
             lastUpdateTime = currentTime
         }

@@ -155,11 +155,30 @@ extension BuildingDetailViewController {
             let nextBonus = Int(Double(nextLevel - 1) * GameConfig.Training.buildingLevelSpeedBonusPerLevel * 100)
             benefits.append("Training Speed: +\(currentBonus)% \u{2192} +\(nextBonus)%")
 
+            // Per-unit training time at current vs next level
+            let researchMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+            let currentBuildingMult = 1.0 + Double(currentLevel - 1) * GameConfig.Training.buildingLevelSpeedBonusPerLevel
+            let nextBuildingMult = 1.0 + Double(nextLevel - 1) * GameConfig.Training.buildingLevelSpeedBonusPerLevel
+            for militaryType in MilitaryUnitType.allCases where militaryType.trainingBuilding == type {
+                let currentTime = militaryType.trainingTime / (currentBuildingMult * researchMultiplier)
+                let nextTime = militaryType.trainingTime / (nextBuildingMult * researchMultiplier)
+                let fmtCurrent = currentTime == currentTime.rounded() ? "\(Int(currentTime))s" : String(format: "%.1fs", currentTime)
+                let fmtNext = nextTime == nextTime.rounded() ? "\(Int(nextTime))s" : String(format: "%.1fs", nextTime)
+                benefits.append("  \(militaryType.icon) \(militaryType.displayName): \(fmtCurrent) \u{2192} \(fmtNext)")
+            }
+
             // Unit upgrade tier unlocks at level 2, 3, 5
             switch nextLevel {
-            case 2: benefits.append("Unlocks Unit Upgrade Tier I")
-            case 3: benefits.append("Unlocks Unit Upgrade Tier II")
-            case 5: benefits.append("Unlocks Unit Upgrade Tier III")
+            case 2, 3, 5:
+                let tierNum = nextLevel == 2 ? 1 : (nextLevel == 3 ? 2 : 3)
+                let tierLabel = nextLevel == 2 ? "I" : (nextLevel == 3 ? "II" : "III")
+                // Find a sample upgrade at this tier for stat bonuses
+                let upgrades = UnitUpgradeType.upgradesForBuilding(type)
+                if let sample = upgrades.first(where: { $0.tier == tierNum }) {
+                    benefits.append("Unlocks Unit Upgrade Tier \(tierLabel) (\(sample.upgradeDescription) per unit)")
+                } else {
+                    benefits.append("Unlocks Unit Upgrade Tier \(tierLabel)")
+                }
             default: break
             }
 

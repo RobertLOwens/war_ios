@@ -159,6 +159,11 @@ class GameState: Codable {
         return armies.values.filter { $0.homeBaseID == buildingID }.count
     }
 
+    /// Returns the armies currently using this building as their home base
+    func getArmiesForHomeBase(buildingID: UUID) -> [ArmyData] {
+        return armies.values.filter { $0.homeBaseID == buildingID }
+    }
+
     /// Returns true if the building has room for another army as home base.
     /// City center always returns true (unlimited). Non-home-base buildings return false.
     func hasHomeBaseCapacity(buildingID: UUID) -> Bool {
