@@ -778,17 +778,17 @@ class CombatEngine {
 
         guard !defendingArmies.isEmpty else { return }
 
-        // Find a new home base for retreat (excluding the destroyed building's location)
-        guard let newHomeBase = state.findNearestHomeBase(
-            for: buildingOwnerID,
-            from: building.coordinate,
-            excluding: building.coordinate
-        ) else {
-            debugLog("⚠️ No home base available for retreat - defenders have nowhere to go")
-            return
-        }
-
         for army in defendingArmies {
+            // Find a home base with capacity for each army
+            guard let newHomeBase = state.findHomeBaseWithCapacity(
+                for: buildingOwnerID,
+                from: army.coordinate,
+                excluding: building.id
+            ) else {
+                debugLog("⚠️ No home base available for retreat - \(army.name) has nowhere to go")
+                continue
+            }
+
             // Update home base
             army.homeBaseID = newHomeBase.id
 
@@ -1937,9 +1937,9 @@ class CombatEngine {
             retreatDestination = homeBase.coordinate
         }
 
-        // 2. Fallback: Find nearest valid home base
+        // 2. Fallback: Find nearest valid home base with capacity
         if retreatDestination == nil,
-           let nearestBase = state.findNearestHomeBase(for: ownerID, from: army.coordinate),
+           let nearestBase = state.findHomeBaseWithCapacity(for: ownerID, from: army.coordinate),
            army.coordinate != nearestBase.coordinate {
             retreatBuilding = nearestBase
             retreatDestination = nearestBase.coordinate

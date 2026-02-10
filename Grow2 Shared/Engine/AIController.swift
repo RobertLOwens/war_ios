@@ -805,7 +805,15 @@ class AIDeployArmyCommand: BaseEngineCommand {
         ) ?? building.coordinate
 
         let army = ArmyData(name: "AI Army", coordinate: spawnCoord, ownerID: playerID)
-        army.homeBaseID = buildingID
+
+        // Assign home base respecting capacity limits
+        if state.hasHomeBaseCapacity(buildingID: buildingID) {
+            army.homeBaseID = buildingID
+        } else if let fallback = state.findHomeBaseWithCapacity(for: playerID, from: spawnCoord, excluding: nil) {
+            army.homeBaseID = fallback.id
+        } else {
+            army.homeBaseID = buildingID
+        }
 
         for (unitType, count) in composition {
             if let dataType = MilitaryUnitTypeData(rawValue: unitType.rawValue) {
@@ -1106,6 +1114,18 @@ class AIStartResearchCommand: BaseEngineCommand {
         let ccLevel = state.getCityCenter(forPlayer: playerID)?.level ?? 1
         if researchType.cityCenterLevelRequirement > ccLevel {
             return .failure(reason: "City Center level too low")
+        }
+
+        // Check building requirement (e.g. Library for Commerce, Blacksmith for Equipment)
+        if let (buildingType, level) = researchType.buildingRequirement {
+            let hasBuilding = state.getBuildingsForPlayer(id: playerID).contains {
+                $0.buildingType == buildingType &&
+                $0.level >= level &&
+                $0.isOperational
+            }
+            if !hasBuilding {
+                return .failure(reason: "Requires \(buildingType.displayName)")
+            }
         }
 
         for (resource, amount) in researchType.cost {

@@ -578,7 +578,8 @@ class NotificationManager {
 
         // Research
         if let active = ResearchManager.shared.activeResearch {
-            let delay = active.getRemainingTime(currentTime: now)
+            let speedMultiplier = ResearchManager.shared.getResearchSpeedMultiplier()
+            let delay = active.getRemainingTime(currentTime: now, speedMultiplier: speedMultiplier)
             if delay > 1 {
                 scheduleDelayedNotification(
                     body: "🔬 \(active.researchType.displayName) research complete",

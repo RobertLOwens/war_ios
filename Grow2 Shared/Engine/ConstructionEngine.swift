@@ -193,6 +193,14 @@ class ConstructionEngine {
             }
         }
 
+        // Check library limit (unique building - max 1)
+        if type == .library {
+            let currentCount = state.getBuildingsForPlayer(id: playerID).filter { $0.buildingType == .library }.count
+            if currentCount >= BuildingType.maxLibrariesAllowed() {
+                return (false, "Only one Library allowed per player")
+            }
+        }
+
         // Check resources
         if !player.canAfford(convertBuildCost(type.buildCost)) {
             return (false, "Insufficient resources")

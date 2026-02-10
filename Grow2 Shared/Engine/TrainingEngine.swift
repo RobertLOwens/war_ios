@@ -317,7 +317,16 @@ class TrainingEngine {
 
         // Create army
         let army = ArmyData(name: "Army", coordinate: spawnCoord, ownerID: playerID)
-        army.homeBaseID = buildingID
+
+        // Assign home base respecting capacity limits
+        if state.hasHomeBaseCapacity(buildingID: buildingID) {
+            army.homeBaseID = buildingID
+        } else if let fallback = state.findHomeBaseWithCapacity(for: playerID, from: spawnCoord, excluding: nil) {
+            army.homeBaseID = fallback.id
+            debugLog("🏠 Army deployed from \(building.buildingType.displayName) but assigned to \(fallback.buildingType.displayName) (capacity full)")
+        } else {
+            army.homeBaseID = buildingID  // No capacity anywhere — assign anyway
+        }
 
         // Add units to army
         for (unitType, count) in composition {

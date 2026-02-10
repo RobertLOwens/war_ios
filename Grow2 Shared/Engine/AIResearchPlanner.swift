@@ -150,6 +150,17 @@ struct AIResearchPlanner {
             }
         }
 
+        // Penalize Tier I research in gated branches when gate building isn't built yet
+        // (avoids dead-end research paths where Tier II+ can't be reached)
+        if research.tier == 1, let gateBuilding = research.branch.gateBuildingType {
+            let hasGateBuilding = gameState.getBuildingsForPlayer(id: aiState.playerID).contains {
+                $0.buildingType == gateBuilding && $0.isOperational
+            }
+            if !hasGateBuilding {
+                score -= 5.0
+            }
+        }
+
         return score
     }
 
@@ -175,6 +186,18 @@ struct AIResearchPlanner {
                 if !player.hasCompletedResearch(prereq.rawValue) {
                     prereqsMet = false
                     break
+                }
+            }
+
+            // Check building requirement (e.g. Library for Tier III)
+            if let (buildingType, level) = research.buildingRequirement {
+                let hasBuilding = gameState.getBuildingsForPlayer(id: playerID).contains {
+                    $0.buildingType == buildingType &&
+                    $0.level >= level &&
+                    $0.isOperational
+                }
+                if !hasBuilding {
+                    prereqsMet = false
                 }
             }
 

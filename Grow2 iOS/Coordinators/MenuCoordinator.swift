@@ -219,6 +219,12 @@ class MenuCoordinator {
             let requiredCCLevel = type.requiredCityCenterLevel
             guard cityCenterLevel >= requiredCCLevel else { continue }
 
+            // Skip Library if player already has one (completed, constructing, or upgrading)
+            if type == .library {
+                let existingLibraries = player.buildings.filter { $0.buildingType == .library }
+                if !existingLibraries.isEmpty { continue }
+            }
+
             // Check basic placement
             // For multi-tile buildings, check if ANY rotation (0-5) allows valid placement
             let canPlace: Bool

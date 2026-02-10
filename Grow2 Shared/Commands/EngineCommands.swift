@@ -485,7 +485,15 @@ struct EngineDeployArmyCommand: EngineCompatibleCommand {
 
         // Create army
         let army = ArmyData(name: "Army", coordinate: spawnCoord, ownerID: playerID)
-        army.homeBaseID = buildingID
+
+        // Assign home base respecting capacity limits
+        if state.hasHomeBaseCapacity(buildingID: buildingID) {
+            army.homeBaseID = buildingID
+        } else if let fallback = state.findHomeBaseWithCapacity(for: playerID, from: spawnCoord, excluding: nil) {
+            army.homeBaseID = fallback.id
+        } else {
+            army.homeBaseID = buildingID
+        }
 
         // Add units
         for (unitType, count) in composition {

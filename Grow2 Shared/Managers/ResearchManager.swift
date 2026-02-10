@@ -112,9 +112,22 @@ class ResearchManager {
             }
         }
 
+        // Check building requirement (e.g. Library for Tier III)
+        if let (buildingType, level) = researchType.buildingRequirement {
+            guard let player = player else { return "Requires \(buildingType.displayName)" }
+            let hasBuilding = player.buildings.contains {
+                $0.buildingType == buildingType &&
+                $0.level >= level &&
+                $0.isOperational
+            }
+            if !hasBuilding {
+                return "Requires \(buildingType.displayName)"
+            }
+        }
+
         return nil
     }
-    
+
     func canAfford(_ researchType: ResearchType) -> Bool {
         guard let player = player else { return false }
         
@@ -222,8 +235,9 @@ class ResearchManager {
     
     func update(currentTime: TimeInterval = Date().timeIntervalSince1970) {
         guard let active = activeResearch else { return }
-        
-        if active.isComplete(currentTime: currentTime) {
+
+        let speedMultiplier = getResearchSpeedMultiplier()
+        if active.isComplete(currentTime: currentTime, speedMultiplier: speedMultiplier) {
             completeResearch(active.researchType)
         }
     }
@@ -400,6 +414,16 @@ class ResearchManager {
         return getBonusMultiplier(.buildingHP)
     }
 
+    /// Returns the research speed multiplier from the Library building
+    /// 1.0 + (libraryLevel * bonusPerLevel)
+    func getResearchSpeedMultiplier() -> Double {
+        guard let player = player else { return 1.0 }
+        if let library = player.buildings.first(where: { $0.buildingType == .library && $0.isOperational }) {
+            return 1.0 + (Double(library.level) * GameConfig.Library.researchSpeedBonusPerLevel)
+        }
+        return 1.0
+    }
+
     // MARK: - Save/Load Support
     
     struct ResearchSaveData: Codable {
@@ -454,8 +478,9 @@ class ResearchManager {
         debugLog("\n🔬 Research Status:")
         debugLog("   Completed: \(completedResearch.map { $0.displayName }.joined(separator: ", "))")
         if let active = activeResearch {
-            let progress = Int(active.getProgress() * 100)
-            let remaining = Int(active.getRemainingTime())
+            let speedMultiplier = getResearchSpeedMultiplier()
+            let progress = Int(active.getProgress(speedMultiplier: speedMultiplier) * 100)
+            let remaining = Int(active.getRemainingTime(speedMultiplier: speedMultiplier))
             debugLog("   Active: \(active.researchType.displayName) (\(progress)%, \(remaining)s remaining)")
         } else {
             debugLog("   Active: None")

@@ -61,11 +61,12 @@ class BackgroundTimeManager {
         let manager = ResearchManager.shared
         
         if let active = manager.activeResearch {
-            if active.isComplete(currentTime: currentTime) {
+            let speedMultiplier = manager.getResearchSpeedMultiplier()
+            if active.isComplete(currentTime: currentTime, speedMultiplier: speedMultiplier) {
                 manager.completeResearch(active.researchType)
                 debugLog("  ✅ Research completed: \(active.researchType.displayName)")
             } else {
-                let progress = Int(active.getProgress(currentTime: currentTime) * 100)
+                let progress = Int(active.getProgress(currentTime: currentTime, speedMultiplier: speedMultiplier) * 100)
                 debugLog("  🔬 \(active.researchType.displayName): \(progress)% complete")
             }
         } else {

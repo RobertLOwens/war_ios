@@ -101,10 +101,33 @@ enum GameConfig {
             .market: 2,
             .neighborhood: 2,
             .university: 3,
+            .library: 3,
             .wall: 1,
             .gate: 2,
             .road: 1
         ]
+    }
+
+    // MARK: - Library
+
+    enum Library {
+        /// Research speed bonus per Library level (+10% per level, level 5 = +50%)
+        static let researchSpeedBonusPerLevel: Double = 0.10
+    }
+
+    // MARK: - Defense
+
+    enum Defense {
+        /// HP bonus per building level above 1 for defensive buildings (tower, fort, castle)
+        static let hpBonusPerLevel: Double = 0.20
+        /// Castle: base army home base capacity
+        static let castleBaseArmyCapacity: Int = 3
+        /// Castle: additional army capacity per level above 1
+        static let castleArmyCapacityPerLevel: Int = 1
+        /// Wooden Fort: base army home base capacity
+        static let fortBaseArmyCapacity: Int = 1
+        /// Wooden Fort: additional army capacity per level above 1
+        static let fortArmyCapacityPerLevel: Int = 1
     }
 
     // MARK: - Garrison Defense
