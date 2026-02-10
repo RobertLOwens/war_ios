@@ -248,7 +248,11 @@ class Army: MapEntity {
     func getTotalUnits() -> Int {
         return data.getTotalUnits()
     }
-    
+
+    func getPopulationUsed() -> Int {
+        return data.getPopulationUsed()
+    }
+
     // ✅ UPDATED: Handle optional commander with category-based specialty bonuses using combatStats
     func getModifiedStrength() -> Double {
         let aggregatedStats = getAggregatedCombatStats()

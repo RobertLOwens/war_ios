@@ -114,21 +114,77 @@ class GameState: Codable {
         buildings.removeValue(forKey: id)
     }
 
-    /// Reassigns home bases for armies when their home building is destroyed
+    /// Reassigns home bases for armies when their home building is destroyed.
+    /// Distributes evicted armies across available home bases respecting capacity, with city center as fallback.
     private func reassignHomeBasesForDestroyedBuilding(_ buildingID: UUID, ownerID: UUID?) {
         guard let ownerID = ownerID else { return }
 
-        // Find city center for this player
-        let cityCenter = buildings.values.first {
-            $0.ownerID == ownerID && $0.buildingType == .cityCenter
-        }
-        guard let cityCenterID = cityCenter?.id else { return }
+        let evictedArmies = armies.values.filter { $0.homeBaseID == buildingID }
+        guard !evictedArmies.isEmpty else { return }
 
-        // Reassign all armies that had this building as home base
-        for army in armies.values where army.homeBaseID == buildingID {
-            army.homeBaseID = cityCenterID
-            debugLog("🏠 \(army.name) home base reassigned to City Center")
+        for army in evictedArmies {
+            // Try to find a home base with capacity (nearest first, excluding city center initially)
+            let validTypes: Set<BuildingType> = [.woodenFort, .castle]
+            let candidateBases = buildings.values.filter {
+                $0.ownerID == ownerID &&
+                validTypes.contains($0.buildingType) &&
+                $0.isOperational &&
+                $0.id != buildingID
+            }.sorted { army.coordinate.distance(to: $0.coordinate) < army.coordinate.distance(to: $1.coordinate) }
+
+            var assigned = false
+            for base in candidateBases {
+                if hasHomeBaseCapacity(buildingID: base.id) {
+                    army.homeBaseID = base.id
+                    debugLog("🏠 \(army.name) home base reassigned to \(base.buildingType.displayName) (level \(base.level))")
+                    assigned = true
+                    break
+                }
+            }
+
+            // Fallback: city center (unlimited capacity)
+            if !assigned {
+                if let cityCenter = buildings.values.first(where: { $0.ownerID == ownerID && $0.buildingType == .cityCenter }) {
+                    army.homeBaseID = cityCenter.id
+                    debugLog("🏠 \(army.name) home base reassigned to City Center")
+                }
+            }
         }
+    }
+
+    // MARK: - Home Base Capacity
+
+    /// Returns the count of armies currently using this building as their home base
+    func getArmyCountForHomeBase(buildingID: UUID) -> Int {
+        return armies.values.filter { $0.homeBaseID == buildingID }.count
+    }
+
+    /// Returns true if the building has room for another army as home base.
+    /// City center always returns true (unlimited). Non-home-base buildings return false.
+    func hasHomeBaseCapacity(buildingID: UUID) -> Bool {
+        guard let building = buildings[buildingID] else { return false }
+        guard let capacity = building.getArmyHomeBaseCapacity() else { return true }  // nil = unlimited
+        guard capacity > 0 else { return false }  // 0 = not a home base
+        return getArmyCountForHomeBase(buildingID: buildingID) < capacity
+    }
+
+    /// Finds a home base with available capacity for the given player, nearest to the coordinate.
+    /// Prefers forts/castles with capacity, falls back to city center.
+    func findHomeBaseWithCapacity(for playerID: UUID, from coordinate: HexCoordinate, excluding buildingID: UUID? = nil) -> BuildingData? {
+        let validTypes: Set<BuildingType> = [.cityCenter, .woodenFort, .castle]
+        let candidates = buildings.values.filter {
+            $0.ownerID == playerID &&
+            validTypes.contains($0.buildingType) &&
+            $0.isOperational &&
+            $0.id != buildingID
+        }.sorted { coordinate.distance(to: $0.coordinate) < coordinate.distance(to: $1.coordinate) }
+
+        for base in candidates {
+            if hasHomeBaseCapacity(buildingID: base.id) {
+                return base
+            }
+        }
+        return nil
     }
 
     /// Finds the nearest valid home base building for retreat (City Center, Castle, or Wooden Fort)
@@ -406,20 +462,20 @@ class GameState: Codable {
             current += group.villagerCount
         }
 
-        // Count military units in armies
+        // Count military units in armies (pop-space-aware)
         for army in getArmiesForPlayer(id: playerID) {
-            current += army.getTotalUnits()
+            current += army.getPopulationUsed()
         }
 
         // Count garrisoned units and calculate capacity
         for building in getBuildingsForPlayer(id: playerID) {
             if building.isOperational {
                 current += building.villagerGarrison
-                current += building.getTotalGarrisonedUnits()
+                current += building.getGarrisonPopulation()
 
-                // Add training queue units
+                // Add training queue units (pop-space-aware)
                 for entry in building.trainingQueue {
-                    current += entry.quantity
+                    current += entry.unitType.popSpace * entry.quantity
                 }
                 for entry in building.villagerTrainingQueue {
                     current += entry.quantity

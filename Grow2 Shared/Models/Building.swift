@@ -28,6 +28,7 @@ enum BuildingType: String, CaseIterable, Codable {
     case lumberCamp = "Lumber Camp"
     case warehouse = "Warehouse"
     case university = "University"
+    case library = "Library"
     case mill = "Mill"
 
     // Infrastructure
@@ -58,7 +59,7 @@ enum BuildingType: String, CaseIterable, Codable {
     
     var category: BuildingCategory {
         switch self {
-        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .road, .mill:
+        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .library, .road, .mill:
             return .economic
         case .castle, .barracks, .archeryRange, .stable, .siegeWorkshop, .tower, .woodenFort, .wall, .gate:
             return .military
@@ -76,6 +77,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return "🪓"
         case .warehouse: return "📦"
         case .university: return "🎓"
+        case .library: return "📚"
         case .road: return "🛤️"
         case .castle: return "🏰"
         case .barracks: return "🛡️"
@@ -110,6 +112,8 @@ enum BuildingType: String, CaseIterable, Codable {
             return 1  // Resource camps available early
         case .university:
             return 3  // Same as other advanced economic buildings
+        case .library:
+            return 3  // Requires CC level 3
         case .mill:
             return 2  // Mills available at CC level 2
         case .wall, .gate:
@@ -137,6 +141,8 @@ enum BuildingType: String, CaseIterable, Codable {
             return [.wood: 120, .stone: 80]
         case .university:
             return [.wood: 150, .stone: 120, .ore: 60]
+        case .library:
+            return [.wood: 120, .stone: 100, .ore: 40]
         case .road:
             return [.stone: 10]
         case .castle:
@@ -173,6 +179,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return 25.0
         case .warehouse: return 30.0
         case .university: return 50.0
+        case .library: return 45.0
         case .road: return 5.0  // Quick to build
         case .castle: return 90.0
         case .barracks: return 4.0
@@ -272,6 +279,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return "Increases wood collection"
         case .warehouse: return "Stores extra resources"
         case .university: return "Research technologies"
+        case .library: return "Boosts research speed and unlocks advanced research"
         case .road: return "Increases movement speed for units"
         case .castle: return "Defensive stronghold and military hub"
         case .barracks: return "Trains infantry units"
@@ -391,6 +399,11 @@ enum BuildingType: String, CaseIterable, Codable {
         case 3: return 8   // 3rd warehouse requires CC level 8
         default: return 99 // No more than 3 allowed
         }
+    }
+
+    /// Maximum number of Libraries allowed per player (unique building)
+    static func maxLibrariesAllowed() -> Int {
+        return 1
     }
 }
 
@@ -665,6 +678,7 @@ class BuildingNode: SKSpriteNode {
     }
     
     func getTotalGarrisonedUnits() -> Int { data.getTotalGarrisonedUnits() }
+    func getGarrisonPopulation() -> Int { data.getGarrisonPopulation() }
     func getTotalGarrisonCount() -> Int { data.getTotalGarrisonCount() }
     func getGarrisonCapacity() -> Int { data.getGarrisonCapacity() }
     func hasGarrisonSpace(for count: Int) -> Bool { data.hasGarrisonSpace(for: count) }

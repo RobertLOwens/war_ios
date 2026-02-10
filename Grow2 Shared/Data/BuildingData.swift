@@ -228,10 +228,10 @@ class BuildingData: Codable {
         lastConstructionUpdateTime = nil
     }
 
-    /// Applies the building HP research bonus to maxHealth
-    /// Call this when construction completes or when the fortified buildings research finishes
+    /// Applies the building HP research bonus and defensive level scaling to maxHealth.
+    /// Call this when construction completes, upgrade completes, or when the fortified buildings research finishes.
     func applyBuildingHPBonus() {
-        // Get base health (without research bonus)
+        // Get base health (without research bonus or level scaling)
         let baseHealth: Double
         switch buildingType {
         case .wall:
@@ -247,9 +247,18 @@ class BuildingData: Codable {
             }
         }
 
+        // Apply defensive building level scaling (tower, fort, castle)
+        var levelMultiplier = 1.0
+        switch buildingType {
+        case .tower, .woodenFort, .castle:
+            levelMultiplier = 1.0 + Double(level - 1) * GameConfig.Defense.hpBonusPerLevel
+        default:
+            break
+        }
+
         // Apply research bonus
         let hpMultiplier = ResearchManager.shared.getBuildingHPMultiplier()
-        maxHealth = baseHealth * hpMultiplier
+        maxHealth = baseHealth * levelMultiplier * hpMultiplier
 
         // If building is damaged, keep the same damage ratio
         let healthRatio = health / maxHealth
@@ -308,11 +317,15 @@ class BuildingData: Codable {
     
     func completeUpgrade() {
         guard state == .upgrading else { return }
-        
+
         level += 1
         state = .completed
         upgradeProgress = 0.0
         upgradeStartTime = nil
+
+        // Recalculate HP for defensive buildings and heal to full
+        applyBuildingHPBonus()
+        health = maxHealth
     }
     
     func cancelUpgrade() -> [ResourceType: Int]? {
@@ -521,7 +534,12 @@ class BuildingData: Codable {
     func getTotalGarrisonedUnits() -> Int {
         return garrison.values.reduce(0, +)
     }
-    
+
+    /// Returns total population space used by garrisoned military units (siege units cost more)
+    func getGarrisonPopulation() -> Int {
+        return garrison.reduce(0) { $0 + $1.key.popSpace * $1.value }
+    }
+
     func getTotalGarrisonCount() -> Int {
         return getTotalGarrisonedUnits() + villagerGarrison
     }
@@ -648,5 +666,22 @@ class BuildingData: Codable {
         let trebuchetCount = garrison[.trebuchet] ?? 0
 
         return archerCount + crossbowCount + mangonelCount + trebuchetCount
+    }
+
+    // MARK: - Army Home Base Capacity
+
+    /// Returns the max number of armies that can use this building as home base.
+    /// Returns nil for unlimited (city center), 0 for buildings that cannot be a home base.
+    func getArmyHomeBaseCapacity() -> Int? {
+        switch buildingType {
+        case .cityCenter:
+            return nil  // Unlimited
+        case .castle:
+            return GameConfig.Defense.castleBaseArmyCapacity + (level - 1) * GameConfig.Defense.castleArmyCapacityPerLevel
+        case .woodenFort:
+            return GameConfig.Defense.fortBaseArmyCapacity + (level - 1) * GameConfig.Defense.fortArmyCapacityPerLevel
+        default:
+            return 0  // Not a valid home base
+        }
     }
 }

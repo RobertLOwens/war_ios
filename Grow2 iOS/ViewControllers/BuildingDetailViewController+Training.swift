@@ -121,6 +121,7 @@ extension BuildingDetailViewController {
     /// Calculate the maximum number of units that can be trained based on resources and population
     func calculateMaxTrainable(unitType: TrainableUnitType) -> Int {
         let availablePop = player.getAvailablePopulation()
+        let maxByPop = availablePop / unitType.popSpace
 
         var maxAffordable = Int.max
         for (resourceType, costPerUnit) in unitType.trainingCost {
@@ -131,7 +132,7 @@ extension BuildingDetailViewController {
             }
         }
 
-        let maxTrainable = min(availablePop, maxAffordable)
+        let maxTrainable = min(maxByPop, maxAffordable)
         return min(maxTrainable, 50)
     }
 
@@ -250,7 +251,8 @@ extension BuildingDetailViewController {
         }
 
         let availablePop = player.getAvailablePopulation()
-        maxAffordable = min(maxAffordable, availablePop)
+        let maxByPop = availablePop / unitType.popSpace
+        maxAffordable = min(maxAffordable, maxByPop)
 
         let sliderMax = max(1, min(maxAffordable, 20))
         let canTrain = maxAffordable >= 1

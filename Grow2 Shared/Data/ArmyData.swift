@@ -208,6 +208,15 @@ enum MilitaryUnitTypeData: String, Codable, CaseIterable {
         case .mangonel, .trebuchet: return .siegeWorkshop
         }
     }
+
+    /// Population space consumed by this unit type
+    var popSpace: Int {
+        switch self {
+        case .mangonel: return 3
+        case .trebuchet: return 5
+        default: return 1
+        }
+    }
 }
 
 // MARK: - Unit Category Data
@@ -435,6 +444,11 @@ class ArmyData: Codable {
 
     func getTotalUnits() -> Int {
         return militaryComposition.values.reduce(0, +)
+    }
+
+    /// Returns total population space used by this army (siege units cost more)
+    func getPopulationUsed() -> Int {
+        return militaryComposition.reduce(0) { $0 + $1.key.popSpace * $1.value }
     }
 
     func getUnitCount(ofType type: MilitaryUnitTypeData) -> Int {
