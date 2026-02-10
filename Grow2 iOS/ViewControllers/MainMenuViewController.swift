@@ -8,16 +8,35 @@ class MainMenuViewController: UIViewController {
     var resumeGameButton: UIButton!
     var settingsButton: UIButton!
     var lastSaveLabel: UILabel!
+    var accountLabel: UILabel!
+
+    private var authObserver: NSObjectProtocol?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
         updateResumeButton()
+        updateAccountLabel()
+
+        authObserver = NotificationCenter.default.addObserver(
+            forName: AuthService.authStateChangedNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateAccountLabel()
+        }
+    }
+
+    deinit {
+        if let observer = authObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         updateResumeButton()
+        updateAccountLabel()
     }
 
     func setupUI() {
@@ -37,6 +56,19 @@ class MainMenuViewController: UIViewController {
             stackView.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
             stackView.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20)
         ])
+
+        // Account Label (at top of stack)
+        accountLabel = UILabel()
+        accountLabel.font = UIFont.systemFont(ofSize: 13)
+        accountLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+        accountLabel.textAlignment = .center
+        stackView.addArrangedSubview(accountLabel)
+
+        // Spacer before title
+        let spacerTop = UIView()
+        spacerTop.translatesAutoresizingMaskIntoConstraints = false
+        spacerTop.heightAnchor.constraint(equalToConstant: 10).isActive = true
+        stackView.addArrangedSubview(spacerTop)
 
         // Title
         titleLabel = UILabel()
@@ -96,6 +128,14 @@ class MainMenuViewController: UIViewController {
         settingsButton.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
         stackView.addArrangedSubview(settingsButton)
 
+        // Cloud Saves Button
+        let cloudSavesButton = createMenuButton(
+            title: "☁️ Cloud Saves",
+            action: #selector(cloudSavesTapped)
+        )
+        cloudSavesButton.backgroundColor = UIColor(red: 0.2, green: 0.35, blue: 0.5, alpha: 1.0)
+        stackView.addArrangedSubview(cloudSavesButton)
+
         // Delete Save Button
         let deleteSaveButton = UIButton(type: .system)
         deleteSaveButton.setTitle("🗑️ Delete Save", for: .normal)
@@ -103,6 +143,14 @@ class MainMenuViewController: UIViewController {
         deleteSaveButton.setTitleColor(.red, for: .normal)
         deleteSaveButton.addTarget(self, action: #selector(deleteSaveTapped), for: .touchUpInside)
         stackView.addArrangedSubview(deleteSaveButton)
+
+        // Sign Out Button
+        let signOutButton = UIButton(type: .system)
+        signOutButton.setTitle("Sign Out", for: .normal)
+        signOutButton.titleLabel?.font = UIFont.systemFont(ofSize: 14)
+        signOutButton.setTitleColor(UIColor(white: 0.5, alpha: 1.0), for: .normal)
+        signOutButton.addTarget(self, action: #selector(signOutTapped), for: .touchUpInside)
+        stackView.addArrangedSubview(signOutButton)
 
         // Version Label (pinned to bottom)
         let versionLabel = UILabel()
@@ -156,6 +204,15 @@ class MainMenuViewController: UIViewController {
         }
     }
 
+    private func updateAccountLabel() {
+        if let user = AuthService.shared.currentUser {
+            let displayText = user.displayName ?? user.email ?? "Signed In"
+            accountLabel.text = "Signed in as \(displayText)"
+        } else {
+            accountLabel.text = "Not signed in"
+        }
+    }
+
     @objc func newGameTapped() {
         if GameSaveManager.shared.saveExists() {
             showDestructiveConfirmation(
@@ -206,6 +263,16 @@ class MainMenuViewController: UIViewController {
         present(settingsVC, animated: true)
     }
 
+    @objc func cloudSavesTapped() {
+        guard AuthService.shared.currentUser != nil else {
+            showAlert(title: "Not Signed In", message: "You must be signed in to use cloud saves.")
+            return
+        }
+        let cloudVC = CloudSaveViewController()
+        cloudVC.modalPresentationStyle = .fullScreen
+        present(cloudVC, animated: true)
+    }
+
     @objc func deleteSaveTapped() {
         guard GameSaveManager.shared.saveExists() else { return }
 
@@ -217,6 +284,22 @@ class MainMenuViewController: UIViewController {
                 if GameSaveManager.shared.deleteSave() {
                     self?.updateResumeButton()
                     self?.showAlert(title: "✅ Deleted", message: "Your saved game has been deleted.")
+                }
+            }
+        )
+    }
+
+    @objc func signOutTapped() {
+        showConfirmation(
+            title: "Sign Out",
+            message: "Are you sure you want to sign out?",
+            confirmTitle: "Sign Out",
+            onConfirm: {
+                do {
+                    try AuthService.shared.signOut()
+                    debugLog("User signed out")
+                } catch {
+                    debugLog("Sign out error: \(error.localizedDescription)")
                 }
             }
         )

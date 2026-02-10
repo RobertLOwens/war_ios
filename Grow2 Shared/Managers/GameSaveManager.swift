@@ -227,28 +227,67 @@ class GameSaveManager {
         let mapData = createMapSaveData(from: hexMap, player: player, reinforcements: reinforcements)
         let playerData = createPlayerSaveData(from: player)
         let allPlayersData = allPlayers.map { createPlayerSaveData(from: $0) }
-        
+
         let saveData = GameSaveData(
             mapData: mapData,
             playerData: playerData,
             allPlayersData: allPlayersData,
             researchData: ResearchManager.shared.getSaveData()
         )
-        
-        // Encode to JSON
+
+        // Write to file
+        let success = writeSaveDataToFile(saveData)
+
+        // Cloud sync hook: auto-upload if enabled and signed in
+        if success && GameSettings.shared.bool(forKey: SettingsKeys.autoCloudSync) && AuthService.shared.currentUser != nil {
+            CloudSaveService.shared.uploadSave(saveData: saveData, saveName: "Auto-Save") { result in
+                switch result {
+                case .success:
+                    debugLog("☁️ Auto cloud sync successful")
+                case .failure(let error):
+                    debugLog("☁️ Auto cloud sync failed: \(error.localizedDescription)")
+                }
+            }
+        }
+
+        return success
+    }
+
+    // MARK: - Create Save Data (for cloud upload)
+
+    func createSaveData() -> GameSaveData? {
+        guard saveExists() else { return nil }
+        do {
+            let jsonData = try Data(contentsOf: saveFileURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(GameSaveData.self, from: jsonData)
+        } catch {
+            debugLog("❌ Failed to read save data: \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Write From Save Data (for cloud download)
+
+    func writeFromSaveData(_ saveData: GameSaveData) -> Bool {
+        return writeSaveDataToFile(saveData)
+    }
+
+    // MARK: - Private: Write Save Data to File
+
+    private func writeSaveDataToFile(_ saveData: GameSaveData) -> Bool {
         do {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = .prettyPrinted
             let jsonData = try encoder.encode(saveData)
-            
-            // Write to file
+
             try jsonData.write(to: saveFileURL)
-            
+
             debugLog("✅ Game saved successfully to: \(saveFileURL.path)")
             debugLog("📊 Save size: \(jsonData.count / 1024) KB")
             return true
-            
         } catch {
             debugLog("❌ Failed to save game: \(error)")
             return false
