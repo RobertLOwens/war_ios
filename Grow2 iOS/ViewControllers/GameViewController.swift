@@ -1294,6 +1294,20 @@ class GameViewController: UIViewController {
         // Delete save immediately so a lost game can't be loaded
         _ = GameSaveManager.shared.deleteSave()
 
+        // Clean up online session if this was an online game
+        if let gameID = onlineGameID {
+            GameSessionService.shared.deleteGame(gameID: gameID) { result in
+                switch result {
+                case .success:
+                    debugLog("Online game session deleted: \(gameID)")
+                case .failure(let error):
+                    debugLog("Failed to delete online game session: \(error)")
+                }
+            }
+            GameSessionService.shared.leaveSession()
+            onlineGameID = nil
+        }
+
         // Gather statistics
         let stats = GameStatistics.gather(from: player, gameStartTime: gameScene.gameStartTime)
 
