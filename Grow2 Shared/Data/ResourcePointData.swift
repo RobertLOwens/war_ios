@@ -64,7 +64,7 @@ enum ResourcePointTypeData: String, Codable, CaseIterable {
 
     var initialAmount: Int {
         switch self {
-        case .trees: return 100
+        case .trees: return 5000
         case .forage: return 3000
         case .oreMine: return 8000
         case .stoneQuarry: return 6000
@@ -272,7 +272,7 @@ class ResourcePointData: Codable {
 
     func getCurrentGatherRate(researchMultiplier: Double = 1.0) -> Double {
         let perVillagerRate = 0.2  // Each villager adds 0.2 per second
-        let baseRate = resourceType.baseGatherRate + (Double(totalVillagersGathering) * perVillagerRate)
+        let baseRate = Double(totalVillagersGathering) * perVillagerRate
 
         return baseRate * researchMultiplier
     }

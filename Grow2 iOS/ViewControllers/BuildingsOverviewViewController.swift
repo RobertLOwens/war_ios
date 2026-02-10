@@ -124,7 +124,7 @@ class BuildingsOverviewViewController: UIViewController, UITableViewDelegate, UI
             cell.configureEmpty(category: categoryName)
         } else {
             let building = filteredBuildings[indexPath.row]
-            cell.configure(with: building, player: player)
+            cell.configure(with: building, player: player, hexMap: hexMap)
         }
 
         return cell
@@ -246,7 +246,7 @@ class BuildingOverviewCell: UITableViewCell {
         progressBar.addSubview(progressFill)
     }
 
-    func configure(with building: BuildingNode, player: Player?) {
+    func configure(with building: BuildingNode, player: Player?, hexMap: HexMap? = nil) {
         buildingLabel.text = "\(building.buildingType.icon) \(building.buildingType.displayName)"
         levelLabel.text = "Lv.\(building.level)"
         locationLabel.text = "(\(building.coordinate.q), \(building.coordinate.r))"
@@ -295,11 +295,15 @@ class BuildingOverviewCell: UITableViewCell {
 
         case .completed:
             if building.canUpgrade {
-                // Check if player can afford the upgrade
+                // Check if player can afford the upgrade (with terrain multiplier)
                 var canAfford = true
                 if let upgradeCost = building.getUpgradeCost(), let player = player {
-                    for (resourceType, amount) in upgradeCost {
-                        if !player.hasResource(resourceType, amount: amount) {
+                    let occupiedCoords = building.data.occupiedCoordinates
+                    let hasMountain = occupiedCoords.contains { hexMap?.getTile(at: $0)?.terrain == .mountain }
+                    let terrainMultiplier = hasMountain ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
+                    for (resourceType, baseAmount) in upgradeCost {
+                        let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+                        if !player.hasResource(resourceType, amount: adjustedAmount) {
                             canAfford = false
                             break
                         }

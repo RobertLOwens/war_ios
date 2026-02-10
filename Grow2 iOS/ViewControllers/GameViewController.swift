@@ -679,8 +679,13 @@ class GameViewController: UIViewController {
                     label.textColor = .systemGreen
                 }
             } else {
-                label.textColor = textColor
-                label.text = "\(resourceType.icon) \(amount)/\(cap) (+\(String(format: "%.1f", rate))/s)"
+                let sign = rate >= 0 ? "+" : ""
+                if rate < 0 {
+                    label.textColor = .systemRed
+                } else {
+                    label.textColor = textColor
+                }
+                label.text = "\(resourceType.icon) \(amount)/\(cap) (\(sign)\(String(format: "%.1f", rate))/s)"
             }
         }
         

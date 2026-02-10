@@ -27,14 +27,15 @@ Mobile strategy games have incredible potential: massive maps, diplomacy, resour
 16 building types across economic and military categories:
 
 **Economic Buildings**
-- **City Center** — Main hub for economy and population (upgradeable to level 10)
-- **Farm** — Produces food resources with gathering bonuses
-- **Neighborhood** — Houses population
+- **City Center** — Main hub for economy and population (upgradeable to level 10, population scales with level: 10/15/20/.../55)
+- **Farm** — Produces food resources with gathering bonuses (+10% per level above 1)
+- **Neighborhood** — Houses population (capacity scales with level: 5/8/11/14/17)
 - **Warehouse** — Stores extra resources
 - **Market** — Trade resources
-- **Lumber Camp** — Increases wood collection (+1.5x bonus)
-- **Mining Camp** — Increases ore collection (+1.5x bonus)
+- **Lumber Camp** — Increases wood collection (+1.5x bonus, +10% per level above 1)
+- **Mining Camp** — Increases ore collection (+1.5x bonus, +10% per level above 1)
 - **Blacksmith** — Upgrades units and tools
+- **Library** — Boosts research speed (+10% per level) and unlocks advanced research branches
 - **University** — Research technologies
 
 **Military Buildings**
@@ -46,7 +47,11 @@ Mobile strategy games have incredible potential: massive maps, diplomacy, resour
 - **Tower** — Defensive structure
 - **Wooden Fort** — Basic defensive fortification
 
-Buildings unlock progressively based on City Center level, creating meaningful tech tree decisions.
+Buildings unlock progressively based on City Center level, creating meaningful tech tree decisions. Military buildings grant +10% training speed per building level above 1.
+
+**Terrain Effects on Building:**
+- Mountain tiles apply a +25% cost multiplier to construction and upgrades
+- Cost adjustments are shown in the build/upgrade UI and properly refunded on cancellation
 
 ### ⚔️ Military Units & Commanders
 - **Entity-based system** — Armies and Villager Groups instead of individual unit micromanagement
@@ -102,8 +107,10 @@ Resources can be gathered from map deposits (with depletion mechanics) or produc
 #### Siege (Siege Workshop)
 | Unit | HP | Move Speed | Attack Speed | Training Time | Cost |
 |------|-----|------------|--------------|---------------|------|
-| Mangonel | 70 | 2.00s/tile | 2.5s | 45s | 60 Food, 100 Wood, 40 Ore |
-| Trebuchet | 120 | 2.40s/tile | 4.0s | 60s | 80 Food, 150 Wood, 60 Ore |
+| Mangonel | 70 | 2.00s/tile | 2.5s | 45s | 60 Food, 100 Wood, 40 Ore | 3 pop |
+| Trebuchet | 120 | 2.40s/tile | 4.0s | 60s | 80 Food, 150 Wood, 60 Ore | 5 pop |
+
+Siege units cost more population space than standard units (mangonels: 3, trebuchets: 5 vs 1 for all other units). Pop space is accounted for across army composition, garrisons, training queues, food consumption, and training UI slider limits.
 
 #### Combat Stats
 
@@ -184,48 +191,94 @@ Bonuses stack if multiple source buildings are adjacent.
 
 ### 🔬 Research System
 
-75 total technologies across Economic (30) and Military (45) research lines.
+75 total technologies organized into 7 branches with cross-branch dependencies and building gates.
 
 #### Tier Requirements
 - **Tier I:** City Center Level 1 (30 sec research time)
 - **Tier II:** City Center Level 2 (60 sec research time)
 - **Tier III:** City Center Level 3 (120 sec research time)
 
-#### Economic Research (10 Lines × 3 Tiers = 30 Technologies)
+#### Branch-Based Building Gates
+- **Gathering & Logistics:** No gate building required
+- **Commerce:** Requires Library (Tier II+)
+- **Infrastructure:** Requires University (Tier II+)
+- **Melee/Ranged/Siege Equipment:** Requires Blacksmith (Tier II+)
 
+Research speed is boosted by +10% per Library level.
+
+#### Research Branches
+
+**Gathering** (Economic)
 | Research Line | Tier I | Tier II | Tier III | Bonus Type |
 |---------------|--------|---------|----------|------------|
 | Farm Efficiency | +10% | +15% | +20% | Farm gather rate |
 | Mining Efficiency | +10% | +15% | +20% | Mining Camp gather rate |
 | Lumber Efficiency | +10% | +15% | +20% | Lumber Camp gather rate |
+
+**Commerce** (Economic — requires Library)
+| Research Line | Tier I | Tier II | Tier III | Bonus Type |
+|---------------|--------|---------|----------|------------|
 | Better Market Rates | +5% | +10% | +15% | Market exchange rates |
-| Swift Villagers | +10% | +15% | +20% | Villager movement speed |
 | Trade Routes | +10% | +15% | +20% | Trade speed |
+| Efficient Rations | -5% | -10% | -15% | Food consumption |
+
+**Infrastructure** (Economic — requires University)
+| Research Line | Tier I | Tier II | Tier III | Bonus Type |
+|---------------|--------|---------|----------|------------|
 | Improved Roads | +10% | +15% | +20% | Road speed bonus |
 | Urban Planning | +5 | +10 | +15 | Population capacity (flat) |
-| Efficient Rations | -5% | -10% | -15% | Food consumption |
 | Construction | +10% | +15% | +20% | Building speed |
+| Fortifications | +10% | +15% | +20% | Building HP |
 
-#### Military Research (15 Lines × 3 Tiers = 45 Technologies)
-
+**Logistics** (Military)
 | Research Line | Tier I | Tier II | Tier III | Bonus Type |
 |---------------|--------|---------|----------|------------|
 | Forced March | +5% | +7% | +10% | Army movement speed |
 | Tactical Retreat | +5% | +7% | +10% | Retreat speed |
+| Swift Villagers | +10% | +15% | +20% | Villager movement speed |
+| Military Drills | +10% | +15% | +20% | Military training speed |
+| Field Rations | -5% | -10% | -15% | Military food consumption |
+
+**Melee Equipment** (Military — requires Blacksmith)
+| Research Line | Tier I | Tier II | Tier III | Bonus Type |
+|---------------|--------|---------|----------|------------|
 | Infantry Weapons | +5% | +7% | +10% | Infantry melee attack |
 | Cavalry Weapons | +5% | +7% | +10% | Cavalry melee attack |
 | Infantry Shields | +5% | +7% | +10% | Infantry melee armor |
 | Cavalry Barding | +5% | +7% | +10% | Cavalry melee armor |
-| Archer Padding | +5% | +7% | +10% | Archer melee armor |
+
+**Ranged Equipment** (Military — requires Blacksmith)
+| Research Line | Tier I | Tier II | Tier III | Bonus Type |
+|---------------|--------|---------|----------|------------|
 | Bodkin Points | +5% | +7% | +10% | Pierce damage |
+| Archer Padding | +5% | +7% | +10% | Archer melee armor |
 | Infantry Mail | +5% | +7% | +10% | Infantry pierce armor |
 | Cavalry Mail | +5% | +7% | +10% | Cavalry pierce armor |
 | Archer Mail | +5% | +7% | +10% | Archer pierce armor |
+
+**Siege & Fortification** (Military — requires Blacksmith)
+| Research Line | Tier I | Tier II | Tier III | Bonus Type |
+|---------------|--------|---------|----------|------------|
 | Siege Ammunition | +5% | +7% | +10% | Siege bludgeon damage |
 | Reinforced Walls | +5% | +7% | +10% | Building bludgeon armor |
-| Military Drills | +10% | +15% | +20% | Military training speed |
-| Field Rations | -5% | -10% | -15% | Military food consumption |
-| Fortifications | +10% | +15% | +20% | Building HP |
+
+13 cross-branch dependencies connect the tree (e.g., Lumber Efficiency II requires Construction I). The research tree UI displays branches with color-coded nodes and dependency lines (solid within-branch, dashed orange for cross-branch).
+
+### 🏗️ Construction System
+
+Construction uses an **incremental HP accumulation** model with diminishing builder returns. Multiple villagers can work on a building, but each additional builder contributes less (0.8x diminishing factor). This makes initial builders highly valuable while limiting the benefit of over-stacking.
+
+### 🏠 Army Home Base Capacity
+
+Armies require a home base (Castle or Wooden Fort) with available capacity:
+
+| Building | Base Capacity | Per Level | Example (Level 3) |
+|----------|--------------|-----------|-------------------|
+| Castle | 3 armies | +1/level | 5 armies |
+| Wooden Fort | 1 army | +1/level | 3 armies |
+
+- Deployment checks base capacity before assigning; falls back to nearest base with room
+- Retreat logic uses capacity-aware base finding
 
 ### 🏔️ Terrain Bonuses
 
@@ -414,12 +467,12 @@ Grow2/
 
 **✅ Implemented**
 - Hex map generation and rendering
-- Complete building system with construction progress
-- Resource gathering with villager capacity and depletion
-- Military training queues with slider-based quantity selection
+- Complete building system with construction progress and diminishing builder returns
+- Resource gathering with villager capacity, depletion, and camp level bonuses
+- Military training queues with slider-based quantity selection and building level speed bonuses
 - Commander system with 5 stats, 10 specialties, leveling, and rank progression
 - Fog of war with diplomatic vision sharing
-- Research system with background timers
+- Branch-based research tree (7 branches, building gates, cross-dependencies, Library speed bonus)
 - Save/load with offline progress calculation
 - Entity-based army and villager management
 - Command pattern architecture
@@ -428,10 +481,14 @@ Grow2/
 - Multi-army stack combat with tiered defensive engagement
 - Unit upgrade system (3 tiers per unit type)
 - Notification system with priority-based toast banners
+- Mountain terrain +25% building cost multiplier
+- Siege unit pop space (mangonels: 3, trebuchets: 5)
+- Scaling population capacity (Neighborhood and City Center scale with level)
+- Army home base capacity system (Castle/Fort with per-level scaling)
+- Next-level benefits preview in building upgrade UI
 
 **🚧 In Development**
 - Balance tuning and playtesting
-- Additional research items
 - UI/UX refinements
 
 ---

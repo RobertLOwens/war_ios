@@ -44,10 +44,11 @@ struct TrainMilitaryCommand: GameCommand {
             return .failure(reason: "This building cannot train \(unitType.displayName)")
         }
         
-        // Check population cap
-        guard player.hasPopulationSpace(for: quantity) else {
+        // Check population cap (siege units cost more pop space)
+        let popNeeded = unitType.popSpace * quantity
+        guard player.hasPopulationSpace(for: popNeeded) else {
             let available = player.getAvailablePopulation()
-            return .failure(reason: "Population cap reached. Available: \(available)")
+            return .failure(reason: "Population cap reached. Need \(popNeeded) pop, available: \(available)")
         }
         
         // Get adjacency cost reduction (warehouse bonus)

@@ -46,18 +46,37 @@ enum GameConfig {
     enum Resources {
         static let baseGatherRatePerVillager: Double = 0.2  // Resources/sec/villager
         static let adjacencyBonusPercent: Double = 0.25     // 25% adjacency bonus
+        static let campLevelBonusPerLevel: Double = 0.10    // +10% gather rate per building level above 1
+        static let farmWoodConsumptionRate: Double = 0.1    // Wood consumed per second per active farm gathering
+    }
+
+    // MARK: - Terrain
+
+    enum Terrain {
+        /// Cost multiplier for building/upgrading on mountain tiles (+25%)
+        static let mountainBuildingCostMultiplier: Double = 1.25
     }
 
     // MARK: - Construction
 
     enum Construction {
         static let progressChangeThreshold: Double = 0.01  // Min progress to emit event
+        static let diminishingFactor: Double = 0.8
+
+        /// Calculates effective builder count with diminishing returns.
+        /// 0 builders = 0 (stalled), 1 = 1.0x, 2 = 1.8x, 3 = 2.44x, etc.
+        static func effectiveBuilders(count: Int) -> Double {
+            guard count > 0 else { return 0.0 }
+            // Geometric series: (1 - factor^count) / (1 - factor)
+            return (1.0 - pow(diminishingFactor, Double(count))) / (1.0 - diminishingFactor)
+        }
     }
 
     // MARK: - Training
 
     enum Training {
         static let villagerTrainingTime: TimeInterval = 10.0  // Seconds per villager
+        static let buildingLevelSpeedBonusPerLevel: Double = 0.10  // +10% training speed per building level above 1
     }
 
     // MARK: - Vision
@@ -83,10 +102,33 @@ enum GameConfig {
             .market: 2,
             .neighborhood: 2,
             .university: 3,
+            .library: 3,
             .wall: 1,
             .gate: 2,
             .road: 1
         ]
+    }
+
+    // MARK: - Library
+
+    enum Library {
+        /// Research speed bonus per Library level (+10% per level, level 5 = +50%)
+        static let researchSpeedBonusPerLevel: Double = 0.10
+    }
+
+    // MARK: - Defense
+
+    enum Defense {
+        /// HP bonus per building level above 1 for defensive buildings (tower, fort, castle)
+        static let hpBonusPerLevel: Double = 0.20
+        /// Castle: base army home base capacity
+        static let castleBaseArmyCapacity: Int = 3
+        /// Castle: additional army capacity per level above 1
+        static let castleArmyCapacityPerLevel: Int = 1
+        /// Wooden Fort: base army home base capacity
+        static let fortBaseArmyCapacity: Int = 1
+        /// Wooden Fort: additional army capacity per level above 1
+        static let fortArmyCapacityPerLevel: Int = 1
     }
 
     // MARK: - Garrison Defense

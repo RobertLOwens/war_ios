@@ -124,12 +124,29 @@ struct BuildCommand: GameCommand {
 
         // Check if builder is already at the location
         var builderAtLocation = false
+        var villagerCount = 1
 
         // Assign builder if provided
         if let builderID = builderEntityID,
            let builderEntity = context.getEntity(by: builderID),
            let villagers = builderEntity.entity as? VillagerGroup {
             building.builderEntity = builderEntity
+            villagerCount = villagers.villagerCount
+
+            // Cancel active gathering if villagers were gathering
+            if case .gatheringResource(let resource) = villagers.currentTask {
+                resource.stopGathering(by: villagers)
+
+                let rateContribution = 0.2 * Double(villagers.villagerCount)
+                player.decreaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
+
+                if let gameScene = context.gameScene, gameScene.isEngineEnabled {
+                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
+                }
+
+                context.onResourcesChanged?()
+            }
+
             villagers.assignTask(.building(building), target: coordinate)
 
             // Check if villager is already at the build site (must be ON the tile, not adjacent)
@@ -142,12 +159,13 @@ struct BuildCommand: GameCommand {
                 builderEntity.isMoving = true
 
                 // Move the entity to the build site
+                let builderCount = villagerCount
                 if let path = context.hexMap.findPath(from: builderEntity.coordinate, to: coordinate, for: builderEntity.entity.owner) {
                     builderEntity.moveTo(path: path) {
                         // When movement completes, start construction
                         if building.state == .planning {
-                            building.startConstruction()
-                            debugLog("🏗️ Builder arrived, starting construction of \(building.buildingType.displayName)")
+                            building.startConstruction(builders: builderCount)
+                            debugLog("🏗️ Builder arrived (\(builderCount) villagers), starting construction of \(building.buildingType.displayName)")
                         }
                     }
                 } else {
@@ -162,7 +180,7 @@ struct BuildCommand: GameCommand {
 
         // Only start construction if builder is at location or no builder needed
         if builderAtLocation {
-            building.startConstruction()
+            building.startConstruction(builders: villagerCount)
         } else {
             // Set to planning state - construction will start when builder arrives
             building.data.state = .planning
@@ -221,6 +239,6 @@ struct BuildCommand: GameCommand {
         let hasAnyMountainTile = coordinates.contains { coord in
             hexMap.getTile(at: coord)?.terrain == .mountain
         }
-        return hasAnyMountainTile ? 1.25 : 1.0
+        return hasAnyMountainTile ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
     }
 }

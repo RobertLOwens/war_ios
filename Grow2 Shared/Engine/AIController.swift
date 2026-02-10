@@ -573,13 +573,21 @@ class AIBuildCommand: BaseEngineCommand {
         super.init(playerID: playerID)
     }
 
+    private func getTerrainCostMultiplier(in state: GameState) -> Double {
+        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+        let hasMountain = occupiedCoords.contains { state.mapData.getTerrain(at: $0) == .mountain }
+        return hasMountain ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
+    }
+
     override func validate(in state: GameState) -> EngineCommandResult {
         guard let player = state.getPlayer(id: playerID) else {
             return .failure(reason: "Player not found")
         }
 
-        for (resource, amount) in buildingType.buildCost {
-            guard player.hasResource(resource, amount: amount) else {
+        let costMultiplier = getTerrainCostMultiplier(in: state)
+        for (resource, baseAmount) in buildingType.buildCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * costMultiplier))
+            guard player.hasResource(resource, amount: adjustedAmount) else {
                 return .failure(reason: "Insufficient resources")
             }
         }
@@ -596,8 +604,10 @@ class AIBuildCommand: BaseEngineCommand {
             return .failure(reason: "Player not found")
         }
 
-        for (resource, amount) in buildingType.buildCost {
-            _ = player.removeResource(resource, amount: amount)
+        let costMultiplier = getTerrainCostMultiplier(in: state)
+        for (resource, baseAmount) in buildingType.buildCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * costMultiplier))
+            _ = player.removeResource(resource, amount: adjustedAmount)
         }
 
         let building = BuildingData(
@@ -795,7 +805,15 @@ class AIDeployArmyCommand: BaseEngineCommand {
         ) ?? building.coordinate
 
         let army = ArmyData(name: "AI Army", coordinate: spawnCoord, ownerID: playerID)
-        army.homeBaseID = buildingID
+
+        // Assign home base respecting capacity limits
+        if state.hasHomeBaseCapacity(buildingID: buildingID) {
+            army.homeBaseID = buildingID
+        } else if let fallback = state.findHomeBaseWithCapacity(for: playerID, from: spawnCoord, excluding: nil) {
+            army.homeBaseID = fallback.id
+        } else {
+            army.homeBaseID = buildingID
+        }
 
         for (unitType, count) in composition {
             if let dataType = MilitaryUnitTypeData(rawValue: unitType.rawValue) {
@@ -1096,6 +1114,18 @@ class AIStartResearchCommand: BaseEngineCommand {
         let ccLevel = state.getCityCenter(forPlayer: playerID)?.level ?? 1
         if researchType.cityCenterLevelRequirement > ccLevel {
             return .failure(reason: "City Center level too low")
+        }
+
+        // Check building requirement (e.g. Library for Commerce, Blacksmith for Equipment)
+        if let (buildingType, level) = researchType.buildingRequirement {
+            let hasBuilding = state.getBuildingsForPlayer(id: playerID).contains {
+                $0.buildingType == buildingType &&
+                $0.level >= level &&
+                $0.isOperational
+            }
+            if !hasBuilding {
+                return .failure(reason: "Requires \(buildingType.displayName)")
+            }
         }
 
         for (resource, amount) in researchType.cost {

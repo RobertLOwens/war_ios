@@ -11,6 +11,7 @@ struct GatheringAssignment {
     let villagerGroupID: UUID
     let resourcePointID: UUID
     var accumulator: Double = 0.0
+    var woodConsumptionAccumulator: Double = 0.0
 }
 
 // MARK: - Resource Engine
@@ -73,50 +74,31 @@ class ResourceEngine {
 
         var changes: [StateChange] = []
 
-        // Calculate storage capacities
-        func getCapacity(_ type: ResourceTypeData) -> Int {
-            return state.getStorageCapacity(forPlayer: player.id, resourceType: type)
-        }
+        // Note: Resource addition from gathering is handled in processGathering()
+        // which directly adds resources and tracks resource point depletion.
+        // We do NOT call player.updateResources() here to avoid double-counting.
 
-        // Update resources based on collection rates
-        let resourceChanges = player.updateResources(currentTime: currentTime, getStorageCapacity: getCapacity)
+        // Process food consumption for all players
+        let consumptionInfo = state.getFoodConsumptionRate(forPlayer: player.id)
+        if consumptionInfo.rate > 0 {
+            let deltaTime: TimeInterval = 0.5  // Match resource update interval
 
-        // Generate state changes for any resources that changed
-        for (resourceType, amount) in resourceChanges {
-            if amount > 0 {
+            // Apply rationing reduction from player's best commander
+            let commanders = state.getCommandersForPlayer(id: player.id)
+            let bestRationing = commanders.map { $0.rationing }.max() ?? 0
+            let rationingReduction = min(GameConfig.Commander.rationingReductionCap, Double(bestRationing) * GameConfig.Commander.rationingReductionScaling)
+            let adjustedRate = consumptionInfo.rate * (1.0 - rationingReduction)
+
+            let oldFood = player.getResource(.food)
+            let consumed = player.consumeFood(consumptionRate: adjustedRate, deltaTime: deltaTime)
+
+            if consumed > 0 {
                 changes.append(.resourcesChanged(
                     playerID: player.id,
-                    resourceType: resourceType.rawValue,
-                    oldAmount: player.getResource(resourceType) - amount,
-                    newAmount: player.getResource(resourceType)
+                    resourceType: ResourceTypeData.food.rawValue,
+                    oldAmount: oldFood,
+                    newAmount: player.getResource(.food)
                 ))
-            }
-        }
-
-        // Process food consumption for AI players only
-        // Human players have food consumption handled in the visual layer (Player.updateResources())
-        if player.isAI {
-            let consumptionInfo = state.getFoodConsumptionRate(forPlayer: player.id)
-            if consumptionInfo.rate > 0 {
-                let deltaTime: TimeInterval = 0.5  // Match resource update interval
-
-                // Apply rationing reduction from player's best commander
-                let commanders = state.getCommandersForPlayer(id: player.id)
-                let bestRationing = commanders.map { $0.rationing }.max() ?? 0
-                let rationingReduction = min(GameConfig.Commander.rationingReductionCap, Double(bestRationing) * GameConfig.Commander.rationingReductionScaling)
-                let adjustedRate = consumptionInfo.rate * (1.0 - rationingReduction)
-
-                let oldFood = player.getResource(.food)
-                let consumed = player.consumeFood(consumptionRate: adjustedRate, deltaTime: deltaTime)
-
-                if consumed > 0 {
-                    changes.append(.resourcesChanged(
-                        playerID: player.id,
-                        resourceType: ResourceTypeData.food.rawValue,
-                        oldAmount: oldFood,
-                        newAmount: player.getResource(.food)
-                    ))
-                }
             }
         }
 
@@ -143,6 +125,32 @@ class ResourceEngine {
             guard let ownerID = group.ownerID,
                   let player = state.getPlayer(id: ownerID) else {
                 continue
+            }
+
+            // Farm wood consumption: farms require wood to operate
+            if resourcePoint.resourceType == .farmland {
+                let woodRate = GameConfig.Resources.farmWoodConsumptionRate
+                assignment.woodConsumptionAccumulator += woodRate * deltaTime
+
+                let woodToConsume = Int(assignment.woodConsumptionAccumulator)
+                if woodToConsume > 0 {
+                    let availableWood = player.getResource(.wood)
+                    if availableWood <= 0 {
+                        // No wood — pause farming
+                        gatheringAssignments[groupID] = assignment
+                        continue
+                    }
+                    let consumed = min(woodToConsume, availableWood)
+                    _ = player.removeResource(.wood, amount: consumed)
+                    assignment.woodConsumptionAccumulator -= Double(consumed)
+
+                    changes.append(.resourcesChanged(
+                        playerID: player.id,
+                        resourceType: ResourceTypeData.wood.rawValue,
+                        oldAmount: availableWood,
+                        newAmount: player.getResource(.wood)
+                    ))
+                }
             }
 
             // Calculate gather rate
@@ -234,14 +242,16 @@ class ResourceEngine {
 
     private func calculateGatherRate(villagerCount: Int, resourceType: ResourcePointTypeData, resourceCoordinate: HexCoordinate, state: GameState) -> Double {
         // Base rate
-        var rate = resourceType.baseGatherRate + (Double(villagerCount) * baseGatherRatePerVillager)
+        var rate = Double(villagerCount) * baseGatherRatePerVillager
 
         // Apply adjacency bonuses
         let adjacencyMultiplier = calculateAdjacencyBonus(resourceType: resourceType, coordinate: resourceCoordinate, state: state)
         rate *= adjacencyMultiplier
 
-        // Apply research bonuses (would come from ResearchManager in full implementation)
-        // For now, return base rate with adjacency
+        // Apply camp/farm level bonus
+        let campLevelMultiplier = calculateCampLevelBonus(resourceType: resourceType, coordinate: resourceCoordinate, state: state)
+        rate *= campLevelMultiplier
+
         return rate
     }
 
@@ -277,6 +287,37 @@ class ResourceEngine {
         }
 
         return multiplier
+    }
+
+    private func calculateCampLevelBonus(resourceType: ResourcePointTypeData, coordinate: HexCoordinate, state: GameState) -> Double {
+        // Determine which building type boosts this resource
+        let matchingType: BuildingType
+        switch resourceType {
+        case .farmland:
+            matchingType = .farm
+        case .trees:
+            matchingType = .lumberCamp
+        case .oreMine, .stoneQuarry:
+            matchingType = .miningCamp
+        default:
+            return 1.0
+        }
+
+        // Check the tile itself and all neighbors for the highest-level matching building
+        let tilesToCheck = [coordinate] + coordinate.neighbors()
+        var highestLevel = 0
+
+        for coord in tilesToCheck {
+            if let building = state.getBuilding(at: coord),
+               building.buildingType == matchingType,
+               building.isOperational,
+               building.level > highestLevel {
+                highestLevel = building.level
+            }
+        }
+
+        guard highestLevel > 1 else { return 1.0 }
+        return 1.0 + Double(highestLevel - 1) * GameConfig.Resources.campLevelBonusPerLevel
     }
 
     // MARK: - Gathering Assignment Management
@@ -349,18 +390,58 @@ class ResourceEngine {
             return true  // No camp required
         }
 
-        // Check the tile itself and all neighbors
-        let tilesToCheck = [coordinate] + coordinate.neighbors()
+        // Find all matching camps in the game state
+        let matchingCamps = state.buildings.values.filter {
+            $0.buildingType.rawValue == requiredCampType && $0.isOperational
+        }
 
-        for coord in tilesToCheck {
-            if let building = state.getBuilding(at: coord),
-               building.buildingType.rawValue == requiredCampType,
-               building.isOperational {
+        // Check if any camp can reach this coordinate via roads
+        for camp in matchingCamps {
+            let reachable = getExtendedCampReach(from: camp.coordinate, state: state)
+            if reachable.contains(coordinate) {
                 return true
             }
         }
 
         return false
+    }
+
+    /// BFS to find all coordinates reachable from a camp via connected buildings/roads.
+    /// Mirrors HexMap.getExtendedCampReach() but uses GameState data layer.
+    private func getExtendedCampReach(from campCoordinate: HexCoordinate, state: GameState) -> Set<HexCoordinate> {
+        var reachable: Set<HexCoordinate> = []
+        var visited: Set<HexCoordinate> = []
+        var queue: [HexCoordinate] = [campCoordinate]
+
+        // Camp tile + direct neighbors always reachable
+        reachable.insert(campCoordinate)
+        for neighbor in campCoordinate.neighbors() {
+            reachable.insert(neighbor)
+        }
+
+        // BFS through connected buildings (all operational buildings act as roads)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard !visited.contains(current) else { continue }
+            visited.insert(current)
+
+            for neighbor in current.neighbors() {
+                guard state.mapData.isValidCoordinate(neighbor) else { continue }
+
+                if let building = state.getBuilding(at: neighbor), building.isOperational, !visited.contains(neighbor) {
+                    // Add the building tile itself
+                    reachable.insert(neighbor)
+                    // Add all neighbors of the building tile (resource can be gathered)
+                    for roadNeighbor in neighbor.neighbors() {
+                        reachable.insert(roadNeighbor)
+                    }
+                    // Continue BFS through this building
+                    queue.append(neighbor)
+                }
+            }
+        }
+
+        return reachable
     }
 
     // MARK: - Collection Rate Management
@@ -393,6 +474,13 @@ class ResourceEngine {
 
             let yieldType = resourcePoint.resourceType.resourceYield
             player.increaseCollectionRate(yieldType, amount: rate)
+
+            // Farm wood consumption shows as negative wood rate
+            if resourcePoint.resourceType == .farmland {
+                let woodDrain = GameConfig.Resources.farmWoodConsumptionRate
+                let currentWoodRate = player.getCollectionRate(.wood)
+                player.setCollectionRate(.wood, rate: currentWoodRate - woodDrain)
+            }
         }
     }
 }

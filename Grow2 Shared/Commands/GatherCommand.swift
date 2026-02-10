@@ -120,14 +120,14 @@ struct GatherCommand: GameCommand {
                         groupData.currentTask = .gatheringResource(resourcePointID: resource.id)
                         debugLog("🔄 Synced VillagerGroupData task to gathering \(resource.resourceType.displayName)")
                     }
-
-                    // Update collection rates to include adjacency bonuses
-                    GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
-
                     debugLog("✅ Registered gathering with ResourceEngine")
                 } else {
                     debugLog("⚠️ Failed to register gathering with ResourceEngine")
                 }
+
+                // Always update collection rates when engine is enabled,
+                // ensuring display reflects engine-calculated rates with all bonuses
+                GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
             }
         }
 
@@ -183,26 +183,24 @@ struct StopGatheringCommand: GameCommand {
 
         // Get the resource they were gathering
         if case .gatheringResource(let resource) = villagers.currentTask {
-            // Remove from resource's list
+            // Remove from resource's list (also clears task and unregisters from engine)
             resource.stopGathering(by: villagers)
 
             // Decrease collection rate
             let rateContribution = 0.2 * Double(villagers.villagerCount)
             player.decreaseCollectionRate(resource.resourceType.resourceYield, amount: rateContribution)
 
-            // ✅ FIX: Unregister from ResourceEngine when engine is enabled
+            // Update engine collection rates to reflect removed gatherers
             if let gameScene = context.gameScene, gameScene.isEngineEnabled {
-                GameEngine.shared.resourceEngine.stopGathering(villagerGroupID: villagers.id)
-
-                // Update collection rates to reflect removed gatherers
                 GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: player.id)
-
-                debugLog("✅ Unregistered gathering from ResourceEngine")
+                debugLog("✅ Updated engine collection rates after stop gathering")
             }
         }
 
-        // Clear task
-        villagers.clearTask()
+        // Clear task if not already cleared by stopGathering
+        if villagers.currentTask != .idle {
+            villagers.clearTask()
+        }
         entity.isMoving = false
 
         context.onResourcesChanged?()

@@ -290,6 +290,11 @@ class BuildingDetailViewController: UIViewController {
             }
         }
 
+        // Home base section (forts, castles, city centers)
+        if Army.canBeHomeBase(building.buildingType) && building.state == .completed {
+            yOffset = setupHomeBaseSection(yOffset: yOffset, contentWidth: contentWidth, leftMargin: leftMargin)
+        }
+
         // ✅ FIX 6: Upgrade section with proper debug logging
         debugLog("🔧 DEBUG - Upgrade section check:")
         debugLog("   state: \(building.state)")
@@ -465,10 +470,13 @@ class BuildingDetailViewController: UIViewController {
     func getQueueDisplayText() -> String {
         var text = ""
         let currentTime = Date().timeIntervalSince1970
-        
+        let researchMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+        let buildingMultiplier = building.data.getTrainingSpeedMultiplier()
+        let combinedMultiplier = researchMultiplier * buildingMultiplier
+
         // Military training queue
         for entry in building.trainingQueue {
-            let progress = entry.getProgress(currentTime: currentTime)
+            let progress = entry.getProgress(currentTime: currentTime, trainingSpeedMultiplier: combinedMultiplier)
             let progressPercent = Int(progress * 100)
             text += "\(entry.unitType.icon) \(entry.quantity)x \(entry.unitType.displayName) - \(progressPercent)%\n"
         }

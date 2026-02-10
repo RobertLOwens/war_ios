@@ -75,6 +75,14 @@ struct AIEconomyPlanner {
             }
         }
 
+        // Build Library if CC level >= 3 and we don't have one yet
+        if currentTime - aiState.lastBuildTime >= buildInterval {
+            if let command = tryBuildLibrary(playerID: playerID, gameState: gameState) {
+                commands.append(command)
+                aiState.lastBuildTime = currentTime
+            }
+        }
+
         // Build houses if we're near population cap or proactively in peace state
         let shouldBuildHouse = popStats.current >= popStats.capacity - 5 ||
             (aiState.currentState == .peace &&
@@ -375,6 +383,31 @@ struct AIEconomyPlanner {
 
         debugLog("🤖 AI building warehouse at (\(location.q), \(location.r)) - storage expansion needed")
         return AIBuildCommand(playerID: playerID, buildingType: .warehouse, coordinate: location, rotation: 0)
+    }
+
+    private func tryBuildLibrary(playerID: UUID, gameState: GameState) -> EngineCommand? {
+        guard let cityCenter = gameState.getCityCenter(forPlayer: playerID) else { return nil }
+        guard let player = gameState.getPlayer(id: playerID) else { return nil }
+
+        // Requires CC level 3
+        guard cityCenter.level >= BuildingType.library.requiredCityCenterLevel else { return nil }
+
+        // Check if AI already has a Library
+        let existingLibraries = gameState.getBuildingsForPlayer(id: playerID).filter { $0.buildingType == .library }
+        guard existingLibraries.isEmpty else { return nil }
+
+        // Check resources
+        let libraryCost = BuildingType.library.buildCost
+        for (resource, amount) in libraryCost {
+            guard player.hasResource(resource, amount: amount) else { return nil }
+        }
+
+        guard let location = gameState.findBuildLocation(near: cityCenter.coordinate, maxDistance: 4, forPlayer: playerID) else {
+            return nil
+        }
+
+        debugLog("🤖 AI building Library at (\(location.q), \(location.r))")
+        return AIBuildCommand(playerID: playerID, buildingType: .library, coordinate: location, rotation: 0)
     }
 
     // MARK: - Resource Camp Building

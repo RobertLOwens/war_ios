@@ -361,20 +361,20 @@ extension GameState {
             civilianCount += group.villagerCount
         }
 
-        // Count military units in armies
+        // Count military units in armies (pop-space-aware)
         for army in getArmiesForPlayer(id: playerID) {
-            militaryCount += army.getTotalUnits()
+            militaryCount += army.getPopulationUsed()
         }
 
         // Count garrisoned units
         for building in getBuildingsForPlayer(id: playerID) {
             if building.isOperational {
                 civilianCount += building.villagerGarrison
-                militaryCount += building.getTotalGarrisonedUnits()
+                militaryCount += building.getGarrisonPopulation()
 
-                // Count units in training queues
+                // Count units in training queues (pop-space-aware)
                 for entry in building.trainingQueue {
-                    militaryCount += entry.quantity
+                    militaryCount += entry.unitType.popSpace * entry.quantity
                 }
                 for entry in building.villagerTrainingQueue {
                     civilianCount += entry.quantity

@@ -28,6 +28,7 @@ enum BuildingType: String, CaseIterable, Codable {
     case lumberCamp = "Lumber Camp"
     case warehouse = "Warehouse"
     case university = "University"
+    case library = "Library"
     case mill = "Mill"
 
     // Infrastructure
@@ -55,10 +56,24 @@ enum BuildingType: String, CaseIterable, Codable {
         default: return 0
         }
     }
+
+    /// Population capacity bonus per level (added to base per level above 1)
+    var populationCapacityPerLevel: Int {
+        switch self {
+        case .cityCenter: return 5
+        case .neighborhood: return 3
+        default: return 0
+        }
+    }
+
+    /// Returns the population capacity for this building at a given level
+    func populationCapacity(forLevel level: Int) -> Int {
+        return populationCapacity + (populationCapacityPerLevel * (level - 1))
+    }
     
     var category: BuildingCategory {
         switch self {
-        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .road, .mill:
+        case .cityCenter, .farm, .neighborhood, .blacksmith, .market, .miningCamp, .lumberCamp, .warehouse, .university, .library, .road, .mill:
             return .economic
         case .castle, .barracks, .archeryRange, .stable, .siegeWorkshop, .tower, .woodenFort, .wall, .gate:
             return .military
@@ -76,6 +91,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return "🪓"
         case .warehouse: return "📦"
         case .university: return "🎓"
+        case .library: return "📚"
         case .road: return "🛤️"
         case .castle: return "🏰"
         case .barracks: return "🛡️"
@@ -110,6 +126,8 @@ enum BuildingType: String, CaseIterable, Codable {
             return 1  // Resource camps available early
         case .university:
             return 3  // Same as other advanced economic buildings
+        case .library:
+            return 3  // Requires CC level 3
         case .mill:
             return 2  // Mills available at CC level 2
         case .wall, .gate:
@@ -137,6 +155,8 @@ enum BuildingType: String, CaseIterable, Codable {
             return [.wood: 120, .stone: 80]
         case .university:
             return [.wood: 150, .stone: 120, .ore: 60]
+        case .library:
+            return [.wood: 120, .stone: 100, .ore: 40]
         case .road:
             return [.stone: 10]
         case .castle:
@@ -173,6 +193,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return 25.0
         case .warehouse: return 30.0
         case .university: return 50.0
+        case .library: return 45.0
         case .road: return 5.0  // Quick to build
         case .castle: return 90.0
         case .barracks: return 4.0
@@ -272,6 +293,7 @@ enum BuildingType: String, CaseIterable, Codable {
         case .lumberCamp: return "Increases wood collection"
         case .warehouse: return "Stores extra resources"
         case .university: return "Research technologies"
+        case .library: return "Boosts research speed and unlocks advanced research"
         case .road: return "Increases movement speed for units"
         case .castle: return "Defensive stronghold and military hub"
         case .barracks: return "Trains infantry units"
@@ -392,6 +414,11 @@ enum BuildingType: String, CaseIterable, Codable {
         default: return 99 // No more than 3 allowed
         }
     }
+
+    /// Maximum number of Libraries allowed per player (unique building)
+    static func maxLibrariesAllowed() -> Int {
+        return 1
+    }
 }
 
 enum BuildingState: String, Codable {
@@ -492,6 +519,14 @@ class BuildingNode: SKSpriteNode {
     var buildersAssigned: Int {
         get { data.buildersAssigned }
         set { data.buildersAssigned = newValue }
+    }
+    var constructionHP: Double {
+        get { data.constructionHP }
+        set { data.constructionHP = newValue }
+    }
+    var lastConstructionUpdateTime: TimeInterval? {
+        get { data.lastConstructionUpdateTime }
+        set { data.lastConstructionUpdateTime = newValue }
     }
     var upgradeProgress: Double {
         get { data.upgradeProgress }
@@ -657,6 +692,7 @@ class BuildingNode: SKSpriteNode {
     }
     
     func getTotalGarrisonedUnits() -> Int { data.getTotalGarrisonedUnits() }
+    func getGarrisonPopulation() -> Int { data.getGarrisonPopulation() }
     func getTotalGarrisonCount() -> Int { data.getTotalGarrisonCount() }
     func getGarrisonCapacity() -> Int { data.getGarrisonCapacity() }
     func hasGarrisonSpace(for count: Int) -> Bool { data.hasGarrisonSpace(for: count) }
@@ -1595,26 +1631,32 @@ class BuildingNode: SKSpriteNode {
             return
         }
 
-        guard let startTime = constructionStartTime else { return }
+        guard buildersAssigned > 0 else { return }  // stalled with 0 builders
 
         let currentTime = Date().timeIntervalSince1970
-        let elapsed = currentTime - startTime
+        let lastUpdate = lastConstructionUpdateTime ?? constructionStartTime ?? currentTime
+        let delta = currentTime - lastUpdate
+        guard delta > 0 else { return }
 
-        // Builder bonus + Research bonus
-        let builderMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
+        // Builder bonus (diminishing returns) + Research bonus
+        let effective = GameConfig.Construction.effectiveBuilders(count: buildersAssigned)
         let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
-        let totalSpeedMultiplier = builderMultiplier * researchMultiplier
-        let effectiveBuildTime = buildingType.buildTime / totalSpeedMultiplier
-        let remaining = max(0, effectiveBuildTime - elapsed)
+        let baseHPRate = maxHealth / buildingType.buildTime
+        let hpGain = baseHPRate * effective * researchMultiplier * delta
+        constructionHP = min(maxHealth, constructionHP + hpGain)
+        lastConstructionUpdateTime = currentTime
 
-        // Update progress (without triggering didSet)
-        let newProgress = min(1.0, max(0.0, elapsed / effectiveBuildTime))
+        let newProgress = constructionHP / maxHealth
         if abs(constructionProgress - newProgress) > 0.01 {
             constructionProgress = newProgress
         }
 
+        // Compute remaining time for display
+        let currentRate = baseHPRate * effective * researchMultiplier
+        let remaining = currentRate > 0 ? (maxHealth - constructionHP) / currentRate : Double.infinity
+
         // Check if construction is complete
-        if remaining <= 0 {
+        if constructionHP >= maxHealth {
             completeConstruction()
             return
         }
@@ -1703,28 +1745,30 @@ class BuildingNode: SKSpriteNode {
     }
 
     func updateConstruction() {
-        guard state == .constructing, let startTime = constructionStartTime else { return }
+        guard state == .constructing else { return }
+        guard buildersAssigned > 0 else { return }  // stalled with 0 builders
 
         let currentTime = Date().timeIntervalSince1970
-        let elapsed = currentTime - startTime
+        let lastUpdate = lastConstructionUpdateTime ?? constructionStartTime ?? currentTime
+        let delta = currentTime - lastUpdate
+        guard delta > 0 else { return }
 
-        // Builder bonus + Research bonus
-        let builderMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
+        // Builder bonus (diminishing returns) + Research bonus
+        let effective = GameConfig.Construction.effectiveBuilders(count: buildersAssigned)
         let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
-        let totalSpeedMultiplier = builderMultiplier * researchMultiplier
-        let effectiveBuildTime = buildingType.buildTime / totalSpeedMultiplier
+        let baseHPRate = maxHealth / buildingType.buildTime
+        let hpGain = baseHPRate * effective * researchMultiplier * delta
+        constructionHP = min(maxHealth, constructionHP + hpGain)
+        lastConstructionUpdateTime = currentTime
 
-        constructionProgress = min(1.0, elapsed / effectiveBuildTime)
+        constructionProgress = constructionHP / maxHealth
 
-        // Add debug logging
         debugLog("Building: \(buildingType.displayName)")
-        debugLog("  Start time: \(startTime)")
-        debugLog("  Current time: \(currentTime)")
-        debugLog("  Elapsed: \(elapsed)s")
-        debugLog("  Effective build time: \(effectiveBuildTime)s")
+        debugLog("  HP: \(constructionHP)/\(maxHealth)")
+        debugLog("  Builders: \(buildersAssigned) (effective: \(String(format: "%.2f", effective)))")
         debugLog("  Progress: \(constructionProgress * 100)%")
 
-        if constructionProgress >= 1.0 {
+        if constructionHP >= maxHealth {
             completeConstruction()
         }
     }

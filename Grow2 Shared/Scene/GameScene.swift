@@ -1086,7 +1086,10 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
 
         // Resource display update (reuse existing lastUpdateTime)
         if lastUpdateTime == nil || currentTime - lastUpdateTime! >= 0.5 {
-            player?.updateResources(currentTime: realWorldTime)
+            // When engine is enabled, ResourceEngine handles resource addition and food consumption
+            if !isEngineEnabled {
+                player?.updateResources(currentTime: realWorldTime)
+            }
             gameDelegate?.gameSceneDidUpdateResources(self)
             lastUpdateTime = currentTime
         }
@@ -1724,17 +1727,13 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         case .constructing:
             let progress = Int(building.constructionProgress * 100)
             message += "Status: Under Construction (\(progress)%)\n"
-            if let startTime = building.constructionStartTime {
-                let currentTime = Date().timeIntervalSince1970
-                let elapsed = currentTime - startTime
-                let buildSpeedMultiplier = 1.0 + (Double(building.buildersAssigned - 1) * 0.5)
-                let effectiveBuildTime = building.buildingType.buildTime / buildSpeedMultiplier
-                let remaining = max(0, effectiveBuildTime - elapsed)
+            let currentTime = Date().timeIntervalSince1970
+            if let remaining = building.data.getRemainingConstructionTime(currentTime: currentTime) {
                 let minutes = Int(remaining) / 60
                 let seconds = Int(remaining) % 60
                 message += "Time Remaining: \(minutes)m \(seconds)s\n"
-                message += "Builders: \(building.buildersAssigned)\n"
             }
+            message += "Builders: \(building.buildersAssigned)\n"
         case .completed:
             message += "Status: Completed ✓\n"
             message += "Health: \(building.health)/\(building.maxHealth)\n"
@@ -2093,8 +2092,40 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
             farmland.startGathering(by: villagerGroup)
             builderEntity.isMoving = true
 
-            // Update collection rate for the player (use engine for accurate rates with adjacency)
-            if let farmOwner = building.owner, isEngineEnabled {
+            // Register with ResourceEngine for rate tracking when engine is enabled
+            if let farmOwner = building.owner, isEngineEnabled,
+               let engineState = GameEngine.shared.gameState {
+                // Ensure resource point data exists in engine state
+                if engineState.getResourcePoint(id: farmland.id) == nil {
+                    engineState.addResourcePoint(farmland.data)
+                }
+
+                // Ensure villager group data exists in engine state
+                if engineState.getVillagerGroup(id: villagerGroup.id) == nil {
+                    let groupData = VillagerGroupData(
+                        id: villagerGroup.id,
+                        name: villagerGroup.name,
+                        coordinate: villagerGroup.coordinate,
+                        villagerCount: villagerGroup.villagerCount,
+                        ownerID: farmOwner.id
+                    )
+                    engineState.addVillagerGroup(groupData)
+                }
+
+                // Register gathering with ResourceEngine
+                let registered = GameEngine.shared.resourceEngine.startGathering(
+                    villagerGroupID: villagerGroup.id,
+                    resourcePointID: farmland.id
+                )
+
+                if registered {
+                    // Sync villager task state to engine's data layer
+                    if let groupData = engineState.getVillagerGroup(id: villagerGroup.id) {
+                        groupData.currentTask = .gatheringResource(resourcePointID: farmland.id)
+                    }
+                }
+
+                // Update collection rates with all bonuses
                 GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: farmOwner.id)
             } else if let farmOwner = building.owner {
                 // Fallback for non-engine mode
@@ -2144,8 +2175,40 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
                 targetResource.startGathering(by: villagerGroup)
                 builderEntity.isMoving = true
 
-                // Update collection rate for the player (use engine for accurate rates with adjacency)
-                if let campOwner = building.owner, isEngineEnabled {
+                // Register with ResourceEngine for rate tracking when engine is enabled
+                if let campOwner = building.owner, isEngineEnabled,
+                   let engineState = GameEngine.shared.gameState {
+                    // Ensure resource point data exists in engine state
+                    if engineState.getResourcePoint(id: targetResource.id) == nil {
+                        engineState.addResourcePoint(targetResource.data)
+                    }
+
+                    // Ensure villager group data exists in engine state
+                    if engineState.getVillagerGroup(id: villagerGroup.id) == nil {
+                        let groupData = VillagerGroupData(
+                            id: villagerGroup.id,
+                            name: villagerGroup.name,
+                            coordinate: villagerGroup.coordinate,
+                            villagerCount: villagerGroup.villagerCount,
+                            ownerID: campOwner.id
+                        )
+                        engineState.addVillagerGroup(groupData)
+                    }
+
+                    // Register gathering with ResourceEngine
+                    let registered = GameEngine.shared.resourceEngine.startGathering(
+                        villagerGroupID: villagerGroup.id,
+                        resourcePointID: targetResource.id
+                    )
+
+                    if registered {
+                        // Sync villager task state to engine's data layer
+                        if let groupData = engineState.getVillagerGroup(id: villagerGroup.id) {
+                            groupData.currentTask = .gatheringResource(resourcePointID: targetResource.id)
+                        }
+                    }
+
+                    // Update collection rates with all bonuses
                     GameEngine.shared.resourceEngine.updateCollectionRates(forPlayer: campOwner.id)
                 } else if let campOwner = building.owner {
                     // Fallback for non-engine mode

@@ -246,6 +246,10 @@ extension MenuCoordinator {
                     actions.append(AlertAction(title: "\(actionVerb) \(resourcePoint.resourceType.displayName)") { [weak self] in
                         self?.executeGatherCommand(villagerGroup: villagers, resourcePoint: resourcePoint)
                     })
+                } else if resourcePoint.resourceType.isHuntable && resourcePoint.currentHealth > 0 {
+                    actions.append(AlertAction(title: "🏹 Hunt \(resourcePoint.resourceType.displayName)") { [weak self] in
+                        self?.showVillagerSelectionForHunt(resourcePoint: resourcePoint)
+                    })
                 }
             }
         }
@@ -264,9 +268,39 @@ extension MenuCoordinator {
 
     func showEntityPickerMenu(entities: [EntityNode], at coordinate: HexCoordinate) {
         guard let player = player,
-              let vc = viewController else { return }
+              let vc = viewController,
+              let hexMap = hexMap else { return }
 
         var actions: [AlertAction] = []
+        var resourceMessage = ""
+
+        // Show resource info if a resource exists on this tile
+        if let resourcePoint = hexMap.getResourcePoint(at: coordinate) {
+            if resourcePoint.resourceType.isHuntable {
+                let yieldName = resourcePoint.resourceType.resourceYield.displayName
+                resourceMessage = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName) — Health: \(Int(resourcePoint.currentHealth))/\(Int(resourcePoint.resourceType.health)), \(yieldName): \(resourcePoint.remainingAmount)"
+
+                actions.append(AlertAction(title: "🏹 Hunt \(resourcePoint.resourceType.displayName)") { [weak self] in
+                    self?.showVillagerSelectionForHunt(resourcePoint: resourcePoint)
+                })
+            } else if resourcePoint.resourceType.isGatherable && !resourcePoint.isDepleted() {
+                let yieldName = resourcePoint.resourceType.resourceYield.displayName
+                let gatherers = resourcePoint.getTotalVillagersGathering()
+                resourceMessage = "\(resourcePoint.resourceType.icon) \(resourcePoint.resourceType.displayName) — Remaining: \(resourcePoint.remainingAmount) \(yieldName)"
+                if gatherers > 0 {
+                    resourceMessage += ", \(gatherers) villager(s) gathering"
+                } else {
+                    resourceMessage += " (not being gathered)"
+                }
+
+                if resourcePoint.getRemainingCapacity() > 0 {
+                    let actionVerb = resourcePoint.resourceType == .farmland ? "Work" : "Gather"
+                    actions.append(AlertAction(title: "⛏️ \(actionVerb) \(resourcePoint.resourceType.displayName)") { [weak self] in
+                        self?.showVillagerSelectionForGathering(resourcePoint: resourcePoint)
+                    })
+                }
+            }
+        }
 
         // Separate enemy armies from other entities
         var enemyArmyEntities: [EntityNode] = []
@@ -372,6 +406,7 @@ extension MenuCoordinator {
 
         vc.showActionSheet(
             title: "Select Unit (\(entities.count) on tile)",
+            message: resourceMessage.isEmpty ? nil : resourceMessage,
             actions: actions,
             onCancel: { [weak self] in
                 self?.delegate?.deselectAll()

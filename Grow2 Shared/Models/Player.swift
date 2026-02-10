@@ -363,7 +363,7 @@ class Player {
     func getPopulationCapacity() -> Int {
         let buildingCapacity = buildings
             .filter { $0.isOperational }
-            .reduce(0) { $0 + $1.buildingType.populationCapacity }
+            .reduce(0) { $0 + $1.buildingType.populationCapacity(forLevel: $1.level) }
 
         // Add research bonus for population capacity
         let researchBonus = ResearchManager.shared.getPopulationCapacityBonus()
@@ -373,32 +373,32 @@ class Player {
         
     func getCurrentPopulation() -> Int {
         var total = 0
-        
+
         // Count villagers on field
         total += getTotalVillagerCount()
-        
-        // Count military units in armies
-        total += getTotalMilitaryUnits()
-        
+
+        // Count military units in armies (pop-space-aware)
+        total += getArmies().reduce(0) { $0 + $1.getPopulationUsed() }
+
         // Count garrisoned units in buildings
         for building in buildings {
             total += building.villagerGarrison
-            total += building.getTotalGarrisonedUnits()
+            total += building.getGarrisonPopulation()
         }
-        
+
         // Count units currently in training queues
         for building in buildings {
-            // Military training queue
+            // Military training queue (pop-space-aware)
             for entry in building.trainingQueue {
-                total += entry.quantity
+                total += entry.unitType.popSpace * entry.quantity
             }
-            
+
             // Villager training queue
             for entry in building.villagerTrainingQueue {
                 total += entry.quantity
             }
         }
-        
+
         return total
     }
         
@@ -414,10 +414,10 @@ class Player {
     
     /// Returns the food consumption rate per second based on current population
     func getFoodConsumptionRate() -> Double {
-        // Calculate military population
-        let militaryPopulation = getTotalMilitaryUnits()
-        // Include garrisoned military units
-        let garrisonedMilitary = buildings.reduce(0) { $0 + $1.getTotalGarrisonedUnits() }
+        // Calculate military population (pop-space-aware)
+        let militaryPopulation = getArmies().reduce(0) { $0 + $1.getPopulationUsed() }
+        // Include garrisoned military units (pop-space-aware)
+        let garrisonedMilitary = buildings.reduce(0) { $0 + $1.getGarrisonPopulation() }
         let totalMilitary = militaryPopulation + garrisonedMilitary
 
         // Calculate civilian population (villagers + garrisoned villagers + training)

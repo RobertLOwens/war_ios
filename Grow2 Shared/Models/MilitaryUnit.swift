@@ -81,6 +81,15 @@ enum TrainableUnitType: Codable {
             return "Gathers resources and constructs buildings"
         }
     }
+
+    var popSpace: Int {
+        switch self {
+        case .military(let type):
+            return type.popSpace
+        case .villager:
+            return 1
+        }
+    }
 }
 
 // MARK: - Research Manager Integration

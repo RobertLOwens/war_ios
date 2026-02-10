@@ -170,6 +170,17 @@ class GameEngine {
         if adjustedTime - lastBuildingUpdate >= buildingUpdateInterval {
             let constructionChanges = constructionEngine.update(currentTime: adjustedTime)
             allChanges.append(contentsOf: constructionChanges)
+
+            // Recalculate collection rates when a building upgrade completes (affects camp level bonus)
+            for change in constructionChanges {
+                if case .buildingUpgradeCompleted(let buildingID, _) = change {
+                    if let building = gameState?.getBuilding(id: buildingID),
+                       let ownerID = building.ownerID {
+                        resourceEngine.updateCollectionRates(forPlayer: ownerID)
+                    }
+                }
+            }
+
             lastBuildingUpdate = adjustedTime
         }
 

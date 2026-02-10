@@ -137,6 +137,114 @@ struct ResearchBonus: Codable {
     }
 }
 
+// MARK: - Research Branch
+
+enum ResearchBranch: String, CaseIterable {
+    case gathering
+    case commerce
+    case infrastructure
+    case logistics
+    case meleeEquipment
+    case rangedEquipment
+    case siegeFortification
+
+    var displayName: String {
+        switch self {
+        case .gathering: return "Gathering"
+        case .commerce: return "Commerce"
+        case .infrastructure: return "Infrastructure"
+        case .logistics: return "Logistics"
+        case .meleeEquipment: return "Melee Equipment"
+        case .rangedEquipment: return "Ranged Equipment"
+        case .siegeFortification: return "Siege & Fortification"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .gathering: return "🌾"
+        case .commerce: return "💱"
+        case .infrastructure: return "🏗️"
+        case .logistics: return "🚶"
+        case .meleeEquipment: return "🗡️"
+        case .rangedEquipment: return "🏹"
+        case .siegeFortification: return "🏰"
+        }
+    }
+
+    var category: ResearchCategory {
+        switch self {
+        case .gathering, .commerce, .infrastructure:
+            return .economic
+        case .logistics, .meleeEquipment, .rangedEquipment, .siegeFortification:
+            return .military
+        }
+    }
+
+    /// Building type that gates Tier II+ research in this branch (nil = ungated)
+    var gateBuildingType: BuildingType? {
+        switch self {
+        case .gathering, .logistics: return nil
+        case .commerce: return .library
+        case .infrastructure: return .university
+        case .meleeEquipment, .rangedEquipment, .siegeFortification: return .blacksmith
+        }
+    }
+
+    /// Ordered research lines for tree layout (each inner array = one row of Tier I->II->III)
+    var researchLines: [[ResearchType]] {
+        switch self {
+        case .gathering:
+            return [
+                [.farmGatheringI, .farmGatheringII, .farmGatheringIII],
+                [.miningCampGatheringI, .miningCampGatheringII, .miningCampGatheringIII],
+                [.lumberCampGatheringI, .lumberCampGatheringII, .lumberCampGatheringIII]
+            ]
+        case .commerce:
+            return [
+                [.betterMarketRatesI, .betterMarketRatesII, .betterMarketRatesIII],
+                [.improvedRoadsI, .improvedRoadsII, .improvedRoadsIII],
+                [.tradeSpeedI, .tradeSpeedII, .tradeSpeedIII]
+            ]
+        case .infrastructure:
+            return [
+                [.villagerSpeedI, .villagerSpeedII, .villagerSpeedIII],
+                [.populationCapacityI, .populationCapacityII, .populationCapacityIII],
+                [.efficientRationsI, .efficientRationsII, .efficientRationsIII],
+                [.buildingSpeedI, .buildingSpeedII, .buildingSpeedIII]
+            ]
+        case .logistics:
+            return [
+                [.marchSpeedI, .marchSpeedII, .marchSpeedIII],
+                [.retreatSpeedI, .retreatSpeedII, .retreatSpeedIII],
+                [.militaryTrainingSpeedI, .militaryTrainingSpeedII, .militaryTrainingSpeedIII],
+                [.militaryRationsI, .militaryRationsII, .militaryRationsIII]
+            ]
+        case .meleeEquipment:
+            return [
+                [.infantryMeleeAttackI, .infantryMeleeAttackII, .infantryMeleeAttackIII],
+                [.cavalryMeleeAttackI, .cavalryMeleeAttackII, .cavalryMeleeAttackIII],
+                [.infantryMeleeArmorI, .infantryMeleeArmorII, .infantryMeleeArmorIII],
+                [.cavalryMeleeArmorI, .cavalryMeleeArmorII, .cavalryMeleeArmorIII]
+            ]
+        case .rangedEquipment:
+            return [
+                [.piercingDamageI, .piercingDamageII, .piercingDamageIII],
+                [.archerMeleeArmorI, .archerMeleeArmorII, .archerMeleeArmorIII],
+                [.infantryPierceArmorI, .infantryPierceArmorII, .infantryPierceArmorIII],
+                [.cavalryPierceArmorI, .cavalryPierceArmorII, .cavalryPierceArmorIII],
+                [.archerPierceArmorI, .archerPierceArmorII, .archerPierceArmorIII]
+            ]
+        case .siegeFortification:
+            return [
+                [.siegeBludgeonDamageI, .siegeBludgeonDamageII, .siegeBludgeonDamageIII],
+                [.buildingBludgeonArmorI, .buildingBludgeonArmorII, .buildingBludgeonArmorIII],
+                [.fortifiedBuildingsI, .fortifiedBuildingsII, .fortifiedBuildingsIII]
+            ]
+        }
+    }
+}
+
 // MARK: - Research Type
 
 enum ResearchType: String, CaseIterable, Codable {
@@ -808,13 +916,16 @@ enum ResearchType: String, CaseIterable, Codable {
     // MARK: - Prerequisites (other research required first)
     var prerequisites: [ResearchType] {
         switch self {
-        // Tier I - no prerequisites
+        // Economic Tier I - no prerequisites (except tradeSpeedI)
         case .farmGatheringI, .miningCampGatheringI, .lumberCampGatheringI,
-             .betterMarketRatesI, .villagerSpeedI, .tradeSpeedI,
+             .betterMarketRatesI, .villagerSpeedI,
              .improvedRoadsI, .populationCapacityI, .efficientRationsI, .buildingSpeedI:
             return []
 
-        // Tier II - requires Tier I of same type
+        // Trade Routes I requires Market Rates I (cross-dep)
+        case .tradeSpeedI: return [.betterMarketRatesI]
+
+        // Economic Tier II
         case .farmGatheringII: return [.farmGatheringI]
         case .miningCampGatheringII: return [.miningCampGatheringI]
         case .lumberCampGatheringII: return [.lumberCampGatheringI]
@@ -824,17 +935,17 @@ enum ResearchType: String, CaseIterable, Codable {
         case .improvedRoadsII: return [.improvedRoadsI]
         case .populationCapacityII: return [.populationCapacityI]
         case .efficientRationsII: return [.efficientRationsI]
-        case .buildingSpeedII: return [.buildingSpeedI]
+        case .buildingSpeedII: return [.buildingSpeedI, .lumberCampGatheringI]  // New: Construction II requires Lumber Efficiency I
 
-        // Tier III - requires Tier II of same type
+        // Economic Tier III
         case .farmGatheringIII: return [.farmGatheringII]
         case .miningCampGatheringIII: return [.miningCampGatheringII]
         case .lumberCampGatheringIII: return [.lumberCampGatheringII]
         case .betterMarketRatesIII: return [.betterMarketRatesII]
-        case .villagerSpeedIII: return [.villagerSpeedII]
+        case .villagerSpeedIII: return [.villagerSpeedII, .efficientRationsII]  // New: Villager Speed III requires Rations II
         case .tradeSpeedIII: return [.tradeSpeedII, .improvedRoadsII]  // Trade needs roads
         case .improvedRoadsIII: return [.improvedRoadsII]
-        case .populationCapacityIII: return [.populationCapacityII, .efficientRationsI]  // Need some rations research
+        case .populationCapacityIII: return [.populationCapacityII, .efficientRationsI]  // Existing cross-dep
         case .efficientRationsIII: return [.efficientRationsII]
         case .buildingSpeedIII: return [.buildingSpeedII]
 
@@ -848,25 +959,25 @@ enum ResearchType: String, CaseIterable, Codable {
              .militaryTrainingSpeedI, .militaryRationsI, .fortifiedBuildingsI:
             return []
 
-        // Military Tier II - requires Tier I of same type
+        // Military Tier II - with cross-dependencies
         case .marchSpeedII: return [.marchSpeedI]
-        case .retreatSpeedII: return [.retreatSpeedI]
+        case .retreatSpeedII: return [.retreatSpeedI, .marchSpeedI]  // New: Tactical Retreat II requires March Speed I
         case .infantryMeleeAttackII: return [.infantryMeleeAttackI]
         case .cavalryMeleeAttackII: return [.cavalryMeleeAttackI]
-        case .infantryMeleeArmorII: return [.infantryMeleeArmorI]
-        case .cavalryMeleeArmorII: return [.cavalryMeleeArmorI]
+        case .infantryMeleeArmorII: return [.infantryMeleeArmorI, .infantryMeleeAttackI]  // New: Infantry Shields II requires Infantry Weapons I
+        case .cavalryMeleeArmorII: return [.cavalryMeleeArmorI, .cavalryMeleeAttackI]  // New: Cavalry Barding II requires Cavalry Weapons I
         case .archerMeleeArmorII: return [.archerMeleeArmorI]
         case .piercingDamageII: return [.piercingDamageI]
-        case .infantryPierceArmorII: return [.infantryPierceArmorI]
-        case .cavalryPierceArmorII: return [.cavalryPierceArmorI]
-        case .archerPierceArmorII: return [.archerPierceArmorI]
-        case .siegeBludgeonDamageII: return [.siegeBludgeonDamageI]
-        case .buildingBludgeonArmorII: return [.buildingBludgeonArmorI]
+        case .infantryPierceArmorII: return [.infantryPierceArmorI, .infantryMeleeArmorI]  // New: Infantry Mail II requires Infantry Shields I
+        case .cavalryPierceArmorII: return [.cavalryPierceArmorI, .cavalryMeleeArmorI]  // New: Cavalry Mail II requires Cavalry Barding I
+        case .archerPierceArmorII: return [.archerPierceArmorI, .archerMeleeArmorI]  // New: Archer Mail II requires Archer Padding I
+        case .siegeBludgeonDamageII: return [.siegeBludgeonDamageI, .fortifiedBuildingsI]  // New: Siege Ammo II requires Fortifications I
+        case .buildingBludgeonArmorII: return [.buildingBludgeonArmorI, .fortifiedBuildingsI]  // New: Reinforced Walls II requires Fortifications I
         case .militaryTrainingSpeedII: return [.militaryTrainingSpeedI]
         case .militaryRationsII: return [.militaryRationsI]
         case .fortifiedBuildingsII: return [.fortifiedBuildingsI]
 
-        // Military Tier III - requires Tier II of same type
+        // Military Tier III - with cross-dependencies
         case .marchSpeedIII: return [.marchSpeedII]
         case .retreatSpeedIII: return [.retreatSpeedII]
         case .infantryMeleeAttackIII: return [.infantryMeleeAttackII]
@@ -881,7 +992,7 @@ enum ResearchType: String, CaseIterable, Codable {
         case .siegeBludgeonDamageIII: return [.siegeBludgeonDamageII]
         case .buildingBludgeonArmorIII: return [.buildingBludgeonArmorII]
         case .militaryTrainingSpeedIII: return [.militaryTrainingSpeedII]
-        case .militaryRationsIII: return [.militaryRationsII]
+        case .militaryRationsIII: return [.militaryRationsII, .militaryTrainingSpeedII]  // New: Field Rations III requires Military Drills II
         case .fortifiedBuildingsIII: return [.fortifiedBuildingsII]
         }
     }
@@ -939,10 +1050,13 @@ enum ResearchType: String, CaseIterable, Codable {
         }
     }
 
-    // MARK: - Building Requirement (legacy, kept for compatibility)
+    // MARK: - Building Requirement
     var buildingRequirement: (buildingType: BuildingType, level: Int)? {
-        // We now use cityCenterLevelRequirement instead
-        return nil
+        // Gated branches require their gate building for Tier II+
+        guard tier >= 2, let gateBuilding = branch.gateBuildingType else {
+            return nil
+        }
+        return (gateBuilding, 1)
     }
 
     // MARK: - Tier (for UI layout)
@@ -993,6 +1107,52 @@ enum ResearchType: String, CaseIterable, Codable {
         }
     }
 
+    // MARK: - Branch
+    var branch: ResearchBranch {
+        switch self {
+        // Gathering
+        case .farmGatheringI, .farmGatheringII, .farmGatheringIII,
+             .miningCampGatheringI, .miningCampGatheringII, .miningCampGatheringIII,
+             .lumberCampGatheringI, .lumberCampGatheringII, .lumberCampGatheringIII:
+            return .gathering
+        // Commerce
+        case .betterMarketRatesI, .betterMarketRatesII, .betterMarketRatesIII,
+             .improvedRoadsI, .improvedRoadsII, .improvedRoadsIII,
+             .tradeSpeedI, .tradeSpeedII, .tradeSpeedIII:
+            return .commerce
+        // Infrastructure
+        case .villagerSpeedI, .villagerSpeedII, .villagerSpeedIII,
+             .populationCapacityI, .populationCapacityII, .populationCapacityIII,
+             .efficientRationsI, .efficientRationsII, .efficientRationsIII,
+             .buildingSpeedI, .buildingSpeedII, .buildingSpeedIII:
+            return .infrastructure
+        // Logistics
+        case .marchSpeedI, .marchSpeedII, .marchSpeedIII,
+             .retreatSpeedI, .retreatSpeedII, .retreatSpeedIII,
+             .militaryTrainingSpeedI, .militaryTrainingSpeedII, .militaryTrainingSpeedIII,
+             .militaryRationsI, .militaryRationsII, .militaryRationsIII:
+            return .logistics
+        // Melee Equipment
+        case .infantryMeleeAttackI, .infantryMeleeAttackII, .infantryMeleeAttackIII,
+             .cavalryMeleeAttackI, .cavalryMeleeAttackII, .cavalryMeleeAttackIII,
+             .infantryMeleeArmorI, .infantryMeleeArmorII, .infantryMeleeArmorIII,
+             .cavalryMeleeArmorI, .cavalryMeleeArmorII, .cavalryMeleeArmorIII:
+            return .meleeEquipment
+        // Ranged Equipment
+        case .piercingDamageI, .piercingDamageII, .piercingDamageIII,
+             .archerMeleeArmorI, .archerMeleeArmorII, .archerMeleeArmorIII,
+             .infantryPierceArmorI, .infantryPierceArmorII, .infantryPierceArmorIII,
+             .cavalryPierceArmorI, .cavalryPierceArmorII, .cavalryPierceArmorIII,
+             .archerPierceArmorI, .archerPierceArmorII, .archerPierceArmorIII:
+            return .rangedEquipment
+        // Siege & Fortification
+        case .siegeBludgeonDamageI, .siegeBludgeonDamageII, .siegeBludgeonDamageIII,
+             .buildingBludgeonArmorI, .buildingBludgeonArmorII, .buildingBludgeonArmorIII,
+             .fortifiedBuildingsI, .fortifiedBuildingsII, .fortifiedBuildingsIII:
+            return .siegeFortification
+        }
+    }
+
     // MARK: - Format Helpers
 
     var costString: String {
@@ -1037,17 +1197,19 @@ struct ActiveResearch: Codable {
         self.startTime = startTime
     }
     
-    func getProgress(currentTime: TimeInterval = Date().timeIntervalSince1970) -> Double {
+    func getProgress(currentTime: TimeInterval = Date().timeIntervalSince1970, speedMultiplier: Double = 1.0) -> Double {
         let elapsed = currentTime - startTime
-        return min(1.0, max(0.0, elapsed / researchType.researchTime))
+        let effectiveTime = researchType.researchTime / max(speedMultiplier, 0.1)
+        return min(1.0, max(0.0, elapsed / effectiveTime))
     }
-    
-    func getRemainingTime(currentTime: TimeInterval = Date().timeIntervalSince1970) -> TimeInterval {
+
+    func getRemainingTime(currentTime: TimeInterval = Date().timeIntervalSince1970, speedMultiplier: Double = 1.0) -> TimeInterval {
         let elapsed = currentTime - startTime
-        return max(0, researchType.researchTime - elapsed)
+        let effectiveTime = researchType.researchTime / max(speedMultiplier, 0.1)
+        return max(0, effectiveTime - elapsed)
     }
-    
-    func isComplete(currentTime: TimeInterval = Date().timeIntervalSince1970) -> Bool {
-        return getProgress(currentTime: currentTime) >= 1.0
+
+    func isComplete(currentTime: TimeInterval = Date().timeIntervalSince1970, speedMultiplier: Double = 1.0) -> Bool {
+        return getProgress(currentTime: currentTime, speedMultiplier: speedMultiplier) >= 1.0
     }
 }

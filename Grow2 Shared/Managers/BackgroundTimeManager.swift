@@ -61,11 +61,12 @@ class BackgroundTimeManager {
         let manager = ResearchManager.shared
         
         if let active = manager.activeResearch {
-            if active.isComplete(currentTime: currentTime) {
+            let speedMultiplier = manager.getResearchSpeedMultiplier()
+            if active.isComplete(currentTime: currentTime, speedMultiplier: speedMultiplier) {
                 manager.completeResearch(active.researchType)
                 debugLog("  ✅ Research completed: \(active.researchType.displayName)")
             } else {
-                let progress = Int(active.getProgress(currentTime: currentTime) * 100)
+                let progress = Int(active.getProgress(currentTime: currentTime, speedMultiplier: speedMultiplier) * 100)
                 debugLog("  🔬 \(active.researchType.displayName): \(progress)% complete")
             }
         } else {
@@ -111,16 +112,21 @@ class BackgroundTimeManager {
         var completedBuildings: [BuildingNode] = []
         
         for building in hexMap.buildings where building.state == .constructing {
-            guard let startTime = building.constructionStartTime else { continue }
-            
-            let totalElapsed = currentTime - startTime
-            let buildSpeedMultiplier = 1.0 + (Double(building.buildersAssigned - 1) * 0.5)
-            let effectiveBuildTime = building.buildingType.buildTime / buildSpeedMultiplier
-            
-            let newProgress = min(1.0, totalElapsed / effectiveBuildTime)
-            building.constructionProgress = newProgress
-            
-            if newProgress >= 1.0 {
+            guard building.buildersAssigned > 0 else { continue }  // stalled
+
+            // Use the incremental HP model to catch up elapsed time
+            let lastUpdate = building.lastConstructionUpdateTime ?? building.constructionStartTime ?? currentTime
+            let delta = currentTime - lastUpdate
+            guard delta > 0 else { continue }
+
+            let baseHPRate = building.maxHealth / building.buildingType.buildTime
+            let effective = GameConfig.Construction.effectiveBuilders(count: building.buildersAssigned)
+            let hpGain = baseHPRate * effective * delta
+            building.constructionHP = min(building.maxHealth, building.constructionHP + hpGain)
+            building.constructionProgress = building.constructionHP / building.maxHealth
+            building.lastConstructionUpdateTime = currentTime
+
+            if building.constructionHP >= building.maxHealth {
                 building.completeConstruction()
                 completedBuildings.append(building)
                 debugLog("  ✅ \(building.buildingType.displayName) completed!")
