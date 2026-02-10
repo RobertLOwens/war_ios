@@ -240,8 +240,10 @@ class ResourceEngine {
         let adjacencyMultiplier = calculateAdjacencyBonus(resourceType: resourceType, coordinate: resourceCoordinate, state: state)
         rate *= adjacencyMultiplier
 
-        // Apply research bonuses (would come from ResearchManager in full implementation)
-        // For now, return base rate with adjacency
+        // Apply camp/farm level bonus
+        let campLevelMultiplier = calculateCampLevelBonus(resourceType: resourceType, coordinate: resourceCoordinate, state: state)
+        rate *= campLevelMultiplier
+
         return rate
     }
 
@@ -277,6 +279,37 @@ class ResourceEngine {
         }
 
         return multiplier
+    }
+
+    private func calculateCampLevelBonus(resourceType: ResourcePointTypeData, coordinate: HexCoordinate, state: GameState) -> Double {
+        // Determine which building type boosts this resource
+        let matchingType: BuildingType
+        switch resourceType {
+        case .farmland:
+            matchingType = .farm
+        case .trees:
+            matchingType = .lumberCamp
+        case .oreMine, .stoneQuarry:
+            matchingType = .miningCamp
+        default:
+            return 1.0
+        }
+
+        // Check the tile itself and all neighbors for the highest-level matching building
+        let tilesToCheck = [coordinate] + coordinate.neighbors()
+        var highestLevel = 0
+
+        for coord in tilesToCheck {
+            if let building = state.getBuilding(at: coord),
+               building.buildingType == matchingType,
+               building.isOperational,
+               building.level > highestLevel {
+                highestLevel = building.level
+            }
+        }
+
+        guard highestLevel > 1 else { return 1.0 }
+        return 1.0 + Double(highestLevel - 1) * GameConfig.Resources.campLevelBonusPerLevel
     }
 
     // MARK: - Gathering Assignment Management

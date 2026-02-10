@@ -27,6 +27,8 @@ class BuildingData: Codable {
     var constructionProgress: Double = 0.0
     var constructionStartTime: TimeInterval?
     var buildersAssigned: Int = 0
+    var constructionHP: Double = 0.0
+    var lastConstructionUpdateTime: TimeInterval?
     
     // MARK: - Upgrade
     var upgradeProgress: Double = 0.0
@@ -102,6 +104,7 @@ class BuildingData: Codable {
         case id, buildingType, coordinate, ownerID, rotation
         case state, level, health, maxHealth
         case constructionProgress, constructionStartTime, buildersAssigned
+        case constructionHP, lastConstructionUpdateTime
         case upgradeProgress, upgradeStartTime
         case demolitionProgress, demolitionStartTime, demolishersAssigned
         case garrison, villagerGarrison
@@ -125,6 +128,8 @@ class BuildingData: Codable {
         constructionProgress = try container.decode(Double.self, forKey: .constructionProgress)
         constructionStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .constructionStartTime)
         buildersAssigned = try container.decode(Int.self, forKey: .buildersAssigned)
+        constructionHP = try container.decodeIfPresent(Double.self, forKey: .constructionHP) ?? 0.0
+        lastConstructionUpdateTime = try container.decodeIfPresent(TimeInterval.self, forKey: .lastConstructionUpdateTime)
         
         upgradeProgress = try container.decode(Double.self, forKey: .upgradeProgress)
         upgradeStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .upgradeStartTime)
@@ -157,6 +162,8 @@ class BuildingData: Codable {
         try container.encode(constructionProgress, forKey: .constructionProgress)
         try container.encodeIfPresent(constructionStartTime, forKey: .constructionStartTime)
         try container.encode(buildersAssigned, forKey: .buildersAssigned)
+        try container.encode(constructionHP, forKey: .constructionHP)
+        try container.encodeIfPresent(lastConstructionUpdateTime, forKey: .lastConstructionUpdateTime)
         
         try container.encode(upgradeProgress, forKey: .upgradeProgress)
         try container.encodeIfPresent(upgradeStartTime, forKey: .upgradeStartTime)
@@ -179,18 +186,27 @@ class BuildingData: Codable {
         constructionStartTime = Date().timeIntervalSince1970
         buildersAssigned = max(1, builders)
         constructionProgress = 0.0
+        constructionHP = 0.0
+        lastConstructionUpdateTime = constructionStartTime
     }
     
-    /// Updates construction and returns true if construction completed this frame
+    /// Updates construction and returns true if construction completed this frame.
+    /// Uses incremental HP accumulation so builder count can change mid-build.
     func updateConstruction(currentTime: TimeInterval) -> Bool {
-        guard state == .constructing, let startTime = constructionStartTime else { return false }
-        
-        let elapsed = currentTime - startTime
-        let buildSpeedMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
-        let effectiveBuildTime = buildingType.buildTime / buildSpeedMultiplier
-        
-        constructionProgress = min(1.0, elapsed / effectiveBuildTime)
-        
+        guard state == .constructing else { return false }
+        guard buildersAssigned > 0 else { return false }  // 0 builders = stalled
+
+        let lastUpdate = lastConstructionUpdateTime ?? constructionStartTime ?? currentTime
+        let delta = currentTime - lastUpdate
+        guard delta > 0 else { return false }
+
+        let baseHPRate = maxHealth / buildingType.buildTime
+        let effective = GameConfig.Construction.effectiveBuilders(count: buildersAssigned)
+        let hpGain = baseHPRate * effective * delta
+        constructionHP = min(maxHealth, constructionHP + hpGain)
+        constructionProgress = constructionHP / maxHealth
+        lastConstructionUpdateTime = currentTime
+
         if constructionProgress >= 1.0 {
             completeConstruction()
             return true
@@ -209,6 +225,7 @@ class BuildingData: Codable {
 
         health = maxHealth
         constructionStartTime = nil
+        lastConstructionUpdateTime = nil
     }
 
     /// Applies the building HP research bonus to maxHealth
@@ -243,13 +260,16 @@ class BuildingData: Codable {
     }
     
     func getRemainingConstructionTime(currentTime: TimeInterval) -> TimeInterval? {
-        guard state == .constructing, let startTime = constructionStartTime else { return nil }
-        
-        let elapsed = currentTime - startTime
-        let buildSpeedMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
-        let effectiveBuildTime = buildingType.buildTime / buildSpeedMultiplier
-        
-        return max(0, effectiveBuildTime - elapsed)
+        guard state == .constructing else { return nil }
+        guard buildersAssigned > 0 else { return nil }  // stalled, no ETA
+
+        let remainingHP = maxHealth - constructionHP
+        let baseHPRate = maxHealth / buildingType.buildTime
+        let effective = GameConfig.Construction.effectiveBuilders(count: buildersAssigned)
+        let currentRate = baseHPRate * effective
+        guard currentRate > 0 else { return nil }
+
+        return max(0, remainingHP / currentRate)
     }
     
     // MARK: - Upgrade Logic
@@ -383,7 +403,14 @@ class BuildingData: Codable {
     }
 
     // MARK: - Training Logic
-    
+
+    /// Returns the training speed multiplier based on building level for military production buildings.
+    /// Level 1 = 1.0x, Level 2 = 1.1x, Level 3 = 1.2x, etc.
+    func getTrainingSpeedMultiplier() -> Double {
+        guard buildingType.category == .military else { return 1.0 }
+        return 1.0 + Double(level - 1) * GameConfig.Training.buildingLevelSpeedBonusPerLevel
+    }
+
     func canTrain(_ unitType: MilitaryUnitType) -> Bool {
         guard state == .completed else { return false }
         return unitType.trainingBuilding == buildingType
@@ -413,8 +440,11 @@ class BuildingData: Codable {
         var completed: [TrainingQueueEntry] = []
         var completedIndices: [Int] = []
         
+        let buildingSpeedMultiplier = getTrainingSpeedMultiplier()
         for (index, entry) in trainingQueue.enumerated() {
-            let progress = entry.getProgress(currentTime: currentTime)
+            let researchMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+            let combinedMultiplier = researchMultiplier * buildingSpeedMultiplier
+            let progress = entry.getProgress(currentTime: currentTime, trainingSpeedMultiplier: combinedMultiplier)
             trainingQueue[index].progress = progress
             
             if progress >= 1.0 {

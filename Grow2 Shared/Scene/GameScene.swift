@@ -1724,17 +1724,13 @@ class GameScene: SKScene, BuildingPlacementDelegate, ReinforcementManagerDelegat
         case .constructing:
             let progress = Int(building.constructionProgress * 100)
             message += "Status: Under Construction (\(progress)%)\n"
-            if let startTime = building.constructionStartTime {
-                let currentTime = Date().timeIntervalSince1970
-                let elapsed = currentTime - startTime
-                let buildSpeedMultiplier = 1.0 + (Double(building.buildersAssigned - 1) * 0.5)
-                let effectiveBuildTime = building.buildingType.buildTime / buildSpeedMultiplier
-                let remaining = max(0, effectiveBuildTime - elapsed)
+            let currentTime = Date().timeIntervalSince1970
+            if let remaining = building.data.getRemainingConstructionTime(currentTime: currentTime) {
                 let minutes = Int(remaining) / 60
                 let seconds = Int(remaining) % 60
                 message += "Time Remaining: \(minutes)m \(seconds)s\n"
-                message += "Builders: \(building.buildersAssigned)\n"
             }
+            message += "Builders: \(building.buildersAssigned)\n"
         case .completed:
             message += "Status: Completed ✓\n"
             message += "Health: \(building.health)/\(building.maxHealth)\n"

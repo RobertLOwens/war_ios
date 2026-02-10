@@ -465,10 +465,13 @@ class BuildingDetailViewController: UIViewController {
     func getQueueDisplayText() -> String {
         var text = ""
         let currentTime = Date().timeIntervalSince1970
-        
+        let researchMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+        let buildingMultiplier = building.data.getTrainingSpeedMultiplier()
+        let combinedMultiplier = researchMultiplier * buildingMultiplier
+
         // Military training queue
         for entry in building.trainingQueue {
-            let progress = entry.getProgress(currentTime: currentTime)
+            let progress = entry.getProgress(currentTime: currentTime, trainingSpeedMultiplier: combinedMultiplier)
             let progressPercent = Int(progress * 100)
             text += "\(entry.unitType.icon) \(entry.quantity)x \(entry.unitType.displayName) - \(progressPercent)%\n"
         }

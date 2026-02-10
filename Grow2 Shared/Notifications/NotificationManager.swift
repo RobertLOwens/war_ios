@@ -519,11 +519,7 @@ class NotificationManager {
         for building in gameState.buildings.values {
             guard building.ownerID == localPlayerID,
                   building.state == .constructing,
-                  let startTime = building.constructionStartTime else { continue }
-
-            let buildSpeedMultiplier = 1.0 + (Double(building.buildersAssigned - 1) * 0.5)
-            let totalTime = building.buildingType.buildTime / buildSpeedMultiplier
-            let delay = (startTime + totalTime) - now
+                  let delay = building.getRemainingConstructionTime(currentTime: now) else { continue }
             if delay > 1 {
                 scheduleDelayedNotification(
                     body: "🏗️ \(building.buildingType.displayName) construction complete",

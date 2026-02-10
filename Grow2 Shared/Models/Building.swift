@@ -493,6 +493,14 @@ class BuildingNode: SKSpriteNode {
         get { data.buildersAssigned }
         set { data.buildersAssigned = newValue }
     }
+    var constructionHP: Double {
+        get { data.constructionHP }
+        set { data.constructionHP = newValue }
+    }
+    var lastConstructionUpdateTime: TimeInterval? {
+        get { data.lastConstructionUpdateTime }
+        set { data.lastConstructionUpdateTime = newValue }
+    }
     var upgradeProgress: Double {
         get { data.upgradeProgress }
         set { data.upgradeProgress = newValue }
@@ -1595,26 +1603,32 @@ class BuildingNode: SKSpriteNode {
             return
         }
 
-        guard let startTime = constructionStartTime else { return }
+        guard buildersAssigned > 0 else { return }  // stalled with 0 builders
 
         let currentTime = Date().timeIntervalSince1970
-        let elapsed = currentTime - startTime
+        let lastUpdate = lastConstructionUpdateTime ?? constructionStartTime ?? currentTime
+        let delta = currentTime - lastUpdate
+        guard delta > 0 else { return }
 
-        // Builder bonus + Research bonus
-        let builderMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
+        // Builder bonus (diminishing returns) + Research bonus
+        let effective = GameConfig.Construction.effectiveBuilders(count: buildersAssigned)
         let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
-        let totalSpeedMultiplier = builderMultiplier * researchMultiplier
-        let effectiveBuildTime = buildingType.buildTime / totalSpeedMultiplier
-        let remaining = max(0, effectiveBuildTime - elapsed)
+        let baseHPRate = maxHealth / buildingType.buildTime
+        let hpGain = baseHPRate * effective * researchMultiplier * delta
+        constructionHP = min(maxHealth, constructionHP + hpGain)
+        lastConstructionUpdateTime = currentTime
 
-        // Update progress (without triggering didSet)
-        let newProgress = min(1.0, max(0.0, elapsed / effectiveBuildTime))
+        let newProgress = constructionHP / maxHealth
         if abs(constructionProgress - newProgress) > 0.01 {
             constructionProgress = newProgress
         }
 
+        // Compute remaining time for display
+        let currentRate = baseHPRate * effective * researchMultiplier
+        let remaining = currentRate > 0 ? (maxHealth - constructionHP) / currentRate : Double.infinity
+
         // Check if construction is complete
-        if remaining <= 0 {
+        if constructionHP >= maxHealth {
             completeConstruction()
             return
         }
@@ -1703,28 +1717,30 @@ class BuildingNode: SKSpriteNode {
     }
 
     func updateConstruction() {
-        guard state == .constructing, let startTime = constructionStartTime else { return }
+        guard state == .constructing else { return }
+        guard buildersAssigned > 0 else { return }  // stalled with 0 builders
 
         let currentTime = Date().timeIntervalSince1970
-        let elapsed = currentTime - startTime
+        let lastUpdate = lastConstructionUpdateTime ?? constructionStartTime ?? currentTime
+        let delta = currentTime - lastUpdate
+        guard delta > 0 else { return }
 
-        // Builder bonus + Research bonus
-        let builderMultiplier = 1.0 + (Double(buildersAssigned - 1) * 0.5)
+        // Builder bonus (diminishing returns) + Research bonus
+        let effective = GameConfig.Construction.effectiveBuilders(count: buildersAssigned)
         let researchMultiplier = ResearchManager.shared.getBuildingSpeedMultiplier()
-        let totalSpeedMultiplier = builderMultiplier * researchMultiplier
-        let effectiveBuildTime = buildingType.buildTime / totalSpeedMultiplier
+        let baseHPRate = maxHealth / buildingType.buildTime
+        let hpGain = baseHPRate * effective * researchMultiplier * delta
+        constructionHP = min(maxHealth, constructionHP + hpGain)
+        lastConstructionUpdateTime = currentTime
 
-        constructionProgress = min(1.0, elapsed / effectiveBuildTime)
+        constructionProgress = constructionHP / maxHealth
 
-        // Add debug logging
         debugLog("Building: \(buildingType.displayName)")
-        debugLog("  Start time: \(startTime)")
-        debugLog("  Current time: \(currentTime)")
-        debugLog("  Elapsed: \(elapsed)s")
-        debugLog("  Effective build time: \(effectiveBuildTime)s")
+        debugLog("  HP: \(constructionHP)/\(maxHealth)")
+        debugLog("  Builders: \(buildersAssigned) (effective: \(String(format: "%.2f", effective)))")
         debugLog("  Progress: \(constructionProgress * 100)%")
 
-        if constructionProgress >= 1.0 {
+        if constructionHP >= maxHealth {
             completeConstruction()
         }
     }

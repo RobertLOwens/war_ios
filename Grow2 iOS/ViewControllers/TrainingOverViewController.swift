@@ -184,10 +184,11 @@ class TrainingBuildingCell: UITableViewCell {
 
     // MARK: - Time Calculation Helpers
 
-    func getRemainingTime(for entry: TrainingQueueEntryData, currentTime: TimeInterval) -> TimeInterval {
+    func getRemainingTime(for entry: TrainingQueueEntryData, currentTime: TimeInterval, trainingSpeedMultiplier: Double = 1.0) -> TimeInterval {
         let baseTime = entry.unitType.trainingTime * Double(entry.quantity)
+        let totalTime = baseTime / trainingSpeedMultiplier
         let elapsed = currentTime - entry.startTime
-        return max(0, baseTime - elapsed)
+        return max(0, totalTime - elapsed)
     }
 
     func getRemainingTime(for entry: VillagerTrainingEntryData, currentTime: TimeInterval) -> TimeInterval {
@@ -204,8 +205,11 @@ class TrainingBuildingCell: UITableViewCell {
 
     func calculateTotalRemaining(_ building: BuildingNode, currentTime: TimeInterval) -> TimeInterval {
         var total: TimeInterval = 0
+        let researchMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+        let buildingMultiplier = building.data.getTrainingSpeedMultiplier()
+        let combinedMultiplier = researchMultiplier * buildingMultiplier
         for entry in building.trainingQueue {
-            total += getRemainingTime(for: entry, currentTime: currentTime)
+            total += getRemainingTime(for: entry, currentTime: currentTime, trainingSpeedMultiplier: combinedMultiplier)
         }
         for entry in building.villagerTrainingQueue {
             total += getRemainingTime(for: entry, currentTime: currentTime)
@@ -303,9 +307,12 @@ class TrainingBuildingCell: UITableViewCell {
         let currentTime = Date().timeIntervalSince1970
 
         // Process military queue
+        let researchMultiplier = ResearchManager.shared.getMilitaryTrainingSpeedMultiplier()
+        let buildingMultiplier = building.data.getTrainingSpeedMultiplier()
+        let combinedMultiplier = researchMultiplier * buildingMultiplier
         for (index, entry) in building.trainingQueue.enumerated() {
-            let progress = entry.getProgress(currentTime: currentTime)
-            let remaining = getRemainingTime(for: entry, currentTime: currentTime)
+            let progress = entry.getProgress(currentTime: currentTime, trainingSpeedMultiplier: combinedMultiplier)
+            let remaining = getRemainingTime(for: entry, currentTime: currentTime, trainingSpeedMultiplier: combinedMultiplier)
             addQueueItemView(
                 index: index + 1,
                 icon: entry.unitType.icon,

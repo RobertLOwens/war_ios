@@ -46,6 +46,7 @@ enum GameConfig {
     enum Resources {
         static let baseGatherRatePerVillager: Double = 0.2  // Resources/sec/villager
         static let adjacencyBonusPercent: Double = 0.25     // 25% adjacency bonus
+        static let campLevelBonusPerLevel: Double = 0.10    // +10% gather rate per building level above 1
     }
 
     // MARK: - Terrain
@@ -74,6 +75,7 @@ enum GameConfig {
 
     enum Training {
         static let villagerTrainingTime: TimeInterval = 10.0  // Seconds per villager
+        static let buildingLevelSpeedBonusPerLevel: Double = 0.10  // +10% training speed per building level above 1
     }
 
     // MARK: - Vision

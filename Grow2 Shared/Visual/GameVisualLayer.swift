@@ -306,6 +306,44 @@ class GameVisualLayer {
         buildingNode.updateAppearance()
         buildingNode.removeConstructionBar()
         buildingNode.setupHealthBar()
+
+        // Release builder entity (visual layer counterpart of engine's releaseBuilders)
+        if let builder = buildingNode.builderEntity {
+            let buildingType = buildingNode.data.buildingType
+
+            if buildingType == .farm || buildingType == .miningCamp || buildingType == .lumberCamp {
+                // Farm/camp villagers start gathering — post completion notification
+                debugLog("✅ \(buildingType.displayName) completed - villagers will start gathering")
+            } else {
+                builder.isMoving = false
+                if let villagerGroup = builder.entity as? VillagerGroup {
+                    villagerGroup.clearTask()
+                    debugLog("✅ Villagers unlocked and available for new tasks")
+                }
+            }
+
+            // Post farm completion notification for auto-gathering
+            if buildingType == .farm {
+                var userInfo: [String: Any] = ["coordinate": buildingNode.data.coordinate]
+                userInfo["builder"] = builder
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("FarmCompletedNotification"),
+                    object: buildingNode,
+                    userInfo: userInfo
+                )
+            }
+
+            // Post camp completion notification for auto-gathering
+            if buildingType == .miningCamp || buildingType == .lumberCamp {
+                var userInfo: [String: Any] = ["coordinate": buildingNode.data.coordinate, "campType": buildingType]
+                userInfo["builder"] = builder
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("CampCompletedNotification"),
+                    object: buildingNode,
+                    userInfo: userInfo
+                )
+            }
+        }
     }
 
     private func handleBuildingUpgradeStarted(buildingID: UUID, toLevel: Int) {

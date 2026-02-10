@@ -124,12 +124,14 @@ struct BuildCommand: GameCommand {
 
         // Check if builder is already at the location
         var builderAtLocation = false
+        var villagerCount = 1
 
         // Assign builder if provided
         if let builderID = builderEntityID,
            let builderEntity = context.getEntity(by: builderID),
            let villagers = builderEntity.entity as? VillagerGroup {
             building.builderEntity = builderEntity
+            villagerCount = villagers.villagerCount
             villagers.assignTask(.building(building), target: coordinate)
 
             // Check if villager is already at the build site (must be ON the tile, not adjacent)
@@ -142,12 +144,13 @@ struct BuildCommand: GameCommand {
                 builderEntity.isMoving = true
 
                 // Move the entity to the build site
+                let builderCount = villagerCount
                 if let path = context.hexMap.findPath(from: builderEntity.coordinate, to: coordinate, for: builderEntity.entity.owner) {
                     builderEntity.moveTo(path: path) {
                         // When movement completes, start construction
                         if building.state == .planning {
-                            building.startConstruction()
-                            debugLog("🏗️ Builder arrived, starting construction of \(building.buildingType.displayName)")
+                            building.startConstruction(builders: builderCount)
+                            debugLog("🏗️ Builder arrived (\(builderCount) villagers), starting construction of \(building.buildingType.displayName)")
                         }
                     }
                 } else {
@@ -162,7 +165,7 @@ struct BuildCommand: GameCommand {
 
         // Only start construction if builder is at location or no builder needed
         if builderAtLocation {
-            building.startConstruction()
+            building.startConstruction(builders: villagerCount)
         } else {
             // Set to planning state - construction will start when builder arrives
             building.data.state = .planning
