@@ -361,10 +361,7 @@ class GameVisualLayer {
 
     private func handleBuildingUpgradeCompleted(buildingID: UUID, newLevel: Int) {
         guard let buildingNode = buildingNodes[buildingID] else { return }
-        buildingNode.data.level = newLevel
-        buildingNode.data.state = .completed
-        buildingNode.updateAppearance()
-        buildingNode.removeUpgradeBar()
+        buildingNode.completeUpgrade()
     }
 
     private func handleBuildingDemolitionStarted(buildingID: UUID) {

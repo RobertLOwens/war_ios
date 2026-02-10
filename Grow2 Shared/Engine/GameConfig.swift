@@ -47,6 +47,7 @@ enum GameConfig {
         static let baseGatherRatePerVillager: Double = 0.2  // Resources/sec/villager
         static let adjacencyBonusPercent: Double = 0.25     // 25% adjacency bonus
         static let campLevelBonusPerLevel: Double = 0.10    // +10% gather rate per building level above 1
+        static let farmWoodConsumptionRate: Double = 0.1    // Wood consumed per second per active farm gathering
     }
 
     // MARK: - Terrain

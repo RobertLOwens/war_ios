@@ -159,7 +159,7 @@ class PlayerState: Codable {
     }
 
     func setCollectionRate(_ type: ResourceTypeData, rate: Double) {
-        collectionRates[type] = max(0, rate)
+        collectionRates[type] = rate
     }
 
     func addResource(_ type: ResourceTypeData, amount: Int, storageCapacity: Int) -> Int {

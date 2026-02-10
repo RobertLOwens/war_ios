@@ -11,6 +11,7 @@ struct GatheringAssignment {
     let villagerGroupID: UUID
     let resourcePointID: UUID
     var accumulator: Double = 0.0
+    var woodConsumptionAccumulator: Double = 0.0
 }
 
 // MARK: - Resource Engine
@@ -143,6 +144,32 @@ class ResourceEngine {
             guard let ownerID = group.ownerID,
                   let player = state.getPlayer(id: ownerID) else {
                 continue
+            }
+
+            // Farm wood consumption: farms require wood to operate
+            if resourcePoint.resourceType == .farmland {
+                let woodRate = GameConfig.Resources.farmWoodConsumptionRate
+                assignment.woodConsumptionAccumulator += woodRate * deltaTime
+
+                let woodToConsume = Int(assignment.woodConsumptionAccumulator)
+                if woodToConsume > 0 {
+                    let availableWood = player.getResource(.wood)
+                    if availableWood <= 0 {
+                        // No wood — pause farming
+                        gatheringAssignments[groupID] = assignment
+                        continue
+                    }
+                    let consumed = min(woodToConsume, availableWood)
+                    _ = player.removeResource(.wood, amount: consumed)
+                    assignment.woodConsumptionAccumulator -= Double(consumed)
+
+                    changes.append(.resourcesChanged(
+                        playerID: player.id,
+                        resourceType: ResourceTypeData.wood.rawValue,
+                        oldAmount: availableWood,
+                        newAmount: player.getResource(.wood)
+                    ))
+                }
             }
 
             // Calculate gather rate
@@ -426,6 +453,13 @@ class ResourceEngine {
 
             let yieldType = resourcePoint.resourceType.resourceYield
             player.increaseCollectionRate(yieldType, amount: rate)
+
+            // Farm wood consumption shows as negative wood rate
+            if resourcePoint.resourceType == .farmland {
+                let woodDrain = GameConfig.Resources.farmWoodConsumptionRate
+                let currentWoodRate = player.getCollectionRate(.wood)
+                player.setCollectionRate(.wood, rate: currentWoodRate - woodDrain)
+            }
         }
     }
 }

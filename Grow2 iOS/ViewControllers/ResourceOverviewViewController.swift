@@ -134,8 +134,9 @@ class ResourceOverviewViewController: UIViewController {
 
         // Collection rate
         let rateLabel = UILabel()
-        let rateColor: UIColor = rate > 0 ? .systemGreen : UIColor(white: 0.5, alpha: 1.0)
-        rateLabel.text = "Collection Rate: \(String(format: "%.1f", rate))/sec"
+        let rateColor: UIColor = rate > 0 ? .systemGreen : (rate < 0 ? .systemRed : UIColor(white: 0.5, alpha: 1.0))
+        let rateSign = rate >= 0 ? "" : ""
+        rateLabel.text = "Collection Rate: \(rateSign)\(String(format: "%.1f", rate))/sec"
         rateLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
         rateLabel.textColor = rateColor
         rateLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 22)
@@ -245,6 +246,18 @@ class ResourceOverviewViewController: UIViewController {
                     cardHeight += 18
                 }
 
+                // Building level bonus (Orange) - if applicable
+                if detail.campLevelMultiplier > 1.0 {
+                    let levelPercent = Int((detail.campLevelMultiplier - 1.0) * 100)
+                    let levelLabel = UILabel()
+                    levelLabel.text = "   Building Level: +\(levelPercent)%"
+                    levelLabel.font = UIFont.systemFont(ofSize: 13)
+                    levelLabel.textColor = .systemOrange
+                    levelLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 16)
+                    card.addSubview(levelLabel)
+                    cardHeight += 18
+                }
+
                 // Final Rate (Green)
                 let finalRateLabel = UILabel()
                 finalRateLabel.text = "   Final Rate: \(String(format: "%.2f", detail.finalRate))/s"
@@ -316,6 +329,35 @@ class ResourceOverviewViewController: UIViewController {
             cardHeight += 20
         }
 
+        // Farm wood upkeep (show on wood card)
+        if resourceType == .wood {
+            let activeFarmCount = getActiveFarmGatheringCount()
+            if activeFarmCount > 0 {
+                let totalDrain = Double(activeFarmCount) * GameConfig.Resources.farmWoodConsumptionRate
+                let separator3 = UIView()
+                separator3.backgroundColor = UIColor(white: 0.35, alpha: 1.0)
+                separator3.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 1)
+                card.addSubview(separator3)
+                cardHeight += 12
+
+                let upkeepTitle = UILabel()
+                upkeepTitle.text = "Farm Upkeep"
+                upkeepTitle.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+                upkeepTitle.textColor = UIColor(white: 0.7, alpha: 1.0)
+                upkeepTitle.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
+                card.addSubview(upkeepTitle)
+                cardHeight += 22
+
+                let upkeepLabel = UILabel()
+                upkeepLabel.text = "🌾 \(activeFarmCount) active farm\(activeFarmCount == 1 ? "" : "s"): -\(String(format: "%.1f", totalDrain))/s"
+                upkeepLabel.font = UIFont.systemFont(ofSize: 13)
+                upkeepLabel.textColor = .systemRed
+                upkeepLabel.frame = CGRect(x: 16, y: cardHeight, width: cardWidth - 32, height: 18)
+                card.addSubview(upkeepLabel)
+                cardHeight += 20
+            }
+        }
+
         cardHeight += 16
 
         // Set card constraints
@@ -331,6 +373,18 @@ class ResourceOverviewViewController: UIViewController {
 
     // MARK: - Data Collection
 
+    func getActiveFarmGatheringCount() -> Int {
+        var count = 0
+        for group in player.getVillagerGroups() {
+            if case .gatheringResource(let resourcePoint) = group.currentTask {
+                if resourcePoint.resourceType == .farmland {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+
     struct GatheringData {
         var groupCount: Int = 0
         var totalVillagers: Int = 0
@@ -342,7 +396,8 @@ class ResourceOverviewViewController: UIViewController {
         let baseRate: Double              // resourceType.baseGatherRate + (villagerCount * 0.2)
         let adjacencyMultiplier: Double   // 1.0 + sum of adjacency bonuses
         let researchMultiplier: Double    // from ResearchManager
-        let finalRate: Double             // baseRate * adjacencyMultiplier * researchMultiplier
+        let campLevelMultiplier: Double   // building level bonus (e.g., farm Lv.2 = +10%)
+        let finalRate: Double             // baseRate * adjacencyMultiplier * researchMultiplier * campLevelMultiplier
         let adjacencySources: [String]    // e.g., "Warehouse at (3,4): +25%"
     }
 
@@ -459,8 +514,11 @@ class ResourceOverviewViewController: UIViewController {
         // Get research multiplier based on resource type
         let researchMultiplier = getResearchMultiplier(for: resourcePoint.resourceType)
 
-        // Final rate = baseRate * adjacencyMultiplier * researchMultiplier
-        let finalRate = baseRate * adjacencyMultiplier * researchMultiplier
+        // Calculate camp/farm level bonus (mirrors ResourceEngine.calculateCampLevelBonus)
+        let campLevelMultiplier = calculateCampLevelBonus(for: resourcePoint)
+
+        // Final rate = baseRate * adjacencyMultiplier * researchMultiplier * campLevelMultiplier
+        let finalRate = baseRate * adjacencyMultiplier * researchMultiplier * campLevelMultiplier
 
         return VillagerGroupGatherDetails(
             group: group,
@@ -468,9 +526,40 @@ class ResourceOverviewViewController: UIViewController {
             baseRate: baseRate,
             adjacencyMultiplier: adjacencyMultiplier,
             researchMultiplier: researchMultiplier,
+            campLevelMultiplier: campLevelMultiplier,
             finalRate: finalRate,
             adjacencySources: adjacencySources
         )
+    }
+
+    func calculateCampLevelBonus(for resourcePoint: ResourcePointNode) -> Double {
+        // Determine which building type boosts this resource
+        let matchingType: BuildingType
+        switch resourcePoint.resourceType {
+        case .farmland:
+            matchingType = .farm
+        case .trees:
+            matchingType = .lumberCamp
+        case .oreMine, .stoneQuarry:
+            matchingType = .miningCamp
+        default:
+            return 1.0
+        }
+
+        // Check the tile itself and all neighbors for the highest-level matching building
+        let tilesToCheck = [resourcePoint.coordinate] + resourcePoint.coordinate.neighbors()
+        var highestLevel = 0
+
+        for coord in tilesToCheck {
+            if let building = hexMap.buildings.first(where: {
+                $0.coordinate == coord && $0.buildingType == matchingType && $0.isOperational && $0.level > highestLevel
+            }) {
+                highestLevel = building.level
+            }
+        }
+
+        guard highestLevel > 1 else { return 1.0 }
+        return 1.0 + Double(highestLevel - 1) * GameConfig.Resources.campLevelBonusPerLevel
     }
 
     func calculateResourcePointAdjacency(resourcePoint: ResourcePointNode, bonusPercent: Double) -> (multiplier: Double, sources: [String]) {
