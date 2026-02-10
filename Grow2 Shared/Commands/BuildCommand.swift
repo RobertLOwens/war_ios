@@ -221,6 +221,6 @@ struct BuildCommand: GameCommand {
         let hasAnyMountainTile = coordinates.contains { coord in
             hexMap.getTile(at: coord)?.terrain == .mountain
         }
-        return hasAnyMountainTile ? 1.25 : 1.0
+        return hasAnyMountainTile ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
     }
 }

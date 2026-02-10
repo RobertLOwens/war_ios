@@ -573,13 +573,21 @@ class AIBuildCommand: BaseEngineCommand {
         super.init(playerID: playerID)
     }
 
+    private func getTerrainCostMultiplier(in state: GameState) -> Double {
+        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: coordinate, rotation: rotation)
+        let hasMountain = occupiedCoords.contains { state.mapData.getTerrain(at: $0) == .mountain }
+        return hasMountain ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
+    }
+
     override func validate(in state: GameState) -> EngineCommandResult {
         guard let player = state.getPlayer(id: playerID) else {
             return .failure(reason: "Player not found")
         }
 
-        for (resource, amount) in buildingType.buildCost {
-            guard player.hasResource(resource, amount: amount) else {
+        let costMultiplier = getTerrainCostMultiplier(in: state)
+        for (resource, baseAmount) in buildingType.buildCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * costMultiplier))
+            guard player.hasResource(resource, amount: adjustedAmount) else {
                 return .failure(reason: "Insufficient resources")
             }
         }
@@ -596,8 +604,10 @@ class AIBuildCommand: BaseEngineCommand {
             return .failure(reason: "Player not found")
         }
 
-        for (resource, amount) in buildingType.buildCost {
-            _ = player.removeResource(resource, amount: amount)
+        let costMultiplier = getTerrainCostMultiplier(in: state)
+        for (resource, baseAmount) in buildingType.buildCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * costMultiplier))
+            _ = player.removeResource(resource, amount: adjustedAmount)
         }
 
         let building = BuildingData(

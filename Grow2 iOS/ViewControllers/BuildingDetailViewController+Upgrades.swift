@@ -207,15 +207,21 @@ extension BuildingDetailViewController {
         currentY += 30
 
         if let upgradeCost = building.getUpgradeCost() {
+            // Check terrain cost multiplier for mountain tiles
+            let occupiedCoords = building.data.occupiedCoordinates
+            let hasMountain = occupiedCoords.contains { hexMap?.getTile(at: $0)?.terrain == .mountain }
+            let terrainMultiplier = hasMountain ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
+
             var costText = "Cost: "
             var canAfford = true
 
-            for (resourceType, amount) in upgradeCost {
-                let hasEnough = player.hasResource(resourceType, amount: amount)
+            for (resourceType, baseAmount) in upgradeCost {
+                let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+                let hasEnough = player.hasResource(resourceType, amount: adjustedAmount)
                 let currentAmount = player.getResource(resourceType)
                 if !hasEnough { canAfford = false }
                 let checkmark = hasEnough ? "✅" : "❌"
-                costText += "\(checkmark) \(resourceType.icon)\(amount) (\(currentAmount)) "
+                costText += "\(checkmark) \(resourceType.icon)\(adjustedAmount) (\(currentAmount)) "
             }
 
             let costLabel = createLabel(text: costText,
@@ -224,6 +230,15 @@ extension BuildingDetailViewController {
             costLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 20)
             contentView.addSubview(costLabel)
             currentY += 25
+
+            if hasMountain {
+                let mountainLabel = createLabel(text: "Mountain terrain: +25% cost",
+                                               fontSize: 12,
+                                               color: UIColor(red: 1.0, green: 0.7, blue: 0.3, alpha: 1.0))
+                mountainLabel.frame = CGRect(x: leftMargin, y: currentY, width: contentWidth, height: 18)
+                contentView.addSubview(mountainLabel)
+                currentY += 22
+            }
 
             if let upgradeTime = building.getUpgradeTime() {
                 let minutes = Int(upgradeTime) / 60

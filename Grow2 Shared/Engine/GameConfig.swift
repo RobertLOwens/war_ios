@@ -48,10 +48,26 @@ enum GameConfig {
         static let adjacencyBonusPercent: Double = 0.25     // 25% adjacency bonus
     }
 
+    // MARK: - Terrain
+
+    enum Terrain {
+        /// Cost multiplier for building/upgrading on mountain tiles (+25%)
+        static let mountainBuildingCostMultiplier: Double = 1.25
+    }
+
     // MARK: - Construction
 
     enum Construction {
         static let progressChangeThreshold: Double = 0.01  // Min progress to emit event
+        static let diminishingFactor: Double = 0.8
+
+        /// Calculates effective builder count with diminishing returns.
+        /// 0 builders = 0 (stalled), 1 = 1.0x, 2 = 1.8x, 3 = 2.44x, etc.
+        static func effectiveBuilders(count: Int) -> Double {
+            guard count > 0 else { return 0.0 }
+            // Geometric series: (1 - factor^count) / (1 - factor)
+            return (1.0 - pow(diminishingFactor, Double(count))) / (1.0 - diminishingFactor)
+        }
     }
 
     // MARK: - Training

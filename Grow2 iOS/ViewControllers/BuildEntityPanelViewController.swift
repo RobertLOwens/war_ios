@@ -80,12 +80,20 @@ class BuildEntityPanelViewController: SidePanelViewController {
         buildingLabel.textColor = theme.primaryTextColor
         buildingInfoView.addSubview(buildingLabel)
 
-        // Build cost
+        // Calculate terrain cost multiplier for mountain tiles
+        let occupiedCoords = buildingType.getOccupiedCoordinates(anchor: buildCoordinate, rotation: rotation)
+        let hasMountain = occupiedCoords.contains { coord in
+            hexMap?.getTile(at: coord)?.terrain == .mountain
+        }
+        let terrainMultiplier = hasMountain ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
+
+        // Build cost (adjusted for terrain)
         var costString = ""
-        for (resourceType, amount) in buildingType.buildCost {
-            let hasEnough = player?.hasResource(resourceType, amount: amount) ?? false
+        for (resourceType, baseAmount) in buildingType.buildCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+            let hasEnough = player?.hasResource(resourceType, amount: adjustedAmount) ?? false
             let checkmark = hasEnough ? "\u{2713}" : "\u{2717}"
-            costString += "\(resourceType.icon)\(amount)\(checkmark) "
+            costString += "\(resourceType.icon)\(adjustedAmount)\(checkmark) "
         }
 
         let costLabel = UILabel(frame: CGRect(
@@ -99,14 +107,29 @@ class BuildEntityPanelViewController: SidePanelViewController {
         costLabel.textColor = theme.secondaryTextColor
         buildingInfoView.addSubview(costLabel)
 
+        // Mountain cost indicator
+        if hasMountain {
+            let mountainLabel = UILabel(frame: CGRect(
+                x: PanelLayoutConstants.horizontalPadding,
+                y: 52,
+                width: PanelLayoutConstants.contentWidth,
+                height: 16
+            ))
+            mountainLabel.text = "Mountain terrain: +25% cost"
+            mountainLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+            mountainLabel.textColor = UIColor(red: 1.0, green: 0.7, blue: 0.3, alpha: 1.0)
+            buildingInfoView.addSubview(mountainLabel)
+        }
+
         // Build time
         let buildTimeMinutes = Int(buildingType.buildTime) / 60
         let buildTimeSecs = Int(buildingType.buildTime) % 60
         let timeString = buildTimeMinutes > 0 ? "\(buildTimeMinutes)m \(buildTimeSecs)s" : "\(buildTimeSecs)s"
 
+        let timeY: CGFloat = hasMountain ? 70 : 54
         let timeLabel = UILabel(frame: CGRect(
             x: PanelLayoutConstants.horizontalPadding,
-            y: 54,
+            y: timeY,
             width: PanelLayoutConstants.contentWidth,
             height: 20
         ))

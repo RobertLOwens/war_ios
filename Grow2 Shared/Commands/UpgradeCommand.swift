@@ -54,10 +54,14 @@ struct UpgradeCommand: GameCommand, Codable {
         guard let upgradeCost = building.getUpgradeCost() else {
             return .failure(reason: "No upgrade available")
         }
-        
-        // Check resources
-        for (resourceType, amount) in upgradeCost {
-            if !player.hasResource(resourceType, amount: amount) {
+
+        // Apply terrain cost multiplier for mountains
+        let terrainMultiplier = Self.getTerrainCostMultiplier(for: building, in: context.hexMap)
+
+        // Check resources with terrain-adjusted costs
+        for (resourceType, baseAmount) in upgradeCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+            if !player.hasResource(resourceType, amount: adjustedAmount) {
                 return .failure(reason: "Insufficient \(resourceType.displayName)")
             }
         }
@@ -84,10 +88,14 @@ struct UpgradeCommand: GameCommand, Codable {
               let upgradeCost = building.getUpgradeCost() else {
             return .failure(reason: "Required objects not found")
         }
-        
-        // Deduct resources immediately
-        for (resourceType, amount) in upgradeCost {
-            player.removeResource(resourceType, amount: amount)
+
+        // Apply terrain cost multiplier for mountains
+        let terrainMultiplier = Self.getTerrainCostMultiplier(for: building, in: context.hexMap)
+
+        // Deduct resources immediately (with terrain-adjusted costs)
+        for (resourceType, baseAmount) in upgradeCost {
+            let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+            player.removeResource(resourceType, amount: adjustedAmount)
         }
         
         // Assign upgrader if provided
@@ -131,8 +139,16 @@ struct UpgradeCommand: GameCommand, Codable {
         }
         
         context.onResourcesChanged?()
-        
+
         return .success
+    }
+
+    static func getTerrainCostMultiplier(for building: BuildingNode, in hexMap: HexMap) -> Double {
+        let occupiedCoords = building.data.occupiedCoordinates
+        let hasAnyMountainTile = occupiedCoords.contains { coord in
+            hexMap.getTile(at: coord)?.terrain == .mountain
+        }
+        return hasAnyMountainTile ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
     }
 }
 
@@ -180,21 +196,25 @@ struct CancelUpgradeCommand: GameCommand, Codable {
               let building = context.getBuilding(by: buildingID) else {
             return .failure(reason: "Required objects not found")
         }
-        
-        // Cancel and get refund
+
+        // Apply terrain cost multiplier so refund matches what was actually charged
+        let terrainMultiplier = UpgradeCommand.getTerrainCostMultiplier(for: building, in: context.hexMap)
+
+        // Cancel and get refund (base costs, then apply terrain multiplier)
         if let refund = building.cancelUpgrade() {
-            for (resourceType, amount) in refund {
-                player.addResource(resourceType, amount: amount)
+            for (resourceType, baseAmount) in refund {
+                let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+                player.addResource(resourceType, amount: adjustedAmount)
             }
         }
-        
-        // ✅ Clear pending upgrade flag
+
+        // Clear pending upgrade flag
         building.pendingUpgrade = false
-        
+
         context.onResourcesChanged?()
-        
+
         debugLog("🚫 Cancelled upgrade for \(building.buildingType.displayName)")
-        
+
         return .success
     }
 }

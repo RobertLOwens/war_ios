@@ -230,10 +230,19 @@ class MenuCoordinator {
                 canPlace = hexMap.canPlaceBuilding(at: coordinate, buildingType: type)
             }
 
-            // Build cost string
+            // Check terrain cost multiplier for mountain tiles
+            let occupiedCoords = type.getOccupiedCoordinates(anchor: coordinate, rotation: 0)
+            let hasMountain = occupiedCoords.contains { hexMap.getTile(at: $0)?.terrain == .mountain }
+            let terrainMultiplier = hasMountain ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
+
+            // Build cost string (adjusted for terrain)
             var costString = ""
-            for (resourceType, amount) in type.buildCost {
-                costString += "\(resourceType.icon)\(amount) "
+            for (resourceType, baseAmount) in type.buildCost {
+                let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+                costString += "\(resourceType.icon)\(adjustedAmount) "
+            }
+            if hasMountain {
+                costString += "(mountain +25%)"
             }
 
             if canPlace {
@@ -1279,9 +1288,13 @@ class MenuCoordinator {
 
         // If no more builders are assigned and building is still under construction, remove it
         if building.buildersAssigned == 0 && building.state == .constructing {
-            // Refund the build cost
-            for (resourceType, amount) in building.buildingType.buildCost {
-                player.addResource(resourceType, amount: amount)
+            // Refund the build cost (with terrain multiplier matching what was charged)
+            let occupiedCoords = building.data.occupiedCoordinates
+            let hasMountain = occupiedCoords.contains { hexMap.getTile(at: $0)?.terrain == .mountain }
+            let terrainMultiplier = hasMountain ? GameConfig.Terrain.mountainBuildingCostMultiplier : 1.0
+            for (resourceType, baseAmount) in building.buildingType.buildCost {
+                let adjustedAmount = Int(ceil(Double(baseAmount) * terrainMultiplier))
+                player.addResource(resourceType, amount: adjustedAmount)
             }
 
             // Remove the building from the map and player
