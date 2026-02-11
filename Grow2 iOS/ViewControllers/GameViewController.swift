@@ -16,6 +16,7 @@ class GameViewController: UIViewController {
     var simRunCount: Int = 1
     var mapSeed: UInt64?
     var onlineGameID: String?
+    var isOnlineMode: Bool = false
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
@@ -1291,21 +1292,23 @@ class GameViewController: UIViewController {
         autoSaveTimer?.invalidate()
         autoSaveTimer = nil
 
-        // Delete save immediately so a lost game can't be loaded
-        _ = GameSaveManager.shared.deleteSave()
-
-        // Clean up online session if this was an online game
-        if let gameID = onlineGameID {
-            GameSessionService.shared.deleteGame(gameID: gameID) { result in
-                switch result {
-                case .success:
-                    debugLog("Online game session deleted: \(gameID)")
-                case .failure(let error):
-                    debugLog("Failed to delete online game session: \(error)")
+        if isOnlineMode {
+            // Online mode: clean up Firestore session, skip local delete
+            if let gameID = onlineGameID {
+                GameSessionService.shared.deleteGame(gameID: gameID) { result in
+                    switch result {
+                    case .success:
+                        debugLog("Online game session deleted: \(gameID)")
+                    case .failure(let error):
+                        debugLog("Failed to delete online game session: \(error)")
+                    }
                 }
+                GameSessionService.shared.leaveSession()
+                onlineGameID = nil
             }
-            GameSessionService.shared.leaveSession()
-            onlineGameID = nil
+        } else {
+            // Offline mode: delete local save so a lost game can't be loaded
+            _ = GameSaveManager.shared.deleteSave()
         }
 
         // Gather statistics
@@ -1471,27 +1474,30 @@ class GameViewController: UIViewController {
             return
         }
 
-        // Collect reinforcement groups from nodes
-        let reinforcements = gameScene.reinforcementNodes.map { $0.reinforcement }
-
-        let success = GameSaveManager.shared.saveGame(
-            hexMap: hexMap,
-            player: player,
-            allPlayers: gameScene.allGamePlayers,
-            reinforcements: reinforcements
-        )
-
-        if success {
-            debugLog("Auto-save complete")
-
-            // Create online snapshot if in an active session
+        if isOnlineMode {
+            // Online mode: skip local save, only create Firestore snapshot if threshold met
             if let gameState = GameEngine.shared.getGameState(),
                GameSessionService.shared.currentSession != nil,
                GameSessionService.shared.shouldCreateSnapshot() {
                 GameSessionService.shared.createSnapshot(gameState: gameState)
+                debugLog("Online auto-save: snapshot created")
             }
         } else {
-            debugLog("Auto-save failed")
+            // Offline mode: save locally only
+            let reinforcements = gameScene.reinforcementNodes.map { $0.reinforcement }
+
+            let success = GameSaveManager.shared.saveGame(
+                hexMap: hexMap,
+                player: player,
+                allPlayers: gameScene.allGamePlayers,
+                reinforcements: reinforcements
+            )
+
+            if success {
+                debugLog("Auto-save complete")
+            } else {
+                debugLog("Auto-save failed")
+            }
         }
     }
 
@@ -1503,20 +1509,31 @@ class GameViewController: UIViewController {
             return
         }
 
-        // Collect reinforcement groups from nodes
-        let reinforcements = gameScene.reinforcementNodes.map { $0.reinforcement }
-
-        let success = GameSaveManager.shared.saveGame(
-            hexMap: hexMap,
-            player: player,
-            allPlayers: gameScene.allGamePlayers,
-            reinforcements: reinforcements
-        )
-
-        if success {
-            showSimpleAlert(title: "✅ Game Saved", message: "Your progress has been saved successfully.")
+        if isOnlineMode {
+            // Online mode: force a Firestore snapshot
+            if let gameState = GameEngine.shared.getGameState(),
+               GameSessionService.shared.currentSession != nil {
+                GameSessionService.shared.createSnapshot(gameState: gameState)
+                showSimpleAlert(title: "Game Saved", message: "Game saved to cloud.")
+            } else {
+                showSimpleAlert(title: "Save Failed", message: "No active online session.")
+            }
         } else {
-            showSimpleAlert(title: "❌ Save Failed", message: "Could not save the game. Please try again.")
+            // Offline mode: save locally
+            let reinforcements = gameScene.reinforcementNodes.map { $0.reinforcement }
+
+            let success = GameSaveManager.shared.saveGame(
+                hexMap: hexMap,
+                player: player,
+                allPlayers: gameScene.allGamePlayers,
+                reinforcements: reinforcements
+            )
+
+            if success {
+                showSimpleAlert(title: "Game Saved", message: "Your progress has been saved successfully.")
+            } else {
+                showSimpleAlert(title: "Save Failed", message: "Could not save the game. Please try again.")
+            }
         }
     }
 
@@ -1875,6 +1892,13 @@ class GameViewController: UIViewController {
 
         // Final save before leaving
         autoSaveGame()
+
+        // For online mode, force a final snapshot before leaving
+        if isOnlineMode,
+           let gameState = GameEngine.shared.getGameState(),
+           GameSessionService.shared.currentSession != nil {
+            GameSessionService.shared.createSnapshot(gameState: gameState)
+        }
 
         // Save background time
         BackgroundTimeManager.shared.saveExitTime()

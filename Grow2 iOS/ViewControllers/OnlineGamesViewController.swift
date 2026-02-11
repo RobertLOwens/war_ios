@@ -188,6 +188,7 @@ class OnlineGamesViewController: UIViewController, UITableViewDataSource, UITabl
                         gameVC.mapType = .arabia
                         gameVC.mapSeed = session.mapConfig.seed
                         gameVC.onlineGameID = session.gameID
+                        gameVC.isOnlineMode = true
                         gameVC.shouldLoadGame = true
                         gameVC.modalPresentationStyle = .fullScreen
                         self.present(gameVC, animated: true)
@@ -198,6 +199,7 @@ class OnlineGamesViewController: UIViewController, UITableViewDataSource, UITabl
                         let gameVC = GameViewController()
                         gameVC.shouldLoadGame = true
                         gameVC.onlineGameID = session.gameID
+                        gameVC.isOnlineMode = true
                         gameVC.modalPresentationStyle = .fullScreen
                         self.present(gameVC, animated: true)
                     }

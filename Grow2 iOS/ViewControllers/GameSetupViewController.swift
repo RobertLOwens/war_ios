@@ -125,6 +125,11 @@ enum ArenaPreset: String, CaseIterable {
     }
 }
 
+enum GameMode: String {
+    case offline = "Offline"
+    case online = "Online"
+}
+
 enum MapType: String {
     case arabia = "Arabia"
     case random = "Random"
@@ -198,6 +203,7 @@ enum VisibilityMode: String {
 
 class GameSetupViewController: UIViewController {
 
+    var selectedGameMode: GameMode = .offline
     var selectedMapType: MapType = .arabia
     var selectedMapSize: MapSize = .medium
     var selectedResourceDensity: ResourceDensity = .normal
@@ -206,6 +212,11 @@ class GameSetupViewController: UIViewController {
     var scenarioConfig: ArenaScenarioConfig = .default
     var selectedPreset: ArenaPreset = .plains
     var simRunCount: Int = 1
+
+    // Game mode controls
+    var gameModeSegmentedControl: UISegmentedControl!
+    var gameModeSection: UIView?
+    var gameModeSignInLabel: UILabel?
 
     // Map option controls
     var mapTypeSegmentedControl: UISegmentedControl!
@@ -284,6 +295,40 @@ class GameSetupViewController: UIViewController {
 
         var currentY: CGFloat = 30
         let sectionSpacing: CGFloat = 100
+
+        // Game Mode Section (Offline / Online)
+        let modeSection = UIView(frame: CGRect(x: 0, y: currentY, width: view.bounds.width, height: 80))
+        contentView.addSubview(modeSection)
+        gameModeSection = modeSection
+
+        let modeLabel = UILabel(frame: CGRect(x: 40, y: 0, width: view.bounds.width - 80, height: 30))
+        modeLabel.text = "Game Mode"
+        modeLabel.font = UIFont.boldSystemFont(ofSize: 18)
+        modeLabel.textColor = .white
+        modeSection.addSubview(modeLabel)
+
+        gameModeSegmentedControl = UISegmentedControl(items: ["Offline", "Online"])
+        gameModeSegmentedControl.frame = CGRect(x: 40, y: 35, width: view.bounds.width - 80, height: 40)
+        gameModeSegmentedControl.selectedSegmentIndex = 0
+        gameModeSegmentedControl.addTarget(self, action: #selector(gameModeTapped(_:)), for: .valueChanged)
+        modeSection.addSubview(gameModeSegmentedControl)
+
+        // "Sign in required" label (shown when not authenticated)
+        let signInLabel = UILabel(frame: CGRect(x: 40, y: 78, width: view.bounds.width - 80, height: 18))
+        signInLabel.text = "Sign in required for online mode"
+        signInLabel.font = UIFont.systemFont(ofSize: 12)
+        signInLabel.textColor = UIColor(red: 1.0, green: 0.6, blue: 0.3, alpha: 1.0)
+        signInLabel.textAlignment = .center
+        signInLabel.isHidden = AuthService.shared.currentUser != nil
+        modeSection.addSubview(signInLabel)
+        gameModeSignInLabel = signInLabel
+
+        // Disable online segment if not signed in
+        if AuthService.shared.currentUser == nil {
+            gameModeSegmentedControl.setEnabled(false, forSegmentAt: 1)
+        }
+
+        currentY += sectionSpacing
 
         // Map Type Section
         let mapTypeSection = createSectionViewInContainer(
@@ -1121,6 +1166,10 @@ class GameSetupViewController: UIViewController {
         runCountLabel?.text = "\(simRunCount)"
     }
 
+    @objc func gameModeTapped(_ sender: UISegmentedControl) {
+        selectedGameMode = sender.selectedSegmentIndex == 0 ? .offline : .online
+    }
+
     @objc func segmentChanged(_ sender: UISegmentedControl) {
         if sender == mapTypeSegmentedControl {
             switch sender.selectedSegmentIndex {
@@ -1148,9 +1197,18 @@ class GameSetupViewController: UIViewController {
             self.resourceDensitySection?.alpha = showRandomOptions ? 1.0 : 0.3
             self.arenaConfigSection?.alpha = showArenaOptions ? 1.0 : 0.0
             self.arenaConfigSection?.isHidden = !showArenaOptions
+            // Hide game mode toggle for arena (always offline)
+            self.gameModeSection?.alpha = showArenaOptions ? 0.3 : 1.0
         }
         mapSizeSegmentedControl?.isEnabled = showRandomOptions
         resourceDensitySegmentedControl?.isEnabled = showRandomOptions
+        gameModeSegmentedControl?.isEnabled = !showArenaOptions
+
+        // Force offline for arena
+        if showArenaOptions {
+            selectedGameMode = .offline
+            gameModeSegmentedControl?.selectedSegmentIndex = 0
+        }
 
         for slider in playerArmySliders.values { slider.isEnabled = showArenaOptions }
         for slider in enemyArmySliders.values { slider.isEnabled = showArenaOptions }
@@ -1172,8 +1230,11 @@ class GameSetupViewController: UIViewController {
             gameVC.arenaScenarioConfig = scenarioConfig
         }
 
-        // Generate seed and create online session for Arabia maps
-        if selectedMapType == .arabia, AuthService.shared.currentUser != nil {
+        // Set game mode on GameViewController
+        gameVC.isOnlineMode = (selectedGameMode == .online)
+
+        // Only create online session when explicitly in online mode
+        if selectedGameMode == .online, AuthService.shared.currentUser != nil {
             let seed = UInt64.random(in: 1...UInt64.max)
             gameVC.mapSeed = seed
             let mapConfig = MapGenerationConfig.fromArabia(seed: seed)
