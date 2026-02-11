@@ -30,8 +30,6 @@ struct SettingsKeys {
     static let showTutorialHints = "settings.gameplay.tutorialHints"
     static let confirmDestructiveActions = "settings.gameplay.confirmDestructive"
 
-    // Cloud
-    static let autoCloudSync = "settings.cloud.autoSync"
 }
 
 // MARK: - Settings Manager
@@ -66,8 +64,6 @@ class GameSettings {
             // Gameplay
             SettingsKeys.showTutorialHints: true,
             SettingsKeys.confirmDestructiveActions: true,
-            // Cloud
-            SettingsKeys.autoCloudSync: false
         ]
         defaults.register(defaults: defaultValues)
     }
@@ -133,12 +129,6 @@ class SettingsViewController: UIViewController {
             title: "Manage Account",
             titleColor: .white,
             action: #selector(manageAccountTapped),
-            at: yOffset
-        )
-        yOffset = addToggle(
-            title: "Auto Cloud Sync",
-            subtitle: "Automatically upload saves to the cloud",
-            key: SettingsKeys.autoCloudSync,
             at: yOffset
         )
         yOffset = addButton(

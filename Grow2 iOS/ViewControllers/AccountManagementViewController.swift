@@ -19,9 +19,32 @@ class AccountManagementViewController: UIViewController {
     private var confirmPasswordField: UITextField?
     private var updatePasswordButton: UIButton?
 
+    private var usernameObserver: NSObjectProtocol?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+
+        usernameObserver = NotificationCenter.default.addObserver(
+            forName: AuthService.usernameDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.rebuildUI()
+        }
+    }
+
+    deinit {
+        if let observer = usernameObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    private func rebuildUI() {
+        contentView.subviews.forEach { $0.removeFromSuperview() }
+        // Remove all constraints from contentView
+        contentView.constraints.forEach { contentView.removeConstraint($0) }
+        buildContent()
     }
 
     // MARK: - UI Setup
@@ -54,11 +77,33 @@ class AccountManagementViewController: UIViewController {
             contentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
         ])
 
+        buildContent()
+    }
+
+    private func buildContent() {
         var yOffset: CGFloat = 20
 
         // Account Details Section
         yOffset = addSectionHeader("Account Details", at: yOffset)
         yOffset = addAccountDetails(at: yOffset)
+
+        // Change Display Name Button
+        yOffset += 4
+        yOffset = addButton(
+            title: "Change Display Name",
+            titleColor: .white,
+            action: #selector(changeDisplayNameTapped),
+            at: yOffset
+        )
+
+        // My Statistics Button
+        yOffset += 4
+        yOffset = addButton(
+            title: "My Statistics",
+            titleColor: .white,
+            action: #selector(myStatisticsTapped),
+            at: yOffset
+        )
 
         // Change Password Section (email/password users only)
         if AuthService.shared.isEmailPasswordUser {
@@ -137,8 +182,8 @@ class AccountManagementViewController: UIViewController {
 
         var rows: [(String, String)] = []
 
-        // Display name
-        let displayName = firebaseUser?.displayName ?? "No display name"
+        // Display name — prefer cached username
+        let displayName = AuthService.shared.cachedUsername ?? firebaseUser?.displayName ?? "No display name"
         rows.append(("Name", displayName))
 
         // Email
@@ -344,7 +389,7 @@ class AccountManagementViewController: UIViewController {
     @objc private func deleteAccountTapped() {
         showDestructiveConfirmation(
             title: "Delete Account?",
-            message: "This will permanently delete your account and all cloud saves. This cannot be undone.",
+            message: "This will permanently delete your account. This cannot be undone.",
             confirmTitle: "Delete Account"
         ) { [weak self] in
             self?.showDestructiveConfirmation(
@@ -352,21 +397,31 @@ class AccountManagementViewController: UIViewController {
                 message: "All data will be lost permanently.",
                 confirmTitle: "Yes, Delete Everything"
             ) {
-                // Delete cloud saves first, then delete account
-                CloudSaveService.shared.deleteAllSaves { _ in
-                    AuthService.shared.deleteAccount { result in
-                        DispatchQueue.main.async {
-                            switch result {
-                            case .success:
-                                debugLog("Account and cloud saves deleted")
-                            case .failure(let error):
-                                self?.showError(message: error.localizedDescription)
-                            }
+                AuthService.shared.deleteAccount { result in
+                    DispatchQueue.main.async {
+                        switch result {
+                        case .success:
+                            debugLog("Account deleted")
+                        case .failure(let error):
+                            self?.showError(message: error.localizedDescription)
                         }
                     }
                 }
             }
         }
+    }
+
+    @objc private func changeDisplayNameTapped() {
+        let displayNameVC = DisplayNameViewController()
+        displayNameVC.isChangingName = true
+        displayNameVC.modalPresentationStyle = .fullScreen
+        present(displayNameVC, animated: true)
+    }
+
+    @objc private func myStatisticsTapped() {
+        let statsVC = UserStatsViewController()
+        statsVC.modalPresentationStyle = .fullScreen
+        present(statsVC, animated: true)
     }
 
     @objc private func backTapped() {

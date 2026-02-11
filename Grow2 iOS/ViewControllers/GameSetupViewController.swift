@@ -1247,18 +1247,23 @@ class GameSetupViewController: UIViewController {
                 hostPlayerID: hostPlayerID,
                 hostColorHex: "0000FF"
             ) { result in
-                switch result {
-                case .success(let session):
-                    debugLog("Online session created: \(session.gameID)")
-                    gameVC.onlineGameID = session.gameID
-                case .failure(let error):
-                    debugLog("Failed to create online session: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let session):
+                        debugLog("Online session created: \(session.gameID)")
+                        gameVC.onlineGameID = session.gameID
+                    case .failure(let error):
+                        debugLog("Failed to create online session: \(error.localizedDescription)")
+                        gameVC.isOnlineMode = false
+                    }
+                    gameVC.modalPresentationStyle = .fullScreen
+                    self.present(gameVC, animated: true)
                 }
             }
+        } else {
+            gameVC.modalPresentationStyle = .fullScreen
+            present(gameVC, animated: true)
         }
-
-        gameVC.modalPresentationStyle = .fullScreen
-        present(gameVC, animated: true)
     }
 
     @objc func playTapped() {

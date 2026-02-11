@@ -65,7 +65,7 @@ class GameSessionService {
             return
         }
 
-        let displayName = Auth.auth().currentUser?.displayName ?? Auth.auth().currentUser?.email ?? "Player"
+        let displayName = AuthService.shared.cachedUsername ?? Auth.auth().currentUser?.displayName ?? Auth.auth().currentUser?.email ?? "Player"
 
         let session = GameSession.create(
             hostUID: uid,
@@ -318,7 +318,6 @@ class GameSessionService {
 
         gamesCollection()
             .whereField("hostUID", isEqualTo: uid)
-            .order(by: "createdAt", descending: true)
             .limit(to: 20)
             .getDocuments { snapshot, error in
                 if let error = error {
@@ -326,9 +325,11 @@ class GameSessionService {
                     return
                 }
 
-                let sessions = snapshot?.documents.compactMap { doc in
+                var sessions = snapshot?.documents.compactMap { doc in
                     GameSession.fromFirestoreData(doc.data(), gameID: doc.documentID)
                 } ?? []
+
+                sessions.sort { $0.createdAt > $1.createdAt }
 
                 completion(.success(sessions))
             }

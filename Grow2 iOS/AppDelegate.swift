@@ -28,9 +28,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         window = UIWindow(frame: UIScreen.main.bounds)
 
-        // Auth-gated root VC: if signed in → MainMenu, else → Auth
+        // Auth-gated root VC: if signed in → check username → MainMenu, else → Auth
         if AuthService.shared.checkExistingSession() {
-            window?.rootViewController = MainMenuViewController()
+            // Show loading screen while we check username status
+            let loadingVC = UIViewController()
+            loadingVC.view.backgroundColor = UIColor(red: 0.1, green: 0.12, blue: 0.1, alpha: 1.0)
+            let spinner = UIActivityIndicatorView(style: .large)
+            spinner.color = .white
+            spinner.startAnimating()
+            spinner.center = loadingVC.view.center
+            spinner.autoresizingMask = [.flexibleTopMargin, .flexibleBottomMargin, .flexibleLeftMargin, .flexibleRightMargin]
+            loadingVC.view.addSubview(spinner)
+            window?.rootViewController = loadingVC
+            routeAuthenticatedUser()
         } else {
             window?.rootViewController = AuthViewController()
         }
@@ -65,11 +75,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             if AuthService.shared.currentUser != nil {
-                // Signed in → show main menu (only if currently showing auth)
+                // Signed in → check username, then route
                 if self.window?.rootViewController is AuthViewController {
-                    let mainMenu = MainMenuViewController()
-                    self.window?.rootViewController = mainMenu
-                    UIView.transition(with: self.window!, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
+                    self.routeAuthenticatedUser()
                 }
             } else {
                 // Signed out → show auth screen
@@ -77,6 +85,32 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     let authVC = AuthViewController()
                     self.window?.rootViewController = authVC
                     UIView.transition(with: self.window!, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
+                }
+            }
+        }
+    }
+
+    /// Route authenticated user: check if they have a username, show DisplayNameVC if not.
+    private func routeAuthenticatedUser() {
+        AuthService.shared.checkHasUsername { [weak self] hasUsername in
+            DispatchQueue.main.async {
+                guard let self = self, let window = self.window else { return }
+
+                if hasUsername {
+                    let mainMenu = MainMenuViewController()
+                    window.rootViewController = mainMenu
+                    UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
+                } else {
+                    let displayNameVC = DisplayNameViewController()
+                    displayNameVC.isChangingName = false
+                    displayNameVC.onUsernameChosen = { [weak self] _ in
+                        guard let self = self, let window = self.window else { return }
+                        let mainMenu = MainMenuViewController()
+                        window.rootViewController = mainMenu
+                        UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
+                    }
+                    window.rootViewController = displayNameVC
+                    UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
                 }
             }
         }

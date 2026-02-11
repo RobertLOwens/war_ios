@@ -17,6 +17,7 @@ class GameViewController: UIViewController {
     var mapSeed: UInt64?
     var onlineGameID: String?
     var isOnlineMode: Bool = false
+    var onlineSnapshot: GameSnapshot?
     var autoSaveTimer: Timer?
     let autoSaveInterval: TimeInterval = 60.0 // Auto-save every 60 seconds
     var shouldLoadGame: Bool = false
@@ -411,6 +412,11 @@ class GameViewController: UIViewController {
         if GameSessionService.shared.currentSession != nil {
             GameSessionService.shared.updateGameStatus(.playing)
             GameSessionService.shared.startHeartbeat()
+
+            // Create initial snapshot so the game can be resumed immediately
+            if let gameState = GameEngine.shared.getGameState() {
+                GameSessionService.shared.createSnapshot(gameState: gameState)
+            }
         }
 
         // Auto-sim: set fast speed and auto-initiate combat
@@ -1293,19 +1299,14 @@ class GameViewController: UIViewController {
         autoSaveTimer = nil
 
         if isOnlineMode {
-            // Online mode: clean up Firestore session, skip local delete
-            if let gameID = onlineGameID {
-                GameSessionService.shared.deleteGame(gameID: gameID) { result in
-                    switch result {
-                    case .success:
-                        debugLog("Online game session deleted: \(gameID)")
-                    case .failure(let error):
-                        debugLog("Failed to delete online game session: \(error)")
-                    }
+            // Online mode: mark session finished, preserve game history
+            GameSessionService.shared.updateGameStatus(.finished) { error in
+                if let error = error {
+                    debugLog("Failed to mark game finished: \(error)")
                 }
                 GameSessionService.shared.leaveSession()
-                onlineGameID = nil
             }
+            onlineGameID = nil
         } else {
             // Offline mode: delete local save so a lost game can't be loaded
             _ = GameSaveManager.shared.deleteSave()
@@ -1313,6 +1314,11 @@ class GameViewController: UIViewController {
 
         // Gather statistics
         let stats = GameStatistics.gather(from: player, gameStartTime: gameScene.gameStartTime)
+
+        // Record stats to Firestore (fire-and-forget)
+        if AuthService.shared.currentUser != nil {
+            UserStatsService.shared.recordGameEnd(isVictory: isVictory, reason: reason, stats: stats)
+        }
 
         // Present game over screen
         let gameOverVC = GameOverViewController()
@@ -1327,7 +1333,23 @@ class GameViewController: UIViewController {
     func returnToMainMenu() {
         // Save before returning
         autoSaveGame()
-        
+
+        if isOnlineMode {
+            GameSessionService.shared.updateGameStatus(.paused)
+            GameSessionService.shared.stopHeartbeat()
+            GameSessionService.shared.stopCommandListener()
+        }
+
+        // Walk up the presenter chain to find MainMenuViewController, then dismiss from there
+        var vc: UIViewController? = self
+        while let presenter = vc?.presentingViewController {
+            if presenter is MainMenuViewController {
+                presenter.dismiss(animated: true)
+                return
+            }
+            vc = presenter
+        }
+        // Fallback: just dismiss self
         dismiss(animated: true)
     }
     
@@ -1475,10 +1497,9 @@ class GameViewController: UIViewController {
         }
 
         if isOnlineMode {
-            // Online mode: skip local save, only create Firestore snapshot if threshold met
+            // Online mode: skip local save, always create Firestore snapshot
             if let gameState = GameEngine.shared.getGameState(),
-               GameSessionService.shared.currentSession != nil,
-               GameSessionService.shared.shouldCreateSnapshot() {
+               GameSessionService.shared.currentSession != nil {
                 GameSessionService.shared.createSnapshot(gameState: gameState)
                 debugLog("Online auto-save: snapshot created")
             }
@@ -1565,10 +1586,33 @@ class GameViewController: UIViewController {
         // Disable engine updates to prevent stale state access during rebuild
         gameScene.isEngineEnabled = false
 
-        guard let loadedData = GameSaveManager.shared.loadGame() else {
-            gameScene.isLoading = false
-            showSimpleAlert(title: "❌ Load Failed", message: "Could not load the saved game.")
-            return
+        // Determine load source: online snapshot or local save
+        let loadedData: (hexMap: HexMap, player: Player, allPlayers: [Player], reinforcements: [ReinforcementGroup.SaveData])
+
+        if let snapshot = onlineSnapshot {
+            // Online mode: load from Firestore snapshot (single source of truth)
+            do {
+                let gameState = try snapshot.toGameState()
+                guard let data = GameSaveManager.shared.loadFromGameState(gameState) else {
+                    gameScene.isLoading = false
+                    showSimpleAlert(title: "❌ Load Failed", message: "Could not restore the online game from snapshot.")
+                    return
+                }
+                loadedData = data
+                onlineSnapshot = nil  // Clear after use
+            } catch {
+                debugLog("❌ Failed to decode online snapshot: \(error)")
+                gameScene.isLoading = false
+                showSimpleAlert(title: "❌ Load Failed", message: "Online snapshot is corrupted: \(error.localizedDescription)")
+                return
+            }
+        } else {
+            guard let data = GameSaveManager.shared.loadGame() else {
+                gameScene.isLoading = false
+                showSimpleAlert(title: "❌ Load Failed", message: "Could not load the saved game.")
+                return
+            }
+            loadedData = data
         }
         
         // Update references
@@ -1892,13 +1936,6 @@ class GameViewController: UIViewController {
 
         // Final save before leaving
         autoSaveGame()
-
-        // For online mode, force a final snapshot before leaving
-        if isOnlineMode,
-           let gameState = GameEngine.shared.getGameState(),
-           GameSessionService.shared.currentSession != nil {
-            GameSessionService.shared.createSnapshot(gameState: gameState)
-        }
 
         // Save background time
         BackgroundTimeManager.shared.saveExitTime()

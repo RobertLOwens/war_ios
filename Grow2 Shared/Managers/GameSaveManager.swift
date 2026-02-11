@@ -236,41 +236,6 @@ class GameSaveManager {
         )
 
         // Write to file
-        let success = writeSaveDataToFile(saveData)
-
-        // Cloud sync hook: auto-upload if enabled and signed in
-        if success && GameSettings.shared.bool(forKey: SettingsKeys.autoCloudSync) && AuthService.shared.currentUser != nil {
-            CloudSaveService.shared.uploadSave(saveData: saveData, saveName: "Auto-Save") { result in
-                switch result {
-                case .success:
-                    debugLog("☁️ Auto cloud sync successful")
-                case .failure(let error):
-                    debugLog("☁️ Auto cloud sync failed: \(error.localizedDescription)")
-                }
-            }
-        }
-
-        return success
-    }
-
-    // MARK: - Create Save Data (for cloud upload)
-
-    func createSaveData() -> GameSaveData? {
-        guard saveExists() else { return nil }
-        do {
-            let jsonData = try Data(contentsOf: saveFileURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(GameSaveData.self, from: jsonData)
-        } catch {
-            debugLog("❌ Failed to read save data: \(error)")
-            return nil
-        }
-    }
-
-    // MARK: - Write From Save Data (for cloud download)
-
-    func writeFromSaveData(_ saveData: GameSaveData) -> Bool {
         return writeSaveDataToFile(saveData)
     }
 
@@ -392,6 +357,150 @@ class GameSaveManager {
         }
     }
     
+    // MARK: - Load from GameState (Online Snapshots)
+
+    /// Reconstructs visual-layer objects from a pure-data GameState (used for online game loading from Firestore snapshots).
+    /// Returns the same tuple type as `loadGame()` so the caller can use the same post-load path.
+    func loadFromGameState(_ gameState: GameState) -> (hexMap: HexMap, player: Player, allPlayers: [Player], reinforcements: [ReinforcementGroup.SaveData])? {
+        debugLog("📂 Loading game from GameState snapshot...")
+
+        // 1. Create HexMap and populate tiles
+        let hexMap = HexMap(width: gameState.mapData.width, height: gameState.mapData.height)
+        for (coord, tileData) in gameState.mapData.tiles {
+            if let existingTile = hexMap.tiles[coord] {
+                existingTile.terrain = tileData.terrain
+                existingTile.elevation = tileData.elevation
+                existingTile.updateAppearance()
+            } else {
+                let tile = HexTileNode(coordinate: coord, terrain: tileData.terrain, elevation: tileData.elevation)
+                hexMap.tiles[coord] = tile
+            }
+        }
+
+        // 2. Create Player objects from PlayerStates
+        var allPlayers: [Player] = []
+        for playerState in gameState.getAllPlayers() {
+            let color = UIColor(hex: playerState.colorHex) ?? .gray
+            let player = Player(id: playerState.id, name: playerState.name, color: color, isAI: playerState.isAI, state: playerState)
+            allPlayers.append(player)
+        }
+
+        // 3. Find local player
+        guard let localID = gameState.localPlayerID,
+              let player = allPlayers.first(where: { $0.id == localID }) else {
+            debugLog("❌ Could not find local player in GameState")
+            return nil
+        }
+
+        // 4. Initialize fog of war for local player and restore explored tiles
+        player.initializeFogOfWar(hexMap: hexMap)
+        if let fogOfWar = player.fogOfWar {
+            fogOfWar.restoreExploredTiles(Array(player.state.exploredCoordinates))
+            debugLog("   ✅ Restored \(player.state.exploredCoordinates.count) explored tiles")
+        }
+
+        // Initialize fog for other players
+        for otherPlayer in allPlayers where otherPlayer.id != player.id {
+            otherPlayer.initializeFogOfWar(hexMap: hexMap)
+        }
+
+        // 5. Create Commanders from CommanderData, link to owning Player
+        for (_, commanderData) in gameState.commanders {
+            let commander = Commander(
+                id: commanderData.id,
+                name: commanderData.name,
+                rank: CommanderRank(rawValue: commanderData.rank.rawValue) ?? .recruit,
+                specialty: CommanderSpecialty(rawValue: commanderData.specialty.rawValue) ?? .infantryAggressive,
+                data: commanderData
+            )
+            if let ownerID = commanderData.ownerID,
+               let ownerPlayer = allPlayers.first(where: { $0.id == ownerID }) {
+                commander.owner = ownerPlayer
+                ownerPlayer.addCommander(commander)
+            }
+        }
+
+        // 6. Create BuildingNodes from BuildingData
+        for (_, buildingData) in gameState.buildings {
+            let owner = buildingData.ownerID.flatMap { ownerID in allPlayers.first { $0.id == ownerID } }
+            let building = BuildingNode(data: buildingData, owner: owner)
+            let position = HexMap.hexToPixel(q: buildingData.coordinate.q, r: buildingData.coordinate.r)
+            building.position = position
+            hexMap.addBuilding(building)
+            owner?.addBuilding(building)
+            debugLog("   ✅ Restored \(buildingData.buildingType.description) Lv.\(buildingData.level) at (\(buildingData.coordinate.q), \(buildingData.coordinate.r))")
+        }
+
+        // 7. Create Armies from ArmyData, link Commanders
+        for (_, armyData) in gameState.armies {
+            guard let ownerID = armyData.ownerID,
+                  let ownerPlayer = allPlayers.first(where: { $0.id == ownerID }) else { continue }
+
+            // Find commander for this army
+            let commander: Commander? = armyData.commanderID.flatMap { cmdID in
+                ownerPlayer.commanders.first { $0.id == cmdID }
+            }
+
+            let army = Army(
+                id: armyData.id,
+                name: armyData.name,
+                coordinate: armyData.coordinate,
+                commander: commander,
+                owner: ownerPlayer,
+                data: armyData
+            )
+            if let cmd = commander {
+                cmd.assignedArmy = army
+            }
+
+            ownerPlayer.addArmy(army)
+            ownerPlayer.addEntity(army)
+        }
+
+        // 8. Create VillagerGroups from VillagerGroupData
+        for (_, villagerData) in gameState.villagerGroups {
+            guard let ownerID = villagerData.ownerID,
+                  let ownerPlayer = allPlayers.first(where: { $0.id == ownerID }) else { continue }
+
+            let villagers = VillagerGroup(
+                name: villagerData.name,
+                coordinate: villagerData.coordinate,
+                villagerCount: villagerData.villagerCount,
+                owner: ownerPlayer,
+                data: villagerData
+            )
+            ownerPlayer.addEntity(villagers)
+        }
+
+        // 9. Create ResourcePointNodes from ResourcePointData (skip depleted)
+        for (_, resourceData) in gameState.resourcePoints {
+            guard resourceData.remainingAmount > 0 else {
+                debugLog("⏭️ Skipping depleted resource at (\(resourceData.coordinate.q), \(resourceData.coordinate.r))")
+                continue
+            }
+            let resource = ResourcePointNode(coordinate: resourceData.coordinate, resourceType: resourceData.resourceType, data: resourceData)
+            hexMap.resourcePoints.append(resource)
+            debugLog("📦 Restored \(resourceData.resourceType.displayName) at (\(resourceData.coordinate.q), \(resourceData.coordinate.r)) with \(resourceData.remainingAmount) remaining")
+        }
+
+        // 10. Load research data from local player's PlayerState
+        let researchSaveData = ResearchManager.ResearchSaveData(
+            completedResearch: player.state.completedResearch.map { $0 },
+            activeResearchType: player.state.activeResearchType,
+            activeResearchStartTime: player.state.activeResearchStartTime
+        )
+        ResearchManager.shared.loadSaveData(researchSaveData)
+
+        debugLog("✅ Game loaded from GameState successfully")
+        debugLog("   Map: \(hexMap.width)x\(hexMap.height)")
+        debugLog("   Player: \(player.name)")
+        debugLog("   Player Buildings: \(player.buildings.count)")
+        debugLog("   HexMap Buildings: \(hexMap.buildings.count)")
+        debugLog("   Entities: \(player.entities.count)")
+
+        return (hexMap, player, allPlayers, [])
+    }
+
     // MARK: - Check Save Exists
     
     func saveExists() -> Bool {

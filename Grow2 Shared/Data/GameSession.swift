@@ -5,6 +5,7 @@
 // ============================================================================
 
 import Foundation
+import FirebaseFirestore
 
 // MARK: - Game Session Status
 
@@ -111,7 +112,7 @@ struct GameSessionPlayer: Codable {
             isAI: data["isAI"] as? Bool ?? false,
             isHost: data["isHost"] as? Bool ?? false,
             status: PlayerSessionStatus(rawValue: data["status"] as? String ?? "active") ?? .active,
-            lastHeartbeat: (data["lastHeartbeat"] as? Date) ?? Date()
+            lastHeartbeat: (data["lastHeartbeat"] as? Timestamp)?.dateValue() ?? Date()
         )
     }
 }
@@ -265,7 +266,7 @@ struct GameSession: Codable {
             currentGameTime: data["currentGameTime"] as? TimeInterval ?? 0,
             gameSpeed: data["gameSpeed"] as? Double ?? 1.0,
             gameVersion: data["gameVersion"] as? String ?? "1.0.0",
-            createdAt: (data["createdAt"] as? Date) ?? Date()
+            createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
         )
     }
 }

@@ -13,7 +13,6 @@ class LoadGameViewController: UIViewController {
     private var segmentedControl: UISegmentedControl!
 
     // Data
-    private var cloudSaves: [CloudSaveMetadata] = []
     private var onlineGames: [GameSession] = []
     private var isSignedIn: Bool { AuthService.shared.currentUser != nil }
 
@@ -113,21 +112,7 @@ class LoadGameViewController: UIViewController {
 
     private func loadData() {
         activityIndicator.startAnimating()
-
-        // Load cloud saves if signed in
-        if isSignedIn {
-            CloudSaveService.shared.listSaves { [weak self] result in
-                DispatchQueue.main.async {
-                    if case .success(let saves) = result {
-                        self?.cloudSaves = saves
-                    }
-                    self?.tableView.reloadData()
-                    self?.loadOnlineGames()
-                }
-            }
-        } else {
-            loadOnlineGames()
-        }
+        loadOnlineGames()
     }
 
     private func loadOnlineGames() {
@@ -140,8 +125,12 @@ class LoadGameViewController: UIViewController {
         GameSessionService.shared.listMyGames { [weak self] result in
             DispatchQueue.main.async {
                 self?.activityIndicator.stopAnimating()
-                if case .success(let sessions) = result {
-                    self?.onlineGames = sessions
+                switch result {
+                case .success(let sessions):
+                    self?.onlineGames = sessions.filter { $0.status != .finished }
+                case .failure(let error):
+                    debugLog("Failed to load online games: \(error.localizedDescription)")
+                    self?.showTemporaryMessage("Failed to load online games")
                 }
                 self?.tableView.reloadData()
             }
@@ -171,60 +160,6 @@ class LoadGameViewController: UIViewController {
         gameVC.shouldLoadGame = true
         gameVC.modalPresentationStyle = .fullScreen
         present(gameVC, animated: true)
-    }
-
-    private func downloadCloudSave(at index: Int) {
-        let save = cloudSaves[index]
-
-        showDestructiveConfirmation(
-            title: "Download Save?",
-            message: "This will overwrite your current local save with \"\(save.saveName)\".",
-            confirmTitle: "Download"
-        ) { [weak self] in
-            self?.performDownload(saveID: save.saveID)
-        }
-    }
-
-    private func performDownload(saveID: String) {
-        activityIndicator.startAnimating()
-        CloudSaveService.shared.downloadSave(saveID: saveID) { [weak self] result in
-            DispatchQueue.main.async {
-                self?.activityIndicator.stopAnimating()
-                switch result {
-                case .success(let saveData):
-                    if GameSaveManager.shared.writeFromSaveData(saveData) {
-                        self?.showTemporaryMessage("Cloud save downloaded")
-                        self?.tableView.reloadData()
-                    } else {
-                        self?.showAlert(title: "Error", message: "Failed to write save to disk.")
-                    }
-                case .failure(let error):
-                    self?.showAlert(title: "Error", message: error.localizedDescription)
-                }
-            }
-        }
-    }
-
-    private func deleteCloudSave(at index: Int) {
-        let save = cloudSaves[index]
-
-        showDestructiveConfirmation(
-            title: "Delete Cloud Save?",
-            message: "This will permanently delete \"\(save.saveName)\" from the cloud.",
-            confirmTitle: "Delete"
-        ) { [weak self] in
-            self?.activityIndicator.startAnimating()
-            CloudSaveService.shared.deleteSave(saveID: save.saveID) { [weak self] result in
-                DispatchQueue.main.async {
-                    self?.activityIndicator.stopAnimating()
-                    if case .success = result {
-                        self?.cloudSaves.remove(at: index)
-                        self?.tableView.reloadData()
-                        self?.showTemporaryMessage("Cloud save deleted")
-                    }
-                }
-            }
-        }
     }
 
     private func deleteLocalSave() {
@@ -259,6 +194,7 @@ class LoadGameViewController: UIViewController {
                         gameVC.mapType = .arabia
                         gameVC.mapSeed = session.mapConfig.seed
                         gameVC.onlineGameID = session.gameID
+                        gameVC.onlineSnapshot = snapshot
                         gameVC.shouldLoadGame = true
 
                     case .failure(let error):
@@ -292,16 +228,6 @@ class LoadGameViewController: UIViewController {
         }
     }
 
-    // MARK: - Helpers
-
-    private func formatBytes(_ bytes: Int) -> String {
-        if bytes < 1024 {
-            return "\(bytes) B"
-        } else {
-            return "\(bytes / 1024) KB"
-        }
-    }
-
     override var prefersStatusBarHidden: Bool {
         return true
     }
@@ -312,20 +238,12 @@ class LoadGameViewController: UIViewController {
 extension LoadGameViewController: UITableViewDataSource {
 
     func numberOfSections(in tableView: UITableView) -> Int {
-        if isOfflineTab {
-            return 2 // Local Save, Cloud Saves
-        } else {
-            return 1 // Online Games
-        }
+        return 1
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if isOfflineTab {
-            if section == 0 {
-                return GameSaveManager.shared.saveExists() ? 1 : 0
-            } else {
-                return isSignedIn ? cloudSaves.count : 0
-            }
+            return GameSaveManager.shared.saveExists() ? 1 : 0
         } else {
             return isSignedIn ? onlineGames.count : 0
         }
@@ -333,14 +251,7 @@ extension LoadGameViewController: UITableViewDataSource {
 
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         if isOfflineTab {
-            if section == 0 {
-                return "LOCAL SAVE"
-            } else {
-                if !isSignedIn {
-                    return "CLOUD SAVES (Sign in to access)"
-                }
-                return "CLOUD SAVES (\(cloudSaves.count)/5)"
-            }
+            return "LOCAL SAVE"
         } else {
             if !isSignedIn {
                 return "ONLINE GAMES (Sign in to access)"
@@ -358,27 +269,15 @@ extension LoadGameViewController: UITableViewDataSource {
         cell.accessoryType = .none
 
         if isOfflineTab {
-            if indexPath.section == 0 {
-                // Local save row
-                let dateFormatter = RelativeDateTimeFormatter()
-                dateFormatter.unitsStyle = .full
-                let saveDate = GameSaveManager.shared.getSaveDate()
-                let dateString = saveDate.map { dateFormatter.localizedString(for: $0, relativeTo: Date()) } ?? "Unknown"
+            // Local save row
+            let dateFormatter = RelativeDateTimeFormatter()
+            dateFormatter.unitsStyle = .full
+            let saveDate = GameSaveManager.shared.getSaveDate()
+            let dateString = saveDate.map { dateFormatter.localizedString(for: $0, relativeTo: Date()) } ?? "Unknown"
 
-                cell.textLabel?.text = "Current Game"
-                cell.detailTextLabel?.text = "Last saved: \(dateString)"
-                cell.accessoryType = .disclosureIndicator
-            } else {
-                // Cloud save row
-                let save = cloudSaves[indexPath.row]
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateStyle = .medium
-                dateFormatter.timeStyle = .short
-
-                cell.textLabel?.text = save.saveName
-                cell.detailTextLabel?.text = "\(dateFormatter.string(from: save.saveDate)) - \(formatBytes(save.sizeBytes))"
-                cell.accessoryType = .disclosureIndicator
-            }
+            cell.textLabel?.text = "Current Game"
+            cell.detailTextLabel?.text = "Last saved: \(dateString)"
+            cell.accessoryType = .disclosureIndicator
         } else {
             // Online game row
             let session = onlineGames[indexPath.row]
@@ -424,31 +323,7 @@ extension LoadGameViewController: UITableViewDelegate {
         tableView.deselectRow(at: indexPath, animated: true)
 
         if isOfflineTab {
-            if indexPath.section == 0 {
-                // Load local save
-                loadLocalSave()
-            } else {
-                // Cloud save — show action sheet
-                let save = cloudSaves[indexPath.row]
-                let alert = UIAlertController(title: save.saveName, message: nil, preferredStyle: .actionSheet)
-
-                alert.addAction(UIAlertAction(title: "Download & Play", style: .default) { [weak self] _ in
-                    self?.downloadCloudSave(at: indexPath.row)
-                })
-
-                alert.addAction(UIAlertAction(title: "Delete from Cloud", style: .destructive) { [weak self] _ in
-                    self?.deleteCloudSave(at: indexPath.row)
-                })
-
-                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-
-                if let popover = alert.popoverPresentationController {
-                    popover.sourceView = tableView
-                    popover.sourceRect = tableView.rectForRow(at: indexPath)
-                }
-
-                present(alert, animated: true)
-            }
+            loadLocalSave()
         } else {
             // Resume online game
             let session = onlineGames[indexPath.row]
@@ -458,21 +333,12 @@ extension LoadGameViewController: UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         if isOfflineTab {
-            if indexPath.section == 0 {
-                // Swipe to delete local save
-                let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
-                    self?.deleteLocalSave()
-                    completion(true)
-                }
-                return UISwipeActionsConfiguration(actions: [deleteAction])
-            } else {
-                // Swipe to delete cloud save
-                let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
-                    self?.deleteCloudSave(at: indexPath.row)
-                    completion(true)
-                }
-                return UISwipeActionsConfiguration(actions: [deleteAction])
+            // Swipe to delete local save
+            let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
+                self?.deleteLocalSave()
+                completion(true)
             }
+            return UISwipeActionsConfiguration(actions: [deleteAction])
         } else {
             // Swipe to delete online game
             let session = onlineGames[indexPath.row]

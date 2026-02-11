@@ -12,6 +12,7 @@ class MainMenuViewController: UIViewController {
     var accountLabel: UILabel!
 
     private var authObserver: NSObjectProtocol?
+    private var usernameObserver: NSObjectProtocol?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,10 +27,21 @@ class MainMenuViewController: UIViewController {
         ) { [weak self] _ in
             self?.updateAccountLabel()
         }
+
+        usernameObserver = NotificationCenter.default.addObserver(
+            forName: AuthService.usernameDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateAccountLabel()
+        }
     }
 
     deinit {
         if let observer = authObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = usernameObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
@@ -199,7 +211,7 @@ class MainMenuViewController: UIViewController {
 
     private func updateAccountLabel() {
         if let user = AuthService.shared.currentUser {
-            let displayText = user.displayName ?? user.email ?? "Signed In"
+            let displayText = AuthService.shared.cachedUsername ?? user.displayName ?? user.email ?? "Signed In"
             accountLabel.text = "Signed in as \(displayText)"
         } else {
             accountLabel.text = "Not signed in"

@@ -5,7 +5,7 @@
 
 import Foundation
 
-enum GameOverReason {
+enum GameOverReason: String {
     case starvation           // 0 food for 60 seconds
     case resignation          // Player resigned
     case conquest             // Destroyed enemy (victory)
