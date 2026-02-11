@@ -64,13 +64,18 @@ class CommandExecutor {
             // Add to history
             if let wrapped = try? AnyCommand(command) {
                 commandHistory.append(wrapped)
-                
+
                 // Trim history if needed
                 if commandHistory.count > maxHistorySize {
                     commandHistory.removeFirst(commandHistory.count - maxHistorySize)
                 }
             }
-            
+
+            // Stream command to online session if active
+            if GameSessionService.shared.currentSession != nil {
+                GameSessionService.shared.submitCommand(command, isAI: false)
+            }
+
             if loggingEnabled {
                 debugLog("✅ Command \(T.commandType) executed successfully")
             }

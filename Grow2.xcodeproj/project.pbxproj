@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3FBDVC0001000000ARNRSLT /* ArenaResultsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */; };
-		3FENGN0001000000ARNSIM0 /* ArenaSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000ARNSIM0 /* ArenaSimulator.swift */; };
 		3F286A052F195A5B004636ED /* BuildingData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A042F195A5B004636ED /* BuildingData.swift */; };
 		3F286A072F19608D004636ED /* GameCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A062F19608D004636ED /* GameCommand.swift */; };
 		3F286A092F1960C0004636ED /* CommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F286A082F1960C0004636ED /* CommandExecutor.swift */; };
@@ -44,6 +42,18 @@
 		3FAB1B4C2F1AAE37004775C1 /* RecruitCommanderCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */; };
 		3FARMYDTL12F28A00100ARMYD /* ArmyDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */; };
 		3FATKENTPNL1000000100ATKE /* AttackEntityPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FATKENTPNL2000000100ATKE /* AttackEntityPanelViewController.swift */; };
+		3FBDVC0001000000000ACMVC /* AccountManagementViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000ACMVC /* AccountManagementViewController.swift */; };
+		3FBDVC0001000000000AUTHV /* AuthViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000AUTHV /* AuthViewController.swift */; };
+		3FBDVC0001000000000GARRI /* BuildingDetailViewController+Garrison.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */; };
+		3FBDVC0001000000000HMBSE /* BuildingDetailViewController+HomeBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000HMBSE /* BuildingDetailViewController+HomeBase.swift */; };
+		3FBDVC0001000000000MARKT /* BuildingDetailViewController+Market.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000MARKT /* BuildingDetailViewController+Market.swift */; };
+		3FBDVC0001000000000TRAIN /* BuildingDetailViewController+Training.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */; };
+		3FBDVC0001000000000UPGRD /* BuildingDetailViewController+Upgrades.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */; };
+		3FBDVC0001000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift */; };
+		3FBDVC0001000000ARNRSLT /* ArenaResultsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */; };
+		3FBDVC0001000000LDGMVC /* LoadGameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000LDGMVC /* LoadGameViewController.swift */; };
+		3FBDVC0001000000ONLGMS /* OnlineGamesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000ONLGMS /* OnlineGamesViewController.swift */; };
+		3FBDVC0001000000USRSTVC /* UserStatsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000USRSTVC /* UserStatsViewController.swift */; };
 		3FBLDENTPNL1000000100BLDE /* BuildEntityPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBLDENTPNL2000000100BLDE /* BuildEntityPanelViewController.swift */; };
 		3FC0F1002EC7965F007C0782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */; };
 		3FC0F1022EC7965F007C0782 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F1012EC7965F007C0782 /* GameViewController.swift */; };
@@ -64,8 +74,12 @@
 		3FDATA0001000000000PLRST /* PlayerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000PLRST /* PlayerState.swift */; };
 		3FDATA0001000000000RSPNT /* ResourcePointData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000RSPNT /* ResourcePointData.swift */; };
 		3FDATA0001000000000STATE /* StateChange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000STATE /* StateChange.swift */; };
-		3FDATA0001000000000VLGRD /* VillagerGroupData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000VLGRD /* VillagerGroupData.swift */; };
 		3FDATA0001000000000UUGRD /* UnitUpgradeType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000UUGRD /* UnitUpgradeType.swift */; };
+		3FDATA0001000000000VLGRD /* VillagerGroupData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000000VLGRD /* VillagerGroupData.swift */; };
+		3FDATA0001000000AICMDD /* AICommandData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000AICMDD /* AICommandData.swift */; };
+		3FDATA0001000000GMSNAP /* GameSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000GMSNAP /* GameSnapshot.swift */; };
+		3FDATA0001000000GMSSSN /* GameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000GMSSSN /* GameSession.swift */; };
+		3FDATA0001000000ONLCMD /* OnlineCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDATA0002000000ONLCMD /* OnlineCommand.swift */; };
 		3FDETCMBT12F28B00100DTCMB /* DetailedCombatRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */; };
 		3FEBD1FD2EEF5C6400341AEE /* Commander.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD1FC2EEF5C6400341AEE /* Commander.swift */; };
 		3FEBD1FF2EF3258E00341AEE /* CommanderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */; };
@@ -75,14 +89,14 @@
 		3FEBD2092F006EE800341AEE /* FogOfWar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD2082F006EE800341AEE /* FogOfWar.swift */; };
 		3FEBD20B2F006F1100341AEE /* FogOverlayNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */; };
 		3FENGN0001000000000AICNT /* AIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AICNT /* AIController.swift */; };
+		3FENGN0001000000000AIDFP /* AIDefensePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */; };
 		3FENGN0001000000000AIECP /* AIEconomyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIECP /* AIEconomyPlanner.swift */; };
 		3FENGN0001000000000AIMLP /* AIMilitaryPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIMLP /* AIMilitaryPlanner.swift */; };
-		3FENGN0001000000000AIDFP /* AIDefensePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */; };
 		3FENGN0001000000000AIRSP /* AIResearchPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000AIRSP /* AIResearchPlanner.swift */; };
 		3FENGN0001000000000CMENG /* CombatEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CMENG /* CombatEngine.swift */; };
 		3FENGN0001000000000CNENG /* ConstructionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000CNENG /* ConstructionEngine.swift */; };
-		3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DMGCL /* DamageCalculator.swift */; };
 		3FENGN0001000000000DBLOG /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DBLOG /* DebugLog.swift */; };
+		3FENGN0001000000000DMGCL /* DamageCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000DMGCL /* DamageCalculator.swift */; };
 		3FENGN0001000000000GMCFG /* GameConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GMCFG /* GameConfig.swift */; };
 		3FENGN0001000000000GMENG /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GMENG /* GameEngine.swift */; };
 		3FENGN0001000000000GRDEF /* GarrisonDefenseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */; };
@@ -91,6 +105,8 @@
 		3FENGN0001000000000SYADP /* SystemAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000SYADP /* SystemAdapters.swift */; };
 		3FENGN0001000000000TRENG /* TrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000TRENG /* TrainingEngine.swift */; };
 		3FENGN0001000000000VSENG /* VisionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000000VSENG /* VisionEngine.swift */; };
+		3FENGN0001000000ARNSIM0 /* ArenaSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENGN0002000000ARNSIM0 /* ArenaSimulator.swift */; };
+		3FENTRCH1000000000ENTCMD /* EntrenchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENTRCH2000000000ENTCMD /* EntrenchCommand.swift */; };
 		3FENTSELCL1000000100ESCL /* EntitySelectionCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENTSELCL2000000100ESCL /* EntitySelectionCell.swift */; };
 		3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF482F030F04002FA5D7 /* Resource.swift */; };
 		3FF8CF4B2F08310E002FA5D7 /* MainMenuViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */; };
@@ -101,26 +117,26 @@
 		3FF8CF552F099255002FA5D7 /* BackgroundTimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */; };
 		3FF8CF572F0B8002002FA5D7 /* TrainingOverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */; };
 		3FF8CF592F0B810D002FA5D7 /* BuildingDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */; };
-		3FBDVC0001000000000TRAIN /* BuildingDetailViewController+Training.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */; };
-		3FBDVC0001000000000MARKT /* BuildingDetailViewController+Market.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000MARKT /* BuildingDetailViewController+Market.swift */; };
-		3FBDVC0001000000000GARRI /* BuildingDetailViewController+Garrison.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */; };
-		3FBDVC0001000000000UPGRD /* BuildingDetailViewController+Upgrades.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */; };
-		3FBDVC0001000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift */; };
-		3FBDVC0001000000000HMBSE /* BuildingDetailViewController+HomeBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000HMBSE /* BuildingDetailViewController+HomeBase.swift */; };
-		3FGSCN0001000000000INPTH /* GameScene+InputHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */; };
 		3FF8CF5B2F0D92CE002FA5D7 /* VillagerMergeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */; };
 		3FF8CF5D2F0DA5CC002FA5D7 /* AlertHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */; };
 		3FF8CF5F2F0DA5E3002FA5D7 /* GameSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */; };
 		3FF8CF612F0DA5F4002FA5D7 /* MenuCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */; };
-		3FMNCRD0001000000000TILE /* MenuCoordinator+TileMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNCRD0002000000000TILE /* MenuCoordinator+TileMenus.swift */; };
-		3FMNCRD0001000000000ENTM /* MenuCoordinator+EntityMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNCRD0002000000000ENTM /* MenuCoordinator+EntityMenus.swift */; };
 		3FF8CF632F0DA614002FA5D7 /* EntityActionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF8CF622F0DA614002FA5D7 /* EntityActionHandler.swift */; };
+		3FFE451D2F3BC30F0001F7AB /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3FFE451C2F3BC30F0001F7AB /* GoogleService-Info.plist */; };
 		3FGMOVERVC12F29D00100GMOV /* GameOverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */; };
 		3FGMOVRSN12F29E00100GMOV /* GameOverReason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */; };
+		3FGSCN0001000000000INPTH /* GameScene+InputHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */; };
 		3FGTHENTPNL1000000100GTHE /* GatherEntityPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FGTHENTPNL2000000100GTHE /* GatherEntityPanelViewController.swift */; };
 		3FJNVLRCMD10000000100JNVL /* JoinVillagerGroupCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FJNVLRCMD20000000100JNVL /* JoinVillagerGroupCommand.swift */; };
 		3FLIVECBT12F28D00100LIVEC /* LiveCombatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */; };
 		3FMILTOVW10000000100MILTO /* MilitaryOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */; };
+		3FMNCRD0001000000000ENTM /* MenuCoordinator+EntityMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNCRD0002000000000ENTM /* MenuCoordinator+EntityMenus.swift */; };
+		3FMNCRD0001000000000TILE /* MenuCoordinator+TileMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNCRD0002000000000TILE /* MenuCoordinator+TileMenus.swift */; };
+		3FMNGR0001000000000AUTHS /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNGR0002000000000AUTHS /* AuthService.swift */; };
+		3FMNGR0001000000GMSSRV /* GameSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNGR0002000000GMSSRV /* GameSessionService.swift */; };
+		3FMNGR0001000000USRSTTS /* UserStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMNGR0002000000USRSTTS /* UserStatsService.swift */; };
+		3FMODL0001000000000DFSTK /* DefensiveStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMODL0002000000000DFSTK /* DefensiveStack.swift */; };
+		3FMODL0001000000000STKCM /* StackCombat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMODL0002000000000STKCM /* StackCombat.swift */; };
 		3FMRCHVLRG10000000100MRVG /* MarchingVillagerGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMRCHVLRG20000000100MRVG /* MarchingVillagerGroup.swift */; };
 		3FMRCHVLRN10000000100MRVN /* MarchingVillagerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMRCHVLRN20000000100MRVN /* MarchingVillagerNode.swift */; };
 		3FMVENTPNL12F2CC00100MVEP /* MoveEntityPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */; };
@@ -134,23 +150,22 @@
 		3FREINGRP12F29A00100REINF /* ReinforcementGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */; };
 		3FREINNODE12F29B00100REIN /* ReinforcementNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */; };
 		3FREINPNL10000000100REINP /* ReinforcePanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */; };
-		3FENTRCH1000000000ENTCMD /* EntrenchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FENTRCH2000000000ENTCMD /* EntrenchCommand.swift */; };
 		3FRETREAT12F2AA00100RETRT /* RetreatCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */; };
 		3FROOT0001000000000GSINT /* GameSceneEngineIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */; };
 		3FRSRCOVW10000000100RSRCO /* ResourceOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */; };
 		3FSIDEPNLVC1000000100SPVC /* SidePanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */; };
+		3FSPMPKG0001000000FBAUTH /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3FSPMPKG0002000000FBAUTH /* FirebaseAuth */; };
+		3FSPMPKG0001000000FBFRST /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 3FSPMPKG0002000000FBFRST /* FirebaseFirestore */; };
+		3FSPMPKG0001000000GGLSGN /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 3FSPMPKG0002000000GGLSGN /* GoogleSignIn */; };
 		3FVISL0001000000000GMVSL /* GameVisualLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVISL0002000000000GMVSL /* GameVisualLayer.swift */; };
 		3FVISL0001000000000NDFCT /* NodeFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVISL0002000000000NDFCT /* NodeFactory.swift */; };
 		3FVLRDPLPNL1000000100VDPL /* VillagerDeploymentPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */; };
 		3FVLRJNMGR10000000100VJMG /* VillagerJoinManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */; };
 		3FVLRTSKWR1000000100VTWH /* VillagerTaskWarningHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */; };
-		3FMODL0001000000000DFSTK /* DefensiveStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMODL0002000000000DFSTK /* DefensiveStack.swift */; };
-		3FMODL0001000000000STKCM /* StackCombat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FMODL0002000000000STKCM /* StackCombat.swift */; };
+		3FBDVC0001000000000DSPNM /* DisplayNameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBDVC0002000000000DSPNM /* DisplayNameViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaResultsViewController.swift; sourceTree = "<group>"; };
-		3FENGN0002000000ARNSIM0 /* ArenaSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaSimulator.swift; sourceTree = "<group>"; };
 		3F286A042F195A5B004636ED /* BuildingData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingData.swift; sourceTree = "<group>"; };
 		3F286A062F19608D004636ED /* GameCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCommand.swift; sourceTree = "<group>"; };
 		3F286A082F1960C0004636ED /* CommandExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandExecutor.swift; sourceTree = "<group>"; };
@@ -186,6 +201,18 @@
 		3FAB1B4B2F1AAE37004775C1 /* RecruitCommanderCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecruitCommanderCommand.swift; path = "Grow2 iOS/ViewControllers/RecruitCommanderCommand.swift"; sourceTree = SOURCE_ROOT; };
 		3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArmyDetailViewController.swift; sourceTree = "<group>"; };
 		3FATKENTPNL2000000100ATKE /* AttackEntityPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttackEntityPanelViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000000ACMVC /* AccountManagementViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountManagementViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000000AUTHV /* AuthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Garrison.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000HMBSE /* BuildingDetailViewController+HomeBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+HomeBase.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000MARKT /* BuildingDetailViewController+Market.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Market.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Training.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Upgrades.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+UnitUpgrades.swift"; sourceTree = "<group>"; };
+		3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaResultsViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000LDGMVC /* LoadGameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadGameViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000ONLGMS /* OnlineGamesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGamesViewController.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000USRSTVC /* UserStatsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsViewController.swift; sourceTree = "<group>"; };
 		3FBLDENTPNL2000000100BLDE /* BuildEntityPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildEntityPanelViewController.swift; sourceTree = "<group>"; };
 		3FC0F0F42EC7965C007C0782 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		3FC0F0F62EC7965C007C0782 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
@@ -207,8 +234,12 @@
 		3FDATA0002000000000PLRST /* PlayerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerState.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000RSPNT /* ResourcePointData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourcePointData.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000STATE /* StateChange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateChange.swift; sourceTree = "<group>"; };
-		3FDATA0002000000000VLGRD /* VillagerGroupData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerGroupData.swift; sourceTree = "<group>"; };
 		3FDATA0002000000000UUGRD /* UnitUpgradeType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitUpgradeType.swift; sourceTree = "<group>"; };
+		3FDATA0002000000000VLGRD /* VillagerGroupData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerGroupData.swift; sourceTree = "<group>"; };
+		3FDATA0002000000AICMDD /* AICommandData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommandData.swift; sourceTree = "<group>"; };
+		3FDATA0002000000GMSNAP /* GameSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSnapshot.swift; sourceTree = "<group>"; };
+		3FDATA0002000000GMSSSN /* GameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSession.swift; sourceTree = "<group>"; };
+		3FDATA0002000000ONLCMD /* OnlineCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineCommand.swift; sourceTree = "<group>"; };
 		3FDETCMBT22F28B00100DTCMB /* DetailedCombatRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedCombatRecord.swift; sourceTree = "<group>"; };
 		3FEBD1FC2EEF5C6400341AEE /* Commander.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commander.swift; sourceTree = "<group>"; };
 		3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommanderViewController.swift; sourceTree = "<group>"; };
@@ -218,14 +249,14 @@
 		3FEBD2082F006EE800341AEE /* FogOfWar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOfWar.swift; sourceTree = "<group>"; };
 		3FEBD20A2F006F1100341AEE /* FogOverlayNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FogOverlayNode.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000AICNT /* AIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIController.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDefensePlanner.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000AIECP /* AIEconomyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEconomyPlanner.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000AIMLP /* AIMilitaryPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMilitaryPlanner.swift; sourceTree = "<group>"; };
-		3FENGN0002000000000AIDFP /* AIDefensePlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDefensePlanner.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000AIRSP /* AIResearchPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResearchPlanner.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CMENG /* CombatEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000CNENG /* ConstructionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstructionEngine.swift; sourceTree = "<group>"; };
-		3FENGN0002000000000DMGCL /* DamageCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageCalculator.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000DBLOG /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
+		3FENGN0002000000000DMGCL /* DamageCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DamageCalculator.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GMCFG /* GameConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameConfig.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GMENG /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000GRDEF /* GarrisonDefenseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarrisonDefenseEngine.swift; sourceTree = "<group>"; };
@@ -234,6 +265,9 @@
 		3FENGN0002000000000SYADP /* SystemAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAdapters.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000TRENG /* TrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngine.swift; sourceTree = "<group>"; };
 		3FENGN0002000000000VSENG /* VisionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionEngine.swift; sourceTree = "<group>"; };
+		3FENGN0002000000ARNSIM0 /* ArenaSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaSimulator.swift; sourceTree = "<group>"; };
+		3FENTL0002000000000ENTLS /* Grow2.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Grow2.entitlements; sourceTree = "<group>"; };
+		3FENTRCH2000000000ENTCMD /* EntrenchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntrenchCommand.swift; sourceTree = "<group>"; };
 		3FENTSELCL2000000100ESCL /* EntitySelectionCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitySelectionCell.swift; sourceTree = "<group>"; };
 		3FF8CF482F030F04002FA5D7 /* Resource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Resource.swift; sourceTree = "<group>"; };
 		3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MainMenuViewController.swift; path = "Grow2 iOS/ViewControllers/MainMenuViewController.swift"; sourceTree = SOURCE_ROOT; };
@@ -244,26 +278,26 @@
 		3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTimeManager.swift; sourceTree = "<group>"; };
 		3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingOverViewController.swift; sourceTree = "<group>"; };
 		3FF8CF582F0B810D002FA5D7 /* BuildingDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingDetailViewController.swift; sourceTree = "<group>"; };
-		3FBDVC0002000000000TRAIN /* BuildingDetailViewController+Training.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Training.swift"; sourceTree = "<group>"; };
-		3FBDVC0002000000000MARKT /* BuildingDetailViewController+Market.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Market.swift"; sourceTree = "<group>"; };
-		3FBDVC0002000000000GARRI /* BuildingDetailViewController+Garrison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Garrison.swift"; sourceTree = "<group>"; };
-		3FBDVC0002000000000UPGRD /* BuildingDetailViewController+Upgrades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+Upgrades.swift"; sourceTree = "<group>"; };
-		3FBDVC0002000000000UUPUI /* BuildingDetailViewController+UnitUpgrades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+UnitUpgrades.swift"; sourceTree = "<group>"; };
-		3FBDVC0002000000000HMBSE /* BuildingDetailViewController+HomeBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BuildingDetailViewController+HomeBase.swift"; sourceTree = "<group>"; };
-		3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameScene+InputHandling.swift"; sourceTree = "<group>"; };
 		3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerMergeViewController.swift; sourceTree = "<group>"; };
 		3FF8CF5C2F0DA5CC002FA5D7 /* AlertHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHelper.swift; sourceTree = "<group>"; };
 		3FF8CF5E2F0DA5E3002FA5D7 /* GameSceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneDelegate.swift; sourceTree = "<group>"; };
 		3FF8CF602F0DA5F4002FA5D7 /* MenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuCoordinator.swift; sourceTree = "<group>"; };
-		3FMNCRD0002000000000TILE /* MenuCoordinator+TileMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MenuCoordinator+TileMenus.swift"; sourceTree = "<group>"; };
-		3FMNCRD0002000000000ENTM /* MenuCoordinator+EntityMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MenuCoordinator+EntityMenus.swift"; sourceTree = "<group>"; };
 		3FF8CF622F0DA614002FA5D7 /* EntityActionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityActionHandler.swift; sourceTree = "<group>"; };
+		3FFE451C2F3BC30F0001F7AB /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverViewController.swift; sourceTree = "<group>"; };
 		3FGMOVRSN22F29E00100GMOV /* GameOverReason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverReason.swift; sourceTree = "<group>"; };
+		3FGSCN0002000000000INPTH /* GameScene+InputHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameScene+InputHandling.swift"; sourceTree = "<group>"; };
 		3FGTHENTPNL2000000100GTHE /* GatherEntityPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatherEntityPanelViewController.swift; sourceTree = "<group>"; };
 		3FJNVLRCMD20000000100JNVL /* JoinVillagerGroupCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinVillagerGroupCommand.swift; sourceTree = "<group>"; };
 		3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCombatViewController.swift; sourceTree = "<group>"; };
 		3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilitaryOverviewViewController.swift; sourceTree = "<group>"; };
+		3FMNCRD0002000000000ENTM /* MenuCoordinator+EntityMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MenuCoordinator+EntityMenus.swift"; sourceTree = "<group>"; };
+		3FMNCRD0002000000000TILE /* MenuCoordinator+TileMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MenuCoordinator+TileMenus.swift"; sourceTree = "<group>"; };
+		3FMNGR0002000000000AUTHS /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		3FMNGR0002000000GMSSRV /* GameSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSessionService.swift; sourceTree = "<group>"; };
+		3FMNGR0002000000USRSTTS /* UserStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsService.swift; sourceTree = "<group>"; };
+		3FMODL0002000000000DFSTK /* DefensiveStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefensiveStack.swift; sourceTree = "<group>"; };
+		3FMODL0002000000000STKCM /* StackCombat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackCombat.swift; sourceTree = "<group>"; };
 		3FMRCHVLRG20000000100MRVG /* MarchingVillagerGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarchingVillagerGroup.swift; sourceTree = "<group>"; };
 		3FMRCHVLRN20000000100MRVN /* MarchingVillagerNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarchingVillagerNode.swift; sourceTree = "<group>"; };
 		3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveEntityPanelViewController.swift; sourceTree = "<group>"; };
@@ -277,7 +311,6 @@
 		3FREINGRP22F29A00100REINF /* ReinforcementGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementGroup.swift; sourceTree = "<group>"; };
 		3FREINNODE22F29B00100REIN /* ReinforcementNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcementNode.swift; sourceTree = "<group>"; };
 		3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforcePanelViewController.swift; sourceTree = "<group>"; };
-		3FENTRCH2000000000ENTCMD /* EntrenchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntrenchCommand.swift; sourceTree = "<group>"; };
 		3FRETREAT22F2AA00100RETRT /* RetreatCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetreatCommand.swift; sourceTree = "<group>"; };
 		3FROOT0002000000000GSINT /* GameSceneEngineIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneEngineIntegration.swift; sourceTree = "<group>"; };
 		3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceOverviewViewController.swift; sourceTree = "<group>"; };
@@ -287,8 +320,7 @@
 		3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerDeploymentPanelViewController.swift; sourceTree = "<group>"; };
 		3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerJoinManager.swift; sourceTree = "<group>"; };
 		3FVLRTSKWR2000000100VTWH /* VillagerTaskWarningHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VillagerTaskWarningHelper.swift; sourceTree = "<group>"; };
-		3FMODL0002000000000DFSTK /* DefensiveStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefensiveStack.swift; sourceTree = "<group>"; };
-		3FMODL0002000000000STKCM /* StackCombat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackCombat.swift; sourceTree = "<group>"; };
+		3FBDVC0002000000000DSPNM /* DisplayNameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayNameViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -296,6 +328,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FSPMPKG0001000000FBAUTH /* FirebaseAuth in Frameworks */,
+				3FSPMPKG0001000000FBFRST /* FirebaseFirestore in Frameworks */,
+				3FSPMPKG0001000000GGLSGN /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -366,6 +401,7 @@
 		3FC0F0FE2EC7965F007C0782 /* Grow2 iOS */ = {
 			isa = PBXGroup;
 			children = (
+				3FFE451C2F3BC30F0001F7AB /* GoogleService-Info.plist */,
 				3FF8CF652F0DB0B8002FA5D7 /* ViewControllers */,
 				3FF8CF642F0DB076002FA5D7 /* Utilities */,
 				3FF8CF672F0DB10A002FA5D7 /* Coordinators */,
@@ -374,6 +410,7 @@
 				3FF8CF666F0DB0D4002FA5D9 /* Views */,
 				3FF8CF662F0DB0D4002FA5D7 /* Handlers */,
 				3FC0F0FF2EC7965F007C0782 /* AppDelegate.swift */,
+				3FENTL0002000000000ENTLS /* Grow2.entitlements */,
 				3FC0F1032EC7965F007C0782 /* Main.storyboard */,
 				3FC0F1062EC7965F007C0782 /* LaunchScreen.storyboard */,
 			);
@@ -383,16 +420,20 @@
 		3FDATA0003000000000DTAGP /* Data */ = {
 			isa = PBXGroup;
 			children = (
+				3FDATA0002000000AICMDD /* AICommandData.swift */,
 				3FDATA0002000000000ARMYD /* ArmyData.swift */,
 				3F286A042F195A5B004636ED /* BuildingData.swift */,
+				3FDATA0002000000GMSSSN /* GameSession.swift */,
+				3FDATA0002000000GMSNAP /* GameSnapshot.swift */,
 				3FDATA0002000000000GMEST /* GameState.swift */,
 				3FDATA0002000000000GSQRY /* GameStateQueries.swift */,
 				3FDATA0002000000000MAPDT /* MapData.swift */,
+				3FDATA0002000000ONLCMD /* OnlineCommand.swift */,
 				3FDATA0002000000000PLRST /* PlayerState.swift */,
 				3FDATA0002000000000RSPNT /* ResourcePointData.swift */,
 				3FDATA0002000000000STATE /* StateChange.swift */,
-				3FDATA0002000000000VLGRD /* VillagerGroupData.swift */,
 				3FDATA0002000000000UUGRD /* UnitUpgradeType.swift */,
+				3FDATA0002000000000VLGRD /* VillagerGroupData.swift */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -433,8 +474,10 @@
 		3FF8CF652F0DB0B8002FA5D7 /* ViewControllers */ = {
 			isa = PBXGroup;
 			children = (
+				3FBDVC0002000000000ACMVC /* AccountManagementViewController.swift */,
 				3FF8CF502F083158002FA5D7 /* AboutViewController.swift */,
 				3FBDVC0002000000ARNRSLT /* ArenaResultsViewController.swift */,
+				3FBDVC0002000000000AUTHV /* AuthViewController.swift */,
 				3FARMYDTL22F28A00100ARMYD /* ArmyDetailViewController.swift */,
 				3FATKENTPNL2000000100ATKE /* AttackEntityPanelViewController.swift */,
 				3FBLDENTPNL2000000100BLDE /* BuildEntityPanelViewController.swift */,
@@ -449,22 +492,26 @@
 				3FEBD2042EF3628400341AEE /* CombatHistoryViewController.swift */,
 				3FCMBTDTL22F28C00100CMBTD /* CombatDetailViewController.swift */,
 				3FEBD1FE2EF3258E00341AEE /* CommanderViewController.swift */,
+				3FBDVC0002000000000DSPNM /* DisplayNameViewController.swift */,
 				3F98926B2F21DB81008A24E7 /* EntitiesOverviewViewController.swift */,
 				3FGTHENTPNL2000000100GTHE /* GatherEntityPanelViewController.swift */,
 				3FGMOVERVC22F29D00100GMOV /* GameOverViewController.swift */,
 				3FF8CF4C2F08312E002FA5D7 /* GameSetupViewController.swift */,
 				3FC0F1012EC7965F007C0782 /* GameViewController.swift */,
 				3FLIVECBT22F28D00100LIVEC /* LiveCombatViewController.swift */,
+				3FBDVC0002000000LDGMVC /* LoadGameViewController.swift */,
 				3FF8CF4A2F08310E002FA5D7 /* MainMenuViewController.swift */,
 				3FMILTOVW20000000100MILTO /* MilitaryOverviewViewController.swift */,
 				3FMVENTPNL22F2CC00100MVEP /* MoveEntityPanelViewController.swift */,
 				3FNOTFINBX2000000100NFIB /* NotificationsInboxViewController.swift */,
+				3FBDVC0002000000ONLGMS /* OnlineGamesViewController.swift */,
 				3FREINPNL20000000100REINP /* ReinforcePanelViewController.swift */,
 				3F6AE4472F18189A00C885D6 /* ResearchViewController.swift */,
 				3FRSRCOVW20000000100RSRCO /* ResourceOverviewViewController.swift */,
 				3FF8CF4E2F08313F002FA5D7 /* SettingsViewController.swift */,
 				3FSIDEPNLVC2000000100SPVC /* SidePanelViewController.swift */,
 				3FF8CF562F0B8002002FA5D7 /* TrainingOverViewController.swift */,
+				3FBDVC0002000000USRSTVC /* UserStatsViewController.swift */,
 				3FVLRDPLPNL2000000100VDPL /* VillagerDeploymentPanelViewController.swift */,
 				3FF8CF5A2F0D92CE002FA5D7 /* VillagerMergeViewController.swift */,
 			);
@@ -515,27 +562,29 @@
 			path = Coordinators;
 			sourceTree = "<group>";
 		};
+		3FNOTIF0003000000000NOTGP /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				3FNOTIF0002000000000GMNOT /* GameNotification.swift */,
+				3FNOTIF0002000000000NTFMG /* NotificationManager.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
 		3FORG00030000000000MNGRS /* Managers */ = {
 			isa = PBXGroup;
 			children = (
 				3F9892702F21DBAA008A24E7 /* AdjacencyBonusManager.swift */,
+				3FMNGR0002000000000AUTHS /* AuthService.swift */,
 				3FF8CF542F099255002FA5D7 /* BackgroundTimeManager.swift */,
 				3FF8CF522F099148002FA5D7 /* GameSaveManager.swift */,
+				3FMNGR0002000000GMSSRV /* GameSessionService.swift */,
 				3F6225AA2F2BE74300A6F7D4 /* ReinforcementManager.swift */,
 				3F6AE4502F18228000C885D6 /* ResearchManager.swift */,
+				3FMNGR0002000000USRSTTS /* UserStatsService.swift */,
 				3FVLRJNMGR20000000100VJMG /* VillagerJoinManager.swift */,
 			);
 			path = Managers;
-			sourceTree = "<group>";
-		};
-		3FORG00030000000000MPGEN /* MapGenerators */ = {
-			isa = PBXGroup;
-			children = (
-				3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */,
-				3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */,
-				3FA12B022F27A00000MAPGEN /* MapGenerator.swift */,
-			);
-			path = MapGenerators;
 			sourceTree = "<group>";
 		};
 		3FORG00030000000000MODLS /* Models */ = {
@@ -561,6 +610,16 @@
 				3FMODL0002000000000STKCM /* StackCombat.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		3FORG00030000000000MPGEN /* MapGenerators */ = {
+			isa = PBXGroup;
+			children = (
+				3FA12B042F27A00100ARABIA /* ArabiaMapGenerator.swift */,
+				3FA12B062F27A00200ARENA /* ArenaMapGenerator.swift */,
+				3FA12B022F27A00000MAPGEN /* MapGenerator.swift */,
+			);
+			path = MapGenerators;
 			sourceTree = "<group>";
 		};
 		3FORG00030000000000NODES /* Nodes */ = {
@@ -590,15 +649,6 @@
 			path = Scene;
 			sourceTree = "<group>";
 		};
-		3FNOTIF0003000000000NOTGP /* Notifications */ = {
-			isa = PBXGroup;
-			children = (
-				3FNOTIF0002000000000GMNOT /* GameNotification.swift */,
-				3FNOTIF0002000000000NTFMG /* NotificationManager.swift */,
-			);
-			path = Notifications;
-			sourceTree = "<group>";
-		};
 		3FVISL0003000000000VSLGP /* Visual */ = {
 			isa = PBXGroup;
 			children = (
@@ -624,6 +674,11 @@
 			dependencies = (
 			);
 			name = "Grow2 iOS";
+			packageProductDependencies = (
+				3FSPMPKG0002000000FBAUTH /* FirebaseAuth */,
+				3FSPMPKG0002000000FBFRST /* FirebaseFirestore */,
+				3FSPMPKG0002000000GGLSGN /* GoogleSignIn */,
+			);
 			productName = "Grow2 iOS";
 			productReference = 3FC0F0FC2EC7965F007C0782 /* Grow2.app */;
 			productType = "com.apple.product-type.application";
@@ -652,6 +707,10 @@
 				Base,
 			);
 			mainGroup = 3FC0F0EE2EC7965C007C0782;
+			packageReferences = (
+				3FFE45182F3BB91F0001F7AB /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				3FFE45192F3BB9930001F7AB /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			productRefGroup = 3FC0F0FD2EC7965F007C0782 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -668,6 +727,7 @@
 			files = (
 				3FC0F1052EC7965F007C0782 /* Main.storyboard in Resources */,
 				3FC0F1092EC7965F007C0782 /* Actions.sks in Resources */,
+				3FFE451D2F3BC30F0001F7AB /* GoogleService-Info.plist in Resources */,
 				3FC0F1082EC7965F007C0782 /* LaunchScreen.storyboard in Resources */,
 				3FC0F10C2EC7965F007C0782 /* Assets.xcassets in Resources */,
 			);
@@ -732,6 +792,7 @@
 				3FEBD2052EF3628400341AEE /* CombatHistoryViewController.swift in Sources */,
 				3FNOTFINBX1000000100NFIB /* NotificationsInboxViewController.swift in Sources */,
 				3FLIVECBT12F28D00100LIVEC /* LiveCombatViewController.swift in Sources */,
+				3FBDVC0001000000LDGMVC /* LoadGameViewController.swift in Sources */,
 				3FF8CF492F030F04002FA5D7 /* Resource.swift in Sources */,
 				3F98926C2F21DB81008A24E7 /* EntitiesOverviewViewController.swift in Sources */,
 				3FGMOVERVC12F29D00100GMOV /* GameOverViewController.swift in Sources */,
@@ -815,6 +876,18 @@
 				3FNOTIF0001000000000NSTNG /* NotificationSettings.swift in Sources */,
 				3FBDVC0001000000ARNRSLT /* ArenaResultsViewController.swift in Sources */,
 				3FENGN0001000000ARNSIM0 /* ArenaSimulator.swift in Sources */,
+				3FMNGR0001000000000AUTHS /* AuthService.swift in Sources */,
+				3FBDVC0001000000000ACMVC /* AccountManagementViewController.swift in Sources */,
+				3FBDVC0001000000000AUTHV /* AuthViewController.swift in Sources */,
+				3FDATA0001000000GMSSSN /* GameSession.swift in Sources */,
+				3FDATA0001000000ONLCMD /* OnlineCommand.swift in Sources */,
+				3FDATA0001000000GMSNAP /* GameSnapshot.swift in Sources */,
+				3FDATA0001000000AICMDD /* AICommandData.swift in Sources */,
+				3FMNGR0001000000GMSSRV /* GameSessionService.swift in Sources */,
+				3FBDVC0001000000ONLGMS /* OnlineGamesViewController.swift in Sources */,
+				3FMNGR0001000000USRSTTS /* UserStatsService.swift in Sources */,
+				3FBDVC0001000000USRSTVC /* UserStatsViewController.swift in Sources */,
+				3FBDVC0001000000000DSPNM /* DisplayNameViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -959,10 +1032,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Grow2 iOS/Grow2.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = .1;
 				DEVELOPMENT_TEAM = F9X9GDWLRP;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Grow2 iOS/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.strategy-games";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -990,10 +1065,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Grow2 iOS/Grow2.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = .1;
 				DEVELOPMENT_TEAM = F9X9GDWLRP;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Grow2 iOS/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.strategy-games";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -1039,6 +1116,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3FFE45182F3BB91F0001F7AB /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 10.0.0;
+			};
+		};
+		3FFE45192F3BB9930001F7AB /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3FSPMPKG0002000000FBAUTH /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3FFE45182F3BB91F0001F7AB /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		3FSPMPKG0002000000FBFRST /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3FFE45182F3BB91F0001F7AB /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		3FSPMPKG0002000000GGLSGN /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3FFE45192F3BB9930001F7AB /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 3FC0F0EF2EC7965C007C0782 /* Project object */;
 }

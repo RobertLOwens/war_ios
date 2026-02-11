@@ -29,6 +29,7 @@ struct SettingsKeys {
     // Gameplay
     static let showTutorialHints = "settings.gameplay.tutorialHints"
     static let confirmDestructiveActions = "settings.gameplay.confirmDestructive"
+
 }
 
 // MARK: - Settings Manager
@@ -62,7 +63,7 @@ class GameSettings {
             SettingsKeys.pushResearchComplete: true,
             // Gameplay
             SettingsKeys.showTutorialHints: true,
-            SettingsKeys.confirmDestructiveActions: true
+            SettingsKeys.confirmDestructiveActions: true,
         ]
         defaults.register(defaults: defaultValues)
     }
@@ -121,6 +122,23 @@ class SettingsViewController: UIViewController {
 
         // Build settings sections
         var yOffset: CGFloat = 20
+
+        // Account Section
+        yOffset = addSectionHeader("Account", at: yOffset)
+        yOffset = addButton(
+            title: "Manage Account",
+            titleColor: .white,
+            action: #selector(manageAccountTapped),
+            at: yOffset
+        )
+        yOffset = addButton(
+            title: "Sign Out",
+            titleColor: UIColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0),
+            action: #selector(signOutTapped),
+            at: yOffset
+        )
+
+        yOffset += 20
 
         // Notification Settings Section
         yOffset = addSectionHeader("Notifications", at: yOffset)
@@ -315,9 +333,51 @@ class SettingsViewController: UIViewController {
         return yOffset + rowHeight + 8
     }
 
+    private func addButton(title: String, titleColor: UIColor, action: Selector, at yOffset: CGFloat) -> CGFloat {
+        let rowHeight: CGFloat = 50
+
+        let containerView = UIView()
+        containerView.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+        containerView.layer.cornerRadius = 10
+        containerView.frame = CGRect(x: 16, y: yOffset, width: view.bounds.width - 32, height: rowHeight)
+        contentView.addSubview(containerView)
+
+        let button = UIButton(type: .system)
+        button.setTitle(title, for: .normal)
+        button.setTitleColor(titleColor, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .medium)
+        button.frame = containerView.bounds
+        button.addTarget(self, action: action, for: .touchUpInside)
+        containerView.addSubview(button)
+
+        return yOffset + rowHeight + 8
+    }
+
     @objc private func toggleChanged(_ sender: UISwitch) {
         guard let key = sender.accessibilityIdentifier else { return }
         GameSettings.shared.set(sender.isOn, forKey: key)
+    }
+
+    @objc private func signOutTapped() {
+        showConfirmation(
+            title: "Sign Out",
+            message: "Are you sure you want to sign out?",
+            confirmTitle: "Sign Out",
+            onConfirm: {
+                do {
+                    try AuthService.shared.signOut()
+                    debugLog("User signed out from settings")
+                } catch {
+                    debugLog("Sign out error: \(error.localizedDescription)")
+                }
+            }
+        )
+    }
+
+    @objc private func manageAccountTapped() {
+        let accountVC = AccountManagementViewController()
+        accountVC.modalPresentationStyle = .fullScreen
+        present(accountVC, animated: true)
     }
 
     @objc private func backTapped() {
