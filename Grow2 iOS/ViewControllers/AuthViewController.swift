@@ -290,8 +290,8 @@ class AuthViewController: UIViewController {
                 showError(message: "Passwords do not match.")
                 return
             }
-            guard password.count >= 6 else {
-                showError(message: "Password must be at least 6 characters.")
+            if let passwordError = validatePassword(password) {
+                showError(message: passwordError)
                 return
             }
             setLoading(true)
@@ -378,6 +378,22 @@ class AuthViewController: UIViewController {
         emailField.isEnabled = !loading
         passwordField.isEnabled = !loading
         confirmPasswordField.isEnabled = !loading
+    }
+
+    private func validatePassword(_ password: String) -> String? {
+        if password.count < 8 {
+            return "Password must be at least 8 characters."
+        }
+        if password.rangeOfCharacter(from: .uppercaseLetters) == nil {
+            return "Password must contain at least one uppercase letter."
+        }
+        if password.rangeOfCharacter(from: .lowercaseLetters) == nil {
+            return "Password must contain at least one lowercase letter."
+        }
+        if password.rangeOfCharacter(from: .decimalDigits) == nil {
+            return "Password must contain at least one number."
+        }
+        return nil
     }
 
     private func showError(message: String) {

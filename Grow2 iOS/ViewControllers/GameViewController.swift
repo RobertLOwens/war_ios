@@ -1299,10 +1299,15 @@ class GameViewController: UIViewController {
         autoSaveTimer = nil
 
         if isOnlineMode {
-            // Online mode: mark session finished, preserve game history
-            GameSessionService.shared.updateGameStatus(.finished) { error in
-                if let error = error {
-                    debugLog("Failed to mark game finished: \(error)")
+            // Online mode: delete session from Firestore on game over
+            if let gameID = onlineGameID {
+                GameSessionService.shared.deleteGame(gameID: gameID) { result in
+                    switch result {
+                    case .success:
+                        debugLog("Online game session deleted: \(gameID)")
+                    case .failure(let error):
+                        debugLog("Failed to delete online game session: \(error)")
+                    }
                 }
                 GameSessionService.shared.leaveSession()
             }

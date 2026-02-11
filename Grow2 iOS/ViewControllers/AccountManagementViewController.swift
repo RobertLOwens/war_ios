@@ -363,8 +363,8 @@ class AccountManagementViewController: UIViewController {
             return
         }
 
-        guard newPwd.count >= 6 else {
-            showError(message: "New password must be at least 6 characters.")
+        if let passwordError = validatePassword(newPwd) {
+            showError(message: passwordError)
             return
         }
 
@@ -384,6 +384,22 @@ class AccountManagementViewController: UIViewController {
                 }
             }
         }
+    }
+
+    private func validatePassword(_ password: String) -> String? {
+        if password.count < 8 {
+            return "Password must be at least 8 characters."
+        }
+        if password.rangeOfCharacter(from: .uppercaseLetters) == nil {
+            return "Password must contain at least one uppercase letter."
+        }
+        if password.rangeOfCharacter(from: .lowercaseLetters) == nil {
+            return "Password must contain at least one lowercase letter."
+        }
+        if password.rangeOfCharacter(from: .decimalDigits) == nil {
+            return "Password must contain at least one number."
+        }
+        return nil
     }
 
     @objc private func deleteAccountTapped() {

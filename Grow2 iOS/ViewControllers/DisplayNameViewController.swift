@@ -184,11 +184,13 @@ class DisplayNameViewController: UIViewController {
             confirmButton.topAnchor.constraint(equalTo: validationLabel.bottomAnchor, constant: 30),
             confirmButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             confirmButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            confirmButton.heightAnchor.constraint(equalToConstant: 50)
+            confirmButton.heightAnchor.constraint(equalToConstant: 50),
+            confirmButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
 
-        // Tap to dismiss keyboard
+        // Tap to dismiss keyboard (cancelsTouchesInView must be false so the text field still receives taps)
         let tapGesture = UITapGestureRecognizer(target: view, action: #selector(UIView.endEditing))
+        tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
     }
 
