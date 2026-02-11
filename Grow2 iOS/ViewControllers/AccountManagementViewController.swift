@@ -397,15 +397,69 @@ class AccountManagementViewController: UIViewController {
                 message: "All data will be lost permanently.",
                 confirmTitle: "Yes, Delete Everything"
             ) {
-                AuthService.shared.deleteAccount { result in
-                    DispatchQueue.main.async {
-                        switch result {
-                        case .success:
-                            debugLog("Account deleted")
-                        case .failure(let error):
-                            self?.showError(message: error.localizedDescription)
-                        }
-                    }
+                self?.reauthenticateAndDelete()
+            }
+        }
+    }
+
+    private func reauthenticateAndDelete() {
+        switch AuthService.shared.requiredReauthMethod {
+        case .emailPassword:
+            promptPasswordForDeletion()
+        case .google:
+            reauthenticateGoogleAndDelete()
+        case .apple, .unknown:
+            showError(message: "Please sign out and sign back in, then try deleting your account again.")
+        }
+    }
+
+    private func promptPasswordForDeletion() {
+        let alert = UIAlertController(
+            title: "Confirm Password",
+            message: "Enter your password to confirm account deletion.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Password"
+            field.isSecureTextEntry = true
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+            guard let password = alert.textFields?.first?.text, !password.isEmpty else {
+                self?.showError(message: "Password is required.")
+                return
+            }
+            guard let email = Auth.auth().currentUser?.email else {
+                self?.showError(message: "Unable to determine account email.")
+                return
+            }
+            let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+            self?.performDeletion(with: credential)
+        })
+        present(alert, animated: true)
+    }
+
+    private func reauthenticateGoogleAndDelete() {
+        AuthService.shared.getGoogleCredential(presenting: self) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let credential):
+                    self?.performDeletion(with: credential)
+                case .failure(let error):
+                    self?.showError(message: error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func performDeletion(with credential: AuthCredential) {
+        AuthService.shared.deleteAccount(credential: credential) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    debugLog("Account deleted")
+                case .failure(let error):
+                    self?.showError(message: error.localizedDescription)
                 }
             }
         }

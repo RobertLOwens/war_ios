@@ -175,26 +175,187 @@ class AuthService: NSObject {
         }
     }
 
+    // MARK: - Re-authentication
+
+    /// Determines which re-authentication method the current user needs.
+    var requiredReauthMethod: ReauthMethod {
+        guard let providerData = Auth.auth().currentUser?.providerData else { return .unknown }
+        if providerData.contains(where: { $0.providerID == "apple.com" }) {
+            return .apple
+        } else if providerData.contains(where: { $0.providerID == "google.com" }) {
+            return .google
+        } else if providerData.contains(where: { $0.providerID == "password" }) {
+            return .emailPassword
+        }
+        return .unknown
+    }
+
+    /// Triggers Google Sign-In to obtain a fresh credential for re-authentication.
+    func getGoogleCredential(presenting viewController: UIViewController, completion: @escaping (Result<AuthCredential, Error>) -> Void) {
+        guard GIDSignIn.sharedInstance.configuration != nil else {
+            completion(.failure(AuthError.googleNotConfigured))
+            return
+        }
+        GIDSignIn.sharedInstance.signIn(withPresenting: viewController) { result, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let user = result?.user,
+                  let idToken = user.idToken?.tokenString else {
+                completion(.failure(AuthError.missingGoogleToken))
+                return
+            }
+            let credential = GoogleAuthProvider.credential(
+                withIDToken: idToken,
+                accessToken: user.accessToken.tokenString
+            )
+            completion(.success(credential))
+        }
+    }
+
     // MARK: - Delete Account
 
-    func deleteAccount(completion: @escaping (Result<Void, Error>) -> Void) {
+    /// Deletes the user account after re-authenticating with the provided credential.
+    /// Re-authentication happens **before** any data deletion to avoid orphaned state.
+    func deleteAccount(credential: AuthCredential, completion: @escaping (Result<Void, Error>) -> Void) {
         guard let user = Auth.auth().currentUser else {
             completion(.failure(AuthError.notSignedIn))
             return
         }
 
-        // Release username first, then delete account
-        releaseUsername { [weak self] _ in
-            user.delete { error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
+        let uid = user.uid
+
+        // Step 1: Re-authenticate — if this fails, no data is touched
+        user.reauthenticate(with: credential) { [weak self] _, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let self = self else { return }
+
+            // Step 2: Release username
+            self.releaseUsername { [weak self] _ in
+                guard let self = self else { return }
+
+                // Step 3: Delete all user data from Firestore
+                self.deleteAllUserData(uid: uid) {
+                    // Step 4: Delete Firebase Auth account
+                    user.delete { [weak self] error in
+                        if let error = error {
+                            completion(.failure(error))
+                            return
+                        }
+
+                        // Step 5: Clear local state
+                        self?.cachedUsername = nil
+                        self?.currentUser = nil
+                        UserDefaults.standard.removeObject(forKey: "hasUsername_\(uid)")
+                        completion(.success(()))
+                    }
                 }
-                self?.cachedUsername = nil
-                self?.currentUser = nil
-                completion(.success(()))
             }
         }
+    }
+
+    // MARK: - Cascading Data Deletion Helpers
+
+    /// Delete all user data from Firestore: saves, stats, gameHistory, hosted sessions, user doc.
+    /// Best-effort — errors are logged but don't block auth deletion.
+    private func deleteAllUserData(uid: String, completion: @escaping () -> Void) {
+        let group = DispatchGroup()
+        let userDocRef = db.collection("users").document(uid)
+
+        // Delete saves subcollection
+        group.enter()
+        deleteSubcollection(parentRef: userDocRef, name: "saves") {
+            group.leave()
+        }
+
+        // Delete stats subcollection
+        group.enter()
+        deleteSubcollection(parentRef: userDocRef, name: "stats") {
+            group.leave()
+        }
+
+        // Delete gameHistory subcollection
+        group.enter()
+        deleteSubcollection(parentRef: userDocRef, name: "gameHistory") {
+            group.leave()
+        }
+
+        // Delete hosted game sessions (with their subcollections)
+        group.enter()
+        deleteHostedGameSessions(uid: uid) {
+            group.leave()
+        }
+
+        group.notify(queue: .main) { [weak self] in
+            // Delete the user document itself
+            userDocRef.delete { error in
+                if let error = error {
+                    debugLog("Failed to delete user document: \(error.localizedDescription)")
+                }
+                completion()
+            }
+        }
+    }
+
+    /// Delete all documents in a subcollection under a parent document reference.
+    private func deleteSubcollection(parentRef: DocumentReference, name: String, completion: @escaping () -> Void) {
+        parentRef.collection(name).getDocuments { snapshot, error in
+            if let error = error {
+                debugLog("Failed to query \(name) for deletion: \(error.localizedDescription)")
+                completion()
+                return
+            }
+
+            guard let docs = snapshot?.documents, !docs.isEmpty else {
+                completion()
+                return
+            }
+
+            let batch = parentRef.firestore.batch()
+            for doc in docs {
+                batch.deleteDocument(doc.reference)
+            }
+            batch.commit { error in
+                if let error = error {
+                    debugLog("Failed to batch delete \(name): \(error.localizedDescription)")
+                }
+                completion()
+            }
+        }
+    }
+
+    /// Find and delete all game sessions hosted by this user, including subcollections.
+    private func deleteHostedGameSessions(uid: String, completion: @escaping () -> Void) {
+        db.collection("games")
+            .whereField("hostUID", isEqualTo: uid)
+            .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    debugLog("Failed to query hosted games for deletion: \(error.localizedDescription)")
+                    completion()
+                    return
+                }
+
+                guard let docs = snapshot?.documents, !docs.isEmpty else {
+                    completion()
+                    return
+                }
+
+                let group = DispatchGroup()
+                for doc in docs {
+                    group.enter()
+                    GameSessionService.shared.deleteGame(gameID: doc.documentID) { _ in
+                        group.leave()
+                    }
+                }
+                group.notify(queue: .main) {
+                    completion()
+                }
+            }
     }
 
     // MARK: - Reset Password
@@ -470,4 +631,13 @@ enum AuthError: LocalizedError {
         case .usernameInvalid: return "Username must be 3-20 characters, using only letters, numbers, and underscores."
         }
     }
+}
+
+// MARK: - Re-authentication Method
+
+enum ReauthMethod {
+    case emailPassword
+    case google
+    case apple
+    case unknown
 }

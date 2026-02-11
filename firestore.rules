@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // /users/{uid} — User profiles, saves, stats, game history
+    // =========================================================================
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /saves/{saveID} {
+        allow read, delete: if request.auth != null && request.auth.uid == uid;
+        allow update: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid
+          && getCountAfter(/databases/$(database)/documents/users/$(uid)/saves) <= 5;
+      }
+
+      match /stats/{statID} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /gameHistory/{historyID} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // =========================================================================
+    // /usernames/{name} — Username reservation documents
+    // =========================================================================
+    match /usernames/{name} {
+      // Any authenticated user can check availability
+      allow read: if request.auth != null;
+
+      // Only the authenticated user can claim a username for themselves
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+
+      // Only the owner can release their username
+      allow delete: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+
+      // Usernames are immutable once claimed
+      allow update: if false;
+    }
+
+    // =========================================================================
+    // /games/{gameID} — Online game sessions
+    // =========================================================================
+    match /games/{gameID} {
+      // Any authenticated user can read and create games
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+
+      // Only the host can update or delete the game document
+      allow update: if request.auth != null
+        && resource.data.hostUID == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.hostUID == request.auth.uid;
+
+      // Subcollections: commands, snapshots, playerData
+      match /commands/{commandID} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        // Host can update/delete commands
+        allow update, delete: if request.auth != null
+          && get(/databases/$(database)/documents/games/$(gameID)).data.hostUID == request.auth.uid;
+      }
+
+      match /snapshots/{snapshotID} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null
+          && get(/databases/$(database)/documents/games/$(gameID)).data.hostUID == request.auth.uid;
+      }
+
+      match /playerData/{playerID} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null
+          && get(/databases/$(database)/documents/games/$(gameID)).data.hostUID == request.auth.uid;
+      }
+    }
+  }
+}
