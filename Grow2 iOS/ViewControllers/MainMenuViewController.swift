@@ -6,6 +6,7 @@ class MainMenuViewController: UIViewController {
     var titleLabel: UILabel!
     var newGameButton: UIButton!
     var resumeGameButton: UIButton!
+    var loadGameButton: UIButton!
     var settingsButton: UIButton!
     var lastSaveLabel: UILabel!
     var accountLabel: UILabel!
@@ -72,7 +73,7 @@ class MainMenuViewController: UIViewController {
 
         // Title
         titleLabel = UILabel()
-        titleLabel.text = "🏰 Hex RTS Game"
+        titleLabel.text = "Hex RTS Game"
         titleLabel.font = UIFont.boldSystemFont(ofSize: 42)
         titleLabel.textColor = .white
         titleLabel.textAlignment = .center
@@ -94,14 +95,14 @@ class MainMenuViewController: UIViewController {
 
         // New Game Button
         newGameButton = createMenuButton(
-            title: "🆕 New Game",
+            title: "New Game",
             action: #selector(newGameTapped)
         )
         stackView.addArrangedSubview(newGameButton)
 
-        // Resume Game Button
+        // Resume Game Button (most recent game)
         resumeGameButton = createMenuButton(
-            title: "▶️ Resume Game",
+            title: "Resume Game",
             action: #selector(resumeGameTapped)
         )
         resumeGameButton.backgroundColor = UIColor(red: 0.3, green: 0.6, blue: 0.3, alpha: 1.0)
@@ -114,56 +115,40 @@ class MainMenuViewController: UIViewController {
         lastSaveLabel.textAlignment = .center
         stackView.addArrangedSubview(lastSaveLabel)
 
-        // Spacer before settings
+        // Spacer before load game
         let spacer2 = UIView()
         spacer2.translatesAutoresizingMaskIntoConstraints = false
-        spacer2.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        spacer2.heightAnchor.constraint(equalToConstant: 10).isActive = true
         stackView.addArrangedSubview(spacer2)
+
+        // Load Game Button (list of saves)
+        loadGameButton = createMenuButton(
+            title: "Load Game",
+            action: #selector(loadGameTapped)
+        )
+        loadGameButton.backgroundColor = UIColor(red: 0.2, green: 0.35, blue: 0.5, alpha: 1.0)
+        stackView.addArrangedSubview(loadGameButton)
+
+        // Spacer before settings
+        let spacer3 = UIView()
+        spacer3.translatesAutoresizingMaskIntoConstraints = false
+        spacer3.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        stackView.addArrangedSubview(spacer3)
 
         // Settings Button
         settingsButton = createMenuButton(
-            title: "⚙️ Settings",
+            title: "Settings",
             action: #selector(settingsTapped)
         )
         settingsButton.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
         stackView.addArrangedSubview(settingsButton)
 
-        // My Online Games Button
-        let onlineGamesButton = createMenuButton(
-            title: "🌐 My Online Games",
-            action: #selector(onlineGamesTapped)
-        )
-        onlineGamesButton.backgroundColor = UIColor(red: 0.2, green: 0.4, blue: 0.35, alpha: 1.0)
-        stackView.addArrangedSubview(onlineGamesButton)
-
-        // Cloud Saves Button
-        let cloudSavesButton = createMenuButton(
-            title: "☁️ Cloud Saves",
-            action: #selector(cloudSavesTapped)
-        )
-        cloudSavesButton.backgroundColor = UIColor(red: 0.2, green: 0.35, blue: 0.5, alpha: 1.0)
-        stackView.addArrangedSubview(cloudSavesButton)
-
-        // Delete Save Button
-        let deleteSaveButton = UIButton(type: .system)
-        deleteSaveButton.setTitle("🗑️ Delete Save", for: .normal)
-        deleteSaveButton.titleLabel?.font = UIFont.systemFont(ofSize: 14)
-        deleteSaveButton.setTitleColor(.red, for: .normal)
-        deleteSaveButton.addTarget(self, action: #selector(deleteSaveTapped), for: .touchUpInside)
-        stackView.addArrangedSubview(deleteSaveButton)
-
-        // Sign Out Button
-        let signOutButton = UIButton(type: .system)
-        signOutButton.setTitle("Sign Out", for: .normal)
-        signOutButton.titleLabel?.font = UIFont.systemFont(ofSize: 14)
-        signOutButton.setTitleColor(UIColor(white: 0.5, alpha: 1.0), for: .normal)
-        signOutButton.addTarget(self, action: #selector(signOutTapped), for: .touchUpInside)
-        stackView.addArrangedSubview(signOutButton)
-
-        // Version Label (pinned to bottom)
+        // Version Label (pinned to bottom) — reads from bundle
         let versionLabel = UILabel()
         versionLabel.translatesAutoresizingMaskIntoConstraints = false
-        versionLabel.text = "v1.0.0"
+        let marketingVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
+        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        versionLabel.text = "v\(marketingVersion) (\(buildNumber))"
         versionLabel.font = UIFont.systemFont(ofSize: 12)
         versionLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
         versionLabel.textAlignment = .center
@@ -224,7 +209,7 @@ class MainMenuViewController: UIViewController {
     @objc func newGameTapped() {
         if GameSaveManager.shared.saveExists() {
             showDestructiveConfirmation(
-                title: "⚠️ Start New Game?",
+                title: "Start New Game?",
                 message: "This will overwrite your current saved game. Are you sure?",
                 confirmTitle: "New Game",
                 onConfirm: { [weak self] in
@@ -265,62 +250,16 @@ class MainMenuViewController: UIViewController {
         present(gameVC, animated: true)
     }
 
+    @objc func loadGameTapped() {
+        let loadVC = LoadGameViewController()
+        loadVC.modalPresentationStyle = .fullScreen
+        present(loadVC, animated: true)
+    }
+
     @objc func settingsTapped() {
         let settingsVC = SettingsViewController()
         settingsVC.modalPresentationStyle = .fullScreen
         present(settingsVC, animated: true)
-    }
-
-    @objc func onlineGamesTapped() {
-        guard AuthService.shared.currentUser != nil else {
-            showAlert(title: "Not Signed In", message: "You must be signed in to view online games.")
-            return
-        }
-        let onlineVC = OnlineGamesViewController()
-        onlineVC.modalPresentationStyle = .fullScreen
-        present(onlineVC, animated: true)
-    }
-
-    @objc func cloudSavesTapped() {
-        guard AuthService.shared.currentUser != nil else {
-            showAlert(title: "Not Signed In", message: "You must be signed in to use cloud saves.")
-            return
-        }
-        let cloudVC = CloudSaveViewController()
-        cloudVC.modalPresentationStyle = .fullScreen
-        present(cloudVC, animated: true)
-    }
-
-    @objc func deleteSaveTapped() {
-        guard GameSaveManager.shared.saveExists() else { return }
-
-        showDestructiveConfirmation(
-            title: "🗑️ Delete Save?",
-            message: "This cannot be undone. Are you sure you want to delete your saved game?",
-            confirmTitle: "Delete",
-            onConfirm: { [weak self] in
-                if GameSaveManager.shared.deleteSave() {
-                    self?.updateResumeButton()
-                    self?.showAlert(title: "✅ Deleted", message: "Your saved game has been deleted.")
-                }
-            }
-        )
-    }
-
-    @objc func signOutTapped() {
-        showConfirmation(
-            title: "Sign Out",
-            message: "Are you sure you want to sign out?",
-            confirmTitle: "Sign Out",
-            onConfirm: {
-                do {
-                    try AuthService.shared.signOut()
-                    debugLog("User signed out")
-                } catch {
-                    debugLog("Sign out error: \(error.localizedDescription)")
-                }
-            }
-        )
     }
 
     override var prefersStatusBarHidden: Bool {
